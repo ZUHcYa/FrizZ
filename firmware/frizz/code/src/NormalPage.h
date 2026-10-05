@@ -35,14 +35,14 @@
  *  plays, PLAY and LOOP crossfade in white to show the position, dimmed when paused. The
  *  transport LEDs show the speed in TAPE's colours, or the scrub speed while paused.
  *
- *  Punch-in FX (PunchFx.h) on the white keys: KEY_1 crusher (insert), KEY_14 delay and
- *  KEY_15 reverb (sends, so their tails ring out after release):
+ *  Punch-in FX (PunchFx.h) on the white keys: KEY_1 filter and KEY_2 crusher (inserts),
+ *  KEY_14 delay and KEY_15 reverb (sends, so their tails ring out after release):
  *   - hold the key:          the effect is on while held
  *   - SHIFT + key:           toggles the latch, the effect stays on after release
  *   - key on a latched FX:   clears the latch, the effect stays on until the key is released
  *   - knobs 1-4 (enc 0-3):   the 4 parameters of the most recently pressed FX key, 1% per
- *                            detent; stepped parameters (delay division) move one step per
- *                            kFxDetentsPerStep detents
+ *                            detent; stepped parameters (filter LFO division, delay
+ *                            division) move one step per kFxDetentsPerStep detents
  *   - press knob 2:          delay or reverb selected: toggles its freeze
  *   - SHIFT + knobs 1-4:     nothing (reserved for a second parameter page)
  *  The key LED is dim while its FX is the one the knobs edit and lit while the FX is on; a
@@ -80,20 +80,24 @@ namespace chompi
 
     // Punch-in FX: one entry per FxId (PunchFx.h)
     static const Hardware::SwId kFxKeys[kNumFx] = {
-        Hardware::SwId::KEY_1,  // crusher: 1st white key
+        Hardware::SwId::KEY_1,  // filter: 1st white key
+        Hardware::SwId::KEY_2,  // crusher: 2nd white key
         Hardware::SwId::KEY_14, // delay: 2nd-to-last white key
         Hardware::SwId::KEY_15, // reverb: last white key
     };
-    static const uint8_t kFxKeyLeds[kNumFx] = {24, 11, 10}; // SMT LEDs, TestPage's led_map
+    static const uint8_t kFxKeyLeds[kNumFx] = {24, 23, 11, 10}; // SMT LEDs, TestPage's led_map
     static const uint8_t kFxKnobLeds[kNumFxParams] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
     // Audible from the first press
     static const float kFxDefaults[kNumFx][kNumFxParams] = {
-        {.6f, .5f, 1.f, 1.f},   // crusher: rate, bits, tone, mix
-        {.25f, .4f, .5f, .7f},  // delay: division (1/4), feedback, random (off), level
-        {.6f, .6f, .6f, .7f},   // reverb: decay, tone, diffusion, level
+        {.3f, .5f, 0.f, .6667f}, // filter: cutoff (lowpass), resonance, LFO depth (off),
+                                 // LFO division (1 bar)
+        {.6f, .5f, 1.f, 1.f},    // crusher: rate, bits, tone, mix
+        {.25f, .4f, .5f, .7f},   // delay: division (1/4), feedback, random (off), level
+        {.6f, .6f, .6f, .7f},    // reverb: decay, tone, diffusion, level
     };
     // Number of steps for stepped parameters, 0 = continuous
     static const uint8_t kFxParamSteps[kNumFx][kNumFxParams] = {
+        {0, 0, 0, Filter::kNumLfoDivisions},
         {0, 0, 0, 0},
         {DelaySend::kNumDivisions, 0, 0, 0},
         {0, 0, 0, 0},
@@ -115,11 +119,12 @@ namespace chompi
 
     // Per FxId: knob LED colours for 0 / .5 / 1, and the key LED colour
     static const float* const kFxKnobColors[kNumFx][3] = {
+        {pink, white, med_blue},
         {yellow, orange, red},
         {green, white, med_blue},
         {med_blue, blue, purple},
     };
-    static const float* const kFxKeyColors[kNumFx] = {orange, green, blue};
+    static const float* const kFxKeyColors[kNumFx] = {pink, orange, green, blue};
 
     class NormalPage : public daisy::UiPage
     {

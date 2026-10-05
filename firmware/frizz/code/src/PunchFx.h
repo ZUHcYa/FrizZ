@@ -4,19 +4,20 @@
  *  free knobs.
  *
  *  Two kinds:
- *   - insert (Crusher): replaces the signal while on; only the wet amount is gated.
+ *   - insert (Filter, Crusher): replaces the signal while on; only the wet amount is gated.
  *   - send (DelaySend, ReverbSend): the key gates what goes into the effect, and the effect's
  *     return is added to the signal, so tails ring out after the key is released.
  *  Either way the gate slews over ~5ms so punching in and out doesn't click, and effects
  *  process every sample even while off, so engaging one never starts from stale state.
  *
  *  The engine runs them on the summed output, after the dry/wet mix and before the output
- *  gain and master compressor: crusher first, then both sends in parallel from its output
- *  (see passthroughEngine.h).
+ *  gain and master compressor: filter, then crusher, then both sends in parallel from the
+ *  crusher's output (see passthroughEngine.h).
  */
 #pragma once
 #include "daisy.h"
 #include "daisysp.h"
+#include "DJFilter.h"
 #include "granularDelay.h"
 #include "reverb.h"
 
@@ -29,6 +30,7 @@ static const size_t kNumFxParams = 4;
 
 enum FxId
 {
+    FX_FILTER,
     FX_CRUSHER,
     FX_DELAY,
     FX_REVERB,
@@ -38,7 +40,119 @@ enum FxId
 // ~5ms at 48kHz
 static const float kFxGateCoeff = .004f;
 
-/** KEY_1: TEMPO's sample-rate reducer, plus bit-depth reduction, a tone control and mix.
+// The filter LFO's cycle in 12 PPQN pulses: 1/16, 1/8, 1/4, 1/2, 1 bar, 2 bars, 4 bars
+static const uint32_t kLfoDivisionPulses[] = {3, 6, 12, 24, 48, 96, 192};
+
+/** KEY_1: the DJ filter shared by TAPE, TEMPO and WAVE (DJFilter.h, WAVE's copy): lowpass
+ *  below the centre of the cutoff knob, highpass above, flat in the middle. Plus a triangle
+ *  LFO on the cutoff, like WAVE's filter LFO but locked to the delay's tempo clock
+ *  (TempoClock.h).
+ *  Params: 0 cutoff, 1 resonance, 2 LFO depth, 3 LFO division (kNumLfoDivisions steps). */
+class Filter
+{
+public:
+    enum Param
+    {
+        CUTOFF,
+        RESONANCE,
+        LFO_DEPTH,
+        LFO_DIVISION,
+    };
+
+    static const size_t kNumLfoDivisions = 7;
+    static const uint32_t kLfoCyclePulses = 192; // 4 bars, a multiple of every division
+
+    void Init(float sample_rate)
+    {
+        sample_rate_ = sample_rate;
+        filter_.Init(sample_rate);
+        filter_.SetSlew(1.f); // the cutoff is slewed here, so the LFO isn't smoothed away
+        gate_ = gate_target_ = 0.f;
+        tempo_ = 120;
+        lfo_pulses_ = 0;
+        lfo_frac_ = 0.f;
+        lfo_div_pulses_ = 48;
+
+        for (size_t i = 0; i < kNumFxParams; i++)
+            SetParam(i, 0.f);
+        cutoff_ = cutoff_target_;
+        depth_ = depth_target_;
+    }
+
+    /** Once per block: the tempo, plus one call per clock pulse (12 PPQN) in this block */
+    void SetTempo(int bpm) { tempo_ = bpm; }
+    void ClockPulse()
+    {
+        // counting over 4 bars keeps the LFO on the beat grid whichever division is picked
+        lfo_pulses_ = (lfo_pulses_ + 1) % kLfoCyclePulses;
+        lfo_frac_ = 0.f;
+    }
+
+    void Process(float* l, float* r)
+    {
+        fonepole(gate_, gate_target_, kFxGateCoeff);
+        fonepole(cutoff_, cutoff_target_, .001f);
+        fonepole(depth_, depth_target_, .001f);
+
+        // move smoothly between pulses at the tempo, but wait at the next pulse rather than
+        // run past it, so a late MIDI clock tick doesn't make the phase jump back
+        lfo_frac_ += static_cast<float>(tempo_) * 12.f / (60.f * sample_rate_);
+        if (lfo_frac_ > .999f)
+            lfo_frac_ = .999f;
+        const float pos = static_cast<float>(lfo_pulses_ % lfo_div_pulses_) + lfo_frac_;
+        float phase = pos / static_cast<float>(lfo_div_pulses_) + .25f;
+        if (phase >= 1.f)
+            phase -= 1.f;
+        // triangle: 0 on the beat, up to +1 (towards highpass) a quarter cycle later
+        const float tri = 1.f - 4.f * fabsf(phase - .5f);
+
+        // full depth sweeps +/-.5, the whole knob range from the centre
+        filter_.SetControl(fclamp(cutoff_ + depth_ * .5f * tri, 0.f, 1.f));
+
+        float fl, fr;
+        filter_.Process(*l, *r, &fl, &fr);
+
+        *l += gate_ * (fl - *l);
+        *r += gate_ * (fr - *r);
+    }
+
+    inline void SetOn(bool on) { gate_target_ = on ? 1.f : 0.f; }
+
+    void SetParam(size_t param, float val)
+    {
+        switch (param)
+        {
+        case CUTOFF:
+            cutoff_target_ = val;
+            break;
+        case RESONANCE:
+            // WAVE's master resonance: the full range, limited just below 1
+            filter_.SetRes(fclamp(val, 0.f, .99f));
+            break;
+        case LFO_DEPTH:
+            depth_target_ = val;
+            break;
+        case LFO_DIVISION:
+            lfo_div_pulses_ = kLfoDivisionPulses[static_cast<size_t>(val * (kNumLfoDivisions - 1) + .5f)];
+            break;
+        default:
+            break;
+        }
+    }
+
+private:
+    float sample_rate_;
+    DjFilter filter_;
+    float gate_, gate_target_;
+    float cutoff_, cutoff_target_;
+    float depth_, depth_target_;
+    int tempo_;
+    uint32_t lfo_pulses_;     // pulses counted, mod kLfoCyclePulses
+    float lfo_frac_;          // progress towards the next pulse
+    uint32_t lfo_div_pulses_; // pulses per LFO cycle
+};
+
+/** KEY_2: TEMPO's sample-rate reducer, plus bit-depth reduction, a tone control and mix.
  *  Params: 0 rate, 1 bits, 2 tone, 3 mix. */
 class Crusher
 {

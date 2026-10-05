@@ -1,7 +1,8 @@
 /** @file passthroughEngine.h
  *  @brief Audio engine: the stereo AUX input goes to both outputs through the Volume
  *  Engine: input gain -> dry/wet mix -> punch-in FX -> output gain -> master compressor.
- *  The punch-in FX are the crusher (insert), then the delay and reverb sends in parallel.
+ *  The punch-in FX are the filter and the crusher (inserts), then the delay and reverb sends
+ *  in parallel.
  *
  *  Dry is the input on its own, wet is the looper's playback on its own. The looper
  *  records the dry signal (see Looper.h).
@@ -38,6 +39,7 @@ public:
     {
         looper.Init(loop_mem, midi_clock);
         tempo_clock_.Init(sample_rate, midi_clock);
+        filter_.Init(sample_rate);
         crusher_.Init(sample_rate);
         delay_.Init(delay_mem, delay_frozen_mem, delay_frames);
         reverb_.Init(sample_rate, reverb);
@@ -71,11 +73,15 @@ public:
 
         looper.Process(dryl, dryr, wetl, wetr, size);
 
-        // the delay's tempo and clock, once per block
+        // the delay's and the filter LFO's tempo and clock, once per block
         const uint32_t pulses = tempo_clock_.Process(size);
         delay_.SetTempo(tempo_clock_.GetTempo());
+        filter_.SetTempo(tempo_clock_.GetTempo());
         for (uint32_t p = 0; p < pulses; p++)
+        {
             delay_.ClockPulse(tempo_clock_.Pulse());
+            filter_.ClockPulse();
+        }
 
         for (size_t i = 0; i < size; i++)
         {
@@ -91,6 +97,7 @@ public:
 
             // punch-in FX, on the mix so they work on the input, the loop or both, and
             // before the output gain so they don't change with the VOLUME knob
+            filter_.Process(&sigl, &sigr);
             crusher_.Process(&sigl, &sigr);
 
             // sends, in parallel from the crusher's output, their returns added on top
@@ -129,6 +136,7 @@ public:
     {
         switch (fx)
         {
+        case chompi::FX_FILTER:  filter_.SetOn(on); break;
         case chompi::FX_CRUSHER: crusher_.SetOn(on); break;
         case chompi::FX_DELAY:   delay_.SetOn(on); break;
         case chompi::FX_REVERB:  reverb_.SetOn(on); break;
@@ -139,6 +147,7 @@ public:
     {
         switch (fx)
         {
+        case chompi::FX_FILTER:  filter_.SetParam(param, val); break;
         case chompi::FX_CRUSHER: crusher_.SetParam(param, val); break;
         case chompi::FX_DELAY:   delay_.SetParam(param, val); break;
         case chompi::FX_REVERB:  reverb_.SetParam(param, val); break;
@@ -172,6 +181,7 @@ private:
     chompi::Limiter lim_hp_l_, lim_hp_r_, lim_line_l_, lim_line_r_;
     chompi::EnvFollower output_env_follower;
     chompi::TempoClock tempo_clock_;
+    chompi::Filter filter_;
     chompi::Crusher crusher_;
     chompi::DelaySend delay_;
     chompi::ReverbSend reverb_;

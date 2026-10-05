@@ -63,6 +63,7 @@ FRIZZ's punch-in FX (`frizz/code/src/PunchFx.h`; controls in `frizz/README.md`):
 
 | Key | FRIZZ effect | Taken from |
 |---|---|---|
-| 1st white | Crusher (insert): rate, bits, tone, mix | TEMPO's sample-rate reducer, plus FRIZZ's own bit quantizer and tone lowpass |
+| 1st white | DJ filter (insert): cutoff, resonance, LFO depth, LFO division | WAVE's `DJFilter.h` + `BasicMMF.h`; the triangle LFO follows WAVE's filter LFO but is synced by `TempoClock.h` |
+| 2nd white | Crusher (insert): rate, bits, tone, mix | TEMPO's sample-rate reducer, plus FRIZZ's own bit quantizer and tone lowpass |
 | 2nd-to-last white | Delay (send): division, feedback, random, level; freeze | TEMPO's `granularDelay.h`, clocked by FRIZZ's `TempoClock.h` from MIDI clock |
 | Last white | Reverb (send): decay, tone, diffusion, level; freeze | TEMPO's `reverb.h` + `fx_engine.h` |

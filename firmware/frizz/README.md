@@ -58,7 +58,8 @@ Effects sit on the white keys and act on the whole mix, after the dry/wet knob a
 output gain and the master compressor. The looper records the dry input, so an effect is never
 printed into a loop.
 
-- **Insert** (crusher): replaces the signal while on and stops the moment it's off.
+- **Inserts** (filter, crusher): replace the signal while on and stop the moment they're off.
+  The filter comes first, then the crusher.
 - **Sends** (delay, reverb): the key opens the effect's input, and its output is added to the
   signal, so tails ring out after the key is released. The two sends run in parallel, both fed
   from the crusher's output.
@@ -68,7 +69,7 @@ printed into a loop.
 | Hold an FX key | Effect on while held |
 | SHIFT + FX key | Latch on / off; a latched effect stays on after release |
 | FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
-| Knobs 1-4 | The 4 parameters of the most recently pressed FX key, 1% per detent; the delay's division moves one step per 3 detents |
+| Knobs 1-4 | The 4 parameters of the most recently pressed FX key, 1% per detent; the filter LFO's and the delay's divisions move one step per 3 detents |
 | Press knob 2, delay or reverb selected | Freeze on / off; the key and knob 2 light white while frozen |
 
 The FX key is dim while the knobs edit its effect and lit while it is on. The knob LEDs show
@@ -76,9 +77,18 @@ the parameter values in the effect's colours. Values reset at power-off.
 
 | Key | Effect | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|---|
-| 1st white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz (default 60%) | Bits, 16 down to 2 (default 50%, 9 bits) | Tone, lowpass 200 Hz to open (default open) | Mix (default 100%) |
+| 1st white | Filter: the DJ filter from TAPE, TEMPO and WAVE (WAVE's copy) | Cutoff: lowpass left of centre, highpass right, flat at centre (default 30%, lowpass) | Resonance (default 50%) | LFO depth (default off) | LFO division: 1/16, 1/8, 1/4, 1/2, 1 bar, 2 bars, 4 bars (default 1 bar) |
+| 2nd white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz (default 60%) | Bits, 16 down to 2 (default 50%, 9 bits) | Tone, lowpass 200 Hz to open (default open) | Mix (default 100%) |
 | 2nd-to-last white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 70%) |
 | Last white | Reverb (TEMPO's / WAVE's); freeze holds the tail forever and shuts out new input | Decay (default 60%) | Tone, dark to open (default 60%) | Diffusion (default 60%) | Level (default 70%) |
+
+Filter details:
+- **LFO:** a triangle on the cutoff, like WAVE's filter LFO but synced to the same tempo as
+  the delay. At full depth it sweeps half the cutoff knob either way, so from the centre it
+  goes all the way from lowpass to highpass. It's at the centre of the cutoff on the beat and
+  rises towards highpass first. Like the delay's events, the beat is counted from when the
+  clock locked, not from the DAW's beat 1.
+- LEDs: the key is pink; the knobs go pink (0%) through white to light blue (100%).
 
 Delay details:
 - **Tempo:** follows MIDI clock, rounded to whole BPM. Without clock it keeps the last tempo
@@ -108,10 +118,11 @@ hardware self-test.
 ```
 chompi_main.cpp        entry point: audio callback, main loop, boot sequence
 passthroughEngine.h    the engine: input gain, dry/wet mix, punch-in FX, output gain, master compressor
-PunchFx.h              the punch-in effects: crusher, delay send, reverb send
+PunchFx.h              the punch-in effects: filter, crusher, delay send, reverb send
+DJFilter.h, BasicMMF.h WAVE's DJ filter
 granularDelay.h        TEMPO's tempo-synced delay (SimpleCrossfade.h: its crossfades)
 reverb.h, fx_engine.h  TEMPO's reverb
-TempoClock.h           the delay's tempo and 12 PPQN pulses, from MIDI clock or internal
+TempoClock.h           the delay's and filter LFO's tempo and 12 PPQN pulses, from MIDI clock or internal
 Looper.h               the looper: recording, quantized end, playback, speed, scrub
 MidiClock.h            MIDI clock input over TRS and USB
 NormalPage.h           the controls (VOLUME, PLAY/LOOP, transport, FX keys and knobs) and their LEDs
