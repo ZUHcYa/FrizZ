@@ -10,11 +10,15 @@
  *  Pressing again on page 3 goes back to page 1.
  *
  *  SHIFT is the CHOMPI key held with the mode switch DOWN.
+ *
+ *  TEMPORARY (looper step 1, remove in step 5): the transport LEDs flash on every MIDI
+ *  clock beat, green for TRS and blue for USB, brighter every 4th beat.
  */
 #pragma once
 
 #include "hardware.h"
 #include "passthroughEngine.h"
+#include "MidiClock.h"
 #include "temp_led_stuff.h"
 
 namespace chompi
@@ -30,6 +34,9 @@ namespace chompi
 
     static const uint8_t kVolumeLed = 9;
     static const uint8_t kChompiKeyLed = 0;
+    static const uint8_t kTransportLedL = 5;
+    static const uint8_t kTransportLedR = 6;
+    static const uint32_t kBeatFlashMs = 50;
 
     static const float white[3] = {1.f, 1.f, 1.f};
     static const float red[3] = {1.f, 0.f, 0.f};
@@ -46,10 +53,11 @@ namespace chompi
         uint32_t init_time;
         bool init_ignore = true;
 
-        void Init(PassthroughEngine *engine, Hardware *hw)
+        void Init(PassthroughEngine *engine, Hardware *hw, MidiClock *midi_clock)
         {
             hw_ = hw;
             engine_ = engine;
+            midi_clock_ = midi_clock;
 
             out_gain_ = kDefaultOutGain;
             in_gain_ = kDefaultInGain;
@@ -136,6 +144,25 @@ namespace chompi
             }
             SetPthLedFloat(kVolumeLed, r, g, b);
 
+            // TEMPORARY beat indicator, see the file comment
+            if (midi_clock_->HasClock())
+            {
+                const uint32_t beat = midi_clock_->GetTicks() / kTicksPerBeat;
+                if (beat != last_beat_)
+                {
+                    last_beat_ = beat;
+                    beat_flash_ = now;
+                    downbeat_ = beat % 4 == 0;
+                }
+            }
+            if (now - beat_flash_ < kBeatFlashMs)
+            {
+                const float* color = midi_clock_->GetSource() == MidiClock::Source::USB ? &blue[0] : &green[0];
+                const float level = downbeat_ ? 1.f : .25f;
+                SetPthLedFloat(kTransportLedL, color[0] * level, color[1] * level, color[2] * level);
+                SetPthLedFloat(kTransportLedR, color[0] * level, color[1] * level, color[2] * level);
+            }
+
             // CHOMPI key lights white while it is acting as SHIFT
             r = g = b = Shift() ? 1.f : 0.f;
             SetPthLedFloat(kChompiKeyLed, r, g, b);
@@ -219,6 +246,11 @@ namespace chompi
 
         Hardware *hw_;
         PassthroughEngine *engine_;
+        MidiClock *midi_clock_;
+
+        uint32_t last_beat_ = 0;
+        uint32_t beat_flash_ = 0;
+        bool downbeat_ = false;
 
         float out_gain_;
         float in_gain_;

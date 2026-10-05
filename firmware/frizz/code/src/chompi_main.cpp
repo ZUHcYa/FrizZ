@@ -4,7 +4,8 @@
  *  CHOMPI (built on the Daisy Seed / STM32H7) has two places code runs, in
  *  order of priority:
  *   1. AudioCallback() - the audio ISR. Runs once per audio block (~24 samples
- *      at 48kHz here). Polls the controls and passes the AUX input through the engine.
+ *      at 48kHz here). Polls the controls and MIDI clock, and passes the AUX input
+ *      through the engine.
  *   2. MainLoop() - Lowest priority, handles UI dispatch, battery checks and boot-time stuff.
  */
 #include "hardware.h"
@@ -13,6 +14,7 @@
 #include "daisysp.h"
 #include "fatfs.h"
 #include "passthroughEngine.h"
+#include "MidiClock.h"
 
 using namespace daisy;
 using namespace chompi;
@@ -27,6 +29,10 @@ UserInterface ui;
 SdmmcHandler sdmmc;
 FatFSInterface fsi;
 PassthroughEngine engine;
+MidiClock midi_clock;
+
+// Running count of audio samples since audio started, the time base for MIDI clock ticks
+uint32_t sample_clock = 0;
 
 daisysp::Oscillator osc;
 
@@ -51,6 +57,9 @@ bool loading_screen = true;
 // The audio ISR. Called by the Daisy audio driver once per block
 void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, size_t size)
 {
+    midi_clock.Process(sample_clock);
+    sample_clock += size;
+
     hw.ProcessAllControls();
     ui.GenerateEvents();
 
@@ -142,6 +151,8 @@ int main(void)
 {
     hw.Init();
 
+    midi_clock.Init(hw.seed.AudioSampleRate());
+
     hw.MpWrite(0x0c, 0B01010001); // set BATT_LOW to 3V, turn on
 
     hw.MpReadAll();
@@ -166,7 +177,7 @@ int main(void)
     engine.Init(hw.seed.AudioSampleRate());
 
     LedSetup();
-    ui.Init(&engine, &hw);
+    ui.Init(&engine, &hw, &midi_clock);
 
     osc.Init(hw.seed.AudioSampleRate());
     osc.SetAmp(.2f);

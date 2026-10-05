@@ -121,6 +121,17 @@ period **T** in samples (averaged over the recording), and close the loop at exa
 `96 · N · T` samples after the press. The audio block size is 24 samples (0.5 ms), which bounds
 the error.
 
+Notes for implementing this against `MidiClock.h`:
+- **T is the tick span over the recording:** (last tick time − first tick time after the press)
+  ÷ (ticks − 1), snapshotted by the looper. Don't use `GetTickPeriod()` for the loop length.
+  Its smoothing only weights the last ~10 ticks and lags drift; it's for display.
+- **The start and end are timestamped in the engine, not the UI.** `OnButton` runs from
+  `MainLoop`, which isn't sample-aligned. The engine records `sample_clock` in the block where
+  writing actually starts, so `sample_clock` has to be passed into `engine.Process`.
+- **N = floor(elapsed samples ÷ (96 · T)) + 1 at the end press,** not the raw tick count. A press
+  exactly on a bar line counts as the start of the next bar (strict rule), and this avoids an
+  off-by-one when the press lands on a bar-line tick.
+
 ### 2.3 Steps
 
 1. **MIDI clock in.**
