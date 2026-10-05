@@ -1,0 +1,140 @@
+# FRIZZ looper: spec and implementation plan
+
+Status: agreed spec, not implemented yet. The looper feeds the **wet** side of the dry/wet
+mix (SHIFT + VOLUME), which is silent today (`TODO(frizz)` in `passthroughEngine.h`).
+
+Behaviour follows the CHOMPI TAPE 2.0 guidebook, Level 04 (Looper Engine), with the
+deviations listed below. Where this document and the guidebook disagree, this document wins.
+
+---
+
+## 1. Spec
+
+### 1.1 What gets recorded
+
+- The AUX input **after input gain** (the same signal as the dry side of the mix), in stereo.
+- One loop, held in SDRAM. Max length **2:45** (TAPE's `kMaxRamBuffSize`). Wiped at power-off.
+  Nothing is written to the SD card.
+- What you hear while recording is up to the dry/wet knob: fully wet means you hear nothing
+  until playback starts.
+
+### 1.2 Keys
+
+`PLAY` = PLAY/PAUSE key (`KEY_27`), `LOOP` = LOOP key (`KEY_28`).
+
+| State | Action | Result |
+|---|---|---|
+| Empty | `LOOP` | Start **unquantized** recording immediately |
+| Empty | hold `PLAY`, press `LOOP` | Start **quantized** recording immediately (needs MIDI clock, see 1.3) |
+| Empty, no clock | hold `PLAY`, press `LOOP` | **Refused**: LOOP LED blinks red, nothing recorded |
+| Recording (unquantized) | `LOOP` | Stop recording now. The loop is exactly what was recorded. Playback starts seamlessly |
+| Recording (quantized) | `LOOP` | Keep recording to the end of the current bar, then close the loop. Playback starts seamlessly at that bar line |
+| Loop exists | `PLAY` | Toggle play / pause |
+| Loop exists | `LOOP` | Nothing (no overdub). Erase first to record a new loop |
+| Loop exists | hold `PLAY` + `LOOP` 2 s | **Erase**. LEDs above both keys go dark |
+
+Not implemented, on purpose: overdub, overdub decay, re-recording over an existing loop,
+TAPE's monitor-routing modes.
+
+### 1.3 Quantized recording
+
+- 4/4 fixed. One bar = **96 MIDI clock ticks** (24 PPQN).
+- **The start is not quantized.** The press that starts recording is the downbeat of bar 1.
+  MIDI Start / Stop / Song Position are ignored.
+- **The end is quantized, strictly.** Pressing `LOOP` records to the end of the bar in progress.
+  There's no grace window: a press one tick after a bar line records almost a full extra bar.
+- The loop is always a whole number of bars, minimum 1.
+- **"No clock"** means no tick received in the last 0.5 s. Quantized recording is refused then.
+- The clock matters **only while a quantized recording is running.** After that the loop
+  free-runs and ignores the incoming tempo.
+- **Clock stops mid-recording** (no tick for 0.5 s, e.g. the DAW is stopped before the bar
+  ends): the loop closes immediately at the current position, as if unquantized.
+
+### 1.3a Reaching the 2:45 limit
+
+- **Unquantized:** the loop closes at 2:45 and playback starts (TAPE's behaviour).
+- **Quantized:** the loop is cut back to the last complete bar and playback starts.
+
+### 1.4 MIDI clock input
+
+- Sources: **TRS** (UART) and **USB** (device mode, same USB-C port as charging).
+- **Lock to the first source that ticks.** Ticks from the other source are ignored until the
+  locked source has been silent for 0.5 s, then whichever ticks next takes over.
+- Only clock ticks are used. Notes, CCs, Start/Stop/SPP are ignored. MIDI out is not needed.
+
+USB-MIDI implications (already shipped in WAVE/TAPE/TEMPO, so low risk):
+- CHOMPI is a USB *device*. It works with a computer/DAW or gear with a USB *host* port; a
+  synth that is itself a USB device can't send clock to it over USB (use TRS).
+- USB delivers in 1 ms frames, so ticks jitter by up to 1 ms. Fine at any sane tempo.
+
+### 1.5 Transport knob (encoder 5, the big purple one)
+
+Same as TAPE's quantized looper pitch (`SetLooperPitchQuantized` in TAPE's `DSPEngine.h`):
+
+- **Turn while playing:** speed in **steps of 5ths and octaves**, alternating ×1.5 / ×1.335
+  so every second step is an octave. 4 detents per step. Pitch changes with speed, like tape.
+  - Range: up to **2×**. Down to about **1/16×**, then flips into **reverse** and climbs the same
+    ladder to **−2×**.
+- **Press:** reset to 1× forward.
+- **Turn while paused:** scrub through the loop.
+- **SHIFT + turn:** nothing.
+- No loop: the knob does nothing.
+
+### 1.6 LEDs
+
+| LED | State | Look |
+|---|---|---|
+| LOOP key | recording | red |
+| LOOP key | quantized, `LOOP` pressed, waiting for bar end | red, blinking |
+| LOOP key | quantized refused (no clock) | 3 fast red blinks |
+| PLAY + LOOP keys | playing | white, crossfading PLAY → LOOP to show the position in the loop (as TAPE) |
+| PLAY + LOOP keys | paused | dim white at the current position |
+| PLAY + LOOP keys | empty / just erased | off |
+| Transport (PTH 5/6) | loop exists | TAPE's speed colours: blue above 1×, red towards stop; LED 5 vs 6 shows direction |
+| Transport (PTH 5/6) | empty | off |
+
+---
+
+## 2. Implementation plan
+
+### 2.1 Reuse vs write new
+
+TAPE's `LooperEngine.h` sits on `FileSampler` (`Sampler.h`, 373 lines), which is built for
+WAV-file playback, overdub and tape slew. Most of that we don't want. Plan:
+
+- **Copy** `RamBuffer.h` from TAPE (stereo int16 buffer in SDRAM, `kMaxRamBuffSize`).
+- **Copy** the 5ths/octaves stepping logic from TAPE's `SetLooperPitchQuantized`.
+- **Write new** `Looper.h` (~200 lines): record, play/pause, erase, a fractional read head
+  for varispeed and reverse (linear or Hermite interpolation), scrub, and a short
+  crossfade at the loop point so it doesn't click.
+- **Write new** `MidiClock.h`: UART + USB MIDI init (from WAVE's `MidiManager.h`), clock tick
+  handling (as in TEMPO's `MidiManager.h`), source lock and timeout.
+
+### 2.2 Timing detail: making the loop exactly N bars long
+
+A press lands somewhere *between* two ticks. Simply stopping on the 96·N-th tick after the press
+would make the loop up to one tick (~21 ms at 120 BPM) too short or too long, so it would slip
+against the beat on every repeat.
+
+Fix: count ticks to find **N** (the bar in progress when `LOOP` is pressed), measure the tick
+period **T** in samples (averaged over the recording), and close the loop at exactly
+`96 · N · T` samples after the press. The audio block size is 24 samples (0.5 ms), which bounds
+the error.
+
+### 2.3 Steps
+
+1. **MIDI clock in.**
+   - Re-add MIDI UART + USB init and polling (from WAVE).
+   - Add tick counting, source lock, 0.5 s timeout and tick-period averaging.
+   - Poll from the audio callback, as WAVE did.
+2. **Looper core.**
+   - Add `RamBuffer` in SDRAM (`DSY_SDRAM_BSS`) and restore `ZeroSDRAM()` at boot.
+   - Record and play at 1×, with the loop-point crossfade.
+   - Wire its output into `wetl`/`wetr` in `passthroughEngine.h`.
+3. **Keys.** PLAY/LOOP state machine per 1.2, including the quantized end and the 2 s erase.
+4. **Transport.** Stepped varispeed, reverse, press-to-reset, scrub when paused.
+5. **LEDs** per 1.6.
+6. **Docs.** Update `README.md` (controls table, file map) and mark this document implemented.
+
+Verification per step: build with GCC 10.3, check the memory table, then test on hardware:
+loop length against a DAW's clock, no clicks at the loop point, source switching TRS ↔ USB.
