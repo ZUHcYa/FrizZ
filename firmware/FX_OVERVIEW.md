@@ -67,5 +67,7 @@ FRIZZ's punch-in FX (`frizz/code/src/PunchFx.h` and `FxWizard.h`; controls in `f
 | 2nd white | Crusher (insert): rate, bits, tone | TEMPO's sample-rate reducer, plus FRIZZ's own bit quantizer and tone lowpass |
 | 3rd white | Freezer (insert): length, feedback, stereo, pitch | Bastl Instruments' Kastle 2 FX Wizard freezer (MIT), in `FxWizard.h` |
 | 4th white | Slicer (insert): pattern, decay, chance, stereo | Bastl Instruments' Kastle 2 FX Wizard slicer (MIT), in `FxWizard.h` |
+| 5th white | Flanger (insert): rate, amount, feedback, stereo | Bastl Instruments' Kastle 2 FX Wizard flanger (MIT), in `FxWizard.h` |
+| 6th white | Shifter (insert): shift, swoop, feedback, stereo | Bastl Instruments' Kastle 2 FX Wizard shifter (MIT), in `FxWizard.h` |
 | 2nd-to-last white | Delay (send): division, feedback, random, level | TEMPO's `granularDelay.h`, clocked by FRIZZ's `TempoClock.h` from MIDI clock |
 | Last white | Reverb (send): decay, tone, diffusion, level | TEMPO's `reverb.h` + `fx_engine.h` |

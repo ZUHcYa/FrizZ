@@ -58,9 +58,9 @@ Effects sit on the white keys and act on the whole mix, after the dry/wet knob a
 output gain and the master compressor. The looper records the dry input, so an effect is never
 printed into a loop.
 
-- **Inserts** (freezer, slicer, filter, crusher): replace the signal while on and stop the
-  moment they're off. They run in that order, so the filter and crusher work on the repeats
-  and slices.
+- **Inserts** (freezer, slicer, flanger, shifter, filter, crusher): replace the signal while
+  on and stop the moment they're off. They run in that order, so the filter and crusher work
+  on the repeats, slices and modulation.
 - **Sends** (delay, reverb): the key opens the effect's input, and its output is added to the
   signal, so tails ring out after the key is released. The two sends run in parallel, both fed
   from the crusher's output.
@@ -85,6 +85,8 @@ colours; a knob the effect doesn't use is dark and does nothing. Values reset at
 | 2nd white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz (default 60%) | Bits, 16 down to 2 (default 50%, 9 bits) | Tone, lowpass 200 Hz to open (default open) | (unused; always fully wet) |
 | 3rd white | Freezer: Kastle 2 FX Wizard's, as a beat repeat | Length: 1/16, 1/8T, 1/8, 1/4T, 1/4, 1/2T, 1/2, 1 bar (default 1/8) | Feedback: the input overdubbed into the repeats (default 0, pure repeat) | Stereo: the left loop up to 45 ms longer (default off) | Pitch: short pitched loops, 50 Hz up to 290 Hz, replacing the length (default off) |
 | 4th white | Slicer: Kastle 2 FX Wizard's rhythmic gate | Pattern, 8 steps of 16ths: `x.......`, `x...x...`, `..x...x.`, `x....x..`, `x..x..x.`, `x.x.x.x.`, `x.x.xx..`, `xxxxxxxx` (default `x..x..x.`) | Decay, 10 ms to 1 s (default 100 ms) | Chance: each step flipped at random, up to 90% (default off) | Stereo: the left channel plays a pattern up the list, the right one down, 0-7 apart (default off) |
+| 5th white | Flanger: Kastle 2 FX Wizard's | Rate, 0.02 Hz to 50 Hz (default 0.55 Hz) | Amount: sweep depth and mix together, the top is pure vibrato (default 50%) | Feedback, up to 85% (default 50%) | Stereo: the right LFO runs free and detuned (default off) |
+| 6th white | Shifter: Kastle 2 FX Wizard's delay-line pitch shifter | Shift: right of centre up, left down, centre off; further out shifts more, then buzzes (default 70%, about +6 semitones) | Swoop: on the key press, the shift jumps and falls back over 1 s (default off) | Feedback: the shifted sound spirals (default off) | Stereo: the right channel up to 20 Hz faster (default off) |
 | 2nd-to-last white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 70%) |
 | Last white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Tone, dark to open (default 60%) | Diffusion (default 60%) | Level (default 70%) |
 
@@ -116,6 +118,26 @@ Slicer details:
   triggers it, so the signal doesn't drop out until the next step.
 - LEDs: the key is yellow; the knobs go yellow through white to green.
 
+Flanger details:
+- A ~12 ms delay swept up to its full length either way by a triangle LFO. Like Kastle's
+  Amount, one knob sets both the depth and the mix: around the middle it flanges and
+  chorus-sweeps, at the top it's all delayed signal, a vibrato.
+- Pressing the key restarts the sweep from the centre (Kastle's trigger input).
+- **Feedback** goes through the swept delay, a classic flanger's resonance. Kastle's FEEDBACK
+  is a short comb around every mode, at most 8% on the flanger, so this one is stronger.
+- LEDs: the key is light blue; the knobs go light blue through white to purple.
+
+Shifter details:
+- An LFO sweeps one delay tap across 11.6 ms as a ramp, fading out and in around each wrap.
+  Near the centre that's a slight detune, further out a pitch shift of several semitones,
+  and towards the ends the fades turn it into a buzzing, ring-mod-like tone (up to 100 Hz
+  down, 260 Hz up, as on Kastle).
+- **Swoop** is Kastle's trigger envelope on the sweep rate: 0.1 s up, 1 s back, up to 8x
+  down and 20x up. Kastle tied its depth to TIME; here it has its own knob.
+- **Feedback** sends the shifted output back into the delay, so each pass shifts again
+  (Kastle: its comb around every mode).
+- LEDs: the key is red; the shift knob goes blue (down) through white (off) to red (up).
+
 Delay details:
 - **Tempo:** follows MIDI clock, rounded to whole BPM. Without clock it keeps the last tempo
   (120 BPM until a clock arrives). Limited to 50-300 BPM so 2 bars fit the 10 s buffer.
@@ -143,7 +165,7 @@ hardware self-test.
 chompi_main.cpp        entry point: audio callback, main loop, boot sequence
 passthroughEngine.h    the engine: input gain, dry/wet mix, punch-in FX, output gain, master compressor
 PunchFx.h              the punch-in effects: filter, crusher, delay send, reverb send
-FxWizard.h             the freezer and slicer, ported from Bastl's Kastle 2 FX Wizard (MIT)
+FxWizard.h             the freezer, slicer, flanger and shifter, ported from Bastl's Kastle 2 FX Wizard (MIT)
 DJFilter.h, BasicMMF.h WAVE's DJ filter
 granularDelay.h        TEMPO's tempo-synced delay (SimpleCrossfade.h: its crossfades)
 reverb.h, fx_engine.h  TEMPO's reverb

@@ -1,8 +1,8 @@
 /** @file passthroughEngine.h
  *  @brief Audio engine: the stereo AUX input goes to both outputs through the Volume
  *  Engine: input gain -> dry/wet mix -> punch-in FX -> output gain -> master compressor.
- *  The punch-in FX are the freezer, slicer, filter and crusher (inserts, in that order), then
- *  the delay and reverb sends in parallel.
+ *  The punch-in FX are the freezer, slicer, flanger, shifter, filter and crusher (inserts, in
+ *  that order), then the delay and reverb sends in parallel.
  *
  *  Dry is the input on its own, wet is the looper's playback on its own. The looper
  *  records the dry signal (see Looper.h).
@@ -49,6 +49,8 @@ public:
         reverb_.Init(sample_rate, reverb);
         freezer_.Init(sample_rate, freezer_mem_l, freezer_mem_r, freezer_frames);
         slicer_.Init(sample_rate);
+        flanger_.Init(sample_rate);
+        shifter_.Init(sample_rate);
 
         dcblock_line_in_l_.Init(sample_rate);
         dcblock_line_in_r_.Init(sample_rate);
@@ -113,6 +115,10 @@ public:
             fx_env_[chompi::FX_FREEZER].Process((sigl + sigr) * kFxMeterScale);
             slicer_.Process(&sigl, &sigr);
             fx_env_[chompi::FX_SLICER].Process((sigl + sigr) * kFxMeterScale);
+            flanger_.Process(&sigl, &sigr);
+            fx_env_[chompi::FX_FLANGER].Process((sigl + sigr) * kFxMeterScale);
+            shifter_.Process(&sigl, &sigr);
+            fx_env_[chompi::FX_SHIFTER].Process((sigl + sigr) * kFxMeterScale);
             filter_.Process(&sigl, &sigr);
             fx_env_[chompi::FX_FILTER].Process((sigl + sigr) * kFxMeterScale);
             crusher_.Process(&sigl, &sigr);
@@ -164,6 +170,8 @@ public:
         case chompi::FX_REVERB:  reverb_.SetOn(on); break;
         case chompi::FX_FREEZER: freezer_.SetOn(on); break;
         case chompi::FX_SLICER:  slicer_.SetOn(on); break;
+        case chompi::FX_FLANGER: flanger_.SetOn(on); break;
+        case chompi::FX_SHIFTER: shifter_.SetOn(on); break;
         default: break;
         }
     }
@@ -177,6 +185,8 @@ public:
         case chompi::FX_REVERB:  reverb_.SetParam(param, val); break;
         case chompi::FX_FREEZER: freezer_.SetParam(param, val); break;
         case chompi::FX_SLICER:  slicer_.SetParam(param, val); break;
+        case chompi::FX_FLANGER: flanger_.SetParam(param, val); break;
+        case chompi::FX_SHIFTER: shifter_.SetParam(param, val); break;
         default: break;
         }
     }
@@ -199,6 +209,8 @@ private:
     chompi::ReverbSend reverb_;
     chompi::Freezer freezer_;
     chompi::Slicer slicer_;
+    chompi::Flanger flanger_;
+    chompi::Shifter shifter_;
     float mgain_, mgain_target_;
     float ingain_, ingain_target_;
     float final_lim_, final_lim_target_;

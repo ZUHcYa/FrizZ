@@ -36,8 +36,8 @@
  *  transport LEDs show the speed in TAPE's colours, or the scrub speed while paused.
  *
  *  Punch-in FX (PunchFx.h, FxWizard.h) on the white keys: KEY_1 filter, KEY_2 crusher,
- *  KEY_3 freezer and KEY_4 slicer (inserts), KEY_14 delay and KEY_15 reverb (sends, so
- *  their tails ring out after release):
+ *  KEY_3 freezer, KEY_4 slicer, KEY_5 flanger and KEY_6 shifter (inserts), KEY_14 delay and
+ *  KEY_15 reverb (sends, so their tails ring out after release):
  *   - hold the key:          the effect is on while held
  *   - SHIFT + key:           toggles the latch, the effect stays on after release
  *   - key on a latched FX:   clears the latch, the effect stays on until the key is released
@@ -94,9 +94,11 @@ namespace chompi
         Hardware::SwId::KEY_15, // reverb: last white key
         Hardware::SwId::KEY_3,  // freezer: 3rd white key
         Hardware::SwId::KEY_4,  // slicer: 4th white key
+        Hardware::SwId::KEY_5,  // flanger: 5th white key
+        Hardware::SwId::KEY_6,  // shifter: 6th white key
     };
     CHECK_PER_FX(kFxKeys);
-    static const uint8_t kFxKeyLeds[] = {24, 23, 11, 10, 22, 21}; // SMT LEDs, TestPage's led_map
+    static const uint8_t kFxKeyLeds[] = {24, 23, 11, 10, 22, 21, 20, 19}; // SMT LEDs, TestPage's led_map
     CHECK_PER_FX(kFxKeyLeds);
     static const uint8_t kFxKnobLeds[kNumFxParams] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
     // Audible from the first press. Stepped parameters on their grid: step / (steps - 1)
@@ -110,6 +112,10 @@ namespace chompi
                                     // stereo (off), pitch (off)
         {4.f / 7.f, .5f, 0.f, 0.f}, // slicer: pattern (x..x..x.), decay (100ms), chance
                                     // (off), stereo (off)
+        {.45f, .5f, .5f, 0.f},   // flanger: rate (.55Hz), amount (half), feedback, stereo
+                                 // (off)
+        {.7f, 0.f, 0.f, 0.f},    // shifter: shift (up, about 6 semitones), swoop (off),
+                                 // feedback (off), stereo (off)
     };
     CHECK_PER_FX(kFxDefaults);
     // Number of steps for stepped parameters, 0 = continuous
@@ -120,6 +126,8 @@ namespace chompi
         {0, 0, 0, 0},
         {Freezer::kNumLengths, 0, 0, 0},
         {Slicer::kNumPatterns, 0, 0, Slicer::kNumPatterns},
+        {0, 0, 0, 0},
+        {0, 0, 0, 0},
     };
     CHECK_PER_FX(kFxParamSteps);
     static const float kFxParamStep = .01f;      // per detent, continuous parameters
@@ -154,9 +162,12 @@ namespace chompi
         {med_blue, blue, purple},
         {purple, white, med_blue},
         {yellow, white, green},
+        {med_blue, white, purple},
+        {blue, white, red}, // shift: down / off / up
     };
     CHECK_PER_FX(kFxKnobColors);
-    static const float* const kFxKeyColors[] = {pink, orange, green, blue, purple, yellow};
+    static const float* const kFxKeyColors[] = {pink, orange, green, blue, purple, yellow,
+                                                 med_blue, red};
     CHECK_PER_FX(kFxKeyColors);
     #undef CHECK_PER_FX
 
