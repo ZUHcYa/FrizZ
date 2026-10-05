@@ -77,8 +77,9 @@ Quantized recording follows MIDI clock (24 PPQN) from the TRS MIDI input or USB.
 USB device, so USB clock comes from a computer or a host. Whichever source ticks first is
 used, until it has been silent for 0.5 s. Only clock is read; there's no MIDI out.
 
-SHIFT means holding the CHOMPI key with the mode switch DOWN. The CHOMPI key lights white
-while it acts as SHIFT. Holding the VOLUME knob at power-on still enters the hardware self-test.
+SHIFT means holding the CHOMPI key, with the mode switch in either position. The CHOMPI key
+lights white while it acts as SHIFT. Holding the VOLUME knob at power-on still enters the
+hardware self-test.
 
 ### Where things are in `code/src`
 

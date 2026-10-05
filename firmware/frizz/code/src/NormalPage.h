@@ -10,7 +10,8 @@
  *
  *  Pressing again on page 3 goes back to page 1.
  *
- *  SHIFT is the CHOMPI key held with the mode switch DOWN.
+ *  SHIFT is the CHOMPI key held, in either position of the mode switch. The switch does nothing
+ *  in play mode for now; its state is still tracked (switch_state) for later use.
  *
  *  Looper keys (LOOPER.md 1.2), PLAY = KEY_27, LOOP = KEY_28:
  *   - empty:          LOOP records unquantized, hold PLAY + press LOOP records quantized
@@ -535,8 +536,7 @@ namespace chompi
             erase_hold_ = System::GetNow();
         }
 
-        // switch_state is true with the mode switch DOWN
-        inline bool Shift() { return chompi_key_pressed && switch_state; }
+        inline bool Shift() { return chompi_key_pressed; }
 
         Hardware *hw_;
         PassthroughEngine *engine_;
@@ -549,7 +549,7 @@ namespace chompi
         float mix_;
         uint8_t page_;
 
-        bool switch_state = false;
+        bool switch_state = false; // true with the mode switch DOWN; unused in play mode for now
         bool chompi_key_pressed = false;
 
         bool play_pressed_ = false;
