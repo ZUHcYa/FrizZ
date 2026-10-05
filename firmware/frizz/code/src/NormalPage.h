@@ -57,7 +57,7 @@
 
 namespace chompi
 {
-    static const float kEncoderCoarseStep = .01f;
+    static const float kVolumeStep = .01f; // per detent: 1%, like the FX knobs
     static const uint32_t kBattHoldMs = 1250;
 
     static const float kDefaultOutGain = .75f;
@@ -349,7 +349,8 @@ namespace chompi
             if (encoderID != 5)
                 return false;
 
-            const float inc = turns * kEncoderCoarseStep;
+            // ui.h sends the VOLUME knob 3x per detent
+            const float inc = turns / 3.f * kVolumeStep;
 
             if (Shift())
                 SetMix(mix_ + inc);

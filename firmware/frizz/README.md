@@ -21,8 +21,9 @@ white keys punch in effects on the mixed signal. The built-in microphone is not 
 | SHIFT + turn | Dry/wet mix: dry = input only, wet = looper only | green (dry) to purple (wet) |
 | Press and hold 1.25 s | Battery check | white full / green / yellow / red |
 
-Pressing again on page 3 returns to page 1. The mix starts fully dry, jumps to fully wet when a
-recording finishes and back to fully dry when the loop is erased.
+Every turn moves 1% per detent. Pressing again on page 3 returns to page 1. The mix starts
+fully dry, jumps to fully wet when a recording finishes and back to fully dry when the loop is
+erased.
 
 ### Looper
 
