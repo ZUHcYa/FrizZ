@@ -1,7 +1,9 @@
 # FRIZZ looper: spec and implementation plan
 
-Status: implemented (steps 1-6 below), not yet tested on hardware. The looper feeds the
-**wet** side of the dry/wet mix (SHIFT + VOLUME).
+Status: implemented (steps 1-6 below) and tested on hardware (2026-10-05). It works as
+specified. The looper feeds the **wet** side of the dry/wet mix (SHIFT + VOLUME). The user docs
+call it the **input/loop mix**: the punch-in FX come after it, so the "dry" side isn't dry once
+an effect is on. The test showed that "dry/wet" sets the wrong expectation.
 
 Behaviour follows the CHOMPI TAPE 2.0 guidebook, Level 04 (Looper Engine), with the
 deviations listed below. Where this document and the guidebook disagree, this document wins.

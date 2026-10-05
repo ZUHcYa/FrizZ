@@ -19,12 +19,13 @@ white keys punch in effects on the mixed signal. The built-in microphone is not 
 | Turn (page 1, default) | Output gain, headphone + master (default 75%) | VU meter, scaled by gain |
 | Press, then turn (page 2) | Input gain, AUX (default 75%) | blue (0%) to red (100%) |
 | Press again, then turn (page 3) | Master compressor amount (default off) | dark to light blue |
-| SHIFT + turn | Dry/wet mix: dry = input only, wet = looper only | green (dry) to purple (wet) |
+| SHIFT + turn | Input/loop mix: input only to looper only | green (input) to purple (loop) |
 | Press and hold 1.25 s | Battery check | white full / green / yellow / red |
 
 Every turn moves 1% per detent. Pressing again on page 3 returns to page 1. The mix starts
-fully dry, jumps to fully wet when a recording finishes and back to fully dry when the loop is
-erased.
+on the input only, jumps to the loop only when a recording finishes and back to the input only
+when the loop is erased. The punch-in FX come after this mix, so they act on the input as well
+as the loop.
 
 ## Looper
 
@@ -55,8 +56,8 @@ paused). The transport LEDs show speed and direction.
 
 ## Punch-in FX
 
-Effects sit on the white keys and act on the whole mix, after the dry/wet knob and before the
-output gain and the master compressor. The looper records the dry input, so an effect is never
+Effects sit on the white keys and act on the whole mix, after the input/loop mix and before the
+output gain and the master compressor. The looper records the input before the effects, so an effect is never
 printed into a loop.
 
 The keys run in signal order, left to right:

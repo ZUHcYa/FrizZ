@@ -109,7 +109,7 @@ erase a stuck Seed, but the generic Daisy bootloader it offers is not CHOMPI's.
 
 ```
 chompi_main.cpp        entry point: audio callback, main loop, boot sequence
-passthroughEngine.h    the engine: input gain, dry/wet mix, punch-in FX, output gain, master compressor
+passthroughEngine.h    the engine: input gain, input/loop mix ("dry/wet" in the code), punch-in FX, output gain, master compressor
 FxChain.h              the punch-in effects in their processing order, with a level meter each
 FxSlots.h              which key, LED, colours, defaults and knob steps go with each effect
 FxCommon.h             what the effects share: the key's fade, smoothed settings, the base class

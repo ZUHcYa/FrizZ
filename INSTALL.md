@@ -55,5 +55,5 @@ Same as installing: replace `FRIZZ.bin` on the card with the new one and switch 
 |---|---|
 | No rainbow, the old firmware starts | Check that `FRIZZ.bin` is in the top folder, that it's the only `.bin` there, and that the card is FAT32 |
 | Rainbow, but then nothing works | Copy `FRIZZ.bin` to the card again (the copy may be damaged) and switch on again |
-| Silence | Check the input gain (press VOLUME, then turn) and the dry/wet mix (SHIFT + turn VOLUME, turn towards green) |
+| Silence | Check the input gain (press VOLUME, then turn) and the input/loop mix (SHIFT + turn VOLUME, turn towards green) |
 | The CHOMPI doesn't respond at all | The bootloader may be damaged. Reinstall CHOMPI's own bootloader (`firmware/bin/CHOMPI_Bootloader_V6_2_0.bin`) as described in [`firmware/README.md`](firmware/README.md#4-put-it-on-the-chompi), then install FRIZZ again. Don't install the generic Daisy bootloader instead |

@@ -5,13 +5,15 @@ Your first ten minutes with FRIZZ. Every detail is in the [manual](MANUAL.md).
 ## How the sound flows
 
 ```
-AUX in -> input gain -+-> dry ---------+
-                      |                +-> dry/wet -> effects (white keys) -> output volume -> compressor -> out
-                      +-> looper -> wet+
+AUX in -> input gain -+-----------------+
+                      |                 +-> input/loop mix -> effects (white keys) -> output volume -> compressor -> out
+                      +-> looper -------+
 ```
 
 The looper records the input **before** the effects, so you can play effects over a loop and
-nothing gets printed into it.
+nothing gets printed into it. The effects come **after** the mix, so they act on everything you
+hear, the live input as well as the loop. The mix knob balances input against loop; there's no
+dry path around the effects.
 
 **SHIFT** means holding the CHOMPI key (with the mode switch in either position). The key lights
 white while it acts as SHIFT.
@@ -24,18 +26,18 @@ white while it acts as SHIFT.
 | Press VOLUME, then turn | Input gain. The LED runs from blue to red |
 | Press again, then turn | Master compressor, off by default |
 | Press again | Back to output volume |
-| SHIFT + turn VOLUME | Dry/wet: green = only the input, purple = only the loop |
+| SHIFT + turn VOLUME | Input/loop mix: green = only the input, purple = only the loop |
 
 ## 2. Record a loop
 
 1. Press **LOOP** to start recording. LOOP turns red.
 2. Play something.
-3. Press **LOOP** again. The loop plays back immediately, and the mix jumps to fully wet, so you
+3. Press **LOOP** again. The loop plays back immediately, and the mix jumps to only the loop, so you
    hear only the loop. Turn SHIFT + VOLUME back towards green to play along with it.
 4. **PLAY** pauses and resumes it.
 5. Turn the big **transport knob** to change speed in fifths and octaves, down to 1/16× and
    on into reverse. While paused, turning the knob scrubs. Press the knob to get back to normal speed.
-6. Hold **PLAY + LOOP** for 2 seconds to erase the loop. The mix jumps back to dry.
+6. Hold **PLAY + LOOP** for 2 seconds to erase the loop. The mix jumps back to the input.
 
 **In sync with a clock:** with MIDI clock coming in over TRS or USB, hold PLAY and press LOOP.
 The recording then ends on a whole bar. Without a clock, LOOP blinks red three times.
