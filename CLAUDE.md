@@ -50,8 +50,14 @@ Card profiles and preset formats are also not interchangeable between firmwares.
 Switch by putting the right `bin/` first on `PATH`; verify with `arm-none-eabi-gcc --version`
 before building. Do not use Homebrew's `arm-none-eabi-gcc` for the bootloader (compiler only, no
 newlib). `firmware/README.md` is the full setup guide but is written for macOS — its
-`/Applications/ArmGNUToolchain/...` paths are examples, not real locations on a Linux box. No ARM
-toolchain is installed on this machine.
+`/Applications/ArmGNUToolchain/...` paths are examples, not real locations on a Linux box.
+
+On this machine, GNU Arm Embedded 10.3-2021.10 is installed at
+`~/opt/gcc-arm-none-eabi-10.3-2021.10/` (ARM's official Linux tarball) and prepended to `PATH` in
+`~/.bashrc`, so FRIZZ, TAPE and WAVE build with a plain `make`. Non-interactive shells may not read
+`.bashrc`; prepend its `bin/` explicitly there. 13.3.rel1 is **not** installed, so TEMPO and the
+bootloader can't be built yet. Homebrew can't supply either version: its `arm-none-eabi-gcc`
+formula is GCC 16 without newlib, and the `gcc-arm-embedded` cask is macOS-only.
 
 ## Build
 
