@@ -10,3 +10,4 @@ Icon?
 
 # Firmware build output (the prebuilt libraries under code/libs/*/build/ stay committed)
 firmware/*/code/src/build/
+firmware/frizz/test/build/

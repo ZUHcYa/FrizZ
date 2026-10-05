@@ -1,0 +1,36 @@
+# FRIZZ engine harness
+
+The only automated check FRIZZ has off the device. It compiles FRIZZ's audio engine
+(`code/src/passthroughEngine.h` and everything it includes) with the host's `g++`, runs a fixed
+script of key presses and knob turns through it, and writes every output sample and FX meter
+to a file. Two versions of the engine can then be compared.
+
+```bash
+./check.sh                  # HEAD against the working tree
+./check.sh 9da090e 647185b  # any two git refs ("work" = the working tree)
+STRESS=1 ./run.sh work out.bin
+```
+
+- **A change that shouldn't alter the sound** (a refactor, a rename): `check.sh` should print
+  `bit-identical` and exit 0. Anything else means the sound changed.
+- **A change that should** (a new effect, a new order, a retuned knob): `check.sh` prints the
+  master out's loudness per segment for both versions, the peak and any NaNs, so a blow-up or
+  an effect gone silent stands out.
+
+What it covers: the whole engine as the audio callback runs it, with the delay's random events
+seeded and MIDI clock absent (the tempo clock runs on its internal 120 BPM). What it doesn't:
+the play page (`NormalPage.h`, `FxSlots.h`: keys, LEDs, defaults), the looper's recording, MIDI
+clock, and anything about the hardware. Those still need the device.
+
+The script (`harness.cpp`) is 13 segments of 3 s: each FX on its own with a random knob turned
+every 0.25 s, the inserts together, everything together, then the tails. `NOFX=1` runs it with
+no FX switched on, to check that a segment actually exercises its effect; `STRESS=1` runs
+everything at once with the resonator's loop at its most extreme for the whole run.
+
+It drives the engine through `Init`, `SetFxOn`, `SetFxParam` and `GetFxLevel` with the
+`chompi::FX_*` names, so it builds against FRIZZ from `9da090e` on. If that interface changes,
+update `harness.cpp` along with it.
+
+`host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample
+conversions) and `MidiClock.h` (no clock). DaisySP is compiled for the host once into `build/`,
+which is ignored.

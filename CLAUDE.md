@@ -85,7 +85,7 @@ CHOMPI_TOOLCHAIN_BIN=/path/to/arm-gnu-toolchain-13.3.rel1/bin ./build-bootloader
 The script builds libDaisy then the bootloader and checks the result against the release
 (119,612 bytes, md5 `580b187fec405849fb401eb699281e4c`).
 
-## No test suite
+## No test suite (except FRIZZ's engine harness)
 
 There is no CI, no test runner, and no Cursor/Copilot rules. The only clang-format tooling is
 vendored inside libDaisy/DaisySP's own `ci/`; it does not apply to `code/src/`. The things that
@@ -99,6 +99,11 @@ look like tests aren't:
 The only mechanical verification available off-device is: does it compile, does it fit in SRAM, and
 for the bootloader, does the md5 match. Verify changes by building; real validation requires
 hardware.
+
+The exception is FRIZZ: `firmware/frizz/test/` compiles its audio engine on the host and runs a
+scripted 39 s of key presses and knob turns through it. `./check.sh` compares HEAD with the
+working tree; a refactor must come out `bit-identical`. It doesn't cover the play page, the
+looper's recording, MIDI or the hardware. See its README.
 
 ## SRAM is the binding constraint, especially on TAPE
 
