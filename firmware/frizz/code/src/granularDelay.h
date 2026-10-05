@@ -1,5 +1,5 @@
 /** @file granularDelay.h
- *  @brief TEMPO 1.0's tempo-synced delay, ported to FRIZZ as the delay send (see PunchFx.h).
+ *  @brief TEMPO 1.0's tempo-synced delay, ported to FRIZZ as the delay send (see FxDelay.h).
  *
  *  Changes from TEMPO:
  *   - no clockManager: the engine sets the tempo (SetTempo) and sends 12 PPQN pulses

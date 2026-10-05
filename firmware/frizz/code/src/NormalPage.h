@@ -35,29 +35,27 @@
  *  plays, PLAY and LOOP crossfade in white to show the position, dimmed when paused. The
  *  transport LEDs show the speed in TAPE's colours, or the scrub speed while paused.
  *
- *  Punch-in FX (PunchFx.h, FxWizard.h) on the white keys: KEY_1 filter, KEY_2 crusher,
- *  KEY_3 freezer, KEY_4 slicer, KEY_5 flanger and KEY_6 shifter (inserts), KEY_7 resonator
- *  (a comb loop around the inserts), KEY_14 delay and KEY_15 reverb (sends, so their tails
- *  ring out after release):
+ *  Punch-in FX (FxChain.h) on the white keys, which key is which in FxSlots.h:
  *   - hold the key:          the effect is on while held
  *   - SHIFT + key:           toggles the latch, the effect stays on after release
  *   - key on a latched FX:   clears the latch, the effect stays on until the key is released
  *   - knobs 1-4 (enc 0-3):   the parameters of the most recently pressed FX key, 1% per
- *                            detent; stepped parameters (filter LFO division, delay
- *                            division, freezer length, slicer pattern and stereo) move one
- *                            step per kFxDetentsPerStep detents; knobs
- *                            past the FX's kFxNumParams do nothing (none at the moment)
- *   - press knobs 1-4:       resets that parameter to its default (kFxDefaults)
+ *                            detent; stepped parameters move one step per
+ *                            kFxDetentsPerStep detents; knobs past the FX's num_params do
+ *                            nothing
+ *   - press knobs 1-4:       resets that parameter to its default
  *   - SHIFT + knobs 1-4:     nothing, turned or pressed (reserved for a second parameter page)
  *  FX key LEDs: always dimly lit in the FX's colour, brighter for the FX the knobs edit.
- *  While the FX is on, the LED follows the audio coming out of it (the filter's and
- *  crusher's output) between kFxOnFloor and full. The delay and reverb follow their
- *  returns, so their keys also glow with the tail after release. The knob LEDs show the
- *  parameter values in the FX's colours, unused knobs dark.
+ *  While the FX is on, the LED follows the audio coming out of it (FxChain's meters)
+ *  between kFxOnFloor and full. Sends follow their returns, so their keys also glow with
+ *  the tail after release. The knob LEDs show the parameter values in the FX's colours,
+ *  unused knobs dark.
  */
 #pragma once
 
+#include "FxSlots.h"
 #include "hardware.h"
+#include "LedColors.h"
 #include "passthroughEngine.h"
 #include "temp_led_stuff.h"
 
@@ -84,57 +82,7 @@ namespace chompi
     static const uint32_t kEraseHoldMs = 2000;
     static const float kSpeedStepPerTurn = .25f; // 4 transport detents per speed step
 
-    // Punch-in FX: one entry per FxId (PunchFx.h). The tables are unsized so a missing
-    // entry fails the static_asserts below instead of reading as zero.
-    #define CHECK_PER_FX(table) \
-        static_assert(sizeof(table) / sizeof(table[0]) == kNumFx, #table ": one per FxId")
-    static const Hardware::SwId kFxKeys[] = {
-        Hardware::SwId::KEY_1,  // filter: 1st white key
-        Hardware::SwId::KEY_2,  // crusher: 2nd white key
-        Hardware::SwId::KEY_14, // delay: 2nd-to-last white key
-        Hardware::SwId::KEY_15, // reverb: last white key
-        Hardware::SwId::KEY_3,  // freezer: 3rd white key
-        Hardware::SwId::KEY_4,  // slicer: 4th white key
-        Hardware::SwId::KEY_5,  // flanger: 5th white key
-        Hardware::SwId::KEY_6,  // shifter: 6th white key
-        Hardware::SwId::KEY_7,  // resonator: 7th white key
-    };
-    CHECK_PER_FX(kFxKeys);
-    static const uint8_t kFxKeyLeds[] = {24, 23, 11, 10, 22, 21, 20, 19, 18}; // SMT LEDs, led_map
-    CHECK_PER_FX(kFxKeyLeds);
     static const uint8_t kFxKnobLeds[kNumFxParams] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
-    // Audible from the first press. Stepped parameters on their grid: step / (steps - 1)
-    static const float kFxDefaults[][kNumFxParams] = {
-        {.3f, .5f, 0.f, .6667f}, // filter: cutoff (lowpass), resonance, LFO depth (off),
-                                 // LFO division (1 bar)
-        {.6f, .5f, 1.f, 0.f},    // crusher: rate, bits, tone, XOR (off)
-        {.25f, .4f, .5f, .7f},   // delay: division (1/4), feedback, random (off), level
-        {.6f, .6f, .6f, .7f},    // reverb: decay, tone, diffusion, level
-        {2.f / 7.f, 0.f, 0.f, 0.f}, // freezer: length (1/8), feedback (pure repeat),
-                                    // stereo (off), pitch (off)
-        {4.f / 7.f, .5f, 0.f, 0.f}, // slicer: pattern (x..x..x.), decay (100ms), chance
-                                    // (off), stereo (off)
-        {.45f, .5f, .5f, 0.f},   // flanger: rate (.55Hz), amount (half), feedback, stereo
-                                 // (off)
-        {.7f, 0.f, 0.f, 0.f},    // shifter: shift (up, about 6 semitones), swoop (off),
-                                 // feedback (off), stereo (off)
-        {.4364f, .7f, .7f, 0.f}, // resonator: pitch (110Hz), feedback, tone (6.6kHz),
-                                 // stereo (off)
-    };
-    CHECK_PER_FX(kFxDefaults);
-    // Number of steps for stepped parameters, 0 = continuous
-    static const uint8_t kFxParamSteps[][kNumFxParams] = {
-        {0, 0, 0, Filter::kNumLfoDivisions},
-        {0, 0, 0, 0},
-        {DelaySend::kNumDivisions, 0, 0, 0},
-        {0, 0, 0, 0},
-        {Freezer::kNumLengths, 0, 0, 0},
-        {Slicer::kNumPatterns, 0, 0, Slicer::kNumPatterns},
-        {0, 0, 0, 0},
-        {0, 0, 0, 0},
-        {0, 0, 0, 0},
-    };
-    CHECK_PER_FX(kFxParamSteps);
     static const float kFxParamStep = .01f;      // per detent, continuous parameters
     static const float kFxDetentsPerStep = 3.f;  // per step, stepped parameters
     // Knob 1-4 press switches, by ui.h's encoder_map
@@ -148,34 +96,6 @@ namespace chompi
     static const float kFxIdleDim = .15f;     // every FX key, so the slots are visible
     static const float kFxSelectedDim = .35f; // the FX the knobs edit
     static const float kFxOnFloor = .5f;      // on, in silence; the audio adds up to full
-
-    static const float white[3] = {1.f, 1.f, 1.f};
-    static const float red[3] = {1.f, 0.f, 0.f};
-    static const float yellow[3] = {1.f, .95f, 0.05f};
-    static const float green[3] = {0.f, 1.f, 0.f};
-    static const float med_blue[3] = {0.f, .84f, 1.f};
-    static const float blue[3] = {0.f, 0.f, 1.f};
-    static const float pink[3] = {1.f, .36f, .62f};
-    static const float purple[3] = {.58f, .05f, 1.f};
-    static const float orange[3] = {1.f, .6f, .24f};
-
-    // Per FxId: knob LED colours for 0 / .5 / 1, and the key LED colour
-    static const float* const kFxKnobColors[][3] = {
-        {pink, white, med_blue},
-        {yellow, orange, red},
-        {green, white, med_blue},
-        {med_blue, blue, purple},
-        {purple, white, med_blue},
-        {yellow, white, green},
-        {med_blue, white, purple},
-        {blue, white, red}, // shift: down / off / up
-        {orange, white, med_blue},
-    };
-    CHECK_PER_FX(kFxKnobColors);
-    static const float* const kFxKeyColors[] = {pink, orange, green, blue, purple, yellow,
-                                                 med_blue, red, white};
-    CHECK_PER_FX(kFxKeyColors);
-    #undef CHECK_PER_FX
 
     class NormalPage : public daisy::UiPage
     {
@@ -203,7 +123,7 @@ namespace chompi
             for (size_t fx = 0; fx < kNumFx; fx++)
             {
                 for (size_t p = 0; p < kNumFxParams; p++)
-                    SetFxParam(fx, p, kFxDefaults[fx][p]);
+                    SetFxParam(fx, p, kFxSlots[fx].defaults[p]);
                 engine_->SetFxOn(fx, false);
             }
 
@@ -369,7 +289,7 @@ namespace chompi
             default:
                 for (size_t fx = 0; fx < kNumFx; fx++)
                 {
-                    if (buttonID == static_cast<uint16_t>(kFxKeys[fx]))
+                    if (buttonID == static_cast<uint16_t>(kFxSlots[fx].key))
                         FxKeyPressed(fx, rising);
                 }
                 for (size_t knob = 0; knob < kNumFxParams; knob++)
@@ -491,14 +411,14 @@ namespace chompi
 
         void FxKnobTurned(uint16_t knob, int16_t turns)
         {
-            if (Shift() || knob >= kFxNumParams[fx_selected_])
+            if (Shift() || knob >= kFxSlots[fx_selected_].num_params)
                 return;
 
             // knob 1 gets 1x per detent from ui.h, the others 3x
             const float detents = knob == 0 ? turns : turns / 3.f;
             float& val = fx_params_[fx_selected_][knob];
 
-            const uint8_t steps = kFxParamSteps[fx_selected_][knob];
+            const uint8_t steps = kFxSlots[fx_selected_].steps[knob];
             if (steps == 0)
             {
                 SetFxParam(fx_selected_, knob, val + detents * kFxParamStep);
@@ -520,10 +440,10 @@ namespace chompi
 
         void FxKnobPressed(size_t knob)
         {
-            if (Shift() || knob >= kFxNumParams[fx_selected_])
+            if (Shift() || knob >= kFxSlots[fx_selected_].num_params)
                 return;
 
-            SetFxParam(fx_selected_, knob, kFxDefaults[fx_selected_][knob]);
+            SetFxParam(fx_selected_, knob, kFxSlots[fx_selected_].defaults[knob]);
             fx_step_chunk_[knob] = 0.f;
         }
 
@@ -536,11 +456,11 @@ namespace chompi
         void DrawFxLeds()
         {
             // knob LEDs: the selected FX's parameters in its colours
-            const float* const* colors = kFxKnobColors[fx_selected_];
+            const float* const* colors = kFxSlots[fx_selected_].knob_colors;
             for (size_t p = 0; p < kNumFxParams; p++)
             {
                 const float val = fx_params_[fx_selected_][p];
-                if (p >= kFxNumParams[fx_selected_])
+                if (p >= kFxSlots[fx_selected_].num_params)
                     SetPthLedFloat(kFxKnobLeds[p], 0.f, 0.f, 0.f);
                 else
                     SetPthLedFloat(kFxKnobLeds[p],
@@ -551,14 +471,15 @@ namespace chompi
 
             for (size_t fx = 0; fx < kNumFx; fx++)
             {
-                const float* color = kFxKeyColors[fx];
+                const float* color = kFxSlots[fx].key_color;
                 const float meter = engine_->GetFxLevel(fx);
                 float level = fx == fx_selected_ ? kFxSelectedDim : kFxIdleDim;
                 if (fx_held_[fx] || fx_latched_[fx])
                     level = kFxOnFloor + (1.f - kFxOnFloor) * meter;
-                else if (fx == FX_DELAY || fx == FX_REVERB)
+                else if (kFxSlots[fx].kind == FxKind::SEND)
                     level = fmaxf(level, kFxOnFloor * meter); // a send's tail ringing out
-                SetSmtLedFloat(kFxKeyLeds[fx], color[0] * level, color[1] * level, color[2] * level);
+                SetSmtLedFloat(kFxSlots[fx].key_led, color[0] * level, color[1] * level,
+                               color[2] * level);
             }
         }
 

@@ -38,7 +38,7 @@ static const size_t kDelayFrames = 480000;
 float DSY_SDRAM_BSS delay_mem[kDelayFrames * 2];
 float DSY_SDRAM_BSS delay_frozen_mem[kDelayFrames * 2];
 
-// the freezer's buffers (FxWizard.h): 1 bar at the slowest tempo (4.8s at 50 BPM), plus the
+// the freezer's buffers (FxFreezer.h): 1 bar at the slowest tempo (4.8s at 50 BPM), plus the
 // stereo offset and the seam crossfade, per channel
 static const size_t kFreezerFrames = 240000;
 float DSY_SDRAM_BSS freezer_mem_l[kFreezerFrames];

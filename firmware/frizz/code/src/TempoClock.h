@@ -1,5 +1,6 @@
 /** @file TempoClock.h
- *  @brief The tempo and clock pulses for the delay send (granularDelay.h).
+ *  @brief The tempo and clock pulses for the punch-in FX that follow it: the delay, the
+ *  filter LFO, the freezer and the slicer.
  *
  *  With MIDI clock, the tempo follows MidiClock rounded to whole BPM (so the delay time
  *  doesn't wobble with the clock's jitter), and pulses are counted from the incoming ticks,
@@ -7,7 +8,10 @@
  *  tempo is kept (120 BPM until a clock has been seen) and pulses come from an internal phase
  *  at that tempo.
  *
- *  Every 6th pulse is an 8th-note edge, where the delay rolls its random events.
+ *  Pulse() counts the pulses into one position, so every effect that follows the clock
+ *  shares one grid: the 16ths, the delay's 8th-note edges (where it rolls its random events)
+ *  and the bars are all counted from the same pulse. The count runs from power-on, or
+ *  continues across a new MIDI clock lock; MIDI Start and Song Position aren't read.
  *
  *  Runs in the audio callback, once per block.
  */
@@ -23,7 +27,11 @@ static const int kDefaultBpm = 120;
 static const int kMinBpm = 50;
 static const int kMaxBpm = 300;
 static const uint32_t kTicksPerPulse = 2;   // 24 PPQN MIDI ticks -> 12 PPQN pulses
+static const uint32_t kPulsesPer16th = 3;
 static const uint32_t kPulsesPerEdge = 6;   // 8th notes
+static const uint32_t kPulsesPerBar = 48;
+// The pulse position wraps every 4 bars, a multiple of every grid the effects use
+static const uint32_t kPulsesPerCycle = 4 * kPulsesPerBar;
 
 class TempoClock
 {
@@ -73,11 +81,11 @@ public:
         return pulses;
     }
 
-    /** Count one pulse; true when it falls on an 8th-note edge */
-    bool Pulse()
+    /** Count one pulse; returns the new position, 0..kPulsesPerCycle - 1 */
+    uint32_t Pulse()
     {
-        pulse_count_ = (pulse_count_ + 1) % kPulsesPerEdge;
-        return pulse_count_ == 0;
+        pulse_count_ = (pulse_count_ + 1) % kPulsesPerCycle;
+        return pulse_count_;
     }
 
     inline int GetTempo() const { return tempo_; }
@@ -89,7 +97,7 @@ private:
     float phase_;
     bool had_clock_;
     uint32_t last_ticks_;
-    uint32_t pulse_count_;
+    uint32_t pulse_count_; // the position, mod kPulsesPerCycle
 };
 
 } // namespace chompi

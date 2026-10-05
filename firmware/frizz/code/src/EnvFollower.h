@@ -4,6 +4,7 @@
  *  Draw()) Not used in the actual audio signal path, just a visual meter.
  */
 #pragma once
+#include "daisysp.h"
 
 namespace chompi {
 class EnvFollower

@@ -186,12 +186,17 @@ hardware self-test.
 ```
 chompi_main.cpp        entry point: audio callback, main loop, boot sequence
 passthroughEngine.h    the engine: input gain, dry/wet mix, punch-in FX, output gain, master compressor
-PunchFx.h              the punch-in effects: filter, crusher (with Kastle's XOR and dive), delay send, reverb send
-FxWizard.h             the freezer, slicer, flanger, shifter and resonator, ported from Bastl's Kastle 2 FX Wizard (MIT)
+FxChain.h              the punch-in effects in their processing order, with a level meter each
+FxSlots.h              which key, LED, colours, defaults and knob steps go with each effect
+FxCommon.h             what the effects share: the key's fade, smoothed settings, the base class
+Fx*.h                  one effect each: Filter, Crusher, Freezer, Slicer, Flanger, Shifter,
+                       Resonator, Delay, Reverb
+LICENSE-kastle2        the MIT license of the effects ported from Bastl's Kastle 2 FX Wizard
+LedColors.h            the LED colours
 DJFilter.h, BasicMMF.h WAVE's DJ filter
 granularDelay.h        TEMPO's tempo-synced delay (SimpleCrossfade.h: its crossfades)
 reverb.h, fx_engine.h  TEMPO's reverb
-TempoClock.h           the tempo and 12 PPQN pulses for the delay, filter LFO, freezer and slicer, from MIDI clock or internal
+TempoClock.h           the tempo and the shared 12 PPQN pulse position for the clocked effects, from MIDI clock or internal
 Looper.h               the looper: recording, quantized end, playback, speed, scrub
 MidiClock.h            MIDI clock input over TRS and USB
 NormalPage.h           the controls (VOLUME, PLAY/LOOP, transport, FX keys and knobs) and their LEDs

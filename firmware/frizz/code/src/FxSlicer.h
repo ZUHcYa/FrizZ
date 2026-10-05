@@ -1,0 +1,161 @@
+/** @file FxSlicer.h
+ *  @brief The slicer, a rhythmic gate.
+ *
+ *  Ported from Bastl Instruments' Kastle 2 FX Wizard (github.com/bastl-instruments/kastle2,
+ *  code/src/apps/FxWizard/), rewritten from Kastle's 44kHz fixed point to 48kHz float.
+ *  Copyright (c) 2024 Marek Mach, Vaclav Mach (Bastl Instruments), MIT License: see
+ *  LICENSE-kastle2.
+ */
+#pragma once
+#include "FxCommon.h"
+#include "TempoClock.h"
+
+namespace chompi
+{
+
+// Kastle's slicer patterns, sparse to dense, 8 16th-note steps
+static const uint8_t kSlicerPatterns[] = {
+    0b10000000,
+    0b10001000,
+    0b00100010,
+    0b10000100,
+    0b10010010,
+    0b10101010,
+    0b10101100,
+    0b11111111,
+};
+
+/** Kastle's slicer. A gate on 16th-note steps: each step of the pattern that's on
+ *  retriggers an envelope (10ms attack, then a decay) that the signal is multiplied by.
+ *  Steps are counted from the clock pulses, so an 8-step pattern spans half a bar.
+ *  Pressing the key also triggers it, so the signal doesn't drop out until the next step.
+ *  Params: 0 pattern (kNumPatterns steps), 1 decay, 2 chance, 3 stereo (kNumPatterns steps).
+ *  Chance flips every step of the pattern, on both channels, at random. Stereo plays the
+ *  pattern that many patterns up on the left and down on the right. */
+class Slicer : public FxBase
+{
+public:
+    enum Param
+    {
+        PATTERN,
+        DECAY,
+        CHANCE,
+        STEREO,
+    };
+
+    static const size_t kNumPatterns = sizeof(kSlicerPatterns);
+
+    void Init(float sample_rate)
+    {
+        sample_rate_ = sample_rate;
+        attack_inc_ = 1.f / (.01f * sample_rate);
+        gate_.Init();
+        env_[0] = env_[1] = 0.f;
+        attacking_[0] = attacking_[1] = false;
+        pattern_pos_ = 0;
+        step_ = false;
+        rng_ = 0x2545F491u;
+
+        for (size_t i = 0; i < kNumFxParams; i++)
+            SetParam(i, 0.f);
+    }
+
+    /** One call per clock pulse, with the clock's position (TempoClock::Pulse) */
+    void ClockPulse(uint32_t pos)
+    {
+        pattern_pos_ = pos % (kPulsesPer16th * kNumSteps);
+        if (pos % kPulsesPer16th == 0)
+            step_ = true;
+    }
+
+    void Process(float* l, float* r)
+    {
+        const float gate = gate_.Process();
+
+        if (gate_.TakePress())
+            attacking_[0] = attacking_[1] = true;
+
+        if (step_)
+        {
+            step_ = false;
+            const uint32_t step = pattern_pos_ / kPulsesPer16th;
+            rng_ ^= rng_ << 13;
+            rng_ ^= rng_ >> 17;
+            rng_ ^= rng_ << 5;
+            const bool flip = static_cast<float>(rng_ >> 8) * (1.f / 16777216.f) < chance_;
+
+            const size_t pattern[2] = {
+                (pattern_ + stereo_) % kNumPatterns,
+                (pattern_ + kNumPatterns - stereo_) % kNumPatterns,
+            };
+            for (size_t c = 0; c < 2; c++)
+            {
+                // bit 7 is the first step, so 0b10001000 is quarter notes (Kastle reads the
+                // bits from the other end)
+                const bool hit = (kSlicerPatterns[pattern[c]] >> (kNumSteps - 1 - step)) & 1;
+                if (hit != flip)
+                    attacking_[c] = true;
+            }
+        }
+
+        float* const io[2] = {l, r};
+        for (size_t c = 0; c < 2; c++)
+        {
+            if (attacking_[c])
+            {
+                env_[c] += attack_inc_;
+                if (env_[c] >= 1.f)
+                {
+                    env_[c] = 1.f;
+                    attacking_[c] = false;
+                }
+            }
+            else
+                env_[c] *= decay_coeff_;
+
+            *io[c] += gate * (*io[c] * env_[c] - *io[c]);
+        }
+    }
+
+    void SetParam(size_t param, float val) override
+    {
+        switch (param)
+        {
+        case PATTERN:
+            pattern_ = static_cast<size_t>(val * (kNumPatterns - 1) + .5f);
+            break;
+        case DECAY:
+        {
+            // Kastle: 1s down to 10ms; here short to long, the time to fall by 60dB
+            const float time = .01f * powf(100.f, val);
+            decay_coeff_ = expf(-6.9078f / (time * sample_rate_));
+            break;
+        }
+        case CHANCE:
+            chance_ = val * .9f; // Kastle's maximum
+            break;
+        case STEREO:
+            stereo_ = static_cast<size_t>(val * (kNumPatterns - 1) + .5f);
+            break;
+        default:
+            break;
+        }
+    }
+
+private:
+    static const uint32_t kNumSteps = 8;
+
+    float sample_rate_;
+    float attack_inc_;
+    float env_[2];
+    bool attacking_[2];
+    uint32_t pattern_pos_; // pulses into the pattern, kNumSteps 16ths
+    volatile bool step_;
+    uint32_t rng_;
+    size_t pattern_ = 0;
+    size_t stereo_ = 0;
+    float chance_ = 0.f;
+    float decay_coeff_ = 0.f;
+};
+
+} // namespace chompi

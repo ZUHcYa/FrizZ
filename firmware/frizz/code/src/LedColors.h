@@ -1,0 +1,19 @@
+/** @file LedColors.h
+ *  @brief The LED colours the play page uses, r / g / b 0..1 (SetPthLedFloat, SetSmtLedFloat).
+ */
+#pragma once
+
+namespace chompi
+{
+
+static const float white[3] = {1.f, 1.f, 1.f};
+static const float red[3] = {1.f, 0.f, 0.f};
+static const float yellow[3] = {1.f, .95f, 0.05f};
+static const float green[3] = {0.f, 1.f, 0.f};
+static const float med_blue[3] = {0.f, .84f, 1.f};
+static const float blue[3] = {0.f, 0.f, 1.f};
+static const float pink[3] = {1.f, .36f, .62f};
+static const float purple[3] = {.58f, .05f, 1.f};
+static const float orange[3] = {1.f, .6f, .24f};
+
+} // namespace chompi
