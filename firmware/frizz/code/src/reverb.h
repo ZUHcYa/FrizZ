@@ -167,8 +167,9 @@ class Reverb {
     engine_.Clear();
   }
 
-  inline void SetFreeze(bool freeze) {
-    freeze_ = freeze ? 1.f : 0.f;
+  // FRIZZ: takes the amount 0..1 instead of a bool, so the caller can slew it without clicks
+  inline void SetFreeze(float freeze) {
+    freeze_ = freeze;
   }
   
  private:

@@ -43,11 +43,11 @@
  *   - knobs 1-4 (enc 0-3):   the 4 parameters of the most recently pressed FX key, 1% per
  *                            detent; stepped parameters (delay division) move one step per
  *                            kFxDetentsPerStep detents
- *   - press knob 2:          delay selected: toggles freeze
+ *   - press knob 2:          delay or reverb selected: toggles its freeze
  *   - SHIFT + knobs 1-4:     nothing (reserved for a second parameter page)
- *  The key LED is dim while its FX is the one the knobs edit and lit while the FX is on; the
- *  delay key is white while frozen. The knob LEDs show the parameter values in the FX's
- *  colours, knob 2 white while the selected delay is frozen.
+ *  The key LED is dim while its FX is the one the knobs edit and lit while the FX is on; a
+ *  frozen FX's key is white. The knob LEDs show the parameter values in the FX's colours,
+ *  knob 2 white while the selected FX is frozen.
  */
 #pragma once
 
@@ -100,7 +100,7 @@ namespace chompi
     };
     static const float kFxParamStep = .01f;      // per detent, continuous parameters
     static const float kFxDetentsPerStep = 3.f;  // per step, stepped parameters
-    static const uint16_t kFxFreezeKnob = 1;     // knob 2 (enc 1) press toggles delay freeze
+    static const uint16_t kFxFreezeKnob = 1;     // knob 2 (enc 1) press toggles freeze
     static const float kFxSelectedDim = .15f;
 
     static const float white[3] = {1.f, 1.f, 1.f};
@@ -311,8 +311,8 @@ namespace chompi
                 break;
 
             case static_cast<uint16_t>(Hardware::SwId::ENC_1_SW): // knob 2 (enc 1)
-                if (rising && fx_selected_ == FX_DELAY)
-                    engine_->ToggleDelayFreeze();
+                if (rising)
+                    engine_->ToggleFxFreeze(fx_selected_);
                 break;
 
             default:
@@ -469,14 +469,12 @@ namespace chompi
 
         void DrawFxLeds()
         {
-            const bool frozen = engine_->IsDelayFrozen();
-
             // knob LEDs: the selected FX's parameters in its colours
             const float* const* colors = kFxKnobColors[fx_selected_];
             for (size_t p = 0; p < kNumFxParams; p++)
             {
                 const float val = fx_params_[fx_selected_][p];
-                if (fx_selected_ == FX_DELAY && p == kFxFreezeKnob && frozen)
+                if (p == kFxFreezeKnob && engine_->IsFxFrozen(fx_selected_))
                     SetPthLedFloat(kFxKnobLeds[p], 1.f, 1.f, 1.f);
                 else
                     SetPthLedFloat(kFxKnobLeds[p],
@@ -489,7 +487,7 @@ namespace chompi
             {
                 const float* color = kFxKeyColors[fx];
                 float level = 0.f;
-                if (fx == FX_DELAY && frozen)
+                if (engine_->IsFxFrozen(fx))
                 {
                     color = white;
                     level = 1.f;

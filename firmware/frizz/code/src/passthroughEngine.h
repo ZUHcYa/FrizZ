@@ -146,9 +146,22 @@ public:
         }
     }
 
-    inline void ToggleDelayFreeze() { delay_.ToggleFreeze(); }
-    inline bool IsDelayFrozen() { return delay_.IsFrozen(); }
-    inline float GetDelayFrozenPosition() { return delay_.GetFrozenPosition(); }
+    /** Freeze, for the FX that have one (delay, reverb) */
+    inline void ToggleFxFreeze(size_t fx)
+    {
+        if (fx == chompi::FX_DELAY)
+            delay_.ToggleFreeze();
+        else if (fx == chompi::FX_REVERB)
+            reverb_.ToggleFreeze();
+    }
+    inline bool IsFxFrozen(size_t fx)
+    {
+        if (fx == chompi::FX_DELAY)
+            return delay_.IsFrozen();
+        if (fx == chompi::FX_REVERB)
+            return reverb_.IsFrozen();
+        return false;
+    }
 
     inline float GetVUSample() { return output_env_follower.GetLastSamp(); }
 

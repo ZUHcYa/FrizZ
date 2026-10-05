@@ -68,7 +68,7 @@ printed into a loop.
 | SHIFT + FX key | Latch on / off; a latched effect stays on after release |
 | FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
 | Knobs 1-4 | The 4 parameters of the most recently pressed FX key, 1% per detent; the delay's division moves one step per 3 detents |
-| Press knob 2, delay selected | Freeze on / off |
+| Press knob 2, delay or reverb selected | Freeze on / off; the key and knob 2 light white while frozen |
 
 The FX key is dim while the knobs edit its effect and lit while it is on. The knob LEDs show
 the parameter values in the effect's colours. Values reset at power-off.
@@ -77,7 +77,7 @@ the parameter values in the effect's colours. Values reset at power-off.
 |---|---|---|---|---|---|
 | 1st white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz (default 60%) | Bits, 16 down to 2 (default 50%, 9 bits) | Tone, lowpass 200 Hz to open (default open) | Mix (default 100%) |
 | 2nd-to-last white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 70%) |
-| Last white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Tone, dark to open (default 60%) | Diffusion (default 60%) | Level (default 70%) |
+| Last white | Reverb (TEMPO's / WAVE's); freeze holds the tail forever and shuts out new input | Decay (default 60%) | Tone, dark to open (default 60%) | Diffusion (default 60%) | Level (default 70%) |
 
 Delay details:
 - **Tempo:** follows MIDI clock, rounded to whole BPM. Without clock it keeps the last tempo

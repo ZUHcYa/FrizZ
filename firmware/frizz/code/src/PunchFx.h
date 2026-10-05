@@ -205,7 +205,6 @@ public:
     /** From the UI: picked up by the audio callback at the next sample */
     inline void ToggleFreeze() { freeze_toggle_ = true; }
     inline bool IsFrozen() { return delay_.isFrozen(); }
-    inline float GetFrozenPosition() { return delay_.getFrozenPosition(); }
 
     void SetParam(size_t param, float val)
     {
@@ -236,7 +235,9 @@ private:
 };
 
 /** TEMPO's reverb (reverb.h, the Rings/Clouds Griesinger topology) as a send.
- *  Params: 0 decay, 1 tone (damping), 2 diffusion, 3 level. */
+ *  Params: 0 decay, 1 tone (damping), 2 diffusion, 3 level.
+ *  Freeze (TEMPO's): the tail holds forever with the damping opened up, and new input is
+ *  shut out until toggled off. */
 class ReverbSend
 {
 public:
@@ -260,6 +261,7 @@ public:
         decay_ = decay_target_ = .5f;
         tone_ = tone_target_ = .7f;
         diffusion_ = diffusion_target_ = .625f;
+        freeze_ = freeze_target_ = 0.f;
     }
 
     /** Feeds in_l / in_r into the reverb (while on) and adds its return to *out_l / *out_r */
@@ -270,10 +272,12 @@ public:
         fonepole(decay_, decay_target_, .001f);
         fonepole(tone_, tone_target_, .001f);
         fonepole(diffusion_, diffusion_target_, .001f);
+        fonepole(freeze_, freeze_target_, kFxGateCoeff);
 
         reverb_->SetTime(decay_);
         reverb_->SetLowpass(tone_);
         reverb_->SetDiffusion(diffusion_);
+        reverb_->SetFreeze(freeze_);
 
         float wl = in_l * gate_;
         float wr = in_r * gate_;
@@ -284,6 +288,9 @@ public:
     }
 
     inline void SetOn(bool on) { gate_target_ = on ? 1.f : 0.f; }
+
+    inline void ToggleFreeze() { freeze_target_ = freeze_target_ > .5f ? 0.f : 1.f; }
+    inline bool IsFrozen() { return freeze_target_ > .5f; }
 
     void SetParam(size_t param, float val)
     {
@@ -315,6 +322,7 @@ private:
     float decay_, decay_target_;
     float tone_, tone_target_;
     float diffusion_, diffusion_target_;
+    float freeze_, freeze_target_;
 };
 
 } // namespace chompi
