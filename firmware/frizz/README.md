@@ -83,7 +83,7 @@ freezer -> shifter -> crusher -> filter -> flanger -> slicer -> delay -> reverb
 | Hold an FX key | Effect on while held |
 | SHIFT + FX key | Latch on / off; a latched effect stays on after release |
 | FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
-| Knobs 1-4 | The parameters of the most recently pressed FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length, slicer pattern and stereo) move one step per 3 detents |
+| Knobs 1-4 | The parameters of the most recently pressed FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo) move one step per 3 detents |
 | Press knobs 1-4 | Resets that parameter to its default |
 
 The FX keys are always dimly lit in their effect's colour, a little brighter for the effect
@@ -94,7 +94,7 @@ colours; a knob the effect doesn't use is dark and does nothing. Values reset at
 
 | Key | Effect | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|---|
-| 1st white | Freezer: Kastle 2 FX Wizard's, as a beat repeat | Length: 1/16, 1/8T, 1/8, 1/4T, 1/4, 1/2T, 1/2, 1 bar (default 1/8) | Feedback: the input overdubbed into the repeats (default 0, pure repeat) | Stereo: the left loop up to 45 ms longer (default off) | Pitch: short pitched loops, 50 Hz up to 290 Hz, replacing the length (default off) |
+| 1st white | Freezer: Kastle 2 FX Wizard's, as a beat repeat | Length: 1/16, 1/8T, 1/8, 1/4T, 1/4, 1/2T, 1/2, 1 bar (default 1/8) | Feedback: the input overdubbed into the repeats (default 0, pure repeat) | Stereo: the left loop up to 45 ms longer (default off) | Roll: the loop halves as it repeats, down to 1/64 bar: off, slow, … fast, one step per 3 detents (default off) |
 | 2nd white | Shifter: a two-tap pitch shifter, with Kastle 2 FX Wizard's swoop and feedback | Shift in semitones, -12 to +12, one step per 3 detents; centre off (default +7, a fifth) | Swoop: on the key press, the shift pushes up to 2 octaves further and falls back over 1 s (default off) | Feedback: the shifted sound spirals (default off) | Stereo: the right channel up to a semitone higher (default off) |
 | 3rd white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz, halving every 18% of the knob (default 24%, 8.6 kHz) | Bits, 16 down to 2 (default 50%, 9 bits) | Tone, lowpass 200 Hz to open (default open) | XOR: flips bits of every sample for a digital buzz, from Kastle 2 FX Wizard's crusher (default off) |
 | 4th white | Filter: the DJ filter from TAPE, TEMPO and WAVE (WAVE's copy) | Cutoff: lowpass left of centre, highpass right, flat at centre (default 30%, lowpass) | Resonance (default 50%) | LFO depth (default off) | LFO division: 1/16, 1/8, 1/4, 1/2, 1 bar, 2 bars, 4 bars (default 1 bar) |
@@ -120,10 +120,14 @@ Freezer details:
   the length is reached.
 - **Feedback:** at 0 the loop repeats unchanged. Turning up mixes the input into it (up to
   30% at 75%, 80% at the top, where the loop also fades by 10% per pass).
-- **Pitch:** above 0 the loop is a short pitched one (Kastle's upper half of TIME), 50 Hz
-  at 1% up to 290 Hz at 100%.
-- Lengths follow the delay's tempo. The loop seam has a 5 ms crossfade (shorter on pitched
-  loops), which Kastle doesn't have.
+- **Roll:** a beat repeat's build-up, which Kastle doesn't have. The four steps after off
+  halve the loop after 8, 4, 2 or 1 repeats at the starting length, and every stage after
+  that lasts as long as the first: at 1/8 and the slowest step, a bar of 1/8s, a bar of
+  1/16s, a bar of 1/32s, then 1/64s until release. Each halving repeats the start of the
+  capture, following on from the last repeat through the seam crossfade. Turning it off
+  goes back to the full length.
+- Lengths follow the delay's tempo. The loop seam has a 5 ms crossfade (shorter on loops
+  under 20 ms), which Kastle doesn't have.
 - LEDs: the key is purple; the knobs go purple through white to light blue.
 
 Slicer details:

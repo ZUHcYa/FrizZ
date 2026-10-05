@@ -31,9 +31,9 @@ struct FxSlot
 };
 
 static const FxSlot kFxSlots[] = {
-    // freezer: length (1/8), feedback (pure repeat), stereo (off), pitch (off)
+    // freezer: length (1/8), feedback (pure repeat), stereo (off), roll (off)
     {Hardware::SwId::KEY_1, 24, purple, {purple, white, med_blue}, FxKind::INSERT, 4,
-     {2.f / 7.f, 0.f, 0.f, 0.f}, {Freezer::kNumLengths, 0, 0, 0}},
+     {2.f / 7.f, 0.f, 0.f, 0.f}, {Freezer::kNumLengths, 0, 0, Freezer::kNumRolls}},
     // shifter: shift (+7 semitones, a fifth), swoop (off), feedback (off), stereo (off).
     // The shift knob's LED: blue down, white off, red up
     {Hardware::SwId::KEY_2, 23, red, {blue, white, red}, FxKind::INSERT, 4,
