@@ -102,7 +102,9 @@ Same as TAPE's quantized looper pitch (`SetLooperPitchQuantized` in TAPE's `DSPE
 TAPE's `LooperEngine.h` sits on `FileSampler` (`Sampler.h`, 373 lines), which is built for
 WAV-file playback, overdub and tape slew. Most of that we don't want. Plan:
 
-- **Copy** `RamBuffer.h` from TAPE (stereo int16 buffer in SDRAM, `kMaxRamBuffSize`).
+- **Take TAPE's buffer size** (`kMaxRamBuffSize`: 2:45 stereo int16, SDRAM-page aligned), but
+  not `RamBuffer.h` itself: its read/write heads step one frame at a time, and step 4 needs a
+  fractional read head. `Looper.h` indexes the buffer directly.
 - **Copy** the 5ths/octaves stepping logic from TAPE's `SetLooperPitchQuantized`.
 - **Write new** `Looper.h` (~200 lines): record, play/pause, erase, a fractional read head
   for varispeed and reverse (linear or Hermite interpolation), scrub, and a short
@@ -125,22 +127,24 @@ Notes for implementing this against `MidiClock.h`:
 - **T is the tick span over the recording:** (last tick time − first tick time after the press)
   ÷ (ticks − 1), snapshotted by the looper. Don't use `GetTickPeriod()` for the loop length.
   Its smoothing only weights the last ~10 ticks and lags drift; it's for display.
-- **The start and end are timestamped in the engine, not the UI.** `OnButton` runs from
-  `MainLoop`, which isn't sample-aligned. The engine records `sample_clock` in the block where
-  writing actually starts, so `sample_clock` has to be passed into `engine.Process`.
+- **The start and end are timed in the engine, not the UI.** `OnButton` runs from `MainLoop`,
+  which isn't sample-aligned, so it only posts a command. The looper picks it up at the start of
+  the next audio block, and from then on the number of recorded frames *is* the elapsed time
+  since the press. Tick times come from the same audio sample clock (`MidiClock.h`).
 - **N = floor(elapsed samples ÷ (96 · T)) + 1 at the end press,** not the raw tick count. A press
   exactly on a bar line counts as the start of the next bar (strict rule), and this avoids an
   off-by-one when the press lands on a bar-line tick.
 
 ### 2.3 Steps
 
-1. **MIDI clock in.**
+1. **MIDI clock in.** *(done: `MidiClock.h`)*
    - Re-add MIDI UART + USB init and polling (from WAVE).
    - Add tick counting, source lock, 0.5 s timeout and tick-period averaging.
    - Poll from the audio callback, as WAVE did.
-2. **Looper core.**
-   - Add `RamBuffer` in SDRAM (`DSY_SDRAM_BSS`) and restore `ZeroSDRAM()` at boot.
-   - Record and play at 1×, with the loop-point crossfade.
+2. **Looper core.** *(done: `Looper.h`)*
+   - Add the loop buffer in SDRAM (`DSY_SDRAM_BSS`) and restore `ZeroSDRAM()` at boot.
+   - Record and play at 1×, with the loop-point crossfade (5 ms, using a post-roll recorded past
+     the loop end, see `Looper.h`), quantized end, clock-loss and 2:45 handling.
    - Wire its output into `wetl`/`wetr` in `passthroughEngine.h`.
 3. **Keys.** PLAY/LOOP state machine per 1.2, including the quantized end and the 2 s erase.
 4. **Transport.** Stepped varispeed, reverse, press-to-reset, scrub when paused.

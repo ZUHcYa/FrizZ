@@ -2,8 +2,8 @@
  *  @brief Audio engine: the stereo AUX input goes to both outputs through the Volume
  *  Engine: input gain -> dry/wet mix -> output gain -> master compressor.
  *
- *  Dry is the input on its own, wet is the processed signal from the looper/buffer
- *  on its own. The looper doesn't exist yet, so wet is silent for now.
+ *  Dry is the input on its own, wet is the looper's playback on its own. The looper
+ *  records the dry signal (see Looper.h).
  *
  *  The input level, output level and compressor stage are ported from TAPE's DSPEngine
  *  so the gains match the hardware the way TAPE tuned them.
@@ -13,6 +13,7 @@
 #include "daisysp.h"
 #include "EnvFollower.h"
 #include "limiter.h"
+#include "Looper.h"
 
 using namespace daisy;
 using namespace daisysp;
@@ -28,8 +29,10 @@ public:
     PassthroughEngine() {};
     ~PassthroughEngine() {};
 
-    void Init(float sample_rate)
+    void Init(float sample_rate, int16_t* loop_mem, chompi::MidiClock* midi_clock)
     {
+        looper.Init(loop_mem, midi_clock);
+
         dcblock_line_in_l_.Init(sample_rate);
         dcblock_line_in_r_.Init(sample_rate);
 
@@ -45,27 +48,31 @@ public:
      *  Outputs: 0/1 headphone L/R, 2/3 master L/R */
     void Process(const float *const *in, float **out, size_t size)
     {
+        float dryl[size], dryr[size], wetl[size], wetr[size];
+
         for (size_t i = 0; i < size; i++)
         {
             // Every setting has a target and a live value; fonepole() slews the live
             // value toward the target over ~1ms so knob turns don't zipper.
-            fonepole(mgain_, mgain_target_, .001f);
             fonepole(ingain_, ingain_target_, .001f);
+
+            dryl[i] = dcblock_line_in_l_.Process(in[2][i] * ingain_ * kLineInGain);
+            dryr[i] = dcblock_line_in_r_.Process(in[3][i] * ingain_ * kLineInGain);
+        }
+
+        looper.Process(dryl, dryr, wetl, wetr, size);
+
+        for (size_t i = 0; i < size; i++)
+        {
+            fonepole(mgain_, mgain_target_, .001f);
             fonepole(final_lim_, final_lim_target_, .001f);
             fonepole(mix_, mix_target_, .001f);
-
-            const float dryl = dcblock_line_in_l_.Process(in[2][i] * ingain_ * kLineInGain);
-            const float dryr = dcblock_line_in_r_.Process(in[3][i] * ingain_ * kLineInGain);
-
-            // TODO(frizz): the looper/buffer output goes here (Phase 2)
-            const float wetl = 0.f;
-            const float wetr = 0.f;
 
             // equal-power crossfade so the middle of the knob doesn't dip in level
             const float dry_amt = cosf(mix_ * HALFPI_F);
             const float wet_amt = sinf(mix_ * HALFPI_F);
-            const float sigl = dryl * dry_amt + wetl * wet_amt;
-            const float sigr = dryr * dry_amt + wetr * wet_amt;
+            const float sigl = dryl[i] * dry_amt + wetl[i] * wet_amt;
+            const float sigr = dryr[i] * dry_amt + wetr[i] * wet_amt;
 
             // headphone and master gain
             out[0][i] = sigl * kHpGain * mgain_;
@@ -94,6 +101,8 @@ public:
     inline void SetMix(float mix) { mix_target_ = mix; }
 
     inline float GetVUSample() { return output_env_follower.GetLastSamp(); }
+
+    chompi::Looper looper;
 
 private:
     daisysp::DcBlock dcblock_line_in_l_, dcblock_line_in_r_;

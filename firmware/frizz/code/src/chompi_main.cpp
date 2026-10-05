@@ -31,6 +31,8 @@ FatFSInterface fsi;
 PassthroughEngine engine;
 MidiClock midi_clock;
 
+int16_t DSY_SDRAM_BSS loop_mem[kLoopMemSize];
+
 // Running count of audio samples since audio started, the time base for MIDI clock ticks
 uint32_t sample_clock = 0;
 
@@ -39,6 +41,17 @@ daisysp::Oscillator osc;
 bool booting = true;
 bool rainbow_done = false;
 bool loading_screen = true;
+
+/** Clears the Daisy Seed's 64MB external SDRAM at boot. The loop buffer lives there, and
+ *  unlike internal-RAM statics it isn't zeroed by the startup code */
+void ZeroSDRAM()
+{
+    uint32_t *beg, *end;
+    size_t    size_in_words = (1024 * 1024 * 64) / sizeof(uint32_t);
+    beg                     = (uint32_t*)0xc0000000;
+    end                     = (uint32_t*)(beg + size_in_words);
+    std::fill(beg, end, 0);
+}
 
 /** breakdown:
  *  Inputs:
@@ -174,7 +187,7 @@ int main(void)
     System::Delay(100);
     f_mount(&fsi.GetSDFileSystem(), fsi.GetSDPath(), 1);
 
-    engine.Init(hw.seed.AudioSampleRate());
+    engine.Init(hw.seed.AudioSampleRate(), loop_mem, &midi_clock);
 
     LedSetup();
     ui.Init(&engine, &hw, &midi_clock);
@@ -183,6 +196,9 @@ int main(void)
     osc.SetAmp(.2f);
 
     hw.StartAudio(AudioCallback);
+
+    // safe while audio runs: the looper is empty and doesn't touch its buffer yet
+    ZeroSDRAM();
 
     now = daisy::System::GetNow();
     uit = now;
