@@ -1,6 +1,7 @@
 /** @file NormalPage.h
- *  @brief The main play-mode UiPage (see ui.h). Only the VOLUME knob (encoder 6) does
- *  anything, following TAPE's Volume Engine:
+ *  @brief The main play-mode UiPage (see ui.h).
+ *
+ *  VOLUME knob (encoder 6), following TAPE's Volume Engine:
  *   - page 1 (default): output gain for headphone and master out, LED is a VU meter
  *   - page 2 (press):   input gain for the AUX input, LED blue (0%) to red (100%)
  *   - page 3 (press):   master compressor amount, LED dark to light blue
@@ -10,6 +11,15 @@
  *  Pressing again on page 3 goes back to page 1.
  *
  *  SHIFT is the CHOMPI key held with the mode switch DOWN.
+ *
+ *  Looper keys (LOOPER.md 1.2), PLAY = KEY_27, LOOP = KEY_28:
+ *   - empty:          LOOP records unquantized, hold PLAY + press LOOP records quantized
+ *                     (refused without MIDI clock)
+ *   - recording:      LOOP ends the recording (quantized: at the end of the bar)
+ *   - loop exists:    PLAY toggles play / pause, LOOP does nothing,
+ *                     hold PLAY + LOOP for 2s erases (either key first)
+ *  LOOP acts on press so recording starts and stops exactly then. PLAY acts on release, and
+ *  only if LOOP wasn't pressed during the hold, so the PLAY + LOOP combos never also toggle.
  *
  *  TEMPORARY (looper step 1, remove in step 5): the transport LEDs flash on every MIDI
  *  clock beat, green for TRS and blue for USB, brighter every 4th beat.
@@ -28,7 +38,7 @@ namespace chompi
 
     static const float kDefaultOutGain = .75f;
     static const float kDefaultInGain = .75f;
-    static const float kDefaultMix = 0.f; // fully dry until the looper exists
+    static const float kDefaultMix = 0.f; // fully dry: the input as before, no looper
 
     static const uint8_t kNumPages = 3;
 
@@ -37,6 +47,7 @@ namespace chompi
     static const uint8_t kTransportLedL = 5;
     static const uint8_t kTransportLedR = 6;
     static const uint32_t kBeatFlashMs = 50;
+    static const uint32_t kEraseHoldMs = 2000;
 
     static const float white[3] = {1.f, 1.f, 1.f};
     static const float red[3] = {1.f, 0.f, 0.f};
@@ -144,6 +155,13 @@ namespace chompi
             }
             SetPthLedFloat(kVolumeLed, r, g, b);
 
+            // hold PLAY + LOOP to erase
+            if (erase_armed_ && now - erase_hold_ >= kEraseHoldMs)
+            {
+                engine_->looper.Erase();
+                erase_armed_ = false;
+            }
+
             // TEMPORARY beat indicator, see the file comment
             if (midi_clock_->HasClock())
             {
@@ -195,6 +213,34 @@ namespace chompi
                 chompi_key_pressed = rising;
                 break;
 
+            case static_cast<uint16_t>(Hardware::SwId::KEY_27): // PLAY
+                play_pressed_ = rising;
+                if (rising)
+                {
+                    play_combo_ = false;
+                    // LOOP held first, then PLAY: same erase combo
+                    if (loop_pressed_ && LoopExists())
+                    {
+                        play_combo_ = true;
+                        ArmErase();
+                    }
+                }
+                else
+                {
+                    erase_armed_ = false;
+                    if (!play_combo_)
+                        engine_->looper.TogglePlay();
+                }
+                break;
+
+            case static_cast<uint16_t>(Hardware::SwId::KEY_28): // LOOP
+                loop_pressed_ = rising;
+                if (rising)
+                    LoopPressed();
+                else
+                    erase_armed_ = false;
+                break;
+
             default:
                 break;
             }
@@ -235,12 +281,59 @@ namespace chompi
             return true;
         }
 
+        /** System::GetNow() of the last refused quantized record, 0 if none (for the LEDs) */
+        inline uint32_t GetRecordRefusedTime() const { return record_refused_; }
+
         inline bool getSwitchState() { return switch_state; }
         void SetSwitchState(bool state) { switch_state = state; }
 
         inline void SetInitIgnore(bool ignore) { init_ignore = ignore; }
 
     private:
+        void LoopPressed()
+        {
+            if (play_pressed_)
+                play_combo_ = true; // PLAY's release must not toggle
+
+            Looper& looper = engine_->looper;
+            switch (looper.GetState())
+            {
+            case Looper::State::EMPTY:
+                if (!play_pressed_)
+                    looper.StartRecording(false);
+                else if (looper.CanRecordQuantized())
+                    looper.StartRecording(true);
+                else
+                    record_refused_ = System::GetNow();
+                break;
+
+            case Looper::State::RECORDING:
+                looper.StopRecording();
+                break;
+
+            case Looper::State::PLAYING:
+            case Looper::State::PAUSED:
+                // only a loop that already existed when both went down can be erased, so
+                // holding the quantized-record combo can't erase the new recording.
+                // Either key may go down first.
+                if (play_pressed_)
+                    ArmErase();
+                break;
+            }
+        }
+
+        inline bool LoopExists()
+        {
+            const Looper::State state = engine_->looper.GetState();
+            return state == Looper::State::PLAYING || state == Looper::State::PAUSED;
+        }
+
+        inline void ArmErase()
+        {
+            erase_armed_ = true;
+            erase_hold_ = System::GetNow();
+        }
+
         // switch_state is true with the mode switch DOWN
         inline bool Shift() { return chompi_key_pressed && switch_state; }
 
@@ -260,6 +353,13 @@ namespace chompi
 
         bool switch_state = false;
         bool chompi_key_pressed = false;
+
+        bool play_pressed_ = false;
+        bool loop_pressed_ = false;
+        bool play_combo_ = false;   // LOOP was pressed during this PLAY hold
+        bool erase_armed_ = false;  // PLAY + LOOP held on an existing loop
+        uint32_t erase_hold_ = 0;
+        uint32_t record_refused_ = 0;
 
         bool batt_display;
         uint32_t batt_hold;
