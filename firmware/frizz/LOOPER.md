@@ -1,7 +1,7 @@
 # FRIZZ looper: spec and implementation plan
 
-Status: agreed spec, not implemented yet. The looper feeds the **wet** side of the dry/wet
-mix (SHIFT + VOLUME), which is silent today (`TODO(frizz)` in `passthroughEngine.h`).
+Status: implemented (steps 1-6 below), not yet tested on hardware. The looper feeds the
+**wet** side of the dry/wet mix (SHIFT + VOLUME).
 
 Behaviour follows the CHOMPI TAPE 2.0 guidebook, Level 04 (Looper Engine), with the
 deviations listed below. Where this document and the guidebook disagree, this document wins.
@@ -161,7 +161,7 @@ Notes for implementing this against `MidiClock.h`:
    the short fades rather than TAPE's tape stop/start.
 5. **LEDs and mix jumps.** *(done: `NormalPage.h`)* LEDs per 1.6, the mix jumps per 1.1, and
    the temporary beat flash from step 1 removed.
-6. **Docs.** Update `README.md` (controls table, file map) and mark this document implemented.
+6. **Docs.** *(done)* `README.md` controls tables, MIDI clock section and file map.
 
 Verification per step: build with GCC 10.3, check the memory table, then test on hardware:
 loop length against a DAW's clock, no clicks at the loop point, source switching TRS ↔ USB.
