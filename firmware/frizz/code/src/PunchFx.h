@@ -16,7 +16,8 @@
  *
  *  The engine runs them on the summed output, after the dry/wet mix and before the output
  *  gain and master compressor: freezer, slicer, flanger, shifter, filter, crusher, then both
- *  sends in parallel from the crusher's output (see passthroughEngine.h).
+ *  sends in parallel from the crusher's output (see passthroughEngine.h). The resonator
+ *  (FxWizard.h) is a feedback loop around the inserts after the freezer.
  */
 #pragma once
 #include "daisy.h"
@@ -42,11 +43,12 @@ enum FxId
     FX_SLICER,  // FxWizard.h
     FX_FLANGER, // FxWizard.h
     FX_SHIFTER, // FxWizard.h
+    FX_RESONATOR, // FxWizard.h
     kNumFx,
 };
 
 // Knobs used per FxId, the first kFxNumParams[fx] of the four
-static const size_t kFxNumParams[] = {4, 3, 4, 4, 4, 4, 4, 4};
+static const size_t kFxNumParams[] = {4, 4, 4, 4, 4, 4, 4, 4, 4};
 static_assert(sizeof(kFxNumParams) / sizeof(kFxNumParams[0]) == kNumFx, "one per FxId");
 
 // ~5ms at 48kHz
@@ -164,9 +166,11 @@ private:
     uint32_t lfo_div_pulses_; // pulses per LFO cycle
 };
 
-/** KEY_2: TEMPO's sample-rate reducer, plus bit-depth reduction and a tone control. Fully
- *  wet while on.
- *  Params: 0 rate, 1 bits, 2 tone. */
+/** KEY_2: TEMPO's sample-rate reducer, plus bit-depth reduction, a tone control, and two
+ *  extras from the Kastle 2 FX Wizard's crusher (MIT, see FxWizard.h): XOR, which flips
+ *  fixed bits of every 16-bit sample for a digital buzz, and a dive on every key press,
+ *  the rate dropping up to 10x over 0.1s and recovering over 0.4s. Fully wet while on.
+ *  Params: 0 rate, 1 bits, 2 tone, 3 XOR (0 = off). */
 class Crusher
 {
 public:
@@ -175,6 +179,7 @@ public:
         RATE,
         BITS,
         TONE,
+        XOR,
     };
 
     void Init(float sample_rate)
@@ -183,6 +188,14 @@ public:
 
         srr_l_.Init();
         srr_r_.Init();
+        xor_dc_l_.Init(sample_rate);
+        xor_dc_r_.Init(sample_rate);
+        dive_ = 0.f;
+        dive_attacking_ = false;
+        dive_trigger_ = false;
+        on_ = false;
+        dive_attack_inc_ = 1.f / (.1f * sample_rate);
+        dive_decay_coeff_ = expf(-6.9078f / (.4f * sample_rate)); // to -60dB in 0.4s
 
         lp_l_ = lp_r_ = 0.f;
         gate_ = gate_target_ = 0.f;
@@ -199,10 +212,43 @@ public:
         fonepole(rate_, rate_target_, .001f);
         fonepole(tone_coeff_, tone_coeff_target_, .001f);
 
-        srr_l_.SetFreq(rate_);
-        srr_r_.SetFreq(rate_);
-        float wl = srr_l_.Process(*l);
-        float wr = srr_r_.Process(*r);
+        if (dive_trigger_)
+        {
+            dive_trigger_ = false;
+            dive_attacking_ = true;
+        }
+        if (dive_attacking_)
+        {
+            dive_ += dive_attack_inc_;
+            if (dive_ >= 1.f)
+            {
+                dive_ = 1.f;
+                dive_attacking_ = false;
+            }
+        }
+        else
+            dive_ *= dive_decay_coeff_;
+
+        // Kastle: the rate divided by the dive envelope times 10, at least 1
+        const float rate = rate_ / fmaxf(1.f, dive_ * 10.f);
+        srr_l_.SetFreq(rate);
+        srr_r_.SetFreq(rate);
+
+        // XOR before the reducer, as on Kastle. On its own XOR turns silence into a constant
+        // offset, so what it adds is DC-blocked: the buzz stays, the thump on punch-in doesn't
+        float xl = *l, xr = *r;
+        if (xor_ > 0)
+        {
+            xl += xor_dc_l_.Process(Xor(xl) - xl);
+            xr += xor_dc_r_.Process(Xor(xr) - xr);
+        }
+        else
+        {
+            xor_dc_l_.Process(0.f);
+            xor_dc_r_.Process(0.f);
+        }
+        float wl = srr_l_.Process(xl);
+        float wr = srr_r_.Process(xr);
 
         // bit-depth reduction: round to the nearest step
         const float step = step_;
@@ -218,12 +264,37 @@ public:
         *r += gate_ * (lp_r_ - *r);
     }
 
-    inline void SetOn(bool on) { gate_target_ = on ? 1.f : 0.f; }
+    inline void SetOn(bool on)
+    {
+        if (on && !on_)
+            dive_trigger_ = true;
+        on_ = on;
+        gate_target_ = on ? 1.f : 0.f;
+    }
 
     void SetParam(size_t param, float val)
     {
         switch (param)
         {
+        case XOR:
+        {
+            // Kastle: 0 / 1000 / 2000 / 4000 over the top 30% of its Amount knob, here over
+            // the whole knob
+            static const float xs[] = {0.f, .233f, .667f, 1.f};
+            static const float ys[] = {0.f, 1000.f, 2000.f, 4000.f};
+            float k = ys[3];
+            for (size_t i = 1; i < 4; i++)
+            {
+                if (val <= xs[i])
+                {
+                    k = ys[i - 1] + (ys[i] - ys[i - 1]) * (val - xs[i - 1]) / (xs[i] - xs[i - 1]);
+                    break;
+                }
+            }
+            xor_ = static_cast<int16_t>(k);
+            break;
+        }
+
         case RATE:
             // TEMPO's mapping (SampleEngine::setSampleReducer): 21.6kHz down to 480Hz
             rate_target_ = fclamp((1.f - val) * .45f, .01f, 1.f);
@@ -263,6 +334,19 @@ private:
     float rate_, rate_target_;
     float tone_coeff_, tone_coeff_target_;
     float step_; // quantizer step, 2^(1 - bits)
+    int16_t xor_ = 0;
+    daisysp::DcBlock xor_dc_l_, xor_dc_r_;
+    float dive_, dive_attack_inc_, dive_decay_coeff_;
+    bool dive_attacking_;
+    volatile bool dive_trigger_;
+    bool on_;
+
+    /** Kastle's XOR on the sample as 16-bit */
+    inline float Xor(float x) const
+    {
+        const int16_t i = static_cast<int16_t>(fclamp(x, -1.f, 1.f) * 32767.f);
+        return static_cast<float>(static_cast<int16_t>(i ^ xor_)) * (1.f / 32767.f);
+    }
 };
 
 /** TEMPO's tempo-synced delay (granularDelay.h) as a send. Its freeze isn't used, but it

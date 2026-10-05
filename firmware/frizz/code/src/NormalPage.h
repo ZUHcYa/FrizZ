@@ -36,8 +36,9 @@
  *  transport LEDs show the speed in TAPE's colours, or the scrub speed while paused.
  *
  *  Punch-in FX (PunchFx.h, FxWizard.h) on the white keys: KEY_1 filter, KEY_2 crusher,
- *  KEY_3 freezer, KEY_4 slicer, KEY_5 flanger and KEY_6 shifter (inserts), KEY_14 delay and
- *  KEY_15 reverb (sends, so their tails ring out after release):
+ *  KEY_3 freezer, KEY_4 slicer, KEY_5 flanger and KEY_6 shifter (inserts), KEY_7 resonator
+ *  (a comb loop around the inserts), KEY_14 delay and KEY_15 reverb (sends, so their tails
+ *  ring out after release):
  *   - hold the key:          the effect is on while held
  *   - SHIFT + key:           toggles the latch, the effect stays on after release
  *   - key on a latched FX:   clears the latch, the effect stays on until the key is released
@@ -45,7 +46,7 @@
  *                            detent; stepped parameters (filter LFO division, delay
  *                            division, freezer length, slicer pattern and stereo) move one
  *                            step per kFxDetentsPerStep detents; knobs
- *                            past the FX's kFxNumParams do nothing (crusher: knob 4)
+ *                            past the FX's kFxNumParams do nothing (none at the moment)
  *   - press knobs 1-4:       resets that parameter to its default (kFxDefaults)
  *   - SHIFT + knobs 1-4:     nothing, turned or pressed (reserved for a second parameter page)
  *  FX key LEDs: always dimly lit in the FX's colour, brighter for the FX the knobs edit.
@@ -96,16 +97,17 @@ namespace chompi
         Hardware::SwId::KEY_4,  // slicer: 4th white key
         Hardware::SwId::KEY_5,  // flanger: 5th white key
         Hardware::SwId::KEY_6,  // shifter: 6th white key
+        Hardware::SwId::KEY_7,  // resonator: 7th white key
     };
     CHECK_PER_FX(kFxKeys);
-    static const uint8_t kFxKeyLeds[] = {24, 23, 11, 10, 22, 21, 20, 19}; // SMT LEDs, TestPage's led_map
+    static const uint8_t kFxKeyLeds[] = {24, 23, 11, 10, 22, 21, 20, 19, 18}; // SMT LEDs, led_map
     CHECK_PER_FX(kFxKeyLeds);
     static const uint8_t kFxKnobLeds[kNumFxParams] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
     // Audible from the first press. Stepped parameters on their grid: step / (steps - 1)
     static const float kFxDefaults[][kNumFxParams] = {
         {.3f, .5f, 0.f, .6667f}, // filter: cutoff (lowpass), resonance, LFO depth (off),
                                  // LFO division (1 bar)
-        {.6f, .5f, 1.f, 0.f},    // crusher: rate, bits, tone, (unused)
+        {.6f, .5f, 1.f, 0.f},    // crusher: rate, bits, tone, XOR (off)
         {.25f, .4f, .5f, .7f},   // delay: division (1/4), feedback, random (off), level
         {.6f, .6f, .6f, .7f},    // reverb: decay, tone, diffusion, level
         {2.f / 7.f, 0.f, 0.f, 0.f}, // freezer: length (1/8), feedback (pure repeat),
@@ -116,6 +118,8 @@ namespace chompi
                                  // (off)
         {.7f, 0.f, 0.f, 0.f},    // shifter: shift (up, about 6 semitones), swoop (off),
                                  // feedback (off), stereo (off)
+        {.4364f, .7f, .7f, 0.f}, // resonator: pitch (110Hz), feedback, tone (6.6kHz),
+                                 // stereo (off)
     };
     CHECK_PER_FX(kFxDefaults);
     // Number of steps for stepped parameters, 0 = continuous
@@ -126,6 +130,7 @@ namespace chompi
         {0, 0, 0, 0},
         {Freezer::kNumLengths, 0, 0, 0},
         {Slicer::kNumPatterns, 0, 0, Slicer::kNumPatterns},
+        {0, 0, 0, 0},
         {0, 0, 0, 0},
         {0, 0, 0, 0},
     };
@@ -164,10 +169,11 @@ namespace chompi
         {yellow, white, green},
         {med_blue, white, purple},
         {blue, white, red}, // shift: down / off / up
+        {orange, white, med_blue},
     };
     CHECK_PER_FX(kFxKnobColors);
     static const float* const kFxKeyColors[] = {pink, orange, green, blue, purple, yellow,
-                                                 med_blue, red};
+                                                 med_blue, red, white};
     CHECK_PER_FX(kFxKeyColors);
     #undef CHECK_PER_FX
 

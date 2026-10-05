@@ -1,7 +1,8 @@
 /** @file FxWizard.h
  *  @brief Punch-in inserts ported from Bastl Instruments' Kastle 2 FX Wizard
  *  (github.com/bastl-instruments/kastle2, code/src/apps/FxWizard/AppFxWizard.cpp,
- *  FxWizardParameterMaps.hpp): the freezer, slicer, flanger and shifter. Rewritten from Kastle's 44kHz fixed point to 48kHz float, with
+ *  FxWizardParameterMaps.hpp): the freezer, slicer, flanger, shifter, and the feedback
+ *  comb FX Wizard runs around every mode, here the resonator. Rewritten from Kastle's 44kHz fixed point to 48kHz float, with
  *  Kastle's mode knobs and trigger input replaced by a held key, and clocked by TempoClock
  *  pulses (12 PPQN, see TempoClock.h) like the filter's LFO.
  *
@@ -750,6 +751,145 @@ private:
     bool env_attacking_;
     volatile bool trigger_;
     bool on_;
+};
+
+/** KEY_7: the feedback comb Kastle runs around every FX Wizard mode, as its own key. While
+ *  on, the loop wraps all the inserts that are on: the engine taps the signal after the
+ *  crusher (Tap) and feeds it back in after the freezer (Feed), so the ringing goes through
+ *  the slicer, flanger, shifter, filter and crusher on every trip. In the loop, as on Kastle:
+ *  a soft clipper, a lowpass and a 50Hz highpass, which keep it bounded whatever is inside.
+ *  On its own it's a comb on the dry signal. Kastle's comb is 100-2000 samples at 44kHz and
+ *  at most about 40% feedback; this one is tunable and goes up to 98%.
+ *  Params: 0 pitch (22-880Hz), 1 feedback, 2 tone (the loop's lowpass), 3 stereo (the right
+ *  channel up to 12 semitones higher). */
+class Resonator
+{
+public:
+    enum Param
+    {
+        PITCH,
+        FEEDBACK,
+        TONE,
+        STEREO,
+    };
+
+    void Init(float sample_rate)
+    {
+        sample_rate_ = sample_rate;
+        for (size_t c = 0; c < 2; c++)
+        {
+            for (size_t i = 0; i < kBufSize; i++)
+                buf_[c][i] = 0.f;
+            lp_[c] = 0.f;
+            hp_[c].Init(sample_rate);
+            ret_[c] = 0.f;
+        }
+        write_pos_ = 0;
+        gate_ = gate_target_ = 0.f;
+
+        for (size_t i = 0; i < kNumFxParams; i++)
+            SetParam(i, 0.f);
+        for (size_t c = 0; c < 2; c++)
+            delay_[c] = delay_target_[c];
+        feedback_ = feedback_target_;
+        lp_coeff_ = lp_coeff_target_;
+    }
+
+    /** After the freezer: adds the loop's return, scaling the input down as Kastle does */
+    void Feed(float* l, float* r)
+    {
+        fonepole(gate_, gate_target_, kFxGateCoeff);
+        fonepole(feedback_, feedback_target_, .001f);
+        fonepole(lp_coeff_, lp_coeff_target_, .001f);
+
+        const float fb = gate_ * feedback_;
+        float* const io[2] = {l, r};
+        for (size_t c = 0; c < 2; c++)
+        {
+            fonepole(delay_[c], delay_target_[c], .001f);
+            ret_[c] = fb * ReadFrac(buf_[c], kBufMask, write_pos_ - 1, delay_[c] - 1.f);
+            *io[c] = *io[c] * (1.f - .5f * fb) + ret_[c];
+        }
+    }
+
+    /** After the crusher: into the loop through the clipper and filters */
+    void Tap(float l, float r)
+    {
+        const float in[2] = {l, r};
+        for (size_t c = 0; c < 2; c++)
+        {
+            lp_[c] += lp_coeff_ * (SoftClip(in[c]) - lp_[c]);
+            buf_[c][write_pos_] = hp_[c].Process(lp_[c]);
+        }
+        write_pos_ = (write_pos_ + 1) & kBufMask;
+    }
+
+    /** What the loop added in the last Feed, for the key LED */
+    inline float Return() const { return ret_[0] + ret_[1]; }
+
+    inline void SetOn(bool on) { gate_target_ = on ? 1.f : 0.f; }
+
+    void SetParam(size_t param, float val)
+    {
+        switch (param)
+        {
+        case PITCH:
+            pitch_hz_ = kLowestHz * powf(kHighestHz / kLowestHz, val);
+            break;
+        case FEEDBACK:
+            feedback_target_ = val * .98f;
+            break;
+        case TONE:
+        {
+            // the loop's lowpass, 1kHz to Kastle's 15kHz
+            const float freq = 1000.f * powf(15.f, val);
+            lp_coeff_target_ = 1.f - expf(-TWOPI_F * freq / sample_rate_);
+            break;
+        }
+        case STEREO:
+            stereo_ = val;
+            break;
+        default:
+            break;
+        }
+        delay_target_[0] = sample_rate_ / pitch_hz_;
+        delay_target_[1] = sample_rate_ / (pitch_hz_ * powf(2.f, stereo_));
+    }
+
+private:
+    static const size_t kBufSize = 4096; // > 48kHz / 22Hz
+    static const size_t kBufMask = kBufSize - 1;
+    static constexpr float kLowestHz = 22.f;   // Kastle's 2000 samples at 44kHz
+    static constexpr float kHighestHz = 880.f; // Kastle stops at 440Hz
+
+    /** The loop's highpass: a one-pole at 50Hz, Kastle's */
+    struct Highpass
+    {
+        void Init(float sample_rate)
+        {
+            coeff = 1.f - expf(-TWOPI_F * 50.f / sample_rate);
+            lp = 0.f;
+        }
+        float Process(float x)
+        {
+            lp += coeff * (x - lp);
+            return x - lp;
+        }
+        float coeff, lp;
+    };
+
+    float sample_rate_;
+    float buf_[2][kBufSize];
+    size_t write_pos_;
+    float lp_[2];
+    Highpass hp_[2];
+    float ret_[2];
+    float gate_, gate_target_;
+    float feedback_, feedback_target_;
+    float lp_coeff_, lp_coeff_target_;
+    float delay_[2], delay_target_[2];
+    float pitch_hz_ = kLowestHz;
+    float stereo_ = 0.f;
 };
 
 } // namespace chompi
