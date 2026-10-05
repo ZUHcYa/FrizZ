@@ -16,8 +16,12 @@ Only the VOLUME knob does anything:
 |---|---|---|
 | Turn (page 1, default) | Output gain, headphone + master (default 75%) | VU meter, scaled by gain |
 | Press, then turn (page 2) | Input gain, AUX (default 75%) | blue (0%) to red (100%) |
-| SHIFT + turn | Master compressor amount (default off) | dark to light blue |
+| Press again, then turn (page 3) | Master compressor amount (default off) | dark to light blue |
+| SHIFT + turn | Dry/wet mix: dry = input only, wet = looper/buffer only (default dry) | green (dry) to purple (wet) |
 | Press and hold 1.25 s | Battery check | white full / green / yellow / red |
+
+Pressing again on page 3 returns to page 1. The looper doesn't exist yet, so the wet side of
+the mix is silent for now.
 
 SHIFT means holding the CHOMPI key with the mode switch DOWN. The CHOMPI key lights white
 while it acts as SHIFT. Holding the VOLUME knob at power-on still enters the hardware self-test.

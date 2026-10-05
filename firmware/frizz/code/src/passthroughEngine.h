@@ -1,6 +1,9 @@
 /** @file passthroughEngine.h
- *  @brief Audio engine: the stereo AUX input goes straight to both outputs through
- *  the Volume Engine (input gain -> output gain -> master compressor).
+ *  @brief Audio engine: the stereo AUX input goes to both outputs through the Volume
+ *  Engine: input gain -> dry/wet mix -> output gain -> master compressor.
+ *
+ *  Dry is the input on its own, wet is the processed signal from the looper/buffer
+ *  on its own. The looper doesn't exist yet, so wet is silent for now.
  *
  *  The input level, output level and compressor stage are ported from TAPE's DSPEngine
  *  so the gains match the hardware the way TAPE tuned them.
@@ -49,9 +52,20 @@ public:
             fonepole(mgain_, mgain_target_, .001f);
             fonepole(ingain_, ingain_target_, .001f);
             fonepole(final_lim_, final_lim_target_, .001f);
+            fonepole(mix_, mix_target_, .001f);
 
-            const float sigl = dcblock_line_in_l_.Process(in[2][i] * ingain_ * kLineInGain);
-            const float sigr = dcblock_line_in_r_.Process(in[3][i] * ingain_ * kLineInGain);
+            const float dryl = dcblock_line_in_l_.Process(in[2][i] * ingain_ * kLineInGain);
+            const float dryr = dcblock_line_in_r_.Process(in[3][i] * ingain_ * kLineInGain);
+
+            // TODO(frizz): the looper/buffer output goes here (Phase 2)
+            const float wetl = 0.f;
+            const float wetr = 0.f;
+
+            // equal-power crossfade so the middle of the knob doesn't dip in level
+            const float dry_amt = cosf(mix_ * HALFPI_F);
+            const float wet_amt = sinf(mix_ * HALFPI_F);
+            const float sigl = dryl * dry_amt + wetl * wet_amt;
+            const float sigr = dryr * dry_amt + wetr * wet_amt;
 
             // headphone and master gain
             out[0][i] = sigl * kHpGain * mgain_;
@@ -76,6 +90,8 @@ public:
     inline void SetMainGain(float gain) { mgain_target_ = gain; }
     inline void SetInputGain(float gain) { ingain_target_ = gain; }
     inline void SetFinalComp(float comp) { final_lim_target_ = comp; }
+    /** 0 = dry (input only), 1 = wet (looper/buffer only) */
+    inline void SetMix(float mix) { mix_target_ = mix; }
 
     inline float GetVUSample() { return output_env_follower.GetLastSamp(); }
 
@@ -86,4 +102,5 @@ private:
     float mgain_, mgain_target_;
     float ingain_, ingain_target_;
     float final_lim_, final_lim_target_;
+    float mix_, mix_target_;
 };

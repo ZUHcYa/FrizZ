@@ -3,8 +3,11 @@
  *  anything, following TAPE's Volume Engine:
  *   - page 1 (default): output gain for headphone and master out, LED is a VU meter
  *   - page 2 (press):   input gain for the AUX input, LED blue (0%) to red (100%)
- *   - SHIFT + turn:     master compressor amount, LED dark to light blue
+ *   - page 3 (press):   master compressor amount, LED dark to light blue
+ *   - SHIFT + turn:     dry/wet mix, LED green (dry, input only) to purple (wet, looper only)
  *   - press and hold:   battery level check after 1.25s
+ *
+ *  Pressing again on page 3 goes back to page 1.
  *
  *  SHIFT is the CHOMPI key held with the mode switch DOWN.
  */
@@ -21,6 +24,9 @@ namespace chompi
 
     static const float kDefaultOutGain = .75f;
     static const float kDefaultInGain = .75f;
+    static const float kDefaultMix = 0.f; // fully dry until the looper exists
+
+    static const uint8_t kNumPages = 3;
 
     static const uint8_t kVolumeLed = 9;
     static const uint8_t kChompiKeyLed = 0;
@@ -32,6 +38,7 @@ namespace chompi
     static const float med_blue[3] = {0.f, .84f, 1.f};
     static const float blue[3] = {0.f, 0.f, 1.f};
     static const float pink[3] = {1.f, .36f, .62f};
+    static const float purple[3] = {.58f, .05f, 1.f};
 
     class NormalPage : public daisy::UiPage
     {
@@ -47,12 +54,14 @@ namespace chompi
             out_gain_ = kDefaultOutGain;
             in_gain_ = kDefaultInGain;
             final_comp_ = 0.f;
+            mix_ = kDefaultMix;
             page_ = 0;
 
-            // the engine only hears about a value when it changes, so push all three now
+            // the engine only hears about a value when it changes, so push them all now
             engine_->SetMainGain(out_gain_);
             engine_->SetInputGain(in_gain_);
             engine_->SetFinalComp(final_comp_);
+            engine_->SetMix(mix_);
 
             ResetSmtLeds();
             for (int i = 0; i < kNumPthLeds; i++)
@@ -101,9 +110,9 @@ namespace chompi
             }
             else if (Shift())
             {
-                r = med_blue[0] * (final_comp_ * .9f + .1f);
-                g = med_blue[1] * (final_comp_ * .9f + .1f);
-                b = med_blue[2] * (final_comp_ * .9f + .1f);
+                r = color_xfade(green[0], purple[0], mix_);
+                g = color_xfade(green[1], purple[1], mix_);
+                b = color_xfade(green[2], purple[2], mix_);
             }
             else if (page_ == 0)
             {
@@ -113,11 +122,17 @@ namespace chompi
                 g = out_gain_ * color_quad_xfade(.1f, green[1], yellow[1], pink[1], vu_sample);
                 b = out_gain_ * color_quad_xfade(.1f, green[2], yellow[2], pink[2], vu_sample);
             }
-            else
+            else if (page_ == 1)
             {
                 r = color_xfade(blue[0], red[0], in_gain_);
                 g = color_xfade(blue[1], red[1], in_gain_);
                 b = color_xfade(blue[2], red[2], in_gain_);
+            }
+            else
+            {
+                r = med_blue[0] * (final_comp_ * .9f + .1f);
+                g = med_blue[1] * (final_comp_ * .9f + .1f);
+                b = med_blue[2] * (final_comp_ * .9f + .1f);
             }
             SetPthLedFloat(kVolumeLed, r, g, b);
 
@@ -138,11 +153,11 @@ namespace chompi
             bool rising = numberOfPresses == 1;
             switch (buttonID)
             {
-            // short press toggles the page, hold to check battery level
+            // short press cycles the pages, hold to check battery level
             case static_cast<uint16_t>(Hardware::SwId::ENC_6_SW):
             {
                 if(!rising && !Shift() && System::GetNow() - batt_hold < kBattHoldMs)
-                    page_ = !page_;
+                    page_ = (page_ + 1) % kNumPages;
 
                 batt_hold = System::GetNow();
                 batt_display = rising;
@@ -171,18 +186,23 @@ namespace chompi
 
             if (Shift())
             {
-                final_comp_ = fclamp(final_comp_ + inc, 0.f, 1.f);
-                engine_->SetFinalComp(final_comp_);
+                mix_ = fclamp(mix_ + inc, 0.f, 1.f);
+                engine_->SetMix(mix_);
             }
             else if (page_ == 0)
             {
                 out_gain_ = fclamp(out_gain_ + inc, 0.f, 1.f);
                 engine_->SetMainGain(out_gain_);
             }
-            else
+            else if (page_ == 1)
             {
                 in_gain_ = fclamp(in_gain_ + inc, 0.f, 1.f);
                 engine_->SetInputGain(in_gain_);
+            }
+            else
+            {
+                final_comp_ = fclamp(final_comp_ + inc, 0.f, 1.f);
+                engine_->SetFinalComp(final_comp_);
             }
 
             return true;
@@ -203,6 +223,7 @@ namespace chompi
         float out_gain_;
         float in_gain_;
         float final_comp_;
+        float mix_;
         uint8_t page_;
 
         bool switch_state = false;
