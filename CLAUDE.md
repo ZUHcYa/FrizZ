@@ -4,9 +4,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-The open-source production files for **CHOMPI**, a discontinued chromatic sampler / tape instrument
-by CHOMPI Club (Chase Bliss). Bare-metal C++ firmware for a Daisy Seed2 DFM (STM32H750) plus the
-EAGLE hardware files. It is an archival release — upstream will not receive updates.
+**FRIZZ**, a custom firmware for **CHOMPI** (a discontinued chromatic sampler / tape instrument by
+CHOMPI Club / Chase Bliss), forked from CHOMPI's WAVE firmware. Bare-metal C++ for a Daisy Seed2
+DFM (STM32H750). It is built on top of CHOMPI's archival open-source release (`upstream` remote),
+which will not receive updates.
+
+## Repo layout: user-facing at the root, everything else below it
+
+| Path | What | Audience |
+|---|---|---|
+| `README.md`, `INSTALL.md`, `QUICKSTART.md`, `MANUAL.md` | what FRIZZ is, install, quick guide, full controls | users |
+| `firmware/` | FRIZZ source (`code/`, `bin/`, `test/`); `firmware/README.md` is the developer guide | developers |
+| `docs/` | our design notes: `LOOPER.md` (looper spec), `FX_OVERVIEW.md` | developers |
+| `reference/` | the original CHOMPI release, unchanged except for links: `reference/firmware/{chompi-tape,chompi-tempo,chompi-wave,chompi-bootloader-v6.4-beta,card-profiles}`, `reference/hardware/`, CHOMPI's README | reference only |
+| `LICENSE`, `THIRD_PARTY.md`, `TRADEMARKS.md`, `CLAUDE.md` | legal, this file | — |
+
+Keep the root user-facing: anything that only helps development goes in `docs/` or
+`firmware/`. When a control changes, update `MANUAL.md` (and `QUICKSTART.md` if it's covered
+there). FRIZZ was moved from `firmware/frizz/` to `firmware/`; commits before that use the old
+path (`firmware/test/run.sh` handles both).
 
 The panel artwork and CHOMPI logos are deliberately absent for copyright reasons, and the CHOMPI
 name/marks are excluded from the MIT license (`TRADEMARKS.md`). Don't reintroduce branding into
@@ -18,8 +34,9 @@ Of 12,821 tracked files, 12,371 are vendored third-party code. Hand-written `.c/
 source is 141 files; most of the rest is factory card audio (211 `.wav`), EAGLE/fabrication files,
 READMEs, and committed build artifacts. The source lives in exactly two kinds of place:
 
-- `firmware/{chompi-tape,chompi-tempo,chompi-wave}/code/src/` — ~30-40 files each
-- `firmware/chompi-bootloader-v6.4-beta/bootloader/` — plus `shared/` (Electrosmith's v6.4 source)
+- `firmware/code/src/` — FRIZZ
+- `reference/firmware/{chompi-tape,chompi-tempo,chompi-wave}/code/src/` — ~30-40 files each
+- `reference/firmware/chompi-bootloader-v6.4-beta/bootloader/` — plus `shared/` (Electrosmith's v6.4 source)
 
 Everything under `libs/`, `cube_dfu/`, `Drivers/`, `Middlewares/`, and any `build/` directory is
 vendored or generated. Exclude those from greps or results are unusable. `.gitattributes` already
@@ -49,7 +66,8 @@ Card profiles and preset formats are also not interchangeable between firmwares.
 
 Switch by putting the right `bin/` first on `PATH`; verify with `arm-none-eabi-gcc --version`
 before building. Do not use Homebrew's `arm-none-eabi-gcc` for the bootloader (compiler only, no
-newlib). `firmware/README.md` is the full setup guide but is written for macOS — its
+newlib). `firmware/README.md` is FRIZZ's build guide (Linux and macOS);
+`reference/firmware/README.md` is CHOMPI's original macOS-only one — its
 `/Applications/ArmGNUToolchain/...` paths are examples, not real locations on a Linux box.
 
 On this machine, GNU Arm Embedded 10.3-2021.10 is installed at
@@ -64,8 +82,8 @@ formula is GCC 16 without newlib, and the `gcc-arm-embedded` cask is macOS-only.
 Application firmware — run `make` from the firmware's `code/src`, never from the repo root:
 
 ```bash
-cd firmware/chompi-wave/code/src
-make              # output: build/CHOMPI.bin (flashable) and build/CHOMPI.elf (gdb)
+cd firmware/code/src                   # FRIZZ; stock: reference/firmware/chompi-wave/code/src
+make              # output: build/FRIZZ.bin (flashable) and build/FRIZZ.elf (gdb); stock firmwares: CHOMPI.*
 make clean
 make -j4
 ```
@@ -78,7 +96,7 @@ vendored library — or if make decides to rebuild one — do it with `make` in 
 Bootloader:
 
 ```bash
-cd firmware/chompi-bootloader-v6.4-beta
+cd reference/firmware/chompi-bootloader-v6.4-beta
 CHOMPI_TOOLCHAIN_BIN=/path/to/arm-gnu-toolchain-13.3.rel1/bin ./build-bootloader.sh        # or: ... ./build-bootloader.sh clean
 ```
 
@@ -100,7 +118,7 @@ The only mechanical verification available off-device is: does it compile, does 
 for the bootloader, does the md5 match. Verify changes by building; real validation requires
 hardware.
 
-The exception is FRIZZ: `firmware/frizz/test/` compiles its audio engine on the host and runs a
+The exception is FRIZZ: `firmware/test/` compiles its audio engine on the host and runs a
 scripted 39 s of key presses and knob turns through it. `./check.sh` compares HEAD with the
 working tree; a refactor must come out `bit-identical`. `./pitch.sh` checks the shifter lands on
 every interval. Neither covers the play page, the looper's recording, MIDI or the hardware. See
@@ -186,7 +204,7 @@ changes, and **TAPE's copy differs from TEMPO's and WAVE's** (which are identica
 - TAPE: `src/hid/midi.h` adds MIDI send helpers the firmware calls (build fails without them);
   `src/per/tim.{h,cpp}` compiles timer init/start at `-O0` with auto-reload preload disabled.
 - The bootloader's copy additionally carries an upstream QSPI driver and two `BootInfo` enum
-  additions — see `firmware/chompi-bootloader-v6.4-beta/LIBDAISY_PATCH.md`.
+  additions — see `reference/firmware/chompi-bootloader-v6.4-beta/LIBDAISY_PATCH.md`.
 
 Also note `__attribute__((optimize("-O0")))` on `UserInterface::WritePresets()` and similar
 per-function optimization overrides — these are deliberate workarounds for timing/audio artifacts,
@@ -195,7 +213,7 @@ not leftovers.
 ## SD card layout
 
 The card is the firmware's filesystem: one `CHOMPI.bin`, the audio assets, `options.json`,
-`presets.json`. FAT32, assets at the card root. `firmware/card-profiles/` holds the three factory
+`presets.json`. FAT32, assets at the card root. `reference/firmware/card-profiles/` holds the three factory
 cards ready to copy.
 
 Format details that bite:
@@ -211,7 +229,7 @@ Format details that bite:
 
 ## Hardware files
 
-`hardware/hardware-pcb/` is an EAGLE 9.6.2 project (two boards on one v-scored panel) plus the
-September 2023 fabrication package; `hardware/hardware-enclosure/` is six panel `.brd` files with
+`reference/hardware/hardware-pcb/` is an EAGLE 9.6.2 project (two boards on one v-scored panel) plus the
+September 2023 fabrication package; `reference/hardware/hardware-enclosure/` is six panel `.brd` files with
 laser-cutting DXFs. These are binary CAD files — don't attempt text edits. The BOM
 (`CHOMPI_Rev4_BOM.csv`) is the authoritative parts list.

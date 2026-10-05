@@ -161,7 +161,7 @@ Notes for implementing this against `MidiClock.h`:
    the short fades rather than TAPE's tape stop/start.
 5. **LEDs and mix jumps.** *(done: `NormalPage.h`)* LEDs per 1.6, the mix jumps per 1.1, and
    the temporary beat flash from step 1 removed.
-6. **Docs.** *(done)* `README.md` controls tables, MIDI clock section and file map.
+6. **Docs.** *(done)* `README.md` controls tables (now in `MANUAL.md`), MIDI clock section and file map.
 
 Verification per step: build with GCC 10.3, check the memory table, then test on hardware:
 loop length against a DAW's clock, no clicks at the loop point, source switching TRS ↔ USB.

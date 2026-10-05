@@ -4,9 +4,9 @@
 set -e
 T=$(cd "$(dirname "$0")" && pwd)
 REPO=$(git -C "$T" rev-parse --show-toplevel)
-DAISYSP=$REPO/firmware/frizz/code/libs/DaisySP/Source
+DAISYSP=$REPO/firmware/code/libs/DaisySP/Source
 INC=$(find "$DAISYSP" -type d | sed 's/^/-I/' | tr '\n' ' ')
 mkdir -p "$T/build"
-g++ -O2 -std=gnu++14 -w -I"$REPO/firmware/frizz/code/src" -I"$T/host" $INC "$T/pitch.cpp" \
+g++ -O2 -std=gnu++14 -w -I"$REPO/firmware/code/src" -I"$T/host" $INC "$T/pitch.cpp" \
     -o "$T/build/pitch"
 "$T/build/pitch"

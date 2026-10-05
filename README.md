@@ -1,46 +1,43 @@
-# CHOMPI — Open Source
+# FRIZZ
 
-**CHOMPI** is a quirky chromatic sampler and tape-music instrument by
-[CHOMPI Club](https://www.chompiclub.com).
+**FRIZZ** is an alternative firmware for the CHOMPI. It turns the CHOMPI into a stereo effects
+box and looper for whatever you plug into its AUX input.
 
-This repo contains all of the production files, both hardware and firmware, that make up the CHOMPI Sampler.
+- **A looper:** free-length loops, or loops locked to whole bars of an incoming MIDI clock.
+  Varispeed in fifths and octaves, reverse and scrub on the big transport knob.
+- **Ten punch-in effects on the white keys:** freezer, pitch shifter, wavefolder, bitcrusher, DJ
+  filter, flanger, resonator, slicer, tempo-synced delay and reverb. Hold a key to play an effect,
+  or SHIFT + key to latch it. Knobs 1-4 shape the last effect you touched.
+- **A dry/wet mix** between the live input and the loop, plus input gain, output gain and a
+  master compressor, all on the VOLUME knob.
+- **MIDI clock** over TRS or USB, for quantized loops and the tempo-synced effects.
 
----
+FRIZZ is installed from the SD card like any CHOMPI firmware. It doesn't touch the bootloader,
+and you can go back to the stock firmware the same way.
 
-## What's here
+## Get started
 
 | | |
 |---|---|
-| [**Firmware — Start Here**](firmware/README.md) | Quick instructions for setting up your development environment, building the firmware, and loading it onto your CHOMPI. |
-| [`firmware/chompi-wave`](firmware/chompi-wave/) | **WAVE 1.0**, a wavetable synth firmware that doubles as a starting point for anyone writing their own firmware. |
-| [`firmware/chompi-tempo`](firmware/chompi-tempo/) | **TEMPO 1.0**, a pattern generator firmware — the counterpart to TAPE. |
-| [`firmware/chompi-tape`](firmware/chompi-tape/) | **TAPE 2.0**, the sampler firmware every CHOMPI ships with. |
-| [`firmware/chompi-bootloader-v6.4-beta`](firmware/chompi-bootloader-v6.4-beta/) | This bootloader never shipped on units, but was created to improve stability of the Daisy Seed's integration with CHOMPI's hardware as well as repair edge-case issues related to bugs inherited from older versions of the Electrosmith bootloader.  |
-| [`firmware/card-profiles`](firmware/card-profiles/) | The factory microSD card contents for TAPE, TEMPO and WAVE — firmware, samples and settings. |
-| [`hardware/hardware-pcb`](hardware/hardware-pcb/) | Schematic, BOM, EAGLE PCB files, and the full fabrication package. |
-| [`hardware/hardware-enclosure`](hardware/hardware-enclosure/) | The six pcb panel enclosure files, as well as laser cutting files for diy panels. |
+| [**Install**](INSTALL.md) | Put FRIZZ on your CHOMPI, and go back to stock firmware |
+| [**Quick guide**](QUICKSTART.md) | Your first loop and your first effects in ten minutes |
+| [**Manual**](MANUAL.md) | Every control, every effect, every knob |
 
-Each folder contains its own README, so check those out for more details.
+## For developers
 
-## What's not here
+| | |
+|---|---|
+| [`firmware/`](firmware/) | The FRIZZ source. Its [README](firmware/README.md) covers the toolchain, the build, the host test harness and debugging |
+| [`docs/`](docs/) | Design notes: the looper spec and an overview of the effects across the CHOMPI firmwares |
+| [`reference/`](reference/) | The original CHOMPI open-source release, kept unchanged: the stock TAPE, TEMPO and WAVE firmwares, the factory SD cards, the bootloader and the hardware files |
 
-**The panel artwork.** The graphic set and CHOMPI logos have all been removed for copyright purposes. If you choose to create your own hardware, we ask that you name it something else to avoid trademark infringement.
+## Credits and license
 
-## Support Guidelines
+FRIZZ builds on the [CHOMPI open-source release](https://github.com/CHOMPI-Club/CHOMPI) by
+CHOMPI Club and was forked from its WAVE firmware. It runs on Electrosmith's Daisy platform
+(libDaisy, DaisySP), and several effects are ported from Bastl Instruments' Kastle 2 FX
+Wizard. [`THIRD_PARTY.md`](THIRD_PARTY.md) has the full list.
 
-This is a discontinuation open-source release. As such, this repo is intended to be a permanent source for files and documentation, and will likely not be receiving updates in the future. If you wish to customize your own project, we recommend cloning this repo into your own GitHub.
-
-## Community
-
-Even though this version of CHOMPI is now discontinued, the CLUB is expanding. If you want to discuss this project, share your creations, see what other users have made on their CHOMPI, feel free to check out the CHOMPI Open Source channel on the Chase Bliss Discord.
-
-## License
-
-Everything here is **MIT** — see [`LICENSE`](LICENSE). [`THIRD_PARTY.md`](THIRD_PARTY.md) lists
-the work this builds on and the notices that come with it. The CHOMPI name, logo and artwork are
-not covered by the license — see [`TRADEMARKS.md`](TRADEMARKS.md).
-
-## HAPPY CHOMPIN'
-
----
-
+FRIZZ is an independent project, not an official CHOMPI Club release. The code is **MIT**, see
+[`LICENSE`](LICENSE). The CHOMPI name and marks are not covered by that license, see
+[`TRADEMARKS.md`](TRADEMARKS.md).

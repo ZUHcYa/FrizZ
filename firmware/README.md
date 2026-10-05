@@ -1,109 +1,151 @@
+# FRIZZ firmware: developer guide
 
+The FRIZZ source, how to build it, test it and get it onto a CHOMPI. To install a finished
+`FRIZZ.bin`, see [`INSTALL.md`](../INSTALL.md) instead. To find out what the controls do, see
+[`MANUAL.md`](../MANUAL.md).
 
-# CHOMPI Firmware: Build Quickstart (macOS)
+FRIZZ was forked from CHOMPI's WAVE 1.0 firmware (`reference/firmware/chompi-wave/`). Since then
+the two have diverged, so treat WAVE as reference, not as a shared core.
 
-This takes you from source code to a firmware build flashed onto your CHOMPI. The firmware runs on a Daisy Seed (STM32H750) and uses the libDaisy / DaisySP libraries, which are already included in `code/libs/`.
+## Layout
 
-## 1. Get what you need
-
-### Software
-
-You need three tools:
-
-| Tool | What it does |
-|------|--------------|
-| `arm-none-eabi-gcc` **10.3-2021.10** (**13.3.rel1** for TEMPO) | Compiles code for the Daisy's ARM chip |
-| `make` | Runs the build (comes with the Xcode command line tools) |
-| `dfu-util` (optional) | Flashes the bootloader to CHOMPI (not your code) |
-
-**Important:** libDaisy only supports the older ARM GCC **10.3-2021.10**, the Daisy toolchain default. Newer versions are not officially supported by Electrosmith, and testing has shown that compiling with newer versions can create issues with the SD card communication. Use 10.3.1 for **TAPE** and **WAVE** or your own custom firmwares.
-
-**The exception is TEMPO**, which must be built with the Arm GNU Toolchain **13.3.rel1** (GCC 13.3.1). You can install it alongside 10.3 and switch between them using the PATH setting below.
-
-The easiest install is the official Daisy toolchain script (macOS):
-https://github.com/electro-smith/DaisyToolchain (see `macOS/install.command`).
-It installs the compiler via Homebrew, and also `openocd` and `dfu-util`.
-
-If you already have other GCC versions installed, that's fine: just put version 10.3's `bin` folder first on your PATH. For example, if it is installed at `/Applications/ArmGNUToolchain/10.3-2021.10`:
-
-```bash
-export PATH="/Applications/ArmGNUToolchain/10.3-2021.10/bin:$PATH"
+```
+code/src/                 the firmware
+code/libs/                vendored libDaisy and DaisySP (patched, MIT; never swap in upstream)
+code/Chompi_Bootloader/   source of the v6.2 bootloader that loads FRIZZ
+code/bms_test/            standalone battery-management bring-up example
+bin/                      the v6.2 bootloader binary and its install script
+test/                     host-side engine harness and shifter pitch check
 ```
 
-Add that line to `~/.zshrc` to make it permanent. Check it worked:
+Design notes live in [`../docs/`](../docs/): the looper spec (`LOOPER.md`) and an overview of
+the effects across the CHOMPI firmwares (`FX_OVERVIEW.md`).
+
+## 1. Toolchain
+
+FRIZZ needs **GNU Arm Embedded 10.3-2021.10** (GCC 10.3.1), the Daisy toolchain default. Newer
+compilers can build it, but their builds sometimes break SD card communication intermittently.
+
+- **Linux:** download ARM's official tarball (`gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2`),
+  unpack it, for example to `~/opt/`, and put its `bin/` first on your `PATH`:
+
+  ```bash
+  export PATH="$HOME/opt/gcc-arm-none-eabi-10.3-2021.10/bin:$PATH"
+  ```
+
+- **macOS:** the [Daisy toolchain installer](https://github.com/electro-smith/DaisyToolchain)
+  installs the compiler along with `openocd` and `dfu-util`. If other versions are installed
+  too, put 10.3's `bin/` first on your `PATH`.
+
+Don't use a distribution's or Homebrew's `arm-none-eabi-gcc`. It's a much newer GCC and usually
+comes without newlib. Check what you have:
 
 ```bash
 arm-none-eabi-gcc --version    # should say 10.3.1
 ```
 
-To build TEMPO, point your PATH at the 13.3.rel1 `bin` folder instead (in that terminal window only, or edit your `~/.zshrc` line). For example, if it is installed at `/Applications/ArmGNUToolchain/13.3.rel1`:
+You also need `make`. `dfu-util` is optional (only for reinstalling the bootloader), and the
+test harness needs a host `g++` and `python3`.
+
+## 2. Build
 
 ```bash
-export PATH="/Applications/ArmGNUToolchain/13.3.rel1/arm-none-eabi/bin:$PATH"
-arm-none-eabi-gcc --version    # should say 13.3.1
+cd firmware/code/src
+make              # or make -j8
+make clean        # start fresh
 ```
 
-### Hardware (recommended for writing firmware)
+The output goes to `code/src/build/`:
 
-If you plan on writing or editing firmware, it is highly recommended to get an additional Daisy Seed with a [debug header](https://www.digikey.com/en/products/detail/amphenol-cs-fci/20021111-00010T4LF/2209072) and an [STLINK-V3MINIE debugger](https://www.digikey.com/en/products/detail/stmicroelectronics/STLINK-V3MINIE/16284301).
+- `FRIZZ.bin`: the firmware you put on the SD card
+- `FRIZZ.elf`: the same firmware with debug info, for gdb
 
-The debug header must be soldered to the Daisy Seed, and the back panel of the enclosure will not fit with the header installed. That is why two Daisy Seeds are recommended: one with the header for development, and one without for the enclosure.
+Read the memory table at the end. FRIZZ runs from SRAM, so a build that compiles can still
+fail to link if it doesn't fit. Warnings are normal; only lines that say `error` mean the build
+failed.
 
-If you only plan to load existing or community-made firmware onto your CHOMPI and do not require debugging features, you may not need these. Any firmware can be swapped out manually via the SD card, so even though it'll probably be a bit more clunky, it should technically work just fine.
+The prebuilt `libdaisy.a` and `libdaisysp.a` are committed under `code/libs/*/build/`, so you
+don't normally rebuild them. If you change a library, run `make` in `code/libs/libDaisy` or
+`code/libs/DaisySP` with the same compiler.
 
-## 2. Navigate to the correct directory
-
-All source code lives in `code/src/`, and this is the folder you run `make` from. Using Terminal, navigate to the `code/src` folder of the firmware that you want to build. 
-
-## 3. Build
-
-Run the command:
-```bash
-make
-```
-
-When this finishes you will see a memory usage table, and the output files appear in `code/src/build/`:
-
-- `CHOMPI.bin`: the firmware you flash to the board
-- `CHOMPI.elf`: same firmware plus debug info (used with gdb)
-
-Handy variants:
+## 3. Test on the host
 
 ```bash
-make clean      # delete build/ and start fresh
-make -j4        # build faster using 4 CPU cores
+cd firmware/test
+./check.sh        # engine at HEAD vs the working tree: a refactor must print "bit-identical"
+./pitch.sh        # the shifter lands on every interval from -12 to +12 semitones
 ```
 
-Some yellow or purple "warning" lines (like unused variables) are normal. Only lines that say `error` mean the build failed.
+These checks cover the audio engine only. They don't cover the play page, the looper's
+recording, MIDI or the hardware. See [`test/README.md`](test/README.md).
 
-If you ever need to rebuild the libraries themselves (rare) you will need to navigate to the `code/libs/libDaisy` or `code/libs/DaisySP` folder and run `make` there.
+## 4. Put it on the CHOMPI
 
-## 4. Flash it to the board
+Copy `build/FRIZZ.bin` to the SD card and power on, as described in
+[`INSTALL.md`](../INSTALL.md). FRIZZ is a `BOOT_SRAM` app: CHOMPI's bootloader copies it from
+the card into QSPI flash and runs it from SRAM. Standard Daisy flashing advice doesn't apply.
 
-CHOMPI runs as a "BOOT_SRAM" app, meaning it is loaded by the Daisy bootloader from the board's QSPI flash.
+Every CHOMPI already has the bootloader, and an SD update never touches it. Only a blank or
+erased Daisy Seed needs it installed. To do that, hold BOOT and tap RESET to enter DFU mode,
+then run `bin/install_bootloader.sh`.
 
-All you need to do for this kind of app is to take the CHOMPI.bin from the `/build` folder and put it on the SD card, deleting any other .bin file there first. When you power on your CHOMPI, it will reprogram QSPI flash with your new app which is indicated by the slow rainbow LED pattern.
+## 5. Debug
 
-**First time only:** if the board has never had the bootloader installed, navigate to the `bin/` folder in Terminal and run `./install_bootloader.sh`, then flash the app as above. Make sure you put the Daisy Seed in DFU mode first by holding the BOOT button and tapping RESET.
+This needs an STLINK-V3MINIE and a Daisy Seed with a soldered debug header. The back panel
+doesn't fit over the header, so a second Seed for development is handy.
 
-## 5. Use the SD card
+```bash
+openocd -f interface/stlink.cfg -f target/stm32h7x.cfg     # terminal 1
+arm-none-eabi-gdb code/src/build/FRIZZ.elf                   # terminal 2
+(gdb) target remote localhost:3333
+```
 
-The firmware loads sound files (`.wav` files) from the SD card, and also stores `options.json` and `presets.json` there. Put your wavetable or sample files in the top-level folder of a FAT-formatted card.
+If a CHOMPI stops responding and nothing else works, reinstall CHOMPI's v6.2 bootloader with
+`bin/install_bootloader.sh` (or flash `bin/CHOMPI_Bootloader_V6_2_0.bin` to `0x08000000` with
+an ST-Link), then reinstall FRIZZ from the card. The web tool at https://flash.daisy.audio can
+erase a stuck Seed, but the generic Daisy bootloader it offers is not CHOMPI's.
 
-## 6. Debugging
+## Where things are in `code/src`
 
-**This requires an STLINK-V3MINIE debugger.**
+```
+chompi_main.cpp        entry point: audio callback, main loop, boot sequence
+passthroughEngine.h    the engine: input gain, dry/wet mix, punch-in FX, output gain, master compressor
+FxChain.h              the punch-in effects in their processing order, with a level meter each
+FxSlots.h              which key, LED, colours, defaults and knob steps go with each effect
+FxCommon.h             what the effects share: the key's fade, smoothed settings, the base class
+Fx*.h                  one effect each: Freezer, Shifter, Folder, Crusher, Filter, Flanger,
+                       Resonator, Slicer, Delay, Reverb
+LICENSE-kastle2        the MIT license of the effects ported from Bastl's Kastle 2 FX Wizard
+LedColors.h            the LED colours
+DJFilter.h, BasicMMF.h WAVE's DJ filter
+granularDelay.h        TEMPO's tempo-synced delay (SimpleCrossfade.h: its crossfades)
+reverb.h, fx_engine.h  TEMPO's reverb
+TempoClock.h           the tempo and the shared 12 PPQN pulse position for the clocked effects, from MIDI clock or internal
+Looper.h               the looper: recording, quantized end, playback, speed, scrub
+MidiClock.h            MIDI clock input over TRS and USB
+NormalPage.h           the controls (VOLUME, PLAY/LOOP, transport, FX keys and knobs) and their LEDs
+ui.h                   page plumbing: events, page switching
+limiter.h, EnvFollower.h
+                       compressor and VU meter blocks
+hardware.h             the CHOMPI hardware: encoders, keys, switches, LEDs, battery
+encoder.h / .cpp       encoder driver
+temp_led_stuff.h       LED driver (ui_utils.h: LED flush/clear helpers)
+BootPage.h, RainbowWavePage.h, TestPage.h
+                       boot animation, rainbow-wave animation, hardware test mode
+chompi_sram.lds        linker script (the firmware runs from SRAM, placed there by the bootloader)
+```
 
-To find out what is happening in your program, you can use the debugging tools. Open a new terminal window and run `openocd -f interface/stlink.cfg -f target/stm32h7x.cfg`
-In another window, navigate into the `/build` folder and run `arm-none-eabi-gdb CHOMPI.elf`. In this same window, run `target remote localhost:3333` and you will be connected.
+## Rules the code follows
 
-## Troubleshooting
+- **No file I/O and no blocking calls in the audio callback.** FRIZZ doesn't read the SD card at
+  run time. The self-test is the only thing that writes to it.
+- Large buffers (the loop, the delay, the freezer) live in SDRAM (`DSY_SDRAM_BSS`) and are
+  cleared at boot.
+- `__attribute__((optimize("-O0")))` and similar per-function overrides are deliberate
+  workarounds inherited from the stock firmware. Don't remove them as leftovers.
 
-| Problem | Fix |
-|---------|-----|
-| `arm-none-eabi-gcc: command not found` | The toolchain isn't on your PATH (see step 1) |
-| `make` says "Nothing to be done" but you changed a file | Run `make clean && make` |
-|Debugger indicates SD card is stuck|Try switching compiler versions|
-|CHOMPI is not responding to input | Use the debugger to find where in the code it got stuck |
+## License
 
-If you ever get stuck to the point where CHOMPI is not responding and all else fails, you can erase and reflash the bootloader. https://flash.daisy.audio contains a web tool to do this.
+MIT, see [`LICENSE`](../LICENSE). The effects ported from Bastl Instruments' Kastle 2 FX Wizard
+carry their own MIT license in `code/src/LICENSE-kastle2`. [`THIRD_PARTY.md`](../THIRD_PARTY.md)
+lists everything FRIZZ builds on.

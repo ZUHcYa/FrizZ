@@ -3,7 +3,7 @@
 ## Authorship
 
 CHOMPI Club commissioned Electrosmith to engineer a production version of CHOMPI (2022-2023).
-As such, Electrosmith is credited for the hardware in `hardware/hardware-pcb/`, designed around
+As such, Electrosmith is credited for the hardware in `reference/hardware/hardware-pcb/`, designed around
 Electrosmith's Daisy Seed2 DFM; the core firmware that ties it to the Daisy,
 including the TAPE firmware through version 1.0.9; as well as the original v6.2 bootloader.
 
@@ -22,12 +22,12 @@ in the source files, must be preserved in any redistribution.
 
 | Component | Copyright | License | Where |
 |---|---|---|---|
-| **libDaisy** | © Electrosmith | MIT | `code/libs/libDaisy/` in each firmware folder, and `firmware/chompi-bootloader-v6.4-beta/libs/libDaisy/` — each with its `LICENSE` |
+| **libDaisy** | © Electrosmith | MIT | `code/libs/libDaisy/` in each firmware folder, and `reference/firmware/chompi-bootloader-v6.4-beta/libs/libDaisy/` — each with its `LICENSE` |
 | **DaisySP** | © Electrosmith, Corp. | MIT | `code/libs/DaisySP/` in each firmware folder, with its `LICENSE` |
 | **coreJSON** | FreeRTOS / Amazon | MIT | `code/libs/coreJSON/` in each firmware folder, with its `LICENSE` |
-| **Daisy Bootloader** | © Electrosmith | MIT | `firmware/chompi-bootloader-v6.4-beta/shared/`, and the v6.2 bootloader in each firmware folder's `code/Chompi_Bootloader/` |
-| **CMSIS** | © ARM Limited | Apache-2.0 | `cube_dfu/Drivers/CMSIS/` (with its `LICENSE.txt`) in `firmware/chompi-bootloader-v6.4-beta/` and in each firmware folder's `code/Chompi_Bootloader/` |
-| **Kastle 2 FX Wizard** (freezer, slicer, flanger, shifter, resonator comb, crusher XOR and dive) | © 2024 Marek Mach, Vaclav Mach (Bastl Instruments) | MIT | ported to `firmware/frizz/code/src/` (`FxFreezer.h`, `FxSlicer.h`, `FxFlanger.h`, `FxShifter.h`, `FxResonator.h`, and the crusher's in `FxCrusher.h`), with the license in `LICENSE-kastle2` next to them |
+| **Daisy Bootloader** | © Electrosmith | MIT | `reference/firmware/chompi-bootloader-v6.4-beta/shared/`, and the v6.2 bootloader in each firmware folder's `code/Chompi_Bootloader/` |
+| **CMSIS** | © ARM Limited | Apache-2.0 | `cube_dfu/Drivers/CMSIS/` (with its `LICENSE.txt`) in `reference/firmware/chompi-bootloader-v6.4-beta/` and in each firmware folder's `code/Chompi_Bootloader/` |
+| **Kastle 2 FX Wizard** (freezer, slicer, flanger, shifter, resonator comb, crusher XOR and dive) | © 2024 Marek Mach, Vaclav Mach (Bastl Instruments) | MIT | ported to `firmware/code/src/` (`FxFreezer.h`, `FxSlicer.h`, `FxFlanger.h`, `FxShifter.h`, `FxResonator.h`, and the crusher's in `FxCrusher.h`), with the license in `LICENSE-kastle2` next to them |
 | **STM32 HAL, USB Device/Host middleware, FatFs** | © STMicroelectronics | ST Ultimate Liberty / BSD-3-Clause, per file headers | the same `cube_dfu/` folders |
 
 ## libDaisy is Electrosmith's CHOMPI adaptation
@@ -58,7 +58,7 @@ In TEMPO and WAVE:
   compilation: the firmware builds against pristine upstream, but its MIDI output timing won't
   match the released firmware. Keep the vendored file.
 
-The bootloader's copy, `firmware/chompi-bootloader-v6.4-beta/libs/libDaisy/`, is the same adaptation plus
+The bootloader's copy, `reference/firmware/chompi-bootloader-v6.4-beta/libs/libDaisy/`, is the same adaptation plus
 the changes that bootloader needs, listed in its `LIBDAISY_PATCH.md`.
 
 ## DSP derived from Mutable Instruments
@@ -74,15 +74,15 @@ Portions of the FX engine in TAPE, TEMPO, WAVE and FRIZZ derive from Émilie Gil
 
 ## The bootloader
 
-`firmware/chompi-bootloader-v6.4-beta/shared/` holds Electrosmith's Daisy Bootloader v6.4 source.
+`reference/firmware/chompi-bootloader-v6.4-beta/shared/` holds Electrosmith's Daisy Bootloader v6.4 source.
 `dfu.cpp`, `dfu.h` and `dfu_log.h` are theirs unchanged; CHOMPI's additions are confined to
 `bootloader.cpp` and `bootloader.h`, and are marked with `CHOMPI:` comments.
 
 ## Hardware
 
-The boards in `hardware/hardware-pcb/` are built around the Electrosmith Daisy Seed2 DFM;
+The boards in `reference/hardware/hardware-pcb/` are built around the Electrosmith Daisy Seed2 DFM;
 Electrosmith publishes its pinout and documentation. Most of the other assembly
-parts are listed with their manufacturer part numbers in `hardware/hardware-pcb/CHOMPI_Rev4_BOM.csv`. The
+parts are listed with their manufacturer part numbers in `reference/hardware/hardware-pcb/CHOMPI_Rev4_BOM.csv`. The
 EAGLE libraries used in the project are embedded in the `.sch` and `.brd` files.
 
 ## A note on the vendored libraries

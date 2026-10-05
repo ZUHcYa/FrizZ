@@ -5,8 +5,8 @@
 set -e
 T=$(cd "$(dirname "$0")" && pwd)
 REPO=$(git -C "$T" rev-parse --show-toplevel)
-SRC=firmware/frizz/code/src
-DAISYSP=$REPO/firmware/frizz/code/libs/DaisySP/Source
+SRC=firmware/code/src
+DAISYSP=$REPO/firmware/code/libs/DaisySP/Source
 BUILD=$T/build
 mkdir -p "$BUILD"
 INC=$(find "$DAISYSP" -type d | sed 's/^/-I/' | tr '\n' ' ')
@@ -26,6 +26,8 @@ trap 'rm -rf "$D"' EXIT
 if [ "$1" = work ]; then
     cp "$REPO/$SRC"/*.h "$D/"
 else
+    # FRIZZ lived in firmware/frizz/ before the repo was reorganized
+    git -C "$REPO" cat-file -e "$1:$SRC" 2>/dev/null || SRC=firmware/frizz/code/src
     for f in $(git -C "$REPO" ls-tree --name-only "$1" "$SRC/" | grep '\.h$'); do
         git -C "$REPO" show "$1:$f" > "$D/$(basename "$f")"
     done

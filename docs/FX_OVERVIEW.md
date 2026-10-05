@@ -2,7 +2,8 @@
 
 What each firmware's audio path does, as found in the source. TAPE, TEMPO and WAVE are
 independent forks, so a same-named file (`reverb.h`, `DJFilter.h`, …) is a separate copy in each
-`code/src/` and may differ. FRIZZ is the custom firmware in `frizz/`, forked from WAVE.
+`code/src/` (under `reference/firmware/`) and may differ. FRIZZ is the custom firmware in
+`firmware/`, forked from WAVE.
 
 None of the three original firmwares does real bit-depth reduction. The closest is TEMPO's
 sample-rate reducer (decimation). TAPE's "lofi" knob page is saturation.
@@ -64,9 +65,9 @@ left.
 
 ## Ported to FRIZZ so far
 
-FRIZZ's punch-in FX, one file each (`frizz/code/src/Fx*.h`), in signal order, which is also
+FRIZZ's punch-in FX, one file each (`firmware/code/src/Fx*.h`), in signal order, which is also
 their keys' order left to right (see the FRIZZ chain above). Their controls are in
-`frizz/README.md`.
+[`MANUAL.md`](../MANUAL.md).
 
 | Key | FRIZZ effect | Taken from |
 |---|---|---|

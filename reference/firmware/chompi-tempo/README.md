@@ -59,6 +59,6 @@ free to check out the CHOMPI Open Source channel on the Chase Bliss Discord.
 
 ## License
 
-MIT — see [`LICENSE`](../../LICENSE) at the root of this repo. [`THIRD_PARTY.md`](../../THIRD_PARTY.md)
+MIT — see [`LICENSE`](../../../LICENSE) at the root of this repo. [`THIRD_PARTY.md`](../../../THIRD_PARTY.md)
 lists the work this builds on. The CHOMPI name and marks are not covered by the license — see
-[`TRADEMARKS.md`](../../TRADEMARKS.md).
+[`TRADEMARKS.md`](../../../TRADEMARKS.md).

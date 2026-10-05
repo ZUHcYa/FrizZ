@@ -65,4 +65,4 @@ back to the QSPI peripheral and the normal quad-mode initialization runs.
 
 Apart from the changes above, `libs/libDaisy` is the same libDaisy the CHOMPI application
 firmware uses, including its own local modifications for this hardware. See
-[`THIRD_PARTY.md`](../../THIRD_PARTY.md) at the root of this repo for those.
+[`THIRD_PARTY.md`](../../../THIRD_PARTY.md) at the root of this repo for those.

@@ -9,5 +9,6 @@ Icon?
 .vs/
 
 # Firmware build output (the prebuilt libraries under code/libs/*/build/ stay committed)
-firmware/*/code/src/build/
-firmware/frizz/test/build/
+firmware/code/src/build/
+firmware/test/build/
+reference/firmware/*/code/src/build/

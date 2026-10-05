@@ -1,17 +1,18 @@
-# FRIZZ Firmware
+# FRIZZ Manual
 
-Custom firmware for the CHOMPI hardware, forked from WAVE v1.0.
+Every control in FRIZZ. For a first session, start with the [quick guide](QUICKSTART.md).
 
----
+**SHIFT** means holding the CHOMPI key, with the mode switch in either position. The CHOMPI key
+lights white while it acts as SHIFT.
 
-## Firmware description
+## Overview
 
 The stereo AUX input goes to the headphone and master outputs through a volume stage taken
 from TAPE's Volume Engine, with a looper on the wet side of a dry/wet mix. The looper can
 record free-length loops or loops quantized to whole bars of an incoming MIDI clock. The
-white keys punch in effects on the mixed signal. The built-in microphone is not used. The full looper spec is in [`LOOPER.md`](LOOPER.md).
+white keys punch in effects on the mixed signal. The built-in microphone is not used.
 
-### VOLUME knob
+## VOLUME knob
 
 | Control | Function | LED |
 |---|---|---|
@@ -25,7 +26,7 @@ Every turn moves 1% per detent. Pressing again on page 3 returns to page 1. The 
 fully dry, jumps to fully wet when a recording finishes and back to fully dry when the loop is
 erased.
 
-### Looper
+## Looper
 
 | Looper | Key | Result |
 |---|---|---|
@@ -52,7 +53,7 @@ LEDs: LOOP is red while recording and blinks while a quantized recording finishe
 While a loop plays, PLAY and LOOP crossfade in white to show the position (dimmed when
 paused). The transport LEDs show speed and direction.
 
-### Punch-in FX
+## Punch-in FX
 
 Effects sit on the white keys and act on the whole mix, after the dry/wet knob and before the
 output gain and the master compressor. The looper records the dry input, so an effect is never
@@ -209,82 +210,14 @@ Delay details:
 - LEDs: division green (short) through white to blue (long); random green (events) through
   white to blue (shimmer).
 
-### MIDI clock
+## MIDI clock
 
 Quantized recording follows MIDI clock (24 PPQN) from the TRS MIDI input or USB. CHOMPI is a
 USB device, so USB clock comes from a computer or a host. Whichever source ticks first is
 used, until it has been silent for 0.5 s. Only clock is read; there's no MIDI out.
 
-SHIFT means holding the CHOMPI key, with the mode switch in either position. The CHOMPI key
-lights white while it acts as SHIFT. Holding the VOLUME knob at power-on still enters the
-hardware self-test.
+## Hardware self-test
 
-### Where things are in `code/src`
-
-```
-chompi_main.cpp        entry point: audio callback, main loop, boot sequence
-passthroughEngine.h    the engine: input gain, dry/wet mix, punch-in FX, output gain, master compressor
-FxChain.h              the punch-in effects in their processing order, with a level meter each
-FxSlots.h              which key, LED, colours, defaults and knob steps go with each effect
-FxCommon.h             what the effects share: the key's fade, smoothed settings, the base class
-Fx*.h                  one effect each: Freezer, Shifter, Folder, Crusher, Filter, Flanger,
-                       Resonator, Slicer, Delay, Reverb
-LICENSE-kastle2        the MIT license of the effects ported from Bastl's Kastle 2 FX Wizard
-LedColors.h            the LED colours
-DJFilter.h, BasicMMF.h WAVE's DJ filter
-granularDelay.h        TEMPO's tempo-synced delay (SimpleCrossfade.h: its crossfades)
-reverb.h, fx_engine.h  TEMPO's reverb
-TempoClock.h           the tempo and the shared 12 PPQN pulse position for the clocked effects, from MIDI clock or internal
-Looper.h               the looper: recording, quantized end, playback, speed, scrub
-MidiClock.h            MIDI clock input over TRS and USB
-NormalPage.h           the controls (VOLUME, PLAY/LOOP, transport, FX keys and knobs) and their LEDs
-ui.h                   page plumbing: events, page switching
-limiter.h, EnvFollower.h
-                       compressor and VU meter blocks
-hardware.h             the CHOMPI hardware: encoders, keys, switches, LEDs, battery
-encoder.h / .cpp       encoder driver
-temp_led_stuff.h       LED driver (ui_utils.h: LED flush/clear helpers)
-BootPage.h, RainbowWavePage.h, TestPage.h
-                       boot animation, rainbow-wave animation, hardware test mode
-chompi_sram.lds        linker script (the firmware runs from SRAM, placed there by the bootloader)
-```
-
-## Building
-
-Toolchain: GNU Arm Embedded 10.3-2021.10. Newer compilers can technically build it,
-but the results can sometimes intermittently cause the SD card communication to break. We've
-found this compiler to work best.
-
-## Repository layout
-
-```
-code/src/                 the firmware
-code/libs/                vendored libDaisy, DaisySP (MIT)
-code/Chompi_Bootloader/   the bootloader this firmware is loaded by
-code/bms_test/            standalone battery-management bring-up example
-bin/                      bootloader binary and install script
-```
-
-## SD card
-
-The firmware doesn't read anything from the card. It only needs `FRIZZ.bin` on the card
-for the bootloader to install it (delete any other `.bin` first), and the hardware self-test
-writes and deletes a test file.
-
-## Support Guidelines
-
-This is a discontinuation open-source release. As such, this repo is intended to be a permanent
-source for files and documentation, and will likely not be receiving updates in the future. If you wish
-to customize your own project, we recommend cloning this repo into your own GitHub.
-
-## Community
-
-Even though this version of CHOMPI is now discontinued, the CLUB is expanding. If you want to
-discuss this project, share your creations, see what other users have made on their CHOMPI, feel
-free to check out the CHOMPI Open Source channel on the Chase Bliss Discord.
-
-## License
-
-MIT — see [`LICENSE`](../../LICENSE) at the root of this repo. [`THIRD_PARTY.md`](../../THIRD_PARTY.md)
-lists the work this builds on. The CHOMPI name and marks are not covered by the license — see
-[`TRADEMARKS.md`](../../TRADEMARKS.md).
+Holding the VOLUME knob down at power-on enters the factory QC test that FRIZZ inherited from
+the stock firmware, instead of FRIZZ. You won't need it for normal use. To get back to FRIZZ,
+power off and on again.
