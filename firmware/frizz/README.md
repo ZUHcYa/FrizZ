@@ -9,7 +9,7 @@ Custom firmware for the CHOMPI hardware, forked from WAVE v1.0.
 The stereo AUX input goes to the headphone and master outputs through a volume stage taken
 from TAPE's Volume Engine, with a looper on the wet side of a dry/wet mix. The looper can
 record free-length loops or loops quantized to whole bars of an incoming MIDI clock. The
-built-in microphone is not used. The full looper spec is in [`LOOPER.md`](LOOPER.md).
+white keys punch in effects on the mixed signal. The built-in microphone is not used. The full looper spec is in [`LOOPER.md`](LOOPER.md).
 
 ### VOLUME knob
 
@@ -51,6 +51,26 @@ LEDs: LOOP is red while recording and blinks while a quantized recording finishe
 While a loop plays, PLAY and LOOP crossfade in white to show the position (dimmed when
 paused). The transport LEDs show speed and direction.
 
+### Punch-in FX
+
+Effects sit on the white keys and act on the whole mix, after the dry/wet knob and before the
+output gain and the master compressor. The looper records the dry input, so an effect is never
+printed into a loop. So far only the first (lowest) white key has an effect.
+
+| Control | Function |
+|---|---|
+| Hold an FX key | Effect on while held |
+| SHIFT + FX key | Latch on / off; a latched effect stays on after release |
+| FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
+| Knobs 1-4 | The 4 parameters of the most recently pressed FX key |
+
+The FX key is dim while the knobs edit its effect and lit while it is on. The knob LEDs show
+the parameter values, yellow (0) through orange to red (1). Values reset at power-off.
+
+| Key | Effect | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
+|---|---|---|---|---|---|
+| 1st white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz (default 60%) | Bits, 16 down to 2 (default 50%, 9 bits) | Mix (default 100%) | Tone, lowpass 200 Hz to open (default open) |
+
 ### MIDI clock
 
 Quantized recording follows MIDI clock (24 PPQN) from the TRS MIDI input or USB. CHOMPI is a
@@ -64,10 +84,11 @@ while it acts as SHIFT. Holding the VOLUME knob at power-on still enters the har
 
 ```
 chompi_main.cpp        entry point: audio callback, main loop, boot sequence
-passthroughEngine.h    the engine: input gain, dry/wet mix, output gain, master compressor
+passthroughEngine.h    the engine: input gain, dry/wet mix, punch-in FX, output gain, master compressor
+PunchFx.h              the punch-in effects (crusher)
 Looper.h               the looper: recording, quantized end, playback, speed, scrub
 MidiClock.h            MIDI clock input over TRS and USB
-NormalPage.h           the controls (VOLUME, PLAY/LOOP, transport) and their LEDs
+NormalPage.h           the controls (VOLUME, PLAY/LOOP, transport, FX keys and knobs) and their LEDs
 ui.h                   page plumbing: events, page switching
 limiter.h, EnvFollower.h
                        compressor and VU meter blocks

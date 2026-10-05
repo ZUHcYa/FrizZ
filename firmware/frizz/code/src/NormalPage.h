@@ -33,6 +33,15 @@
  *  finishes its bar, 3 fast red blinks when quantized recording is refused. While a loop
  *  plays, PLAY and LOOP crossfade in white to show the position, dimmed when paused. The
  *  transport LEDs show the speed in TAPE's colours, or the scrub speed while paused.
+ *
+ *  Punch-in FX (PunchFx.h) on the white keys, so far only KEY_1 (crusher):
+ *   - hold the key:          the effect is on while held
+ *   - SHIFT + key:           toggles the latch, the effect stays on after release
+ *   - key on a latched FX:   clears the latch, the effect stays on until the key is released
+ *   - knobs 1-4 (enc 0-3):   the 4 parameters of the most recently pressed FX key
+ *   - SHIFT + knobs 1-4:     nothing (reserved for a second parameter page)
+ *  The key LED is dim while its FX is the one the knobs edit and lit while the FX is on. The
+ *  knob LEDs show the parameter values in the FX's colours.
  */
 #pragma once
 
@@ -63,6 +72,16 @@ namespace chompi
     static const uint32_t kEraseHoldMs = 2000;
     static const float kSpeedStepPerTurn = .25f; // 4 transport detents per speed step
 
+    // Punch-in FX: one entry per white key that has an effect, in PunchFx.h order
+    static const size_t kNumFx = 1;
+    static const Hardware::SwId kFxKeys[kNumFx] = {Hardware::SwId::KEY_1};
+    static const uint8_t kFxKeyLeds[kNumFx] = {24}; // SMT LEDs, TestPage's led_map
+    static const uint8_t kFxKnobLeds[kNumFxParams] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
+    // crusher: rate, bits, mix, tone. Audible from the first press
+    static const float kFxDefaults[kNumFx][kNumFxParams] = {{.6f, .5f, 1.f, 1.f}};
+    static const float kFxParamStep = .01f; // x3 per detent on knobs 2-4, see ui.h
+    static const float kFxSelectedDim = .15f;
+
     static const float white[3] = {1.f, 1.f, 1.f};
     static const float red[3] = {1.f, 0.f, 0.f};
     static const float yellow[3] = {1.f, .95f, 0.05f};
@@ -71,6 +90,7 @@ namespace chompi
     static const float blue[3] = {0.f, 0.f, 1.f};
     static const float pink[3] = {1.f, .36f, .62f};
     static const float purple[3] = {.58f, .05f, 1.f};
+    static const float orange[3] = {1.f, .6f, .24f};
 
     class NormalPage : public daisy::UiPage
     {
@@ -94,6 +114,13 @@ namespace chompi
             engine_->SetInputGain(in_gain_);
             engine_->SetFinalComp(final_comp_);
             engine_->SetMix(mix_);
+
+            for (size_t fx = 0; fx < kNumFx; fx++)
+            {
+                for (size_t p = 0; p < kNumFxParams; p++)
+                    SetFxParam(fx, p, kFxDefaults[fx][p]);
+                engine_->SetFxOn(fx, false);
+            }
 
             ResetSmtLeds();
             for (int i = 0; i < kNumPthLeds; i++)
@@ -183,6 +210,7 @@ namespace chompi
             last_looper_state_ = looper_state;
 
             DrawLooperLeds(now);
+            DrawFxLeds();
 
             // CHOMPI key lights white while it is acting as SHIFT
             r = g = b = Shift() ? 1.f : 0.f;
@@ -254,6 +282,11 @@ namespace chompi
                 break;
 
             default:
+                for (size_t fx = 0; fx < kNumFx; fx++)
+                {
+                    if (buttonID == static_cast<uint16_t>(kFxKeys[fx]))
+                        FxKeyPressed(fx, rising);
+                }
                 break;
             }
 
@@ -270,6 +303,12 @@ namespace chompi
             if (encoderID == 4)
             {
                 TransportTurned(turns);
+                return true;
+            }
+
+            if (encoderID < kNumFxParams)
+            {
+                FxKnobTurned(encoderID, turns);
                 return true;
             }
 
@@ -344,6 +383,60 @@ namespace chompi
         {
             mix_ = fclamp(mix, 0.f, 1.f);
             engine_->SetMix(mix_);
+        }
+
+        void FxKeyPressed(size_t fx, bool rising)
+        {
+            if (rising)
+            {
+                fx_selected_ = fx;
+                // SHIFT toggles the latch, a plain press clears it; either way the effect
+                // is on for as long as the key is held
+                fx_latched_[fx] = Shift() ? !fx_latched_[fx] : false;
+            }
+            fx_held_[fx] = rising;
+            engine_->SetFxOn(fx, fx_held_[fx] || fx_latched_[fx]);
+        }
+
+        void FxKnobTurned(uint16_t knob, int16_t turns)
+        {
+            if (Shift())
+                return;
+
+            // knob 1 gets 1x per detent from ui.h, the others 3x
+            if (knob == 0)
+                turns *= 3;
+
+            SetFxParam(fx_selected_, knob, fx_params_[fx_selected_][knob] + turns * kFxParamStep);
+        }
+
+        void SetFxParam(size_t fx, size_t param, float val)
+        {
+            fx_params_[fx][param] = fclamp(val, 0.f, 1.f);
+            engine_->SetFxParam(fx, param, fx_params_[fx][param]);
+        }
+
+        void DrawFxLeds()
+        {
+            // knob LEDs: the selected FX's parameters, yellow (0) through orange to red (1)
+            for (size_t p = 0; p < kNumFxParams; p++)
+            {
+                const float val = fx_params_[fx_selected_][p];
+                SetPthLedFloat(kFxKnobLeds[p],
+                               color_triple_xfade(yellow[0], orange[0], red[0], val),
+                               color_triple_xfade(yellow[1], orange[1], red[1], val),
+                               color_triple_xfade(yellow[2], orange[2], red[2], val));
+            }
+
+            for (size_t fx = 0; fx < kNumFx; fx++)
+            {
+                float level = 0.f;
+                if (fx_held_[fx] || fx_latched_[fx])
+                    level = 1.f;
+                else if (fx == fx_selected_)
+                    level = kFxSelectedDim;
+                SetSmtLedFloat(kFxKeyLeds[fx], orange[0] * level, orange[1] * level, orange[2] * level);
+            }
         }
 
         void DrawLooperLeds(uint32_t now)
@@ -466,6 +559,11 @@ namespace chompi
         uint32_t erase_hold_ = 0;
         uint32_t record_refused_ = 0;
         float speed_chunk_ = 0.f;   // transport detents towards the next speed step
+
+        float fx_params_[kNumFx][kNumFxParams];
+        bool fx_held_[kNumFx] = {};
+        bool fx_latched_[kNumFx] = {};
+        size_t fx_selected_ = 0;    // the FX the knobs edit: the last one pressed
 
         bool batt_display;
         uint32_t batt_hold;

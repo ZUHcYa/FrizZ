@@ -1,6 +1,6 @@
 /** @file passthroughEngine.h
  *  @brief Audio engine: the stereo AUX input goes to both outputs through the Volume
- *  Engine: input gain -> dry/wet mix -> output gain -> master compressor.
+ *  Engine: input gain -> dry/wet mix -> punch-in FX -> output gain -> master compressor.
  *
  *  Dry is the input on its own, wet is the looper's playback on its own. The looper
  *  records the dry signal (see Looper.h).
@@ -14,6 +14,7 @@
 #include "EnvFollower.h"
 #include "limiter.h"
 #include "Looper.h"
+#include "PunchFx.h"
 
 using namespace daisy;
 using namespace daisysp;
@@ -32,6 +33,7 @@ public:
     void Init(float sample_rate, int16_t* loop_mem, chompi::MidiClock* midi_clock)
     {
         looper.Init(loop_mem, midi_clock);
+        crusher_.Init(sample_rate);
 
         dcblock_line_in_l_.Init(sample_rate);
         dcblock_line_in_r_.Init(sample_rate);
@@ -71,8 +73,12 @@ public:
             // equal-power crossfade so the middle of the knob doesn't dip in level
             const float dry_amt = cosf(mix_ * HALFPI_F);
             const float wet_amt = sinf(mix_ * HALFPI_F);
-            const float sigl = dryl[i] * dry_amt + wetl[i] * wet_amt;
-            const float sigr = dryr[i] * dry_amt + wetr[i] * wet_amt;
+            float sigl = dryl[i] * dry_amt + wetl[i] * wet_amt;
+            float sigr = dryr[i] * dry_amt + wetr[i] * wet_amt;
+
+            // punch-in FX, on the mix so they work on the input, the loop or both, and
+            // before the output gain so they don't change with the VOLUME knob
+            crusher_.Process(&sigl, &sigr);
 
             // headphone and master gain
             out[0][i] = sigl * kHpGain * mgain_;
@@ -100,6 +106,18 @@ public:
     /** 0 = dry (input only), 1 = wet (looper/buffer only) */
     inline void SetMix(float mix) { mix_target_ = mix; }
 
+    /** Punch-in FX, by index (see PunchFx.h). Only fx 0 (the crusher) exists so far. */
+    inline void SetFxOn(size_t fx, bool on)
+    {
+        if (fx == 0)
+            crusher_.SetOn(on);
+    }
+    inline void SetFxParam(size_t fx, size_t param, float val)
+    {
+        if (fx == 0)
+            crusher_.SetParam(param, val);
+    }
+
     inline float GetVUSample() { return output_env_follower.GetLastSamp(); }
 
     chompi::Looper looper;
@@ -108,6 +126,7 @@ private:
     daisysp::DcBlock dcblock_line_in_l_, dcblock_line_in_r_;
     chompi::Limiter lim_hp_l_, lim_hp_r_, lim_line_l_, lim_line_r_;
     chompi::EnvFollower output_env_follower;
+    chompi::Crusher crusher_;
     float mgain_, mgain_target_;
     float ingain_, ingain_target_;
     float final_lim_, final_lim_target_;
