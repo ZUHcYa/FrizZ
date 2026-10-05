@@ -13,9 +13,8 @@ namespace chompi
 {
 
 /** The feedback comb Kastle runs around every FX Wizard mode, as its own key. While
- *  on, the loop wraps all the inserts that are on: the engine taps the signal after the
- *  crusher (Tap) and feeds it back in after the freezer (Feed), so the ringing goes through
- *  the slicer, flanger, shifter, filter and crusher on every trip. In the loop, as on Kastle:
+ *  on, the loop wraps the inserts between Feed and Tap (FxChain.h), so the ringing goes
+ *  through every one of them that's on, on every trip. In the loop, as on Kastle:
  *  a soft clipper, a lowpass and a 50Hz highpass, which keep it bounded whatever is inside.
  *  On its own it's a comb on the dry signal. Kastle's comb is 100-2000 samples at 44kHz and
  *  at most about 40% feedback; this one is tunable and goes up to 98%.

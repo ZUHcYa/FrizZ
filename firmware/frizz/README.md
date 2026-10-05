@@ -58,15 +58,25 @@ Effects sit on the white keys and act on the whole mix, after the dry/wet knob a
 output gain and the master compressor. The looper records the dry input, so an effect is never
 printed into a loop.
 
-- **Inserts** (freezer, slicer, flanger, shifter, filter, crusher): replace the signal while
-  on and stop the moment they're off. They run in that order, so the filter and crusher work
-  on the repeats, slices and modulation.
+The keys run in signal order, left to right:
+
+```
+freezer -> shifter -> crusher -> filter -> flanger -> slicer -> delay -> reverb
+           |<------------- resonator loop ------------>|
+```
+
+- **Inserts** (freezer, shifter, crusher, filter, flanger, slicer): replace the signal while
+  on and stop the moment they're off. The freezer comes first, so it captures the clean
+  sound and everything after it works on the repeats. The filter sweeps the crusher's grit,
+  and the flanger sweeps both. The slicer is the last insert, so it chops everything,
+  including the resonator's ringing.
+- **Resonator** (6th white key): a comb feedback loop. While on, it taps the signal after the
+  flanger and feeds it back in after the freezer, so it rings through the shifter, crusher,
+  filter and flanger whenever they're on.
 - **Sends** (delay, reverb): the key opens the effect's input, and its output is added to the
-  signal, so tails ring out after the key is released. The two sends run in parallel, both fed
-  from the crusher's output.
-- **Resonator** (KEY_7): a comb feedback loop around the inserts. While on, it taps the
-  signal after the crusher and feeds it back in after the freezer, so it rings through every
-  insert that's on.
+  signal, so tails ring out after the key is released. The delay gets the inserts' output;
+  the reverb gets that plus the delay's echoes, so the echoes are reverberated while both
+  are on.
 
 | Control | Function |
 |---|---|
@@ -84,13 +94,13 @@ colours; a knob the effect doesn't use is dark and does nothing. Values reset at
 
 | Key | Effect | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|---|
-| 1st white | Filter: the DJ filter from TAPE, TEMPO and WAVE (WAVE's copy) | Cutoff: lowpass left of centre, highpass right, flat at centre (default 30%, lowpass) | Resonance (default 50%) | LFO depth (default off) | LFO division: 1/16, 1/8, 1/4, 1/2, 1 bar, 2 bars, 4 bars (default 1 bar) |
-| 2nd white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz (default 60%) | Bits, 16 down to 2 (default 50%, 9 bits) | Tone, lowpass 200 Hz to open (default open) | XOR: flips bits of every sample for a digital buzz, from Kastle 2 FX Wizard's crusher (default off) |
-| 3rd white | Freezer: Kastle 2 FX Wizard's, as a beat repeat | Length: 1/16, 1/8T, 1/8, 1/4T, 1/4, 1/2T, 1/2, 1 bar (default 1/8) | Feedback: the input overdubbed into the repeats (default 0, pure repeat) | Stereo: the left loop up to 45 ms longer (default off) | Pitch: short pitched loops, 50 Hz up to 290 Hz, replacing the length (default off) |
-| 4th white | Slicer: Kastle 2 FX Wizard's rhythmic gate | Pattern, 8 steps of 16ths: `x.......`, `x...x...`, `..x...x.`, `x....x..`, `x..x..x.`, `x.x.x.x.`, `x.x.xx..`, `xxxxxxxx` (default `x..x..x.`) | Decay, 10 ms to 1 s (default 100 ms) | Chance: each step flipped at random, up to 90% (default off) | Stereo: the left channel plays a pattern up the list, the right one down, 0-7 apart (default off) |
+| 1st white | Freezer: Kastle 2 FX Wizard's, as a beat repeat | Length: 1/16, 1/8T, 1/8, 1/4T, 1/4, 1/2T, 1/2, 1 bar (default 1/8) | Feedback: the input overdubbed into the repeats (default 0, pure repeat) | Stereo: the left loop up to 45 ms longer (default off) | Pitch: short pitched loops, 50 Hz up to 290 Hz, replacing the length (default off) |
+| 2nd white | Shifter: Kastle 2 FX Wizard's delay-line pitch shifter | Shift: right of centre up, left down, centre off; further out shifts more, then buzzes (default 70%, about +6 semitones) | Swoop: on the key press, the shift jumps and falls back over 1 s (default off) | Feedback: the shifted sound spirals (default off) | Stereo: the right channel up to 20 Hz faster (default off) |
+| 3rd white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz (default 60%) | Bits, 16 down to 2 (default 50%, 9 bits) | Tone, lowpass 200 Hz to open (default open) | XOR: flips bits of every sample for a digital buzz, from Kastle 2 FX Wizard's crusher (default off) |
+| 4th white | Filter: the DJ filter from TAPE, TEMPO and WAVE (WAVE's copy) | Cutoff: lowpass left of centre, highpass right, flat at centre (default 30%, lowpass) | Resonance (default 50%) | LFO depth (default off) | LFO division: 1/16, 1/8, 1/4, 1/2, 1 bar, 2 bars, 4 bars (default 1 bar) |
 | 5th white | Flanger: Kastle 2 FX Wizard's | Rate, 0.02 Hz to 50 Hz (default 0.55 Hz) | Amount: sweep depth and mix together, the top is pure vibrato (default 50%) | Feedback, up to 85% (default 50%) | Stereo: the right LFO runs free and detuned (default off) |
-| 6th white | Shifter: Kastle 2 FX Wizard's delay-line pitch shifter | Shift: right of centre up, left down, centre off; further out shifts more, then buzzes (default 70%, about +6 semitones) | Swoop: on the key press, the shift jumps and falls back over 1 s (default off) | Feedback: the shifted sound spirals (default off) | Stereo: the right channel up to 20 Hz faster (default off) |
-| 7th white | Resonator: the comb Kastle 2 FX Wizard runs around every mode | Pitch, 22 Hz to 880 Hz (default 110 Hz) | Feedback, up to 98% (default 70%) | Tone: the loop's lowpass, 1 kHz to 15 kHz (default 6.6 kHz) | Stereo: the right channel up to 12 semitones higher (default off) |
+| 6th white | Resonator: the comb Kastle 2 FX Wizard runs around every mode | Pitch, 22 Hz to 880 Hz (default 110 Hz) | Feedback, up to 98% (default 70%) | Tone: the loop's lowpass, 1 kHz to 15 kHz (default 6.6 kHz) | Stereo: the right channel up to 12 semitones higher (default off) |
+| 7th white | Slicer: Kastle 2 FX Wizard's rhythmic gate | Pattern, 8 steps of 16ths: `x.......`, `x...x...`, `..x...x.`, `x....x..`, `x..x..x.`, `x.x.x.x.`, `x.x.xx..`, `xxxxxxxx` (default `x..x..x.`) | Decay, 10 ms to 1 s (default 100 ms) | Chance: each step flipped at random, up to 90% (default off) | Stereo: the left channel plays a pattern up the list, the right one down, 0-7 apart (default off) |
 | 2nd-to-last white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 70%) |
 | Last white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Tone, dark to open (default 60%) | Diffusion (default 60%) | Level (default 70%) |
 
@@ -152,9 +162,10 @@ Crusher details:
 Resonator details:
 - The loop holds a soft clipper, a lowpass (Tone) and a 50 Hz highpass, as on Kastle, so it
   saturates rather than runs away, whatever is inside it. On its own it's a comb on the dry
-  sound; with other inserts on, the ringing goes through them on every trip: through the
-  shifter it spirals, through the slicer it rings in bursts, through the crusher it turns
-  grainy. With the freezer on, it rings the repeats.
+  sound; with the inserts inside the loop on, the ringing goes through them on every trip:
+  through the shifter it spirals, through the crusher it turns grainy, and the filter shapes
+  it the way a filter in a dub delay's feedback does. With the freezer on, it rings the
+  repeats; with the slicer on, the ringing is chopped into bursts.
 - Like Kastle, it turns the input down as feedback goes up (by half at the most). Kastle's
   comb is fixed per mode, 22-440 Hz with about 40% feedback at most; this one is tunable
   and stronger.

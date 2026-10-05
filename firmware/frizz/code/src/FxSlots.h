@@ -31,28 +31,28 @@ struct FxSlot
 };
 
 static const FxSlot kFxSlots[] = {
-    // filter: cutoff (lowpass), resonance, LFO depth (off), LFO division (1 bar)
-    {Hardware::SwId::KEY_1, 24, pink, {pink, white, med_blue}, FxKind::INSERT, 4,
-     {.3f, .5f, 0.f, .6667f}, {0, 0, 0, Filter::kNumLfoDivisions}},
-    // crusher: rate, bits, tone, XOR (off)
-    {Hardware::SwId::KEY_2, 23, orange, {yellow, orange, red}, FxKind::INSERT, 4,
-     {.6f, .5f, 1.f, 0.f}, {0, 0, 0, 0}},
     // freezer: length (1/8), feedback (pure repeat), stereo (off), pitch (off)
-    {Hardware::SwId::KEY_3, 22, purple, {purple, white, med_blue}, FxKind::INSERT, 4,
+    {Hardware::SwId::KEY_1, 24, purple, {purple, white, med_blue}, FxKind::INSERT, 4,
      {2.f / 7.f, 0.f, 0.f, 0.f}, {Freezer::kNumLengths, 0, 0, 0}},
-    // slicer: pattern (x..x..x.), decay (100ms), chance (off), stereo (off)
-    {Hardware::SwId::KEY_4, 21, yellow, {yellow, white, green}, FxKind::INSERT, 4,
-     {4.f / 7.f, .5f, 0.f, 0.f}, {Slicer::kNumPatterns, 0, 0, Slicer::kNumPatterns}},
+    // shifter: shift (up, about 6 semitones), swoop (off), feedback (off), stereo (off).
+    // The shift knob's LED: blue down, white off, red up
+    {Hardware::SwId::KEY_2, 23, red, {blue, white, red}, FxKind::INSERT, 4,
+     {.7f, 0.f, 0.f, 0.f}, {0, 0, 0, 0}},
+    // crusher: rate, bits, tone, XOR (off)
+    {Hardware::SwId::KEY_3, 22, orange, {yellow, orange, red}, FxKind::INSERT, 4,
+     {.6f, .5f, 1.f, 0.f}, {0, 0, 0, 0}},
+    // filter: cutoff (lowpass), resonance, LFO depth (off), LFO division (1 bar)
+    {Hardware::SwId::KEY_4, 21, pink, {pink, white, med_blue}, FxKind::INSERT, 4,
+     {.3f, .5f, 0.f, .6667f}, {0, 0, 0, Filter::kNumLfoDivisions}},
     // flanger: rate (.55Hz), amount (half), feedback, stereo (off)
     {Hardware::SwId::KEY_5, 20, med_blue, {med_blue, white, purple}, FxKind::INSERT, 4,
      {.45f, .5f, .5f, 0.f}, {0, 0, 0, 0}},
-    // shifter: shift (up, about 6 semitones), swoop (off), feedback (off), stereo (off).
-    // The shift knob's LED: blue down, white off, red up
-    {Hardware::SwId::KEY_6, 19, red, {blue, white, red}, FxKind::INSERT, 4,
-     {.7f, 0.f, 0.f, 0.f}, {0, 0, 0, 0}},
     // resonator: pitch (110Hz), feedback, tone (6.6kHz), stereo (off)
-    {Hardware::SwId::KEY_7, 18, white, {orange, white, med_blue}, FxKind::LOOP, 4,
+    {Hardware::SwId::KEY_6, 19, white, {orange, white, med_blue}, FxKind::LOOP, 4,
      {.4364f, .7f, .7f, 0.f}, {0, 0, 0, 0}},
+    // slicer: pattern (x..x..x.), decay (100ms), chance (off), stereo (off)
+    {Hardware::SwId::KEY_7, 18, yellow, {yellow, white, green}, FxKind::INSERT, 4,
+     {4.f / 7.f, .5f, 0.f, 0.f}, {Slicer::kNumPatterns, 0, 0, Slicer::kNumPatterns}},
     // delay: division (1/4), feedback, random (off), level
     {Hardware::SwId::KEY_14, 11, green, {green, white, med_blue}, FxKind::SEND, 4,
      {.25f, .4f, .5f, .7f}, {DelaySend::kNumDivisions, 0, 0, 0}},

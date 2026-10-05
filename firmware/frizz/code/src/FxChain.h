@@ -4,11 +4,22 @@
  *  before the output gain and master compressor (passthroughEngine.h). FxSlots.h says which
  *  key, LED and knobs go with each effect.
  *
+ *  The order follows a pedalboard's: source, pitch, dirt, filter, modulation, gate, space.
+ *  The keys follow it too, left to right:
+ *   freezer -> shifter -> crusher -> filter -> flanger -> slicer -> delay -> reverb
+ *              |<------------- resonator loop ------------>|
+ *  The freezer comes first so it captures the clean sound and everything after it works on
+ *  the repeats. The filter sweeps the crusher's grit, and the flanger the harmonics both
+ *  made. The slicer is the last insert, the final gate: it chops everything including the
+ *  resonator's ringing, and the sends get the chopped sound. The delay's echoes feed the
+ *  reverb as well as the output.
+ *
  *  Three kinds:
  *   - insert: replaces the signal while its key is on; only the wet amount is faded.
  *   - send (delay, reverb): the key fades what goes into the effect, and its return is added
  *     to the signal, so tails ring out after the key is released.
- *   - loop (resonator): a comb feedback loop around a stretch of the inserts.
+ *   - loop (resonator): a comb feedback loop from after the flanger back to after the
+ *     freezer, so the filter is in the loop and the slicer outside it.
  */
 #pragma once
 #include "EnvFollower.h"
@@ -28,13 +39,13 @@ namespace chompi
 /** The effects, in the order of their keys, left to right (FxSlots.h) */
 enum FxId
 {
-    FX_FILTER,
-    FX_CRUSHER,
     FX_FREEZER,
-    FX_SLICER,
-    FX_FLANGER,
     FX_SHIFTER,
+    FX_CRUSHER,
+    FX_FILTER,
+    FX_FLANGER,
     FX_RESONATOR,
+    FX_SLICER,
     FX_DELAY,
     FX_REVERB,
     kNumFx,
@@ -99,27 +110,28 @@ public:
     {
         freezer_.Process(l, r);
         Meter(FX_FREEZER, *l + *r);
-        // the resonator's loop wraps everything from here to the crusher
+        // the resonator's loop wraps everything from here to the flanger
         resonator_.Feed(l, r);
         Meter(FX_RESONATOR, resonator_.Return());
-        slicer_.Process(l, r);
-        Meter(FX_SLICER, *l + *r);
-        flanger_.Process(l, r);
-        Meter(FX_FLANGER, *l + *r);
         shifter_.Process(l, r);
         Meter(FX_SHIFTER, *l + *r);
-        filter_.Process(l, r);
-        Meter(FX_FILTER, *l + *r);
         crusher_.Process(l, r);
         Meter(FX_CRUSHER, *l + *r);
+        filter_.Process(l, r);
+        Meter(FX_FILTER, *l + *r);
+        flanger_.Process(l, r);
+        Meter(FX_FLANGER, *l + *r);
         resonator_.Tap(*l, *r);
+        slicer_.Process(l, r);
+        Meter(FX_SLICER, *l + *r);
 
-        // sends, in parallel from the crusher's output, their returns added on top
+        // sends: the delay from the inserts' output, the reverb from that plus the delay's
+        // return, so the echoes are reverberated. Both returns are added on top.
         const float sendl = *l, sendr = *r;
         delay_.Process(sendl, sendr, l, r);
         const float delayl = *l, delayr = *r;
         Meter(FX_DELAY, delayl - sendl + delayr - sendr);
-        reverb_.Process(sendl, sendr, l, r);
+        reverb_.Process(delayl, delayr, l, r);
         Meter(FX_REVERB, *l - delayl + *r - delayr);
     }
 
