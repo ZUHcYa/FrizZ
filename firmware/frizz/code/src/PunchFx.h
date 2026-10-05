@@ -25,7 +25,7 @@ static const size_t kNumFxParams = 4;
 static const float kFxGateCoeff = .004f;
 
 /** KEY_1: TEMPO's sample-rate reducer, plus bit-depth reduction, a tone control and mix.
- *  Params: 0 rate, 1 bits, 2 mix, 3 tone. */
+ *  Params: 0 rate, 1 bits, 2 tone, 3 mix. */
 class Crusher
 {
 public:
@@ -33,8 +33,8 @@ public:
     {
         RATE,
         BITS,
-        MIX,
         TONE,
+        MIX,
     };
 
     void Init(float sample_rate)

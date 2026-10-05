@@ -77,7 +77,7 @@ namespace chompi
     static const Hardware::SwId kFxKeys[kNumFx] = {Hardware::SwId::KEY_1};
     static const uint8_t kFxKeyLeds[kNumFx] = {24}; // SMT LEDs, TestPage's led_map
     static const uint8_t kFxKnobLeds[kNumFxParams] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
-    // crusher: rate, bits, mix, tone. Audible from the first press
+    // crusher: rate, bits, tone, mix. Audible from the first press
     static const float kFxDefaults[kNumFx][kNumFxParams] = {{.6f, .5f, 1.f, 1.f}};
     static const float kFxParamStep = .01f; // x3 per detent on knobs 2-4, see ui.h
     static const float kFxSelectedDim = .15f;
