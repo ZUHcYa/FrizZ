@@ -7,15 +7,16 @@
  *  do nothing while it's selected.
  *
  *  Two kinds:
- *   - insert (Filter, Crusher): replaces the signal while on; only the wet amount is gated.
+ *   - insert (Filter, Crusher, and Freezer and Slicer in FxWizard.h): replaces the signal
+ *     while on; only the wet amount is gated.
  *   - send (DelaySend, ReverbSend): the key gates what goes into the effect, and the effect's
  *     return is added to the signal, so tails ring out after the key is released.
  *  Either way the gate slews over ~5ms so punching in and out doesn't click, and effects
  *  process every sample even while off, so engaging one never starts from stale state.
  *
  *  The engine runs them on the summed output, after the dry/wet mix and before the output
- *  gain and master compressor: filter, then crusher, then both sends in parallel from the
- *  crusher's output (see passthroughEngine.h).
+ *  gain and master compressor: freezer, slicer, filter, crusher, then both sends in parallel
+ *  from the crusher's output (see passthroughEngine.h).
  */
 #pragma once
 #include "daisy.h"
@@ -37,11 +38,14 @@ enum FxId
     FX_CRUSHER,
     FX_DELAY,
     FX_REVERB,
+    FX_FREEZER, // FxWizard.h
+    FX_SLICER,  // FxWizard.h
     kNumFx,
 };
 
 // Knobs used per FxId, the first kFxNumParams[fx] of the four
-static const size_t kFxNumParams[kNumFx] = {4, 3, 4, 4};
+static const size_t kFxNumParams[] = {4, 3, 4, 4, 4, 4};
+static_assert(sizeof(kFxNumParams) / sizeof(kFxNumParams[0]) == kNumFx, "one per FxId");
 
 // ~5ms at 48kHz
 static const float kFxGateCoeff = .004f;

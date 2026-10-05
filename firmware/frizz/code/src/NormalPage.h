@@ -35,14 +35,16 @@
  *  plays, PLAY and LOOP crossfade in white to show the position, dimmed when paused. The
  *  transport LEDs show the speed in TAPE's colours, or the scrub speed while paused.
  *
- *  Punch-in FX (PunchFx.h) on the white keys: KEY_1 filter and KEY_2 crusher (inserts),
- *  KEY_14 delay and KEY_15 reverb (sends, so their tails ring out after release):
+ *  Punch-in FX (PunchFx.h, FxWizard.h) on the white keys: KEY_1 filter, KEY_2 crusher,
+ *  KEY_3 freezer and KEY_4 slicer (inserts), KEY_14 delay and KEY_15 reverb (sends, so
+ *  their tails ring out after release):
  *   - hold the key:          the effect is on while held
  *   - SHIFT + key:           toggles the latch, the effect stays on after release
  *   - key on a latched FX:   clears the latch, the effect stays on until the key is released
  *   - knobs 1-4 (enc 0-3):   the parameters of the most recently pressed FX key, 1% per
  *                            detent; stepped parameters (filter LFO division, delay
- *                            division) move one step per kFxDetentsPerStep detents; knobs
+ *                            division, freezer length, slicer pattern and stereo) move one
+ *                            step per kFxDetentsPerStep detents; knobs
  *                            past the FX's kFxNumParams do nothing (crusher: knob 4)
  *   - press knobs 1-4:       resets that parameter to its default (kFxDefaults)
  *   - SHIFT + knobs 1-4:     nothing, turned or pressed (reserved for a second parameter page)
@@ -81,30 +83,45 @@ namespace chompi
     static const uint32_t kEraseHoldMs = 2000;
     static const float kSpeedStepPerTurn = .25f; // 4 transport detents per speed step
 
-    // Punch-in FX: one entry per FxId (PunchFx.h)
-    static const Hardware::SwId kFxKeys[kNumFx] = {
+    // Punch-in FX: one entry per FxId (PunchFx.h). The tables are unsized so a missing
+    // entry fails the static_asserts below instead of reading as zero.
+    #define CHECK_PER_FX(table) \
+        static_assert(sizeof(table) / sizeof(table[0]) == kNumFx, #table ": one per FxId")
+    static const Hardware::SwId kFxKeys[] = {
         Hardware::SwId::KEY_1,  // filter: 1st white key
         Hardware::SwId::KEY_2,  // crusher: 2nd white key
         Hardware::SwId::KEY_14, // delay: 2nd-to-last white key
         Hardware::SwId::KEY_15, // reverb: last white key
+        Hardware::SwId::KEY_3,  // freezer: 3rd white key
+        Hardware::SwId::KEY_4,  // slicer: 4th white key
     };
-    static const uint8_t kFxKeyLeds[kNumFx] = {24, 23, 11, 10}; // SMT LEDs, TestPage's led_map
+    CHECK_PER_FX(kFxKeys);
+    static const uint8_t kFxKeyLeds[] = {24, 23, 11, 10, 22, 21}; // SMT LEDs, TestPage's led_map
+    CHECK_PER_FX(kFxKeyLeds);
     static const uint8_t kFxKnobLeds[kNumFxParams] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
-    // Audible from the first press
-    static const float kFxDefaults[kNumFx][kNumFxParams] = {
+    // Audible from the first press. Stepped parameters on their grid: step / (steps - 1)
+    static const float kFxDefaults[][kNumFxParams] = {
         {.3f, .5f, 0.f, .6667f}, // filter: cutoff (lowpass), resonance, LFO depth (off),
                                  // LFO division (1 bar)
         {.6f, .5f, 1.f, 0.f},    // crusher: rate, bits, tone, (unused)
         {.25f, .4f, .5f, .7f},   // delay: division (1/4), feedback, random (off), level
         {.6f, .6f, .6f, .7f},    // reverb: decay, tone, diffusion, level
+        {2.f / 7.f, 0.f, 0.f, 0.f}, // freezer: length (1/8), feedback (pure repeat),
+                                    // stereo (off), pitch (off)
+        {4.f / 7.f, .5f, 0.f, 0.f}, // slicer: pattern (x..x..x.), decay (100ms), chance
+                                    // (off), stereo (off)
     };
+    CHECK_PER_FX(kFxDefaults);
     // Number of steps for stepped parameters, 0 = continuous
-    static const uint8_t kFxParamSteps[kNumFx][kNumFxParams] = {
+    static const uint8_t kFxParamSteps[][kNumFxParams] = {
         {0, 0, 0, Filter::kNumLfoDivisions},
         {0, 0, 0, 0},
         {DelaySend::kNumDivisions, 0, 0, 0},
         {0, 0, 0, 0},
+        {Freezer::kNumLengths, 0, 0, 0},
+        {Slicer::kNumPatterns, 0, 0, Slicer::kNumPatterns},
     };
+    CHECK_PER_FX(kFxParamSteps);
     static const float kFxParamStep = .01f;      // per detent, continuous parameters
     static const float kFxDetentsPerStep = 3.f;  // per step, stepped parameters
     // Knob 1-4 press switches, by ui.h's encoder_map
@@ -130,13 +147,18 @@ namespace chompi
     static const float orange[3] = {1.f, .6f, .24f};
 
     // Per FxId: knob LED colours for 0 / .5 / 1, and the key LED colour
-    static const float* const kFxKnobColors[kNumFx][3] = {
+    static const float* const kFxKnobColors[][3] = {
         {pink, white, med_blue},
         {yellow, orange, red},
         {green, white, med_blue},
         {med_blue, blue, purple},
+        {purple, white, med_blue},
+        {yellow, white, green},
     };
-    static const float* const kFxKeyColors[kNumFx] = {pink, orange, green, blue};
+    CHECK_PER_FX(kFxKnobColors);
+    static const float* const kFxKeyColors[] = {pink, orange, green, blue, purple, yellow};
+    CHECK_PER_FX(kFxKeyColors);
+    #undef CHECK_PER_FX
 
     class NormalPage : public daisy::UiPage
     {

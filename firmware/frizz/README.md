@@ -58,8 +58,9 @@ Effects sit on the white keys and act on the whole mix, after the dry/wet knob a
 output gain and the master compressor. The looper records the dry input, so an effect is never
 printed into a loop.
 
-- **Inserts** (filter, crusher): replace the signal while on and stop the moment they're off.
-  The filter comes first, then the crusher.
+- **Inserts** (freezer, slicer, filter, crusher): replace the signal while on and stop the
+  moment they're off. They run in that order, so the filter and crusher work on the repeats
+  and slices.
 - **Sends** (delay, reverb): the key opens the effect's input, and its output is added to the
   signal, so tails ring out after the key is released. The two sends run in parallel, both fed
   from the crusher's output.
@@ -69,7 +70,7 @@ printed into a loop.
 | Hold an FX key | Effect on while held |
 | SHIFT + FX key | Latch on / off; a latched effect stays on after release |
 | FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
-| Knobs 1-4 | The parameters of the most recently pressed FX key, 1% per detent; the filter LFO's and the delay's divisions move one step per 3 detents |
+| Knobs 1-4 | The parameters of the most recently pressed FX key, 1% per detent; stepped ones (filter LFO and delay divisions, freezer length, slicer pattern and stereo) move one step per 3 detents |
 | Press knobs 1-4 | Resets that parameter to its default |
 
 The FX keys are always dimly lit in their effect's colour, a little brighter for the effect
@@ -82,6 +83,8 @@ colours; a knob the effect doesn't use is dark and does nothing. Values reset at
 |---|---|---|---|---|---|
 | 1st white | Filter: the DJ filter from TAPE, TEMPO and WAVE (WAVE's copy) | Cutoff: lowpass left of centre, highpass right, flat at centre (default 30%, lowpass) | Resonance (default 50%) | LFO depth (default off) | LFO division: 1/16, 1/8, 1/4, 1/2, 1 bar, 2 bars, 4 bars (default 1 bar) |
 | 2nd white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz (default 60%) | Bits, 16 down to 2 (default 50%, 9 bits) | Tone, lowpass 200 Hz to open (default open) | (unused; always fully wet) |
+| 3rd white | Freezer: Kastle 2 FX Wizard's, as a beat repeat | Length: 1/16, 1/8T, 1/8, 1/4T, 1/4, 1/2T, 1/2, 1 bar (default 1/8) | Feedback: the input overdubbed into the repeats (default 0, pure repeat) | Stereo: the left loop up to 45 ms longer (default off) | Pitch: short pitched loops, 50 Hz up to 290 Hz, replacing the length (default off) |
+| 4th white | Slicer: Kastle 2 FX Wizard's rhythmic gate | Pattern, 8 steps of 16ths: `x.......`, `x...x...`, `..x...x.`, `x....x..`, `x..x..x.`, `x.x.x.x.`, `x.x.xx..`, `xxxxxxxx` (default `x..x..x.`) | Decay, 10 ms to 1 s (default 100 ms) | Chance: each step flipped at random, up to 90% (default off) | Stereo: the left channel plays a pattern up the list, the right one down, 0-7 apart (default off) |
 | 2nd-to-last white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 70%) |
 | Last white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Tone, dark to open (default 60%) | Diffusion (default 60%) | Level (default 70%) |
 
@@ -92,6 +95,26 @@ Filter details:
   rises towards highpass first. Like the delay's events, the beat is counted from when the
   clock locked, not from the DAW's beat 1.
 - LEDs: the key is pink; the knobs go pink (0%) through white to light blue (100%).
+
+Freezer details:
+- **Capture:** pressing the key waits for the next 16th, then records. The first pass is the
+  live signal, so there's no gap; after one length it repeats. Releasing the key goes back to
+  the live signal. It keeps recording past the loop (up to 5 s), so the length can be turned
+  up while repeating; turned past what's recorded, it plays on through the recording until
+  the length is reached.
+- **Feedback:** at 0 the loop repeats unchanged. Turning up mixes the input into it (up to
+  30% at 75%, 80% at the top, where the loop also fades by 10% per pass).
+- **Pitch:** above 0 the loop is a short pitched one (Kastle's upper half of TIME), 50 Hz
+  at 1% up to 290 Hz at 100%.
+- Lengths follow the delay's tempo. The loop seam has a 5 ms crossfade (shorter on pitched
+  loops), which Kastle doesn't have.
+- LEDs: the key is purple; the knobs go purple through white to light blue.
+
+Slicer details:
+- **Steps** are 16ths, counted from the clock like the filter LFO, so a pattern is half a
+  bar. Each step that's on retriggers a 10 ms attack and the decay. Pressing the key also
+  triggers it, so the signal doesn't drop out until the next step.
+- LEDs: the key is yellow; the knobs go yellow through white to green.
 
 Delay details:
 - **Tempo:** follows MIDI clock, rounded to whole BPM. Without clock it keeps the last tempo
@@ -120,10 +143,11 @@ hardware self-test.
 chompi_main.cpp        entry point: audio callback, main loop, boot sequence
 passthroughEngine.h    the engine: input gain, dry/wet mix, punch-in FX, output gain, master compressor
 PunchFx.h              the punch-in effects: filter, crusher, delay send, reverb send
+FxWizard.h             the freezer and slicer, ported from Bastl's Kastle 2 FX Wizard (MIT)
 DJFilter.h, BasicMMF.h WAVE's DJ filter
 granularDelay.h        TEMPO's tempo-synced delay (SimpleCrossfade.h: its crossfades)
 reverb.h, fx_engine.h  TEMPO's reverb
-TempoClock.h           the delay's and filter LFO's tempo and 12 PPQN pulses, from MIDI clock or internal
+TempoClock.h           the tempo and 12 PPQN pulses for the delay, filter LFO, freezer and slicer, from MIDI clock or internal
 Looper.h               the looper: recording, quantized end, playback, speed, scrub
 MidiClock.h            MIDI clock input over TRS and USB
 NormalPage.h           the controls (VOLUME, PLAY/LOOP, transport, FX keys and knobs) and their LEDs

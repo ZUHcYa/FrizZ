@@ -27,6 +27,7 @@ in the source files, must be preserved in any redistribution.
 | **coreJSON** | FreeRTOS / Amazon | MIT | `code/libs/coreJSON/` in each firmware folder, with its `LICENSE` |
 | **Daisy Bootloader** | © Electrosmith | MIT | `firmware/chompi-bootloader-v6.4-beta/shared/`, and the v6.2 bootloader in each firmware folder's `code/Chompi_Bootloader/` |
 | **CMSIS** | © ARM Limited | Apache-2.0 | `cube_dfu/Drivers/CMSIS/` (with its `LICENSE.txt`) in `firmware/chompi-bootloader-v6.4-beta/` and in each firmware folder's `code/Chompi_Bootloader/` |
+| **Kastle 2 FX Wizard** (freezer, slicer) | © 2024 Marek Mach, Vaclav Mach (Bastl Instruments) | MIT | ported to `firmware/frizz/code/src/FxWizard.h`, with its license notice in the file header |
 | **STM32 HAL, USB Device/Host middleware, FatFs** | © STMicroelectronics | ST Ultimate Liberty / BSD-3-Clause, per file headers | the same `cube_dfu/` folders |
 
 ## libDaisy is Electrosmith's CHOMPI adaptation

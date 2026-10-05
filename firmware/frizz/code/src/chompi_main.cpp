@@ -38,6 +38,12 @@ static const size_t kDelayFrames = 480000;
 float DSY_SDRAM_BSS delay_mem[kDelayFrames * 2];
 float DSY_SDRAM_BSS delay_frozen_mem[kDelayFrames * 2];
 
+// the freezer's buffers (FxWizard.h): 1 bar at the slowest tempo (4.8s at 50 BPM), plus the
+// stereo offset and the seam crossfade, per channel
+static const size_t kFreezerFrames = 240000;
+float DSY_SDRAM_BSS freezer_mem_l[kFreezerFrames];
+float DSY_SDRAM_BSS freezer_mem_r[kFreezerFrames];
+
 // the reverb carries its 64KB buffer, in the fast DTCMRAM like WAVE's. Not zeroed at startup:
 // Reverb::Init clears it
 #define DSY_DTCMRAM_BSS __attribute__((section(".dtcmram_bss")))
@@ -198,7 +204,8 @@ int main(void)
     f_mount(&fsi.GetSDFileSystem(), fsi.GetSDPath(), 1);
 
     engine.Init(hw.seed.AudioSampleRate(), loop_mem, &midi_clock,
-                delay_mem, delay_frozen_mem, kDelayFrames, &reverb);
+                delay_mem, delay_frozen_mem, kDelayFrames, &reverb,
+                freezer_mem_l, freezer_mem_r, kFreezerFrames);
 
     LedSetup();
     ui.Init(&engine, &hw);

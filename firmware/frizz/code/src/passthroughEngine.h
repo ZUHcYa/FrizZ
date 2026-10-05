@@ -1,8 +1,8 @@
 /** @file passthroughEngine.h
  *  @brief Audio engine: the stereo AUX input goes to both outputs through the Volume
  *  Engine: input gain -> dry/wet mix -> punch-in FX -> output gain -> master compressor.
- *  The punch-in FX are the filter and the crusher (inserts), then the delay and reverb sends
- *  in parallel.
+ *  The punch-in FX are the freezer, slicer, filter and crusher (inserts, in that order), then
+ *  the delay and reverb sends in parallel.
  *
  *  Dry is the input on its own, wet is the looper's playback on its own. The looper
  *  records the dry signal (see Looper.h).
@@ -14,6 +14,7 @@
 #include "daisy.h"
 #include "daisysp.h"
 #include "EnvFollower.h"
+#include "FxWizard.h"
 #include "limiter.h"
 #include "Looper.h"
 #include "PunchFx.h"
@@ -37,7 +38,8 @@ public:
 
     void Init(float sample_rate, int16_t* loop_mem, chompi::MidiClock* midi_clock,
               float* delay_mem, float* delay_frozen_mem, size_t delay_frames,
-              daisysp::Reverb* reverb)
+              daisysp::Reverb* reverb,
+              float* freezer_mem_l, float* freezer_mem_r, size_t freezer_frames)
     {
         looper.Init(loop_mem, midi_clock);
         tempo_clock_.Init(sample_rate, midi_clock);
@@ -45,6 +47,8 @@ public:
         crusher_.Init(sample_rate);
         delay_.Init(delay_mem, delay_frozen_mem, delay_frames);
         reverb_.Init(sample_rate, reverb);
+        freezer_.Init(sample_rate, freezer_mem_l, freezer_mem_r, freezer_frames);
+        slicer_.Init(sample_rate);
 
         dcblock_line_in_l_.Init(sample_rate);
         dcblock_line_in_r_.Init(sample_rate);
@@ -77,14 +81,18 @@ public:
 
         looper.Process(dryl, dryr, wetl, wetr, size);
 
-        // the delay's and the filter LFO's tempo and clock, once per block
+        // the tempo and clock of the delay, the filter LFO, the freezer and the slicer, once
+        // per block
         const uint32_t pulses = tempo_clock_.Process(size);
         delay_.SetTempo(tempo_clock_.GetTempo());
         filter_.SetTempo(tempo_clock_.GetTempo());
+        freezer_.SetTempo(tempo_clock_.GetTempo());
         for (uint32_t p = 0; p < pulses; p++)
         {
             delay_.ClockPulse(tempo_clock_.Pulse());
             filter_.ClockPulse();
+            freezer_.ClockPulse();
+            slicer_.ClockPulse();
         }
 
         for (size_t i = 0; i < size; i++)
@@ -101,6 +109,10 @@ public:
 
             // punch-in FX, on the mix so they work on the input, the loop or both, and
             // before the output gain so they don't change with the VOLUME knob
+            freezer_.Process(&sigl, &sigr);
+            fx_env_[chompi::FX_FREEZER].Process((sigl + sigr) * kFxMeterScale);
+            slicer_.Process(&sigl, &sigr);
+            fx_env_[chompi::FX_SLICER].Process((sigl + sigr) * kFxMeterScale);
             filter_.Process(&sigl, &sigr);
             fx_env_[chompi::FX_FILTER].Process((sigl + sigr) * kFxMeterScale);
             crusher_.Process(&sigl, &sigr);
@@ -150,6 +162,8 @@ public:
         case chompi::FX_CRUSHER: crusher_.SetOn(on); break;
         case chompi::FX_DELAY:   delay_.SetOn(on); break;
         case chompi::FX_REVERB:  reverb_.SetOn(on); break;
+        case chompi::FX_FREEZER: freezer_.SetOn(on); break;
+        case chompi::FX_SLICER:  slicer_.SetOn(on); break;
         default: break;
         }
     }
@@ -161,6 +175,8 @@ public:
         case chompi::FX_CRUSHER: crusher_.SetParam(param, val); break;
         case chompi::FX_DELAY:   delay_.SetParam(param, val); break;
         case chompi::FX_REVERB:  reverb_.SetParam(param, val); break;
+        case chompi::FX_FREEZER: freezer_.SetParam(param, val); break;
+        case chompi::FX_SLICER:  slicer_.SetParam(param, val); break;
         default: break;
         }
     }
@@ -181,6 +197,8 @@ private:
     chompi::Crusher crusher_;
     chompi::DelaySend delay_;
     chompi::ReverbSend reverb_;
+    chompi::Freezer freezer_;
+    chompi::Slicer slicer_;
     float mgain_, mgain_target_;
     float ingain_, ingain_target_;
     float final_lim_, final_lim_target_;

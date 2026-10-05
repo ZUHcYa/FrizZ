@@ -1,0 +1,418 @@
+/** @file FxWizard.h
+ *  @brief Two punch-in inserts ported from Bastl Instruments' Kastle 2 FX Wizard
+ *  (github.com/bastl-instruments/kastle2, code/src/apps/FxWizard/AppFxWizard.cpp): the
+ *  freezer and the slicer. Rewritten from Kastle's 44kHz fixed point to 48kHz float, with
+ *  Kastle's mode knobs and trigger input replaced by a held key, and clocked by TempoClock
+ *  pulses (12 PPQN, see TempoClock.h) like the filter's LFO.
+ *
+ *  The original code is under this license:
+ *
+ *  MIT License
+ *
+ *  Copyright (c) 2024 Marek Mach (Bastl Instruments)
+ *  Copyright (c) 2024 Vaclav Mach (Bastl Instruments)
+ *
+ *  Permission is hereby granted, free of charge, to any person obtaining a copy
+ *  of this software and associated documentation files (the "Software"), to deal
+ *  in the Software without restriction, including without limitation the rights
+ *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  copies of the Software, and to permit persons to whom the Software is
+ *  furnished to do so, subject to the following conditions:
+ *
+ *  The above copyright notice and this permission notice shall be included in all
+ *  copies or substantial portions of the Software.
+ *
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ *  SOFTWARE.
+ */
+#pragma once
+#include "PunchFx.h"
+
+namespace chompi
+{
+
+// One 16th note in TempoClock pulses
+static const uint32_t kPulsesPer16th = 3;
+
+// Freezer lengths, a bar divided by, short to long: 1/16, 1/8T, 1/8, 1/4T, 1/4, 1/2T, 1/2, 1 bar
+static const uint8_t kFreezerBarDivisions[] = {16, 12, 8, 6, 4, 3, 2, 1};
+
+// Kastle's slicer patterns, sparse to dense, 8 16th-note steps
+static const uint8_t kSlicerPatterns[] = {
+    0b10000000,
+    0b10001000,
+    0b00100010,
+    0b10000100,
+    0b10010010,
+    0b10101010,
+    0b10101100,
+    0b11111111,
+};
+
+/** KEY_3: Kastle's freezer as a beat repeat. Pressing the key arms it; on the next 16th it
+ *  starts recording, passing the live signal through for one loop length, then loops what
+ *  it recorded until the key is released. It keeps recording past the loop for as long as
+ *  the buffer lasts, so the length can be turned up while it repeats.
+ *  Params: 0 length (kNumLengths steps), 1 feedback, 2 stereo, 3 pitch (0 = off).
+ *  The freezer's buffers are separate (SDRAM, chompi_main.cpp), kFreezerFrames per channel. */
+class Freezer
+{
+public:
+    enum Param
+    {
+        LENGTH,
+        FEEDBACK,
+        STEREO,
+        PITCH,
+    };
+
+    static const size_t kNumLengths = sizeof(kFreezerBarDivisions);
+
+    void Init(float sample_rate, float* buf_l, float* buf_r, size_t frames)
+    {
+        sample_rate_ = sample_rate;
+        buf_[0] = buf_l;
+        buf_[1] = buf_r;
+        frames_ = frames;
+        state_ = State::IDLE;
+        on_ = false;
+        start_ = false;
+        gate_ = gate_target_ = 0.f;
+        tempo_ = 120;
+        pulses_ = 0;
+        written_ = 0;
+        pos_[0] = pos_[1] = 0;
+
+        for (size_t i = 0; i < kNumFxParams; i++)
+            SetParam(i, 0.f);
+    }
+
+    /** Once per block: the tempo, plus one call per clock pulse (12 PPQN) in this block */
+    void SetTempo(int bpm)
+    {
+        if (bpm != tempo_)
+        {
+            tempo_ = bpm;
+            UpdateLengths();
+        }
+    }
+    void ClockPulse()
+    {
+        pulses_ = (pulses_ + 1) % kPulsesPer16th;
+        if (pulses_ == 0 && state_ == State::ARMED)
+            start_ = true;
+    }
+
+    void Process(float* l, float* r)
+    {
+        fonepole(gate_, gate_target_, kFxGateCoeff);
+
+        // back to idle once the release has faded out
+        if (!on_ && state_ != State::IDLE && gate_ < .001f)
+            state_ = State::IDLE;
+
+        if (start_)
+        {
+            start_ = false;
+            if (state_ == State::ARMED)
+            {
+                state_ = State::RUNNING;
+                written_ = 0;
+                pos_[0] = pos_[1] = 0;
+            }
+        }
+
+        // idle or waiting for the 16th: the live signal passes
+        if (state_ != State::RUNNING)
+            return;
+
+        float* const io[2] = {l, r};
+
+        // record forward until the buffer is full
+        const bool recording = written_ < frames_;
+        if (recording)
+        {
+            buf_[0][written_] = *l;
+            buf_[1][written_] = *r;
+            written_++;
+        }
+
+        for (size_t c = 0; c < 2; c++)
+        {
+            const size_t target = len_[c];
+
+            // the first pass: still recording the loop, the live signal passes
+            if (written_ <= target && recording)
+                continue;
+
+            // can't loop more than has been recorded
+            const size_t len = target < written_ ? target : written_;
+            if (pos_[c] >= len)
+                pos_[c] = 0;
+            const size_t pos = pos_[c];
+
+            // Kastle has no seam crossfade; this blends the loop start with what was recorded
+            // just after its end, so the first repeat follows the live signal seamlessly
+            float* const b = buf_[c];
+            float wet = b[pos];
+            const size_t xfade = len / 4 < kXfadeFrames ? len / 4 : kXfadeFrames;
+            if (pos < xfade && len + pos < written_)
+            {
+                const float t = static_cast<float>(pos) / static_cast<float>(xfade);
+                wet = wet * t + b[len + pos] * (1.f - t);
+            }
+
+            // feedback: the input overdubbed into the loop, which fades a little
+            if (fb_in_ > .0001f)
+                b[pos] = 2.f * SoftClip(.5f * (b[pos] * fb_keep_ + *io[c] * fb_in_));
+
+            pos_[c] = pos + 1;
+            *io[c] += gate_ * (wet - *io[c]);
+        }
+    }
+
+    inline void SetOn(bool on)
+    {
+        // on_ first, so the audio callback can't drop the new capture back to idle
+        const bool was_on = on_;
+        on_ = on;
+        if (on && !was_on)
+            state_ = State::ARMED; // a new capture, also during a release fade-out
+        gate_target_ = on ? 1.f : 0.f;
+    }
+
+    void SetParam(size_t param, float val)
+    {
+        switch (param)
+        {
+        case LENGTH:
+            length_idx_ = static_cast<size_t>(val * (kNumLengths - 1) + .5f);
+            break;
+        case FEEDBACK:
+            // Kastle's maps: input in 0 / .3 / .8 and the loop kept 1 / 1 / .9 at 0 / .75 / 1
+            if (val < .75f)
+            {
+                fb_in_ = val / .75f * .3f;
+                fb_keep_ = 1.f;
+            }
+            else
+            {
+                const float t = (val - .75f) / .25f;
+                fb_in_ = .3f + t * .5f;
+                fb_keep_ = 1.f - t * .1f;
+            }
+            break;
+        case STEREO:
+            // Kastle: the left loop up to 2000 samples at 44kHz longer
+            stereo_ = static_cast<size_t>(val * kMaxStereoFrames);
+            break;
+        case PITCH:
+            pitch_ = val;
+            break;
+        default:
+            break;
+        }
+        UpdateLengths();
+    }
+
+private:
+    enum class State
+    {
+        IDLE,
+        ARMED,
+        RUNNING,
+    };
+
+    // Kastle's pitched loops, 880 to 150 samples at 44kHz: 50Hz up to 293Hz
+    static constexpr float kPitchLongest = 960.f;
+    static constexpr float kPitchShortest = 164.f;
+    static const size_t kMaxStereoFrames = 2180; // 45ms
+    static const size_t kXfadeFrames = 240;      // 5ms, like the looper's
+
+    void UpdateLengths()
+    {
+        size_t len;
+        if (pitch_ > 0.f)
+            len = static_cast<size_t>(kPitchLongest * powf(kPitchShortest / kPitchLongest, pitch_));
+        else
+            len = static_cast<size_t>(240.f * sample_rate_ / static_cast<float>(tempo_))
+                  / kFreezerBarDivisions[length_idx_];
+
+        const size_t max = frames_ - 1;
+        len_[0] = len + stereo_ < max ? len + stereo_ : max;
+        len_[1] = len < max ? len : max;
+    }
+
+    float sample_rate_;
+    float* buf_[2];
+    size_t frames_;
+    volatile State state_;
+    volatile bool on_;
+    volatile bool start_;
+    float gate_, gate_target_;
+    int tempo_;
+    uint32_t pulses_; // mod kPulsesPer16th
+    size_t written_;  // frames recorded since the capture started
+    size_t pos_[2];   // loop read position, per channel
+    size_t len_[2];   // target loop length, per channel
+    size_t length_idx_ = 0;
+    size_t stereo_ = 0;
+    float pitch_ = 0.f;
+    float fb_in_ = 0.f, fb_keep_ = 1.f;
+};
+
+/** KEY_4: Kastle's slicer. A gate on 16th-note steps: each step of the pattern that's on
+ *  retriggers an envelope (10ms attack, then a decay) that the signal is multiplied by.
+ *  Steps are counted from the clock pulses, so an 8-step pattern spans half a bar.
+ *  Pressing the key also triggers it, so the signal doesn't drop out until the next step.
+ *  Params: 0 pattern (kNumPatterns steps), 1 decay, 2 chance, 3 stereo (kNumPatterns steps).
+ *  Chance flips every step of the pattern, on both channels, at random. Stereo plays the
+ *  pattern that many patterns up on the left and down on the right. */
+class Slicer
+{
+public:
+    enum Param
+    {
+        PATTERN,
+        DECAY,
+        CHANCE,
+        STEREO,
+    };
+
+    static const size_t kNumPatterns = sizeof(kSlicerPatterns);
+
+    void Init(float sample_rate)
+    {
+        sample_rate_ = sample_rate;
+        attack_inc_ = 1.f / (.01f * sample_rate);
+        gate_ = gate_target_ = 0.f;
+        env_[0] = env_[1] = 0.f;
+        attacking_[0] = attacking_[1] = false;
+        pulses_ = 0;
+        step_ = false;
+        trigger_ = false;
+        on_ = false;
+        rng_ = 0x2545F491u;
+
+        for (size_t i = 0; i < kNumFxParams; i++)
+            SetParam(i, 0.f);
+    }
+
+    /** One call per clock pulse (12 PPQN) */
+    void ClockPulse()
+    {
+        pulses_ = (pulses_ + 1) % (kPulsesPer16th * kNumSteps);
+        if (pulses_ % kPulsesPer16th == 0)
+            step_ = true;
+    }
+
+    void Process(float* l, float* r)
+    {
+        fonepole(gate_, gate_target_, kFxGateCoeff);
+
+        if (trigger_)
+        {
+            trigger_ = false;
+            attacking_[0] = attacking_[1] = true;
+        }
+
+        if (step_)
+        {
+            step_ = false;
+            const uint32_t step = pulses_ / kPulsesPer16th;
+            rng_ ^= rng_ << 13;
+            rng_ ^= rng_ >> 17;
+            rng_ ^= rng_ << 5;
+            const bool flip = static_cast<float>(rng_ >> 8) * (1.f / 16777216.f) < chance_;
+
+            const size_t pattern[2] = {
+                (pattern_ + stereo_) % kNumPatterns,
+                (pattern_ + kNumPatterns - stereo_) % kNumPatterns,
+            };
+            for (size_t c = 0; c < 2; c++)
+            {
+                // bit 7 is the first step, so 0b10001000 is quarter notes (Kastle reads the
+                // bits from the other end)
+                const bool hit = (kSlicerPatterns[pattern[c]] >> (kNumSteps - 1 - step)) & 1;
+                if (hit != flip)
+                    attacking_[c] = true;
+            }
+        }
+
+        float* const io[2] = {l, r};
+        for (size_t c = 0; c < 2; c++)
+        {
+            if (attacking_[c])
+            {
+                env_[c] += attack_inc_;
+                if (env_[c] >= 1.f)
+                {
+                    env_[c] = 1.f;
+                    attacking_[c] = false;
+                }
+            }
+            else
+                env_[c] *= decay_coeff_;
+
+            *io[c] += gate_ * (*io[c] * env_[c] - *io[c]);
+        }
+    }
+
+    inline void SetOn(bool on)
+    {
+        if (on && !on_)
+            trigger_ = true;
+        on_ = on;
+        gate_target_ = on ? 1.f : 0.f;
+    }
+
+    void SetParam(size_t param, float val)
+    {
+        switch (param)
+        {
+        case PATTERN:
+            pattern_ = static_cast<size_t>(val * (kNumPatterns - 1) + .5f);
+            break;
+        case DECAY:
+        {
+            // Kastle: 1s down to 10ms; here short to long, the time to fall by 60dB
+            const float time = .01f * powf(100.f, val);
+            decay_coeff_ = expf(-6.9078f / (time * sample_rate_));
+            break;
+        }
+        case CHANCE:
+            chance_ = val * .9f; // Kastle's maximum
+            break;
+        case STEREO:
+            stereo_ = static_cast<size_t>(val * (kNumPatterns - 1) + .5f);
+            break;
+        default:
+            break;
+        }
+    }
+
+private:
+    static const uint32_t kNumSteps = 8;
+
+    float sample_rate_;
+    float attack_inc_;
+    float gate_, gate_target_;
+    float env_[2];
+    bool attacking_[2];
+    uint32_t pulses_; // mod one pattern, kNumSteps 16ths
+    volatile bool step_;
+    volatile bool trigger_;
+    bool on_;
+    uint32_t rng_;
+    size_t pattern_ = 0;
+    size_t stereo_ = 0;
+    float chance_ = 0.f;
+    float decay_coeff_ = 0.f;
+};
+
+} // namespace chompi
