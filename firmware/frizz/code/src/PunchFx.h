@@ -3,6 +3,9 @@
  *  latched (see NormalPage.h) and has kNumFxParams parameters, all 0..1, set by the four
  *  free knobs.
  *
+ *  An FX may use fewer than kNumFxParams; kFxNumParams says how many, the rest of the knobs
+ *  do nothing while it's selected.
+ *
  *  Two kinds:
  *   - insert (Filter, Crusher): replaces the signal while on; only the wet amount is gated.
  *   - send (DelaySend, ReverbSend): the key gates what goes into the effect, and the effect's
@@ -36,6 +39,9 @@ enum FxId
     FX_REVERB,
     kNumFx,
 };
+
+// Knobs used per FxId, the first kFxNumParams[fx] of the four
+static const size_t kFxNumParams[kNumFx] = {4, 3, 4, 4};
 
 // ~5ms at 48kHz
 static const float kFxGateCoeff = .004f;
@@ -152,8 +158,9 @@ private:
     uint32_t lfo_div_pulses_; // pulses per LFO cycle
 };
 
-/** KEY_2: TEMPO's sample-rate reducer, plus bit-depth reduction, a tone control and mix.
- *  Params: 0 rate, 1 bits, 2 tone, 3 mix. */
+/** KEY_2: TEMPO's sample-rate reducer, plus bit-depth reduction and a tone control. Fully
+ *  wet while on.
+ *  Params: 0 rate, 1 bits, 2 tone. */
 class Crusher
 {
 public:
@@ -162,7 +169,6 @@ public:
         RATE,
         BITS,
         TONE,
-        MIX,
     };
 
     void Init(float sample_rate)
@@ -178,14 +184,12 @@ public:
         for (size_t i = 0; i < kNumFxParams; i++)
             SetParam(i, 0.f);
         rate_ = rate_target_;
-        mix_ = mix_target_;
         tone_coeff_ = tone_coeff_target_;
     }
 
     void Process(float* l, float* r)
     {
         fonepole(gate_, gate_target_, kFxGateCoeff);
-        fonepole(mix_, mix_target_, .001f);
         fonepole(rate_, rate_target_, .001f);
         fonepole(tone_coeff_, tone_coeff_target_, .001f);
 
@@ -204,9 +208,8 @@ public:
         lp_l_ += tone_coeff_ * (wl - lp_l_);
         lp_r_ += tone_coeff_ * (wr - lp_r_);
 
-        const float amt = gate_ * mix_;
-        *l += amt * (lp_l_ - *l);
-        *r += amt * (lp_r_ - *r);
+        *l += gate_ * (lp_l_ - *l);
+        *r += gate_ * (lp_r_ - *r);
     }
 
     inline void SetOn(bool on) { gate_target_ = on ? 1.f : 0.f; }
@@ -227,10 +230,6 @@ public:
             step_ = powf(2.f, 1.f - bits);
             break;
         }
-
-        case MIX:
-            mix_target_ = val;
-            break;
 
         case TONE:
         {
@@ -256,14 +255,13 @@ private:
     float lp_l_, lp_r_;
     float gate_, gate_target_;
     float rate_, rate_target_;
-    float mix_, mix_target_;
     float tone_coeff_, tone_coeff_target_;
     float step_; // quantizer step, 2^(1 - bits)
 };
 
-/** TEMPO's tempo-synced delay (granularDelay.h) as a send.
- *  Params: 0 division (9 steps), 1 feedback, 2 random (bipolar, 0.5 = off), 3 level.
- *  Freeze loops the last division of the delay's output until toggled off. */
+/** TEMPO's tempo-synced delay (granularDelay.h) as a send. Its freeze isn't used, but it
+ *  still needs the frozen buffer, which it writes every sample.
+ *  Params: 0 division (9 steps), 1 feedback, 2 random (bipolar, 0.5 = off), 3 level. */
 class DelaySend
 {
 public:
@@ -282,7 +280,6 @@ public:
         delay_.Init(buffer, frozen_buffer, buffer_frames);
         gate_ = gate_target_ = 0.f;
         level_ = level_target_ = 0.f;
-        freeze_toggle_ = false;
     }
 
     /** Once per block: tempo, plus the clock pulses and edges that fell in this block */
@@ -297,12 +294,6 @@ public:
     /** Feeds in_l / in_r into the delay (while on) and adds its return to *out_l / *out_r */
     void Process(float in_l, float in_r, float* out_l, float* out_r)
     {
-        if (freeze_toggle_)
-        {
-            freeze_toggle_ = false;
-            delay_.toggleBufferLock();
-        }
-
         fonepole(gate_, gate_target_, kFxGateCoeff);
         fonepole(level_, level_target_, .001f);
 
@@ -315,10 +306,6 @@ public:
     }
 
     inline void SetOn(bool on) { gate_target_ = on ? 1.f : 0.f; }
-
-    /** From the UI: picked up by the audio callback at the next sample */
-    inline void ToggleFreeze() { freeze_toggle_ = true; }
-    inline bool IsFrozen() { return delay_.isFrozen(); }
 
     void SetParam(size_t param, float val)
     {
@@ -345,13 +332,10 @@ private:
     granularDelay delay_;
     float gate_, gate_target_;
     float level_, level_target_;
-    volatile bool freeze_toggle_;
 };
 
 /** TEMPO's reverb (reverb.h, the Rings/Clouds Griesinger topology) as a send.
- *  Params: 0 decay, 1 tone (damping), 2 diffusion, 3 level.
- *  Freeze (TEMPO's): the tail holds forever with the damping opened up, and new input is
- *  shut out until toggled off. */
+ *  Params: 0 decay, 1 tone (damping), 2 diffusion, 3 level. */
 class ReverbSend
 {
 public:
@@ -375,7 +359,6 @@ public:
         decay_ = decay_target_ = .5f;
         tone_ = tone_target_ = .7f;
         diffusion_ = diffusion_target_ = .625f;
-        freeze_ = freeze_target_ = 0.f;
     }
 
     /** Feeds in_l / in_r into the reverb (while on) and adds its return to *out_l / *out_r */
@@ -386,12 +369,10 @@ public:
         fonepole(decay_, decay_target_, .001f);
         fonepole(tone_, tone_target_, .001f);
         fonepole(diffusion_, diffusion_target_, .001f);
-        fonepole(freeze_, freeze_target_, kFxGateCoeff);
 
         reverb_->SetTime(decay_);
         reverb_->SetLowpass(tone_);
         reverb_->SetDiffusion(diffusion_);
-        reverb_->SetFreeze(freeze_);
 
         float wl = in_l * gate_;
         float wr = in_r * gate_;
@@ -402,9 +383,6 @@ public:
     }
 
     inline void SetOn(bool on) { gate_target_ = on ? 1.f : 0.f; }
-
-    inline void ToggleFreeze() { freeze_target_ = freeze_target_ > .5f ? 0.f : 1.f; }
-    inline bool IsFrozen() { return freeze_target_ > .5f; }
 
     void SetParam(size_t param, float val)
     {
@@ -436,7 +414,6 @@ private:
     float decay_, decay_target_;
     float tone_, tone_target_;
     float diffusion_, diffusion_target_;
-    float freeze_, freeze_target_;
 };
 
 } // namespace chompi

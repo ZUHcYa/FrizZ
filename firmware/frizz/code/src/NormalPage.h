@@ -40,14 +40,17 @@
  *   - hold the key:          the effect is on while held
  *   - SHIFT + key:           toggles the latch, the effect stays on after release
  *   - key on a latched FX:   clears the latch, the effect stays on until the key is released
- *   - knobs 1-4 (enc 0-3):   the 4 parameters of the most recently pressed FX key, 1% per
+ *   - knobs 1-4 (enc 0-3):   the parameters of the most recently pressed FX key, 1% per
  *                            detent; stepped parameters (filter LFO division, delay
- *                            division) move one step per kFxDetentsPerStep detents
- *   - press knob 2:          delay or reverb selected: toggles its freeze
- *   - SHIFT + knobs 1-4:     nothing (reserved for a second parameter page)
- *  The key LED is dim while its FX is the one the knobs edit and lit while the FX is on; a
- *  frozen FX's key is white. The knob LEDs show the parameter values in the FX's colours,
- *  knob 2 white while the selected FX is frozen.
+ *                            division) move one step per kFxDetentsPerStep detents; knobs
+ *                            past the FX's kFxNumParams do nothing (crusher: knob 4)
+ *   - press knobs 1-4:       resets that parameter to its default (kFxDefaults)
+ *   - SHIFT + knobs 1-4:     nothing, turned or pressed (reserved for a second parameter page)
+ *  FX key LEDs: always dimly lit in the FX's colour, brighter for the FX the knobs edit.
+ *  While the FX is on, the LED follows the audio coming out of it (the filter's and
+ *  crusher's output) between kFxOnFloor and full. The delay and reverb follow their
+ *  returns, so their keys also glow with the tail after release. The knob LEDs show the
+ *  parameter values in the FX's colours, unused knobs dark.
  */
 #pragma once
 
@@ -91,7 +94,7 @@ namespace chompi
     static const float kFxDefaults[kNumFx][kNumFxParams] = {
         {.3f, .5f, 0.f, .6667f}, // filter: cutoff (lowpass), resonance, LFO depth (off),
                                  // LFO division (1 bar)
-        {.6f, .5f, 1.f, 1.f},    // crusher: rate, bits, tone, mix
+        {.6f, .5f, 1.f, 0.f},    // crusher: rate, bits, tone, (unused)
         {.25f, .4f, .5f, .7f},   // delay: division (1/4), feedback, random (off), level
         {.6f, .6f, .6f, .7f},    // reverb: decay, tone, diffusion, level
     };
@@ -104,8 +107,17 @@ namespace chompi
     };
     static const float kFxParamStep = .01f;      // per detent, continuous parameters
     static const float kFxDetentsPerStep = 3.f;  // per step, stepped parameters
-    static const uint16_t kFxFreezeKnob = 1;     // knob 2 (enc 1) press toggles freeze
-    static const float kFxSelectedDim = .15f;
+    // Knob 1-4 press switches, by ui.h's encoder_map
+    static const Hardware::SwId kFxKnobSwitches[kNumFxParams] = {
+        Hardware::SwId::ENC_4_SW,
+        Hardware::SwId::ENC_1_SW,
+        Hardware::SwId::ENC_2_SW,
+        Hardware::SwId::ENC_3_SW,
+    };
+    // FX key LED levels
+    static const float kFxIdleDim = .15f;     // every FX key, so the slots are visible
+    static const float kFxSelectedDim = .35f; // the FX the knobs edit
+    static const float kFxOnFloor = .5f;      // on, in silence; the audio adds up to full
 
     static const float white[3] = {1.f, 1.f, 1.f};
     static const float red[3] = {1.f, 0.f, 0.f};
@@ -315,16 +327,16 @@ namespace chompi
                     erase_armed_ = false;
                 break;
 
-            case static_cast<uint16_t>(Hardware::SwId::ENC_1_SW): // knob 2 (enc 1)
-                if (rising)
-                    engine_->ToggleFxFreeze(fx_selected_);
-                break;
-
             default:
                 for (size_t fx = 0; fx < kNumFx; fx++)
                 {
                     if (buttonID == static_cast<uint16_t>(kFxKeys[fx]))
                         FxKeyPressed(fx, rising);
+                }
+                for (size_t knob = 0; knob < kNumFxParams; knob++)
+                {
+                    if (rising && buttonID == static_cast<uint16_t>(kFxKnobSwitches[knob]))
+                        FxKnobPressed(knob);
                 }
                 break;
             }
@@ -440,7 +452,7 @@ namespace chompi
 
         void FxKnobTurned(uint16_t knob, int16_t turns)
         {
-            if (Shift())
+            if (Shift() || knob >= kFxNumParams[fx_selected_])
                 return;
 
             // knob 1 gets 1x per detent from ui.h, the others 3x
@@ -467,6 +479,15 @@ namespace chompi
             }
         }
 
+        void FxKnobPressed(size_t knob)
+        {
+            if (Shift() || knob >= kFxNumParams[fx_selected_])
+                return;
+
+            SetFxParam(fx_selected_, knob, kFxDefaults[fx_selected_][knob]);
+            fx_step_chunk_[knob] = 0.f;
+        }
+
         void SetFxParam(size_t fx, size_t param, float val)
         {
             fx_params_[fx][param] = fclamp(val, 0.f, 1.f);
@@ -480,8 +501,8 @@ namespace chompi
             for (size_t p = 0; p < kNumFxParams; p++)
             {
                 const float val = fx_params_[fx_selected_][p];
-                if (p == kFxFreezeKnob && engine_->IsFxFrozen(fx_selected_))
-                    SetPthLedFloat(kFxKnobLeds[p], 1.f, 1.f, 1.f);
+                if (p >= kFxNumParams[fx_selected_])
+                    SetPthLedFloat(kFxKnobLeds[p], 0.f, 0.f, 0.f);
                 else
                     SetPthLedFloat(kFxKnobLeds[p],
                                    color_triple_xfade(colors[0][0], colors[1][0], colors[2][0], val),
@@ -492,16 +513,12 @@ namespace chompi
             for (size_t fx = 0; fx < kNumFx; fx++)
             {
                 const float* color = kFxKeyColors[fx];
-                float level = 0.f;
-                if (engine_->IsFxFrozen(fx))
-                {
-                    color = white;
-                    level = 1.f;
-                }
-                else if (fx_held_[fx] || fx_latched_[fx])
-                    level = 1.f;
-                else if (fx == fx_selected_)
-                    level = kFxSelectedDim;
+                const float meter = engine_->GetFxLevel(fx);
+                float level = fx == fx_selected_ ? kFxSelectedDim : kFxIdleDim;
+                if (fx_held_[fx] || fx_latched_[fx])
+                    level = kFxOnFloor + (1.f - kFxOnFloor) * meter;
+                else if (fx == FX_DELAY || fx == FX_REVERB)
+                    level = fmaxf(level, kFxOnFloor * meter); // a send's tail ringing out
                 SetSmtLedFloat(kFxKeyLeds[fx], color[0] * level, color[1] * level, color[2] * level);
             }
         }

@@ -25,6 +25,8 @@ using namespace daisysp;
 static constexpr float kLineOutGain = .3f;
 static constexpr float kHpGain = .2f;
 static constexpr float kLineInGain = 3.f;
+// Into the FX meters' EnvFollowers, which add 5x: full brightness at about 1 (L+R)/2
+static constexpr float kFxMeterScale = .1f;
 
 class PassthroughEngine
 {
@@ -53,6 +55,8 @@ public:
         lim_line_r_.Init();
 
         output_env_follower.Init();
+        for (size_t fx = 0; fx < chompi::kNumFx; fx++)
+            fx_env_[fx].Init();
     }
 
     /** Inputs: 0 mic (unused), 1 X, 2 aux L, 3 aux R
@@ -98,12 +102,18 @@ public:
             // punch-in FX, on the mix so they work on the input, the loop or both, and
             // before the output gain so they don't change with the VOLUME knob
             filter_.Process(&sigl, &sigr);
+            fx_env_[chompi::FX_FILTER].Process((sigl + sigr) * kFxMeterScale);
             crusher_.Process(&sigl, &sigr);
+            fx_env_[chompi::FX_CRUSHER].Process((sigl + sigr) * kFxMeterScale);
 
-            // sends, in parallel from the crusher's output, their returns added on top
+            // sends, in parallel from the crusher's output, their returns added on top; the
+            // meters follow the returns, so they show the tails
             const float sendl = sigl, sendr = sigr;
             delay_.Process(sendl, sendr, &sigl, &sigr);
+            const float delayl = sigl, delayr = sigr;
+            fx_env_[chompi::FX_DELAY].Process((delayl - sendl + delayr - sendr) * kFxMeterScale);
             reverb_.Process(sendl, sendr, &sigl, &sigr);
+            fx_env_[chompi::FX_REVERB].Process((sigl - delayl + sigr - delayr) * kFxMeterScale);
 
             // headphone and master gain
             out[0][i] = sigl * kHpGain * mgain_;
@@ -155,24 +165,9 @@ public:
         }
     }
 
-    /** Freeze, for the FX that have one (delay, reverb) */
-    inline void ToggleFxFreeze(size_t fx)
-    {
-        if (fx == chompi::FX_DELAY)
-            delay_.ToggleFreeze();
-        else if (fx == chompi::FX_REVERB)
-            reverb_.ToggleFreeze();
-    }
-    inline bool IsFxFrozen(size_t fx)
-    {
-        if (fx == chompi::FX_DELAY)
-            return delay_.IsFrozen();
-        if (fx == chompi::FX_REVERB)
-            return reverb_.IsFrozen();
-        return false;
-    }
-
     inline float GetVUSample() { return output_env_follower.GetLastSamp(); }
+    /** 0..1, for the FX key LEDs: an insert's output, a send's return */
+    inline float GetFxLevel(size_t fx) { return fx_env_[fx].GetLastSamp(); }
 
     chompi::Looper looper;
 
@@ -180,6 +175,7 @@ private:
     daisysp::DcBlock dcblock_line_in_l_, dcblock_line_in_r_;
     chompi::Limiter lim_hp_l_, lim_hp_r_, lim_line_l_, lim_line_r_;
     chompi::EnvFollower output_env_follower;
+    chompi::EnvFollower fx_env_[chompi::kNumFx];
     chompi::TempoClock tempo_clock_;
     chompi::Filter filter_;
     chompi::Crusher crusher_;

@@ -69,18 +69,21 @@ printed into a loop.
 | Hold an FX key | Effect on while held |
 | SHIFT + FX key | Latch on / off; a latched effect stays on after release |
 | FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
-| Knobs 1-4 | The 4 parameters of the most recently pressed FX key, 1% per detent; the filter LFO's and the delay's divisions move one step per 3 detents |
-| Press knob 2, delay or reverb selected | Freeze on / off; the key and knob 2 light white while frozen |
+| Knobs 1-4 | The parameters of the most recently pressed FX key, 1% per detent; the filter LFO's and the delay's divisions move one step per 3 detents |
+| Press knobs 1-4 | Resets that parameter to its default |
 
-The FX key is dim while the knobs edit its effect and lit while it is on. The knob LEDs show
-the parameter values in the effect's colours. Values reset at power-off.
+The FX keys are always dimly lit in their effect's colour, a little brighter for the effect
+the knobs edit. While an effect is on, its key follows the audio coming out of it, from
+half to full brightness; the delay and reverb keys follow their returns, so they also glow
+with the tail after release. The knob LEDs show the parameter values in the effect's
+colours; a knob the effect doesn't use is dark and does nothing. Values reset at power-off.
 
 | Key | Effect | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|---|
 | 1st white | Filter: the DJ filter from TAPE, TEMPO and WAVE (WAVE's copy) | Cutoff: lowpass left of centre, highpass right, flat at centre (default 30%, lowpass) | Resonance (default 50%) | LFO depth (default off) | LFO division: 1/16, 1/8, 1/4, 1/2, 1 bar, 2 bars, 4 bars (default 1 bar) |
-| 2nd white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz (default 60%) | Bits, 16 down to 2 (default 50%, 9 bits) | Tone, lowpass 200 Hz to open (default open) | Mix (default 100%) |
+| 2nd white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz (default 60%) | Bits, 16 down to 2 (default 50%, 9 bits) | Tone, lowpass 200 Hz to open (default open) | (unused; always fully wet) |
 | 2nd-to-last white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 70%) |
-| Last white | Reverb (TEMPO's / WAVE's); freeze holds the tail forever and shuts out new input | Decay (default 60%) | Tone, dark to open (default 60%) | Diffusion (default 60%) | Level (default 70%) |
+| Last white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Tone, dark to open (default 60%) | Diffusion (default 60%) | Level (default 70%) |
 
 Filter details:
 - **LFO:** a triangle on the cutoff, like WAVE's filter LFO but synced to the same tempo as
@@ -95,10 +98,8 @@ Delay details:
   (120 BPM until a clock arrives). Limited to 50-300 BPM so 2 bars fit the 10 s buffer.
 - **Random events** are rolled on every 8th note; the knob's distance from centre is the
   chance. (TEMPO rolled them on its arpeggiator's step instead.)
-- **Freeze** loops the last division of the delay's output, in time, until pressed again; the
-  delay key and knob 2 light white. New input is ignored while frozen.
 - **Beat phase:** only the clock's tempo is used, not MIDI Start / Song Position, so the 8th
-  notes that random events and the freeze loop follow are counted from when the clock locked
+  notes that random events follow are counted from when the clock locked
   (or from power-on without clock), not from the DAW's beat 1. Echo spacing is unaffected.
 - LEDs: division green (short) through white to blue (long); random green (events) through
   white to blue (shimmer).
