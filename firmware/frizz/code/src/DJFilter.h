@@ -53,8 +53,12 @@ class DjFilter
         feedback_filt_llp_.SetFreq(lp_);
         feedback_filt_rlp_.SetFreq(lp_);
 
-        feedback_filt_lhp_.SetFreq(hp_);
-        feedback_filt_rhp_.SetFreq(hp_);
+        // FRIZZ: never let the highpass reach exactly 0. Without WAVE's slew, hp_ lands on 0
+        // as the cutoff crosses the centre, the highpass state stops updating, and whatever
+        // it held stays in the output as DC. 1e-3 is a ~8Hz highpass that drains it in ~20ms.
+        const float hp = fmaxf(hp_, 1e-3f);
+        feedback_filt_lhp_.SetFreq(hp);
+        feedback_filt_rhp_.SetFreq(hp);
 
         if(hp_ > .8f)
         {
