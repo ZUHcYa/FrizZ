@@ -31,6 +31,18 @@ It drives the engine through `Init`, `SetFxOn`, `SetFxParam` and `GetFxLevel` wi
 `chompi::FX_*` names, so it builds against FRIZZ from `9da090e` on. If that interface changes,
 update `harness.cpp` along with it.
 
+## Shifter pitch check
+
+```bash
+./pitch.sh
+```
+
+Runs a 220 Hz sine and a 220 Hz harmonic tone through the shifter (`FxShifter.h`, working
+tree) at every interval from -12 to +12 semitones, and fails if any comes out more than 5
+cents off or its level wobbles by more than 2 dB. The engine harness can't tell a shifter
+that's out of tune from one that isn't; this can. Takes about 12 s. (A plain two-tap shifter
+is up to 80 cents off and wobbles up to 10 dB; Kastle's single-tap one fails 48 of the 50.)
+
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample
 conversions) and `MidiClock.h` (no clock). DaisySP is compiled for the host once into `build/`,
 which is ignored.
