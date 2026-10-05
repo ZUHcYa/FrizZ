@@ -6,10 +6,11 @@
  *
  *  The order follows a pedalboard's: source, pitch, dirt, filter, modulation, gate, space.
  *  The keys follow it too, left to right:
- *   freezer -> shifter -> crusher -> filter -> flanger -> slicer -> delay -> reverb
- *              |<------------- resonator loop ------------>|
+ *   freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> delay -> reverb
+ *              |<------------------- resonator loop ------------------->|
  *  The freezer comes first so it captures the clean sound and everything after it works on
- *  the repeats. The filter sweeps the crusher's grit, and the flanger the harmonics both
+ *  the repeats. The folder comes before the crusher, so it folds the clean signal and the
+ *  crusher grinds the folds. The filter sweeps the dirt, and the flanger the harmonics it
  *  made. The slicer is the last insert, the final gate: it chops everything including the
  *  resonator's ringing, and the sends get the chopped sound. The delay's echoes feed the
  *  reverb as well as the output.
@@ -27,6 +28,7 @@
 #include "FxDelay.h"
 #include "FxFilter.h"
 #include "FxFlanger.h"
+#include "FxFolder.h"
 #include "FxFreezer.h"
 #include "FxResonator.h"
 #include "FxReverb.h"
@@ -41,6 +43,7 @@ enum FxId
 {
     FX_FREEZER,
     FX_SHIFTER,
+    FX_FOLDER,
     FX_CRUSHER,
     FX_FILTER,
     FX_FLANGER,
@@ -66,6 +69,7 @@ public:
     {
         filter_.Init(sample_rate);
         crusher_.Init(sample_rate);
+        folder_.Init(sample_rate);
         delay_.Init(delay_mem, delay_frozen_mem, delay_frames);
         reverb_.Init(sample_rate, reverb);
         freezer_.Init(sample_rate, freezer_mem_l, freezer_mem_r, freezer_frames);
@@ -76,6 +80,7 @@ public:
 
         fx_[FX_FILTER] = &filter_;
         fx_[FX_CRUSHER] = &crusher_;
+        fx_[FX_FOLDER] = &folder_;
         fx_[FX_FREEZER] = &freezer_;
         fx_[FX_SLICER] = &slicer_;
         fx_[FX_FLANGER] = &flanger_;
@@ -115,6 +120,8 @@ public:
         Meter(FX_RESONATOR, resonator_.Return());
         shifter_.Process(l, r);
         Meter(FX_SHIFTER, *l + *r);
+        folder_.Process(l, r);
+        Meter(FX_FOLDER, *l + *r);
         crusher_.Process(l, r);
         Meter(FX_CRUSHER, *l + *r);
         filter_.Process(l, r);
@@ -145,6 +152,7 @@ private:
 
     Filter filter_;
     Crusher crusher_;
+    Folder folder_;
     Freezer freezer_;
     Slicer slicer_;
     Flanger flanger_;

@@ -2,9 +2,9 @@
 // PassthroughEngine on the host and writes every output sample and FX meter to a file, so two
 // versions of the engine can be compared (see README.md). Built and run by run.sh.
 //
-// The script, 13 segments of 3s at 48kHz in 24-sample blocks:
+// The script, one segment of 3s per FX plus four (14 with the folder) at 48kHz in 24-sample blocks:
 //  - each FX on its own, on for 2.5s with a random knob turned every 0.25s
-//  - the seven inserts together, then everything twice, then 3s of tails
+//  - the inserts together, then everything twice, then 3s of tails
 // Every parameter starts at 0.5. The input is a 110Hz saw, a gated 2kHz sine and a little
 // noise, all deterministic, as is the delay's rand() (seeded).
 //
@@ -13,8 +13,9 @@
 //  STRESS=1  everything on for the whole run, the resonator at full feedback with the
 //            filter's resonance and the flanger's and shifter's feedback at the top
 //
-// Output, per block: 4 x 24 floats (headphone L/R, master L/R), then the 9 FX meters in the
-// order of kAll below.
+// Output, per block: 4 x 24 floats (headphone L/R, master L/R), then the FX meters in the
+// order of kAll below: 9, or 10 from the folder on (compare.py tells them apart by the
+// file's size).
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -42,10 +43,17 @@ static float Rnd()
     return static_cast<float>(lcg >> 8) / 16777216.f;
 }
 
+// The inserts (and the resonator), then the two sends. The folder only where that version
+// of the engine has it, so older versions still build and run as they did.
 static const size_t kAll[] = {chompi::FX_FILTER,  chompi::FX_CRUSHER, chompi::FX_FREEZER,
                               chompi::FX_SLICER,  chompi::FX_FLANGER, chompi::FX_SHIFTER,
-                              chompi::FX_RESONATOR, chompi::FX_DELAY,   chompi::FX_REVERB};
+                              chompi::FX_RESONATOR,
+#if __has_include("FxFolder.h")
+                              chompi::FX_FOLDER,
+#endif
+                              chompi::FX_DELAY,   chompi::FX_REVERB};
 static const size_t kNum = sizeof(kAll) / sizeof(kAll[0]);
+static const size_t kNumInserts = kNum - 2;
 
 int main(int argc, char** argv)
 {
@@ -101,7 +109,7 @@ int main(int argc, char** argv)
         if (s < kNum)
             on[s] = t < seg * 5 / 6;
         else if (s < kNum + 1)
-            for (size_t i = 0; i < 7; i++) on[i] = t < seg * 5 / 6;
+            for (size_t i = 0; i < kNumInserts; i++) on[i] = t < seg * 5 / 6;
         else if (s < kNum + 3)
             for (size_t i = 0; i < kNum; i++) on[i] = true;
 

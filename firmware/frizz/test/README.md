@@ -22,7 +22,7 @@ seeded and MIDI clock absent (the tempo clock runs on its internal 120 BPM). Wha
 the play page (`NormalPage.h`, `FxSlots.h`: keys, LEDs, defaults), the looper's recording, MIDI
 clock, and anything about the hardware. Those still need the device.
 
-The script (`harness.cpp`) is 13 segments of 3 s: each FX on its own with a random knob turned
+The script (`harness.cpp`) is a segment of 3 s per FX plus four: each FX on its own with a random knob turned
 every 0.25 s, the inserts together, everything together, then the tails. `NOFX=1` runs it with
 no FX switched on, to check that a segment actually exercises its effect; `STRESS=1` runs
 everything at once with the resonator's loop at its most extreme for the whole run.

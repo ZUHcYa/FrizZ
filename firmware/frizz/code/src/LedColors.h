@@ -16,5 +16,6 @@ static const float pink[3] = {1.f, .36f, .62f};
 static const float purple[3] = {.58f, .05f, 1.f};
 static const float orange[3] = {1.f, .6f, .24f};
 static const float lime[3] = {.5f, 1.f, 0.f};
+static const float magenta[3] = {1.f, 0.f, 1.f};
 
 } // namespace chompi
