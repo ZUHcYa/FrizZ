@@ -43,6 +43,10 @@ drive the VU LEDs.
 - **WAVE** (`subtractiveEngine.h`): per voice wavetable → amp envelope → its own DJ filter, with a
   shared filter LFO and pitch LFO; voices summed → delay → reverb → output compressor →
   saturation → pan.
+- **FRIZZ** (`FxChain.h`): AUX input → dry/wet mix with the looper → freezer → shifter →
+  crusher → filter → flanger → slicer → delay → reverb (fed the delay's echoes too) → output
+  compressor. The resonator's comb loops from after the flanger back to after the freezer.
+  Each effect is a punch-in key, and the keys run in this order left to right.
 
 ## Unused effects in the vendored DaisySP
 
@@ -59,17 +63,18 @@ left.
 
 ## Ported to FRIZZ so far
 
-FRIZZ's punch-in FX, one file each (`frizz/code/src/Fx*.h`). What each key does and its
-controls are in `frizz/README.md`.
+FRIZZ's punch-in FX, one file each (`frizz/code/src/Fx*.h`), in signal order, which is also
+their keys' order left to right (see the FRIZZ chain above). Their controls are in
+`frizz/README.md`.
 
-| FRIZZ effect | Taken from |
-|---|---|
-| DJ filter (insert) | WAVE's `DJFilter.h` + `BasicMMF.h`; the triangle LFO follows WAVE's filter LFO but is synced by `TempoClock.h` |
-| Crusher (insert) | TEMPO's sample-rate reducer, plus FRIZZ's own bit quantizer and tone lowpass, and the XOR and trigger dive from Bastl Instruments' Kastle 2 FX Wizard crusher (MIT) |
-| Freezer (insert) | Bastl Instruments' Kastle 2 FX Wizard freezer (MIT) |
-| Slicer (insert) | Bastl Instruments' Kastle 2 FX Wizard slicer (MIT) |
-| Flanger (insert) | Bastl Instruments' Kastle 2 FX Wizard flanger (MIT) |
-| Shifter (insert) | Bastl Instruments' Kastle 2 FX Wizard shifter (MIT) |
-| Resonator (comb loop around the inserts) | the feedback comb Bastl Instruments' Kastle 2 FX Wizard runs around every mode (MIT) |
-| Delay (send) | TEMPO's `granularDelay.h`, clocked by FRIZZ's `TempoClock.h` from MIDI clock |
-| Reverb (send) | TEMPO's `reverb.h` + `fx_engine.h` |
+| Key | FRIZZ effect | Taken from |
+|---|---|---|
+| 1st white | Freezer (insert) | Bastl Instruments' Kastle 2 FX Wizard freezer (MIT) |
+| 2nd white | Shifter (insert) | Bastl Instruments' Kastle 2 FX Wizard shifter (MIT) |
+| 3rd white | Crusher (insert) | TEMPO's sample-rate reducer, plus FRIZZ's own bit quantizer and tone lowpass, and the XOR and trigger dive from Bastl Instruments' Kastle 2 FX Wizard crusher (MIT) |
+| 4th white | DJ filter (insert) | WAVE's `DJFilter.h` + `BasicMMF.h`; the triangle LFO follows WAVE's filter LFO but is synced by `TempoClock.h` |
+| 5th white | Flanger (insert) | Bastl Instruments' Kastle 2 FX Wizard flanger (MIT) |
+| 6th white | Resonator (comb loop from after the flanger back to after the freezer) | the feedback comb Bastl Instruments' Kastle 2 FX Wizard runs around every mode (MIT) |
+| 7th white | Slicer (insert) | Bastl Instruments' Kastle 2 FX Wizard slicer (MIT) |
+| 2nd-to-last white | Delay (send) | TEMPO's `granularDelay.h`, clocked by FRIZZ's `TempoClock.h` from MIDI clock |
+| Last white | Reverb (send, also fed the delay's echoes) | TEMPO's `reverb.h` + `fx_engine.h` |
