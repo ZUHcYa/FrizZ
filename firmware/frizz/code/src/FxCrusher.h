@@ -111,8 +111,10 @@ public:
         switch (param)
         {
         case RATE:
-            // TEMPO's mapping (SampleEngine::setSampleReducer): 21.6kHz down to 480Hz
-            rate_.target = fclamp((1.f - val) * .45f, .01f, 1.f);
+            // TEMPO's range (SampleEngine::setSampleReducer), 21.6kHz down to 480Hz, but
+            // exponential: TEMPO's is linear in Hz, which leaves the crunch in the last
+            // quarter of the knob. Here every 18% of the knob halves the rate.
+            rate_.target = .45f * powf(kRateBottom / .45f, val);
             break;
 
         case BITS:
@@ -152,6 +154,8 @@ public:
     }
 
 private:
+    static constexpr float kRateBottom = .01f; // 480Hz, as a fraction of 48kHz
+
     /** Kastle's XOR on the sample as 16-bit */
     inline float Xor(float x) const
     {

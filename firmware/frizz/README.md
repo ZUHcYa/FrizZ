@@ -83,7 +83,7 @@ freezer -> shifter -> crusher -> filter -> flanger -> slicer -> delay -> reverb
 | Hold an FX key | Effect on while held |
 | SHIFT + FX key | Latch on / off; a latched effect stays on after release |
 | FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
-| Knobs 1-4 | The parameters of the most recently pressed FX key, 1% per detent; stepped ones (filter LFO and delay divisions, freezer length, slicer pattern and stereo) move one step per 3 detents |
+| Knobs 1-4 | The parameters of the most recently pressed FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length, slicer pattern and stereo) move one step per 3 detents |
 | Press knobs 1-4 | Resets that parameter to its default |
 
 The FX keys are always dimly lit in their effect's colour, a little brighter for the effect
@@ -95,8 +95,8 @@ colours; a knob the effect doesn't use is dark and does nothing. Values reset at
 | Key | Effect | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|---|
 | 1st white | Freezer: Kastle 2 FX Wizard's, as a beat repeat | Length: 1/16, 1/8T, 1/8, 1/4T, 1/4, 1/2T, 1/2, 1 bar (default 1/8) | Feedback: the input overdubbed into the repeats (default 0, pure repeat) | Stereo: the left loop up to 45 ms longer (default off) | Pitch: short pitched loops, 50 Hz up to 290 Hz, replacing the length (default off) |
-| 2nd white | Shifter: Kastle 2 FX Wizard's delay-line pitch shifter | Shift: right of centre up, left down, centre off; further out shifts more, then buzzes (default 70%, about +6 semitones) | Swoop: on the key press, the shift jumps and falls back over 1 s (default off) | Feedback: the shifted sound spirals (default off) | Stereo: the right channel up to 20 Hz faster (default off) |
-| 3rd white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz (default 60%) | Bits, 16 down to 2 (default 50%, 9 bits) | Tone, lowpass 200 Hz to open (default open) | XOR: flips bits of every sample for a digital buzz, from Kastle 2 FX Wizard's crusher (default off) |
+| 2nd white | Shifter: a two-tap pitch shifter, with Kastle 2 FX Wizard's swoop and feedback | Shift in semitones, -12 to +12, one step per 3 detents; centre off (default +7, a fifth) | Swoop: on the key press, the shift pushes up to 2 octaves further and falls back over 1 s (default off) | Feedback: the shifted sound spirals (default off) | Stereo: the right channel up to a semitone higher (default off) |
+| 3rd white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz, halving every 18% of the knob (default 24%, 8.6 kHz) | Bits, 16 down to 2 (default 50%, 9 bits) | Tone, lowpass 200 Hz to open (default open) | XOR: flips bits of every sample for a digital buzz, from Kastle 2 FX Wizard's crusher (default off) |
 | 4th white | Filter: the DJ filter from TAPE, TEMPO and WAVE (WAVE's copy) | Cutoff: lowpass left of centre, highpass right, flat at centre (default 30%, lowpass) | Resonance (default 50%) | LFO depth (default off) | LFO division: 1/16, 1/8, 1/4, 1/2, 1 bar, 2 bars, 4 bars (default 1 bar) |
 | 5th white | Flanger: Kastle 2 FX Wizard's | Rate, 0.02 Hz to 50 Hz (default 0.55 Hz) | Amount: sweep depth and mix together, the top is pure vibrato (default 50%) | Feedback, up to 85% (default 50%) | Stereo: the right LFO runs free and detuned (default off) |
 | 6th white | Resonator: the comb Kastle 2 FX Wizard runs around every mode | Pitch, 22 Hz to 880 Hz (default 110 Hz) | Feedback, up to 98% (default 70%) | Tone: the loop's lowpass, 1 kHz to 15 kHz (default 6.6 kHz) | Stereo: the right channel up to 12 semitones higher (default off) |
@@ -142,14 +142,17 @@ Flanger details:
 - LEDs: the key is light blue; the knobs go light blue through white to purple.
 
 Shifter details:
-- An LFO sweeps one delay tap across 11.6 ms as a ramp, fading out and in around each wrap.
-  Near the centre that's a slight detune, further out a pitch shift of several semitones,
-  and towards the ends the fades turn it into a buzzing, ring-mod-like tone (up to 100 Hz
-  down, 260 Hz up, as on Kastle).
-- **Swoop** is Kastle's trigger envelope on the sweep rate: 0.1 s up, 1 s back, up to 8x
-  down and 20x up. Kastle tied its depth to TIME; here it has its own knob.
-- **Feedback** sends the shifted output back into the delay, so each pass shifts again
-  (Kastle: its comb around every mode).
+- Two taps read the input at the shifted speed, each for a 30 ms stretch before it starts
+  over, crossfaded so the level stays even. Where a tap starts over is searched for, within
+  7.5 ms, so it lines up with the other one: the pitch lands within about a cent of the
+  interval and doesn't wobble.
+- Kastle's shifter was a single tap that faded out and in at every wrap: its pitch knob
+  slid from a slight detune to a buzzing, ring-mod-like tone, too coarse to set an
+  interval. FRIZZ keeps its swoop, feedback and stereo, not the buzz.
+- **Swoop** is Kastle's trigger envelope: 0.1 s up, 1 s back. Kastle tied its depth to TIME;
+  here it has its own knob.
+- **Feedback** sends the shifted output back into the delay, so each pass shifts again: a
+  fifth stacks into fifths (Kastle: its comb around every mode).
 - LEDs: the key is red; the shift knob goes blue (down) through white (off) to red (up).
 
 Crusher details:

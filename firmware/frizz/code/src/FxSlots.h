@@ -34,13 +34,13 @@ static const FxSlot kFxSlots[] = {
     // freezer: length (1/8), feedback (pure repeat), stereo (off), pitch (off)
     {Hardware::SwId::KEY_1, 24, purple, {purple, white, med_blue}, FxKind::INSERT, 4,
      {2.f / 7.f, 0.f, 0.f, 0.f}, {Freezer::kNumLengths, 0, 0, 0}},
-    // shifter: shift (up, about 6 semitones), swoop (off), feedback (off), stereo (off).
+    // shifter: shift (+7 semitones, a fifth), swoop (off), feedback (off), stereo (off).
     // The shift knob's LED: blue down, white off, red up
     {Hardware::SwId::KEY_2, 23, red, {blue, white, red}, FxKind::INSERT, 4,
-     {.7f, 0.f, 0.f, 0.f}, {0, 0, 0, 0}},
-    // crusher: rate, bits, tone, XOR (off)
+     {19.f / 24.f, 0.f, 0.f, 0.f}, {Shifter::kNumShifts, 0, 0, 0}},
+    // crusher: rate (8.6kHz), bits, tone, XOR (off)
     {Hardware::SwId::KEY_3, 22, orange, {yellow, orange, red}, FxKind::INSERT, 4,
-     {.6f, .5f, 1.f, 0.f}, {0, 0, 0, 0}},
+     {.24f, .5f, 1.f, 0.f}, {0, 0, 0, 0}},
     // filter: cutoff (lowpass), resonance, LFO depth (off), LFO division (1 bar)
     {Hardware::SwId::KEY_4, 21, pink, {pink, white, med_blue}, FxKind::INSERT, 4,
      {.3f, .5f, 0.f, .6667f}, {0, 0, 0, Filter::kNumLfoDivisions}},

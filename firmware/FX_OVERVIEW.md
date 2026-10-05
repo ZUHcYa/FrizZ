@@ -70,7 +70,7 @@ their keys' order left to right (see the FRIZZ chain above). Their controls are 
 | Key | FRIZZ effect | Taken from |
 |---|---|---|
 | 1st white | Freezer (insert) | Bastl Instruments' Kastle 2 FX Wizard freezer (MIT) |
-| 2nd white | Shifter (insert) | Bastl Instruments' Kastle 2 FX Wizard shifter (MIT) |
+| 2nd white | Shifter (insert) | FRIZZ's own two-tap shifter with aligned splices, tuned in semitones; the swoop, feedback and stereo after Bastl Instruments' Kastle 2 FX Wizard shifter (MIT) |
 | 3rd white | Crusher (insert) | TEMPO's sample-rate reducer, plus FRIZZ's own bit quantizer and tone lowpass, and the XOR and trigger dive from Bastl Instruments' Kastle 2 FX Wizard crusher (MIT) |
 | 4th white | DJ filter (insert) | WAVE's `DJFilter.h` + `BasicMMF.h`; the triangle LFO follows WAVE's filter LFO but is synced by `TempoClock.h` |
 | 5th white | Flanger (insert) | Bastl Instruments' Kastle 2 FX Wizard flanger (MIT) |
