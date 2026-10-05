@@ -13,7 +13,6 @@
 #include "BootPage.h"
 #include "RainbowWavePage.h"
 #include "passthroughEngine.h"
-#include "MidiClock.h"
 
 namespace chompi
 {
@@ -28,7 +27,7 @@ namespace chompi
     class UserInterface
     {
     public:
-        void Init(PassthroughEngine *engine, Hardware *hw, MidiClock *midi_clock)
+        void Init(PassthroughEngine *engine, Hardware *hw)
         {
             hw_ = hw;
             engine_ = engine;
@@ -49,7 +48,7 @@ namespace chompi
                     {ledDisplayDescriptor},
                     canvasLedDisplay);
 
-            normal_page_.Init(engine_, hw_, midi_clock);
+            normal_page_.Init(engine_, hw_);
             ui.OpenPage(normal_page_);
 
             boot_page_.Init(hw_);

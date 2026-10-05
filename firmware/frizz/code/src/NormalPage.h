@@ -27,14 +27,17 @@
  *  LOOP acts on press so recording starts and stops exactly then. PLAY acts on release, and
  *  only if LOOP wasn't pressed during the hold, so the PLAY + LOOP combos never also toggle.
  *
- *  TEMPORARY (looper step 1, remove in step 5): the transport LEDs flash on every MIDI
- *  clock beat, green for TRS and blue for USB, brighter every 4th beat.
+ *  The mix jumps to fully wet when a recording closes and back to fully dry on erase.
+ *
+ *  Looper LEDs (LOOPER.md 1.6): LOOP red while recording, blinking while a quantized recording
+ *  finishes its bar, 3 fast red blinks when quantized recording is refused. While a loop
+ *  plays, PLAY and LOOP crossfade in white to show the position, dimmed when paused. The
+ *  transport LEDs show the speed in TAPE's colours, or the scrub speed while paused.
  */
 #pragma once
 
 #include "hardware.h"
 #include "passthroughEngine.h"
-#include "MidiClock.h"
 #include "temp_led_stuff.h"
 
 namespace chompi
@@ -44,15 +47,19 @@ namespace chompi
 
     static const float kDefaultOutGain = .75f;
     static const float kDefaultInGain = .75f;
-    static const float kDefaultMix = 0.f; // fully dry: the input as before, no looper
+    static const float kDefaultMix = 0.f; // fully dry at power-on, nothing recorded yet
 
     static const uint8_t kNumPages = 3;
 
     static const uint8_t kVolumeLed = 9;
     static const uint8_t kChompiKeyLed = 0;
-    static const uint8_t kTransportLedL = 5;
-    static const uint8_t kTransportLedR = 6;
-    static const uint32_t kBeatFlashMs = 50;
+    static const uint8_t kTransportLedRev = 5; // lit when playing in reverse
+    static const uint8_t kTransportLedFwd = 6; // lit when playing forward
+    static const uint8_t kPlayLed = 7;
+    static const uint8_t kLoopLed = 8;
+    static const float kPausedDim = .3f;
+    static const uint32_t kClosingBlinkMs = 150;
+    static const uint32_t kRefusedBlinkMs = 100; // 3 blinks = 6 half-periods
     static const uint32_t kEraseHoldMs = 2000;
     static const float kSpeedStepPerTurn = .25f; // 4 transport detents per speed step
 
@@ -71,11 +78,10 @@ namespace chompi
         uint32_t init_time;
         bool init_ignore = true;
 
-        void Init(PassthroughEngine *engine, Hardware *hw, MidiClock *midi_clock)
+        void Init(PassthroughEngine *engine, Hardware *hw)
         {
             hw_ = hw;
             engine_ = engine;
-            midi_clock_ = midi_clock;
 
             out_gain_ = kDefaultOutGain;
             in_gain_ = kDefaultInGain;
@@ -166,27 +172,17 @@ namespace chompi
             if (erase_armed_ && now - erase_hold_ >= kEraseHoldMs)
             {
                 engine_->looper.Erase();
+                SetMix(0.f); // the input fades in while the loop fades out
                 erase_armed_ = false;
             }
 
-            // TEMPORARY beat indicator, see the file comment
-            if (midi_clock_->HasClock())
-            {
-                const uint32_t beat = midi_clock_->GetTicks() / kTicksPerBeat;
-                if (beat != last_beat_)
-                {
-                    last_beat_ = beat;
-                    beat_flash_ = now;
-                    downbeat_ = beat % 4 == 0;
-                }
-            }
-            if (now - beat_flash_ < kBeatFlashMs)
-            {
-                const float* color = midi_clock_->GetSource() == MidiClock::Source::USB ? &blue[0] : &green[0];
-                const float level = downbeat_ ? 1.f : .25f;
-                SetPthLedFloat(kTransportLedL, color[0] * level, color[1] * level, color[2] * level);
-                SetPthLedFloat(kTransportLedR, color[0] * level, color[1] * level, color[2] * level);
-            }
+            // jump to fully wet when a recording closes into playback
+            const Looper::State looper_state = engine_->looper.GetState();
+            if (last_looper_state_ == Looper::State::RECORDING && looper_state == Looper::State::PLAYING)
+                SetMix(1.f);
+            last_looper_state_ = looper_state;
+
+            DrawLooperLeds(now);
 
             // CHOMPI key lights white while it is acting as SHIFT
             r = g = b = Shift() ? 1.f : 0.f;
@@ -283,10 +279,7 @@ namespace chompi
             const float inc = turns * kEncoderCoarseStep;
 
             if (Shift())
-            {
-                mix_ = fclamp(mix_ + inc, 0.f, 1.f);
-                engine_->SetMix(mix_);
-            }
+                SetMix(mix_ + inc);
             else if (page_ == 0)
             {
                 out_gain_ = fclamp(out_gain_ + inc, 0.f, 1.f);
@@ -347,6 +340,77 @@ namespace chompi
             }
         }
 
+        void SetMix(float mix)
+        {
+            mix_ = fclamp(mix, 0.f, 1.f);
+            engine_->SetMix(mix_);
+        }
+
+        void DrawLooperLeds(uint32_t now)
+        {
+            const Looper& looper = engine_->looper;
+            const Looper::State state = looper.GetState();
+
+            float play = 0.f;  // PLAY LED, white level
+            float loop[3] = {0.f, 0.f, 0.f};
+
+            if (state == Looper::State::RECORDING)
+            {
+                const bool on = !looper.IsClosing() || (now / kClosingBlinkMs) % 2 == 0;
+                loop[0] = on ? 1.f : 0.f;
+            }
+            else if (state == Looper::State::PLAYING || state == Looper::State::PAUSED)
+            {
+                const float level = state == Looper::State::PLAYING ? 1.f : kPausedDim;
+                const float pos = looper.GetPosition();
+                play = (1.f - pos) * level;
+                loop[0] = loop[1] = loop[2] = pos * level;
+            }
+
+            // refused quantized record: 3 fast red blinks, over whatever LOOP was showing
+            if (record_refused_ && now - record_refused_ < 6 * kRefusedBlinkMs)
+            {
+                const bool on = ((now - record_refused_) / kRefusedBlinkMs) % 2 == 0;
+                loop[0] = on ? 1.f : 0.f;
+                loop[1] = loop[2] = 0.f;
+            }
+
+            SetPthLedFloat(kPlayLed, play, play, play);
+            SetPthLedFloat(kLoopLed, loop[0], loop[1], loop[2]);
+
+            if (state == Looper::State::PLAYING)
+                DrawSpeedLeds(looper.GetSpeed());
+            else if (state == Looper::State::PAUSED)
+            {
+                // scrub speed in white on the LED for its direction
+                const float scrub = looper.GetScrub() * .5f;
+                const float level = fabsf(scrub);
+                SetPthLedFloat(scrub > 0.f ? kTransportLedFwd : kTransportLedRev, level, level, level);
+            }
+        }
+
+        /** TAPE's transport colours: speed -2..2 maps to 0..1; blue at the extremes through
+         *  green and yellow to red towards a stop. The LED for the direction is lit, and the
+         *  other one glows red as the speed nears zero. */
+        void DrawSpeedLeds(float speed)
+        {
+            const float value = speed * .25f + .5f;
+            const float idx = value < .5f ? value * 2.f : (1.f - value) * 2.f; // 0 - 1 - 0
+            const uint8_t led_on = value > .5f ? kTransportLedFwd : kTransportLedRev;
+            const uint8_t led_off = value > .5f ? kTransportLedRev : kTransportLedFwd;
+
+            SetPthLedFloat(led_on,
+                           color_quad_xfade(med_blue[0], green[0], yellow[0], red[0], idx),
+                           color_quad_xfade(med_blue[1], green[1], yellow[1], red[1], idx),
+                           color_quad_xfade(med_blue[2], green[2], yellow[2], red[2], idx));
+
+            if (idx > .8f)
+            {
+                const float dim = (idx - .8f) * 5.f;
+                SetPthLedFloat(led_off, red[0] * dim, red[1] * dim, red[2] * dim);
+            }
+        }
+
         void TransportTurned(int16_t turns)
         {
             if (Shift())
@@ -383,11 +447,8 @@ namespace chompi
 
         Hardware *hw_;
         PassthroughEngine *engine_;
-        MidiClock *midi_clock_;
 
-        uint32_t last_beat_ = 0;
-        uint32_t beat_flash_ = 0;
-        bool downbeat_ = false;
+        Looper::State last_looper_state_ = Looper::State::EMPTY;
 
         float out_gain_;
         float in_gain_;

@@ -17,6 +17,10 @@ deviations listed below. Where this document and the guidebook disagree, this do
   Nothing is written to the SD card.
 - What you hear while recording is up to the dry/wet knob: fully wet means you hear nothing
   until playback starts.
+- **The mix jumps automatically:** to **100% wet** when a recording closes into playback (by a
+  LOOP press, at the end of a quantized bar, at 2:45, or on clock loss), and to **100% dry**
+  the moment an erase fires, so the input fades in while the loop fades out. SHIFT + VOLUME
+  can still set anything in between afterwards.
 
 ### 1.2 Keys
 
@@ -155,7 +159,8 @@ Notes for implementing this against `MidiClock.h`:
    with 4-point Hermite interpolation. As TAPE's defaults: speed glides ~0.2 s to each new
    step (tape slew), and scrub speed follows the detents turned per 1/8 s. Play/pause keeps
    the short fades rather than TAPE's tape stop/start.
-5. **LEDs** per 1.6.
+5. **LEDs and mix jumps.** *(done: `NormalPage.h`)* LEDs per 1.6, the mix jumps per 1.1, and
+   the temporary beat flash from step 1 removed.
 6. **Docs.** Update `README.md` (controls table, file map) and mark this document implemented.
 
 Verification per step: build with GCC 10.3, check the memory table, then test on hardware:

@@ -190,7 +190,7 @@ int main(void)
     engine.Init(hw.seed.AudioSampleRate(), loop_mem, &midi_clock);
 
     LedSetup();
-    ui.Init(&engine, &hw, &midi_clock);
+    ui.Init(&engine, &hw);
 
     osc.Init(hw.seed.AudioSampleRate());
     osc.SetAmp(.2f);

@@ -133,6 +133,9 @@ public:
     {
         return midi_clock_->HasClock() && midi_clock_->GetTickPeriod() > 0.f;
     }
+    /** Current scrub speed while paused, 0 when not scrubbing (for the LEDs) */
+    inline float GetScrub() const { return scrub_; }
+
     /** Current speed target: negative is reverse, 1 is the recorded speed */
     inline float GetSpeed() const { return speed_target_; }
 
