@@ -48,7 +48,7 @@ static const FxSlot kFxSlots[] = {
     {Hardware::SwId::KEY_5, 20, med_blue, {med_blue, white, purple}, FxKind::INSERT, 4,
      {.45f, .5f, .5f, 0.f}, {0, 0, 0, 0}},
     // resonator: pitch (110Hz), feedback, tone (6.6kHz), stereo (off)
-    {Hardware::SwId::KEY_6, 19, white, {orange, white, med_blue}, FxKind::LOOP, 4,
+    {Hardware::SwId::KEY_6, 19, lime, {orange, white, med_blue}, FxKind::LOOP, 4,
      {.4364f, .7f, .7f, 0.f}, {0, 0, 0, 0}},
     // slicer: pattern (x..x..x.), decay (100ms), chance (off), stereo (off)
     {Hardware::SwId::KEY_7, 18, yellow, {yellow, white, green}, FxKind::INSERT, 4,

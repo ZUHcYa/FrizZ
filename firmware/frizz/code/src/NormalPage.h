@@ -45,10 +45,9 @@
  *                            nothing
  *   - press knobs 1-4:       resets that parameter to its default
  *   - SHIFT + knobs 1-4:     nothing, turned or pressed (reserved for a second parameter page)
- *  FX key LEDs: always dimly lit in the FX's colour, brighter for the FX the knobs edit.
- *  While the FX is on, the LED follows the audio coming out of it (FxChain's meters)
- *  between kFxOnFloor and full. Sends follow their returns, so their keys also glow with
- *  the tail after release. The knob LEDs show the parameter values in the FX's colours,
+ *  FX key LEDs: off, dimly lit in the FX's colour; on, at full brightness, the audio coming
+ *  out of it (FxChain's meters, in dB) pushing the colour towards white. Sends follow their
+ *  returns, so after release their keys glow with the tail, fading from full to off. The knob LEDs show the parameter values in the FX's colours,
  *  unused knobs dark.
  */
 #pragma once
@@ -92,10 +91,11 @@ namespace chompi
         Hardware::SwId::ENC_2_SW,
         Hardware::SwId::ENC_3_SW,
     };
-    // FX key LED levels
-    static const float kFxIdleDim = .15f;     // every FX key, so the slots are visible
-    static const float kFxSelectedDim = .35f; // the FX the knobs edit
-    static const float kFxOnFloor = .5f;      // on, in silence; the audio adds up to full
+    // FX key LEDs. The SMT LEDs have 64 steps (temp_led_stuff.h), and below about 8 of them
+    // the colours run together, so off is as dim as the keys go while keeping their colour.
+    static const float kFxOffLevel = .15f;    // off: every FX key dimly in its colour
+    static const float kFxMeterFloorDb = -30.f; // the meters' range, up to 0 dBFS
+    static const float kFxWhiteMax = .8f;     // on: how far the loudest audio pushes to white
 
     class NormalPage : public daisy::UiPage
     {
@@ -472,14 +472,26 @@ namespace chompi
             for (size_t fx = 0; fx < kNumFx; fx++)
             {
                 const float* color = kFxSlots[fx].key_color;
-                const float meter = engine_->GetFxLevel(fx);
-                float level = fx == fx_selected_ ? kFxSelectedDim : kFxIdleDim;
+                // the meter (about the output's amplitude) on a dB scale: 0 at the floor, 1 at 0 dBFS
+                const float db = 20.f * log10f(fmaxf(engine_->GetFxLevel(fx), 1e-6f));
+                const float meter = fclamp(1.f - db / kFxMeterFloorDb, 0.f, 1.f);
+                float level = kFxOffLevel;
+                float white = 0.f;
                 if (fx_held_[fx] || fx_latched_[fx])
-                    level = kFxOnFloor + (1.f - kFxOnFloor) * meter;
+                {
+                    level = 1.f;
+                    // squared, so normal levels stay coloured and the peaks flash white
+                    white = kFxWhiteMax * meter * meter;
+                }
                 else if (kFxSlots[fx].kind == FxKind::SEND)
-                    level = fmaxf(level, kFxOnFloor * meter); // a send's tail ringing out
-                SetSmtLedFloat(kFxSlots[fx].key_led, color[0] * level, color[1] * level,
-                               color[2] * level);
+                {
+                    // a send's tail ringing out, from full down to off, in even steps to the eye
+                    level = kFxOffLevel * powf(1.f / kFxOffLevel, meter);
+                }
+                SetSmtLedFloat(kFxSlots[fx].key_led,
+                               level * (color[0] + white * (1.f - color[0])),
+                               level * (color[1] + white * (1.f - color[1])),
+                               level * (color[2] + white * (1.f - color[2])));
             }
         }
 

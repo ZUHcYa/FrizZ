@@ -86,11 +86,12 @@ freezer -> shifter -> crusher -> filter -> flanger -> slicer -> delay -> reverb
 | Knobs 1-4 | The parameters of the most recently pressed FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo) move one step per 3 detents |
 | Press knobs 1-4 | Resets that parameter to its default |
 
-The FX keys are always dimly lit in their effect's colour, a little brighter for the effect
-the knobs edit. While an effect is on, its key follows the audio coming out of it, from
-half to full brightness; the delay and reverb keys follow their returns, so they also glow
-with the tail after release. The knob LEDs show the parameter values in the effect's
-colours; a knob the effect doesn't use is dark and does nothing. Values reset at power-off.
+The FX keys are dimly lit in their effect's colour while off and at full brightness while
+on, where the audio coming out of the effect pushes the colour towards white, from -30 dBFS
+up, the peaks most. The delay and reverb keys follow their returns, so after release they
+glow with the tail, fading from full back to dim. The knob LEDs show the parameter values
+in the effect's colours; a knob the effect doesn't use is dark and does nothing. Values
+reset at power-off.
 
 | Key | Effect | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|---|
@@ -176,7 +177,7 @@ Resonator details:
 - Like Kastle, it turns the input down as feedback goes up (by half at the most). Kastle's
   comb is fixed per mode, 22-440 Hz with about 40% feedback at most; this one is tunable
   and stronger.
-- LEDs: the key is white; the knobs go orange through white to light blue.
+- LEDs: the key is lime; the knobs go orange through white to light blue.
 
 Delay details:
 - **Tempo:** follows MIDI clock, rounded to whole BPM. Without clock it keeps the last tempo
