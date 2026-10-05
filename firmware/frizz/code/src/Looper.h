@@ -15,6 +15,11 @@
  *  kXfadeFrames more frames (the post-roll). Reading position p < kXfadeFrames crossfades
  *  from the post-roll (the natural continuation of the loop's tail) into the loop's head, so
  *  the jump from L-1 back to 0 doesn't click, in either direction.
+ *
+ *  Speed (step 4): the read head is a frame index plus a fraction, advanced by the speed each
+ *  sample and read with 4-point Hermite interpolation. Speed moves in TAPE's ladder of 5ths and
+ *  octaves (StepSpeed), glides to each new step like TAPE's default tape slew, and runs in
+ *  reverse when negative. While paused, the transport knob scrubs instead (Scrub).
  */
 #pragma once
 #include <atomic>
@@ -34,6 +39,16 @@ static const size_t kLoopMaxFrames = kLoopMemSize / 2; // stereo frames
 
 static const size_t kXfadeFrames = 240; // 5ms loop-point crossfade at 48kHz
 static const float kPlayFadeCoeff = .002f; // ~10ms fade on play / pause / erase
+
+// Speed ladder, in semitones: octaves (12k) and fifths above them (12k + 7), as TAPE.
+// Top is 2x (+12), bottom is 1/16x (-48); stepping below the bottom flips direction.
+static const int kSpeedMaxSemis = 12;
+static const int kSpeedMinSemis = -48;
+static const float kSpeedSlewCoeff = .0001f; // TAPE's tape-slew glide, ~0.2s
+
+// Scrubbing while paused, as TAPE: the turns counted over each 1/8s set the scrub speed
+static const size_t kScrubPeriod = 6000;
+static const float kScrubPerTurn = .2f;
 
 class Looper
 {
@@ -69,6 +84,45 @@ public:
     void TogglePlay() { command_.store(Command::TOGGLE_PLAY); }
     void Erase() { command_.store(Command::ERASE); }
 
+    /** One step along the 5ths-and-octaves ladder. dir > 0 turns right (faster forward /
+     *  slower reverse), dir < 0 turns left. Past 1/16x the direction flips at the same speed. */
+    void StepSpeed(int dir)
+    {
+        if (dir == 0)
+            return;
+
+        // turning right means faster when forward, slower when in reverse
+        const bool faster = (dir > 0) != reverse_;
+        int semis = semis_;
+
+        if (faster)
+            semis += (Mod12(semis) == 7) ? 5 : 7;
+        else
+            semis -= (Mod12(semis) == 7) ? 7 : 5;
+
+        if (semis > kSpeedMaxSemis)
+            return; // already at 2x
+        if (semis < kSpeedMinSemis)
+        {
+            reverse_ = !reverse_; // through the slowest step: flip, same speed
+            semis = semis_;
+        }
+
+        semis_ = semis;
+        speed_target_ = (reverse_ ? -1.f : 1.f) * powf(2.f, semis_ / 12.f);
+    }
+
+    /** Back to 1x forward */
+    void ResetSpeed()
+    {
+        semis_ = 0;
+        reverse_ = false;
+        speed_target_ = 1.f;
+    }
+
+    /** Transport turns while paused, in encoder detents */
+    void Scrub(int turns) { scrub_turns_.fetch_add(turns); }
+
     // ===== state, readable from the UI =====
 
     inline State GetState() const { return state_; }
@@ -79,6 +133,9 @@ public:
     {
         return midi_clock_->HasClock() && midi_clock_->GetTickPeriod() > 0.f;
     }
+    /** Current speed target: negative is reverse, 1 is the recorded speed */
+    inline float GetSpeed() const { return speed_target_; }
+
     /** Playback position 0-1 through the loop */
     inline float GetPosition() const
     {
@@ -94,6 +151,8 @@ public:
 
         if (state_ == State::RECORDING)
             TrackRecordingClock();
+        else if (state_ == State::PAUSED)
+            UpdateScrub(size);
 
         for (size_t i = 0; i < size; i++)
         {
@@ -119,21 +178,34 @@ public:
                     postroll_++;
                 }
 
-                daisysp::fonepole(fade_, state_ == State::PLAYING ? 1.f : 0.f, kPlayFadeCoeff);
+                daisysp::fonepole(speed_, speed_target_, kSpeedSlewCoeff);
+                daisysp::fonepole(scrub_, scrub_target_, kSpeedSlewCoeff);
+                if (fabsf(scrub_) < .0001f)
+                    scrub_ = 0.f;
 
-                if (fade_ > .0001f)
                 {
-                    Read(play_pos_, &out_l[i], &out_r[i]);
-                    out_l[i] *= fade_;
-                    out_r[i] *= fade_;
+                    // playing: audible at the ladder speed. Paused: audible only while
+                    // scrubbing, at the scrub speed. Erasing: fade out.
+                    const bool playing = state_ == State::PLAYING;
+                    const bool audible = !erasing_ && (playing || scrub_ != 0.f);
+                    daisysp::fonepole(fade_, audible ? 1.f : 0.f, kPlayFadeCoeff);
 
-                    play_pos_++;
-                    if (play_pos_ >= length_)
-                        play_pos_ = 0;
-                }
-                else
-                {
-                    out_l[i] = out_r[i] = 0.f;
+                    // the fade-out after a pause or erase keeps moving at play speed, so it
+                    // doesn't freeze on one sample (a DC thump)
+                    if (fading_out_ && (fade_ <= .0001f || scrub_target_ != 0.f))
+                        fading_out_ = false;
+
+                    if (fade_ > .0001f)
+                    {
+                        ReadInterpolated(&out_l[i], &out_r[i]);
+                        out_l[i] *= fade_;
+                        out_r[i] *= fade_;
+                        Advance(playing || fading_out_ ? speed_ : scrub_);
+                    }
+                    else
+                    {
+                        out_l[i] = out_r[i] = 0.f;
+                    }
                 }
 
                 if (erasing_ && fade_ <= .0001f)
@@ -209,10 +281,20 @@ private:
         case Command::TOGGLE_PLAY:
             if (erasing_)
                 break;
+            // a scrub left over from the last pause mustn't carry into the next one
+            scrub_turns_.store(0);
+            scrub_ = scrub_target_ = 0.f;
+            scrub_count_ = 0;
             if (state_ == State::PLAYING)
+            {
                 state_ = State::PAUSED;
+                fading_out_ = true;
+            }
             else if (state_ == State::PAUSED)
+            {
                 state_ = State::PLAYING;
+                fading_out_ = false;
+            }
             break;
 
         case Command::ERASE:
@@ -221,6 +303,7 @@ private:
             else if (state_ != State::EMPTY)
             {
                 erasing_ = true;
+                fading_out_ = true;
                 state_ = State::PAUSED; // fade out, then Clear() in Process
             }
             break;
@@ -295,6 +378,7 @@ private:
             postroll_ = kXfadeFrames;
 
         play_pos_ = 0;
+        play_frac_ = 0.f;
         fade_ = 1.f; // the loop starts seamlessly, no fade in
         closing_ = false;
         state_ = State::PLAYING;
@@ -306,12 +390,80 @@ private:
         quantized_ = false;
         closing_ = false;
         erasing_ = false;
+        fading_out_ = false;
         length_ = 0;
         write_pos_ = 0;
         play_pos_ = 0;
+        play_frac_ = 0.f;
         postroll_ = kXfadeFrames;
         target_length_ = 0;
         fade_ = 0.f;
+
+        ResetSpeed();
+        speed_ = 1.f;
+        scrub_ = scrub_target_ = 0.f;
+        scrub_turns_.store(0);
+        scrub_count_ = 0;
+    }
+
+    static inline int Mod12(int semis) { return ((semis % 12) + 12) % 12; }
+
+    /** Turns counted over each scrub period set the scrub speed for the next one */
+    void UpdateScrub(size_t size)
+    {
+        scrub_count_ += size;
+        if (scrub_count_ < kScrubPeriod)
+            return;
+
+        scrub_count_ = 0;
+        scrub_target_ = daisysp::fclamp(scrub_turns_.exchange(0) * kScrubPerTurn, -2.f, 2.f);
+    }
+
+    /** Moves the read head by speed frames (signed), wrapping around the loop */
+    inline void Advance(float speed)
+    {
+        play_frac_ += speed;
+        while (play_frac_ >= 1.f)
+        {
+            play_frac_ -= 1.f;
+            if (++play_pos_ >= length_)
+                play_pos_ = 0;
+        }
+        while (play_frac_ < 0.f)
+        {
+            play_frac_ += 1.f;
+            play_pos_ = play_pos_ == 0 ? length_ - 1 : play_pos_ - 1;
+        }
+    }
+
+    inline size_t Wrap(size_t frame, int offset) const
+    {
+        const int64_t f = static_cast<int64_t>(frame) + offset;
+        if (f < 0)
+            return static_cast<size_t>(f + length_);
+        if (f >= static_cast<int64_t>(length_))
+            return static_cast<size_t>(f - length_);
+        return static_cast<size_t>(f);
+    }
+
+    /** 4-point Hermite interpolation around the read head */
+    void ReadInterpolated(float* l, float* r) const
+    {
+        float xl[4], xr[4];
+        for (int k = 0; k < 4; k++)
+            Read(Wrap(play_pos_, k - 1), &xl[k], &xr[k]);
+
+        *l = Hermite(xl, play_frac_);
+        *r = Hermite(xr, play_frac_);
+    }
+
+    static inline float Hermite(const float* x, float t)
+    {
+        const float c0 = x[1];
+        const float c1 = .5f * (x[2] - x[0]);
+        const float c2 = x[0] - 2.5f * x[1] + 2.f * x[2] - .5f * x[3];
+        const float c3 = .5f * (x[3] - x[0]) + 1.5f * (x[1] - x[2]);
+        return ((c3 * t + c2) * t + c1) * t + c0;
     }
 
     inline void Write(size_t frame, float l, float r)
@@ -345,13 +497,26 @@ private:
     bool quantized_;
     bool closing_;
     bool erasing_;
+    bool fading_out_ = false; // fading out after a pause or erase, still at play speed
 
     size_t length_;        // loop length in frames, once closed
     size_t write_pos_;     // frames recorded so far
-    size_t play_pos_;      // playback position in frames
+    size_t play_pos_;      // playback position, whole frames
+    float play_frac_;      // playback position, fraction of a frame
     size_t postroll_;      // frames of post-roll written so far
     size_t target_length_; // quantized: where the recording will close, 0 if not yet known
     float fade_;
+
+    // speed, see StepSpeed(). Set from the UI, read by the audio.
+    int semis_ = 0;
+    bool reverse_ = false;
+    volatile float speed_target_ = 1.f;
+    float speed_ = 1.f;
+
+    // scrubbing while paused
+    std::atomic<int> scrub_turns_{0};
+    size_t scrub_count_ = 0;
+    float scrub_, scrub_target_;
 
     uint32_t start_ticks_;
     uint32_t first_tick_time_;

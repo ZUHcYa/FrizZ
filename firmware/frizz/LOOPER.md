@@ -150,7 +150,11 @@ Notes for implementing this against `MidiClock.h`:
    end and the 2 s erase. LOOP acts on press; PLAY acts on release and only if LOOP wasn't
    pressed during the hold. Erase works with either key going down first, but only on a loop
    that already existed when both were down.
-4. **Transport.** Stepped varispeed, reverse, press-to-reset, scrub when paused.
+4. **Transport.** *(done: `Looper.h`, `NormalPage.h`)* Stepped varispeed, reverse,
+   press-to-reset, scrub when paused. The read head is a frame index plus a fraction, read
+   with 4-point Hermite interpolation. As TAPE's defaults: speed glides ~0.2 s to each new
+   step (tape slew), and scrub speed follows the detents turned per 1/8 s. Play/pause keeps
+   the short fades rather than TAPE's tape stop/start.
 5. **LEDs** per 1.6.
 6. **Docs.** Update `README.md` (controls table, file map) and mark this document implemented.
 

@@ -18,6 +18,12 @@
  *   - recording:      LOOP ends the recording (quantized: at the end of the bar)
  *   - loop exists:    PLAY toggles play / pause, LOOP does nothing,
  *                     hold PLAY + LOOP for 2s erases (either key first)
+ *  Transport knob (encoder 5, LOOPER.md 1.5), once a loop exists:
+ *   - turn while playing: speed in 5ths and octaves, 4 detents per step, reverse past 1/16x
+ *   - turn while paused:  scrub
+ *   - press:              back to 1x forward
+ *   - SHIFT + turn:       nothing
+ *
  *  LOOP acts on press so recording starts and stops exactly then. PLAY acts on release, and
  *  only if LOOP wasn't pressed during the hold, so the PLAY + LOOP combos never also toggle.
  *
@@ -48,6 +54,7 @@ namespace chompi
     static const uint8_t kTransportLedR = 6;
     static const uint32_t kBeatFlashMs = 50;
     static const uint32_t kEraseHoldMs = 2000;
+    static const float kSpeedStepPerTurn = .25f; // 4 transport detents per speed step
 
     static const float white[3] = {1.f, 1.f, 1.f};
     static const float red[3] = {1.f, 0.f, 0.f};
@@ -213,6 +220,15 @@ namespace chompi
                 chompi_key_pressed = rising;
                 break;
 
+            // transport press: back to 1x forward
+            case ENC_5_SW:
+                if (rising && LoopExists())
+                {
+                    engine_->looper.ResetSpeed();
+                    speed_chunk_ = 0.f;
+                }
+                break;
+
             case static_cast<uint16_t>(Hardware::SwId::KEY_27): // PLAY
                 play_pressed_ = rising;
                 if (rising)
@@ -252,7 +268,16 @@ namespace chompi
                              int16_t turns,
                              uint16_t stepsPerRevolution) override
         {
-            if (init_ignore || encoderID != 5)
+            if (init_ignore)
+                return false;
+
+            if (encoderID == 4)
+            {
+                TransportTurned(turns);
+                return true;
+            }
+
+            if (encoderID != 5)
                 return false;
 
             const float inc = turns * kEncoderCoarseStep;
@@ -322,6 +347,25 @@ namespace chompi
             }
         }
 
+        void TransportTurned(int16_t turns)
+        {
+            if (Shift())
+                return;
+
+            Looper& looper = engine_->looper;
+            if (looper.GetState() == Looper::State::PAUSED)
+                looper.Scrub(turns);
+            else if (looper.GetState() == Looper::State::PLAYING)
+            {
+                speed_chunk_ += turns * kSpeedStepPerTurn;
+                if (speed_chunk_ >= 1.f || speed_chunk_ <= -1.f)
+                {
+                    looper.StepSpeed(speed_chunk_ > 0.f ? 1 : -1);
+                    speed_chunk_ = 0.f;
+                }
+            }
+        }
+
         inline bool LoopExists()
         {
             const Looper::State state = engine_->looper.GetState();
@@ -360,6 +404,7 @@ namespace chompi
         bool erase_armed_ = false;  // PLAY + LOOP held on an existing loop
         uint32_t erase_hold_ = 0;
         uint32_t record_refused_ = 0;
+        float speed_chunk_ = 0.f;   // transport detents towards the next speed step
 
         bool batt_display;
         uint32_t batt_hold;
