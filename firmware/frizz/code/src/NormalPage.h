@@ -35,14 +35,19 @@
  *  plays, PLAY and LOOP crossfade in white to show the position, dimmed when paused. The
  *  transport LEDs show the speed in TAPE's colours, or the scrub speed while paused.
  *
- *  Punch-in FX (PunchFx.h) on the white keys, so far only KEY_1 (crusher):
+ *  Punch-in FX (PunchFx.h) on the white keys: KEY_1 crusher (insert), KEY_14 delay and
+ *  KEY_15 reverb (sends, so their tails ring out after release):
  *   - hold the key:          the effect is on while held
  *   - SHIFT + key:           toggles the latch, the effect stays on after release
  *   - key on a latched FX:   clears the latch, the effect stays on until the key is released
- *   - knobs 1-4 (enc 0-3):   the 4 parameters of the most recently pressed FX key
+ *   - knobs 1-4 (enc 0-3):   the 4 parameters of the most recently pressed FX key, 1% per
+ *                            detent; stepped parameters (delay division) move one step per
+ *                            kFxDetentsPerStep detents
+ *   - press knob 2:          delay selected: toggles freeze
  *   - SHIFT + knobs 1-4:     nothing (reserved for a second parameter page)
- *  The key LED is dim while its FX is the one the knobs edit and lit while the FX is on. The
- *  knob LEDs show the parameter values in the FX's colours.
+ *  The key LED is dim while its FX is the one the knobs edit and lit while the FX is on; the
+ *  delay key is white while frozen. The knob LEDs show the parameter values in the FX's
+ *  colours, knob 2 white while the selected delay is frozen.
  */
 #pragma once
 
@@ -73,14 +78,29 @@ namespace chompi
     static const uint32_t kEraseHoldMs = 2000;
     static const float kSpeedStepPerTurn = .25f; // 4 transport detents per speed step
 
-    // Punch-in FX: one entry per white key that has an effect, in PunchFx.h order
-    static const size_t kNumFx = 1;
-    static const Hardware::SwId kFxKeys[kNumFx] = {Hardware::SwId::KEY_1};
-    static const uint8_t kFxKeyLeds[kNumFx] = {24}; // SMT LEDs, TestPage's led_map
+    // Punch-in FX: one entry per FxId (PunchFx.h)
+    static const Hardware::SwId kFxKeys[kNumFx] = {
+        Hardware::SwId::KEY_1,  // crusher: 1st white key
+        Hardware::SwId::KEY_14, // delay: 2nd-to-last white key
+        Hardware::SwId::KEY_15, // reverb: last white key
+    };
+    static const uint8_t kFxKeyLeds[kNumFx] = {24, 11, 10}; // SMT LEDs, TestPage's led_map
     static const uint8_t kFxKnobLeds[kNumFxParams] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
-    // crusher: rate, bits, tone, mix. Audible from the first press
-    static const float kFxDefaults[kNumFx][kNumFxParams] = {{.6f, .5f, 1.f, 1.f}};
-    static const float kFxParamStep = .01f; // x3 per detent on knobs 2-4, see ui.h
+    // Audible from the first press
+    static const float kFxDefaults[kNumFx][kNumFxParams] = {
+        {.6f, .5f, 1.f, 1.f},   // crusher: rate, bits, tone, mix
+        {.25f, .4f, .5f, .7f},  // delay: division (1/4), feedback, random (off), level
+        {.6f, .6f, .6f, .7f},   // reverb: decay, tone, diffusion, level
+    };
+    // Number of steps for stepped parameters, 0 = continuous
+    static const uint8_t kFxParamSteps[kNumFx][kNumFxParams] = {
+        {0, 0, 0, 0},
+        {DelaySend::kNumDivisions, 0, 0, 0},
+        {0, 0, 0, 0},
+    };
+    static const float kFxParamStep = .01f;      // per detent, continuous parameters
+    static const float kFxDetentsPerStep = 3.f;  // per step, stepped parameters
+    static const uint16_t kFxFreezeKnob = 1;     // knob 2 (enc 1) press toggles delay freeze
     static const float kFxSelectedDim = .15f;
 
     static const float white[3] = {1.f, 1.f, 1.f};
@@ -92,6 +112,14 @@ namespace chompi
     static const float pink[3] = {1.f, .36f, .62f};
     static const float purple[3] = {.58f, .05f, 1.f};
     static const float orange[3] = {1.f, .6f, .24f};
+
+    // Per FxId: knob LED colours for 0 / .5 / 1, and the key LED colour
+    static const float* const kFxKnobColors[kNumFx][3] = {
+        {yellow, orange, red},
+        {green, white, med_blue},
+        {med_blue, blue, purple},
+    };
+    static const float* const kFxKeyColors[kNumFx] = {orange, green, blue};
 
     class NormalPage : public daisy::UiPage
     {
@@ -282,6 +310,11 @@ namespace chompi
                     erase_armed_ = false;
                 break;
 
+            case static_cast<uint16_t>(Hardware::SwId::ENC_1_SW): // knob 2 (enc 1)
+                if (rising && fx_selected_ == FX_DELAY)
+                    engine_->ToggleDelayFreeze();
+                break;
+
             default:
                 for (size_t fx = 0; fx < kNumFx; fx++)
                 {
@@ -405,10 +438,27 @@ namespace chompi
                 return;
 
             // knob 1 gets 1x per detent from ui.h, the others 3x
-            if (knob == 0)
-                turns *= 3;
+            const float detents = knob == 0 ? turns : turns / 3.f;
+            float& val = fx_params_[fx_selected_][knob];
 
-            SetFxParam(fx_selected_, knob, fx_params_[fx_selected_][knob] + turns * kFxParamStep);
+            const uint8_t steps = kFxParamSteps[fx_selected_][knob];
+            if (steps == 0)
+            {
+                SetFxParam(fx_selected_, knob, val + detents * kFxParamStep);
+                return;
+            }
+
+            // stepped: every kFxDetentsPerStep detents moves one step
+            fx_step_chunk_[knob] += detents;
+            if (fx_step_chunk_[knob] >= kFxDetentsPerStep || fx_step_chunk_[knob] <= -kFxDetentsPerStep)
+            {
+                const float step = 1.f / (steps - 1);
+                const float dir = fx_step_chunk_[knob] > 0.f ? 1.f : -1.f;
+                // snap to the step grid, so values set elsewhere can't drift off it
+                const float idx = roundf(val / step) + dir;
+                SetFxParam(fx_selected_, knob, idx * step);
+                fx_step_chunk_[knob] = 0.f;
+            }
         }
 
         void SetFxParam(size_t fx, size_t param, float val)
@@ -419,24 +469,36 @@ namespace chompi
 
         void DrawFxLeds()
         {
-            // knob LEDs: the selected FX's parameters, yellow (0) through orange to red (1)
+            const bool frozen = engine_->IsDelayFrozen();
+
+            // knob LEDs: the selected FX's parameters in its colours
+            const float* const* colors = kFxKnobColors[fx_selected_];
             for (size_t p = 0; p < kNumFxParams; p++)
             {
                 const float val = fx_params_[fx_selected_][p];
-                SetPthLedFloat(kFxKnobLeds[p],
-                               color_triple_xfade(yellow[0], orange[0], red[0], val),
-                               color_triple_xfade(yellow[1], orange[1], red[1], val),
-                               color_triple_xfade(yellow[2], orange[2], red[2], val));
+                if (fx_selected_ == FX_DELAY && p == kFxFreezeKnob && frozen)
+                    SetPthLedFloat(kFxKnobLeds[p], 1.f, 1.f, 1.f);
+                else
+                    SetPthLedFloat(kFxKnobLeds[p],
+                                   color_triple_xfade(colors[0][0], colors[1][0], colors[2][0], val),
+                                   color_triple_xfade(colors[0][1], colors[1][1], colors[2][1], val),
+                                   color_triple_xfade(colors[0][2], colors[1][2], colors[2][2], val));
             }
 
             for (size_t fx = 0; fx < kNumFx; fx++)
             {
+                const float* color = kFxKeyColors[fx];
                 float level = 0.f;
-                if (fx_held_[fx] || fx_latched_[fx])
+                if (fx == FX_DELAY && frozen)
+                {
+                    color = white;
+                    level = 1.f;
+                }
+                else if (fx_held_[fx] || fx_latched_[fx])
                     level = 1.f;
                 else if (fx == fx_selected_)
                     level = kFxSelectedDim;
-                SetSmtLedFloat(kFxKeyLeds[fx], orange[0] * level, orange[1] * level, orange[2] * level);
+                SetSmtLedFloat(kFxKeyLeds[fx], color[0] * level, color[1] * level, color[2] * level);
             }
         }
 
@@ -564,6 +626,7 @@ namespace chompi
         bool fx_held_[kNumFx] = {};
         bool fx_latched_[kNumFx] = {};
         size_t fx_selected_ = 0;    // the FX the knobs edit: the last one pressed
+        float fx_step_chunk_[kNumFxParams] = {}; // detents towards the next step, stepped params
 
         bool batt_display;
         uint32_t batt_hold;

@@ -33,6 +33,16 @@ MidiClock midi_clock;
 
 int16_t DSY_SDRAM_BSS loop_mem[kLoopMemSize];
 
+// TEMPO's delay buffers: 10s of interleaved stereo float each, the live and the frozen one
+static const size_t kDelayFrames = 480000;
+float DSY_SDRAM_BSS delay_mem[kDelayFrames * 2];
+float DSY_SDRAM_BSS delay_frozen_mem[kDelayFrames * 2];
+
+// the reverb carries its 64KB buffer, in the fast DTCMRAM like WAVE's. Not zeroed at startup:
+// Reverb::Init clears it
+#define DSY_DTCMRAM_BSS __attribute__((section(".dtcmram_bss")))
+daisysp::Reverb DSY_DTCMRAM_BSS reverb;
+
 // Running count of audio samples since audio started, the time base for MIDI clock ticks
 uint32_t sample_clock = 0;
 
@@ -42,8 +52,8 @@ bool booting = true;
 bool rainbow_done = false;
 bool loading_screen = true;
 
-/** Clears the Daisy Seed's 64MB external SDRAM at boot. The loop buffer lives there, and
- *  unlike internal-RAM statics it isn't zeroed by the startup code */
+/** Clears the Daisy Seed's 64MB external SDRAM at boot. The loop and delay buffers live
+ *  there, and unlike internal-RAM statics they aren't zeroed by the startup code */
 void ZeroSDRAM()
 {
     uint32_t *beg, *end;
@@ -187,7 +197,8 @@ int main(void)
     System::Delay(100);
     f_mount(&fsi.GetSDFileSystem(), fsi.GetSDPath(), 1);
 
-    engine.Init(hw.seed.AudioSampleRate(), loop_mem, &midi_clock);
+    engine.Init(hw.seed.AudioSampleRate(), loop_mem, &midi_clock,
+                delay_mem, delay_frozen_mem, kDelayFrames, &reverb);
 
     LedSetup();
     ui.Init(&engine, &hw);
@@ -197,7 +208,7 @@ int main(void)
 
     hw.StartAudio(AudioCallback);
 
-    // safe while audio runs: the looper is empty and doesn't touch its buffer yet
+    // safe while audio runs: the engine (looper, delay) doesn't run until booting is done
     ZeroSDRAM();
 
     now = daisy::System::GetNow();

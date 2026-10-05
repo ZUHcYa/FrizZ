@@ -62,7 +62,7 @@ the changes that bootloader needs, listed in its `LIBDAISY_PATCH.md`.
 
 ## DSP derived from Mutable Instruments
 
-Portions of the FX engine in TAPE, TEMPO and WAVE derive from Émilie Gillet's open-source work
+Portions of the FX engine in TAPE, TEMPO, WAVE and FRIZZ derive from Émilie Gillet's open-source work
 (Mutable Instruments), released under the MIT license. In each firmware folder's `code/src/`:
 
 - `reverb.h` — carries the full original MIT notice. Do not remove it.

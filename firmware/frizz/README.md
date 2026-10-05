@@ -55,21 +55,42 @@ paused). The transport LEDs show speed and direction.
 
 Effects sit on the white keys and act on the whole mix, after the dry/wet knob and before the
 output gain and the master compressor. The looper records the dry input, so an effect is never
-printed into a loop. So far only the first (lowest) white key has an effect.
+printed into a loop.
+
+- **Insert** (crusher): replaces the signal while on and stops the moment it's off.
+- **Sends** (delay, reverb): the key opens the effect's input, and its output is added to the
+  signal, so tails ring out after the key is released. The two sends run in parallel, both fed
+  from the crusher's output.
 
 | Control | Function |
 |---|---|
 | Hold an FX key | Effect on while held |
 | SHIFT + FX key | Latch on / off; a latched effect stays on after release |
 | FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
-| Knobs 1-4 | The 4 parameters of the most recently pressed FX key |
+| Knobs 1-4 | The 4 parameters of the most recently pressed FX key, 1% per detent; the delay's division moves one step per 3 detents |
+| Press knob 2, delay selected | Freeze on / off |
 
 The FX key is dim while the knobs edit its effect and lit while it is on. The knob LEDs show
-the parameter values, yellow (0) through orange to red (1). Values reset at power-off.
+the parameter values in the effect's colours. Values reset at power-off.
 
 | Key | Effect | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|---|
 | 1st white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz (default 60%) | Bits, 16 down to 2 (default 50%, 9 bits) | Tone, lowpass 200 Hz to open (default open) | Mix (default 100%) |
+| 2nd-to-last white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 70%) |
+| Last white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Tone, dark to open (default 60%) | Diffusion (default 60%) | Level (default 70%) |
+
+Delay details:
+- **Tempo:** follows MIDI clock, rounded to whole BPM. Without clock it keeps the last tempo
+  (120 BPM until a clock arrives). Limited to 50-300 BPM so 2 bars fit the 10 s buffer.
+- **Random events** are rolled on every 8th note; the knob's distance from centre is the
+  chance. (TEMPO rolled them on its arpeggiator's step instead.)
+- **Freeze** loops the last division of the delay's output, in time, until pressed again; the
+  delay key and knob 2 light white. New input is ignored while frozen.
+- **Beat phase:** only the clock's tempo is used, not MIDI Start / Song Position, so the 8th
+  notes that random events and the freeze loop follow are counted from when the clock locked
+  (or from power-on without clock), not from the DAW's beat 1. Echo spacing is unaffected.
+- LEDs: division green (short) through white to blue (long); random green (events) through
+  white to blue (shimmer).
 
 ### MIDI clock
 
@@ -86,7 +107,10 @@ hardware self-test.
 ```
 chompi_main.cpp        entry point: audio callback, main loop, boot sequence
 passthroughEngine.h    the engine: input gain, dry/wet mix, punch-in FX, output gain, master compressor
-PunchFx.h              the punch-in effects (crusher)
+PunchFx.h              the punch-in effects: crusher, delay send, reverb send
+granularDelay.h        TEMPO's tempo-synced delay (SimpleCrossfade.h: its crossfades)
+reverb.h, fx_engine.h  TEMPO's reverb
+TempoClock.h           the delay's tempo and 12 PPQN pulses, from MIDI clock or internal
 Looper.h               the looper: recording, quantized end, playback, speed, scrub
 MidiClock.h            MIDI clock input over TRS and USB
 NormalPage.h           the controls (VOLUME, PLAY/LOOP, transport, FX keys and knobs) and their LEDs

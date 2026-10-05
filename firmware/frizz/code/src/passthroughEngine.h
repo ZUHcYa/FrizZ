@@ -1,6 +1,7 @@
 /** @file passthroughEngine.h
  *  @brief Audio engine: the stereo AUX input goes to both outputs through the Volume
  *  Engine: input gain -> dry/wet mix -> punch-in FX -> output gain -> master compressor.
+ *  The punch-in FX are the crusher (insert), then the delay and reverb sends in parallel.
  *
  *  Dry is the input on its own, wet is the looper's playback on its own. The looper
  *  records the dry signal (see Looper.h).
@@ -15,6 +16,7 @@
 #include "limiter.h"
 #include "Looper.h"
 #include "PunchFx.h"
+#include "TempoClock.h"
 
 using namespace daisy;
 using namespace daisysp;
@@ -30,10 +32,15 @@ public:
     PassthroughEngine() {};
     ~PassthroughEngine() {};
 
-    void Init(float sample_rate, int16_t* loop_mem, chompi::MidiClock* midi_clock)
+    void Init(float sample_rate, int16_t* loop_mem, chompi::MidiClock* midi_clock,
+              float* delay_mem, float* delay_frozen_mem, size_t delay_frames,
+              daisysp::Reverb* reverb)
     {
         looper.Init(loop_mem, midi_clock);
+        tempo_clock_.Init(sample_rate, midi_clock);
         crusher_.Init(sample_rate);
+        delay_.Init(delay_mem, delay_frozen_mem, delay_frames);
+        reverb_.Init(sample_rate, reverb);
 
         dcblock_line_in_l_.Init(sample_rate);
         dcblock_line_in_r_.Init(sample_rate);
@@ -64,6 +71,12 @@ public:
 
         looper.Process(dryl, dryr, wetl, wetr, size);
 
+        // the delay's tempo and clock, once per block
+        const uint32_t pulses = tempo_clock_.Process(size);
+        delay_.SetTempo(tempo_clock_.GetTempo());
+        for (uint32_t p = 0; p < pulses; p++)
+            delay_.ClockPulse(tempo_clock_.Pulse());
+
         for (size_t i = 0; i < size; i++)
         {
             fonepole(mgain_, mgain_target_, .001f);
@@ -79,6 +92,11 @@ public:
             // punch-in FX, on the mix so they work on the input, the loop or both, and
             // before the output gain so they don't change with the VOLUME knob
             crusher_.Process(&sigl, &sigr);
+
+            // sends, in parallel from the crusher's output, their returns added on top
+            const float sendl = sigl, sendr = sigr;
+            delay_.Process(sendl, sendr, &sigl, &sigr);
+            reverb_.Process(sendl, sendr, &sigl, &sigr);
 
             // headphone and master gain
             out[0][i] = sigl * kHpGain * mgain_;
@@ -106,17 +124,31 @@ public:
     /** 0 = dry (input only), 1 = wet (looper/buffer only) */
     inline void SetMix(float mix) { mix_target_ = mix; }
 
-    /** Punch-in FX, by index (see PunchFx.h). Only fx 0 (the crusher) exists so far. */
+    /** Punch-in FX, by FxId (see PunchFx.h) */
     inline void SetFxOn(size_t fx, bool on)
     {
-        if (fx == 0)
-            crusher_.SetOn(on);
+        switch (fx)
+        {
+        case chompi::FX_CRUSHER: crusher_.SetOn(on); break;
+        case chompi::FX_DELAY:   delay_.SetOn(on); break;
+        case chompi::FX_REVERB:  reverb_.SetOn(on); break;
+        default: break;
+        }
     }
     inline void SetFxParam(size_t fx, size_t param, float val)
     {
-        if (fx == 0)
-            crusher_.SetParam(param, val);
+        switch (fx)
+        {
+        case chompi::FX_CRUSHER: crusher_.SetParam(param, val); break;
+        case chompi::FX_DELAY:   delay_.SetParam(param, val); break;
+        case chompi::FX_REVERB:  reverb_.SetParam(param, val); break;
+        default: break;
+        }
     }
+
+    inline void ToggleDelayFreeze() { delay_.ToggleFreeze(); }
+    inline bool IsDelayFrozen() { return delay_.IsFrozen(); }
+    inline float GetDelayFrozenPosition() { return delay_.GetFrozenPosition(); }
 
     inline float GetVUSample() { return output_env_follower.GetLastSamp(); }
 
@@ -126,7 +158,10 @@ private:
     daisysp::DcBlock dcblock_line_in_l_, dcblock_line_in_r_;
     chompi::Limiter lim_hp_l_, lim_hp_r_, lim_line_l_, lim_line_r_;
     chompi::EnvFollower output_env_follower;
+    chompi::TempoClock tempo_clock_;
     chompi::Crusher crusher_;
+    chompi::DelaySend delay_;
+    chompi::ReverbSend reverb_;
     float mgain_, mgain_target_;
     float ingain_, ingain_target_;
     float final_lim_, final_lim_target_;
