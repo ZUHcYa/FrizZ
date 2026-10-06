@@ -70,7 +70,7 @@ public:
         if (mode_ == SceneMode::NONE)
         {
             if (shift && fx_->Morphing())
-                return s == morph_ ? Slot::MORPH_MORE : Slot::REFUSED;
+                return s == morph_ && scenes_[slot].used ? Slot::MORPH_MORE : Slot::REFUSED;
             if (!scenes_[slot].used)
                 return Slot::REFUSED;
             return shift ? Slot::MORPH : Slot::RECALL;
@@ -115,7 +115,11 @@ public:
     inline bool FreezeMorph() { return fx_->FreezeMorph(); }
 
     /** The slot a morph runs to, kNoScene if none runs */
-    inline int Morphing() const { return fx_->Morphing() ? morph_ : kNoScene; }
+    inline int Morphing() const
+    {
+        // a deleted target doesn't blink: the morph still lands, on what it was
+        return fx_->Morphing() && morph_ != kNoScene && scenes_[morph_].used ? morph_ : kNoScene;
+    }
 
     /** Whether pressing the slot would pick it in the current mode: SAVE any slot but the
      *  blank one, DELETE a saved one, COPY's source a saved one or the blank one, COPY's

@@ -45,6 +45,8 @@ struct FxMorphPlan
     uint16_t deferred; // bit fx: its key is switched by the morph: at the landing, or at...
     uint16_t wake;     // ... kMorphWakeSamples for these (fade-ins)
     uint16_t was_on;   // bit fx: on at the start, what a deferred key is until it's switched
+    uint16_t park;     // bit fx: if it ends off, its parameters stay where the glide left them
+                       // (faded out) instead of jumping to the target at the landing
 };
 
 /** Chain is FxChain; a template only so test/tempo.cpp can watch what it's sent */
@@ -55,6 +57,7 @@ public:
     void Init(Chain* chain)
     {
         chain_ = chain;
+        plan_ = FxMorphPlan();
         active_ = false;
         land_ = false;
     }
@@ -168,9 +171,9 @@ public:
         }
     }
 
-    /** Ends it now: every parameter on its target, the deferred keys switched. Only what
-     *  changes is sent, so an FX the scenes share runs on untouched. Call with the audio
-     *  interrupt blocked, or from the audio callback */
+    /** Ends it now: every parameter on its target, the deferred keys switched; a parked FX
+     *  that goes off stays faded out. Only what changes is sent, so an FX the scenes share
+     *  runs on untouched. Call with the audio interrupt blocked, or from the audio callback */
     void Land()
     {
         if (!active_)
@@ -178,14 +181,18 @@ public:
         chain_->FastSlew();
         for (size_t fx = 0; fx < kNumFx; fx++)
         {
-            for (size_t p = 0; p < kNumFxParams; p++)
-            {
-                if (plan_.target[fx][p] != live_[fx][p])
-                    chain_->SetParam(fx, p, plan_.target[fx][p]);
-            }
             const uint16_t bit = static_cast<uint16_t>(1u << fx);
+            const bool on = deferred_ & bit ? pending_on_ & bit : true;
+            if (on || !(plan_.park & bit))
+            {
+                for (size_t p = 0; p < kNumFxParams; p++)
+                {
+                    if (plan_.target[fx][p] != live_[fx][p])
+                        chain_->SetParam(fx, p, plan_.target[fx][p]);
+                }
+            }
             if (deferred_ & bit)
-                chain_->SetOn(fx, pending_on_ & bit);
+                chain_->SetOn(fx, on);
         }
         deferred_ = 0;
         land_ = false;

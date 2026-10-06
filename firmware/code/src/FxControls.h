@@ -21,6 +21,9 @@ namespace chompi
 // Knobs: 1% per detent; a stepped parameter moves one step per kFxDetentsPerStep detents
 static const float kFxParamStep = .01f;
 static const float kFxDetentsPerStep = 3.f;
+// The sends: their tails ring on after their keys go off, so a recall or morph doesn't change
+// an off send's settings in the engine until its key comes on again
+static const uint16_t kFxSends = (1u << FX_DELAY) | (1u << FX_REVERB);
 
 template <class Engine>
 class FxControls
@@ -44,6 +47,7 @@ public:
         chunk_shift_ = false;
         selected_ = 0;
         edited_ = false;
+        stale_ = morph_touched_ = 0;
     }
 
     /** An FX key going down or up. Down selects it for the knobs; SHIFT toggles the latch, a
@@ -60,9 +64,10 @@ public:
             if (latched != latched_[fx])
                 edited_ = true;
             latched_[fx] = latched;
+            TouchedInMorph(fx);
         }
         held_[fx] = down;
-        engine_->SetFxOn(fx, IsOn(fx));
+        SendOn(fx);
     }
 
     /** SHIFT going down toggles the latch of every FX key already held, so the combo works in
@@ -75,6 +80,7 @@ public:
                 continue;
             latched_[fx] = !latched_[fx];
             edited_ = true;
+            TouchedInMorph(fx);
             engine_->SetFxOn(fx, true);
         }
     }
@@ -157,21 +163,30 @@ public:
     }
 
     /** Recalls scene at the fast slew. Only what changes is sent, so an effect the scenes
-     *  share runs on untouched; the latches become the scene's and keys held stay on. On the
-     *  device, call it with the audio interrupt blocked, so it lands within one block */
+     *  share runs on untouched; the latches become the scene's and keys held stay on. A send
+     *  the scene leaves off keeps ringing out as it was (kFxSends). On the device, call it with
+     *  the audio interrupt blocked, so it lands within one block */
     void Recall(const FxScene& scene)
     {
         engine_->LandFxMorph();
         engine_->FastFxSlew();
         for (size_t fx = 0; fx < kNumFx; fx++)
         {
+            latched_[fx] = (scene.latched >> fx) & 1;
+            const bool spare = !IsOn(fx) && (kFxSends >> fx & 1);
             for (size_t p = 0; p < kNumFxParams; p++)
             {
-                if (scene.params[fx][p] != params_[fx][p])
+                if (scene.params[fx][p] == params_[fx][p])
+                    continue;
+                if (spare)
+                {
+                    params_[fx][p] = scene.params[fx][p];
+                    stale_ |= Bit(fx);
+                }
+                else
                     SetParam(fx, p, scene.params[fx][p]);
             }
-            latched_[fx] = (scene.latched >> fx) & 1;
-            engine_->SetFxOn(fx, IsOn(fx));
+            SendOn(fx);
         }
         ClearChunks();
         edited_ = false;
@@ -180,13 +195,14 @@ public:
     /** Glides to scene, landing on the FX clock's next bar line (FxMorph.h). The controls
      *  show the scene at once: knobs turned and keys pressed meanwhile change where it lands.
      *  Per FX, from what it is now to what the scene makes it (held keys stay on):
-     *   - off in both: the parameters jump now, unheard;
+     *   - off in both: the parameters jump now, unheard, except a send's, which rings out as
+     *     it was (kFxSends);
      *   - on in both: continuous parameters glide, stepped ones switch at the landing;
      *   - one it turns on: its fade knobs (FxParams::fade) start at their neutral defaults
      *     and glide to the scene, the rest jump now; the key comes on as soon as they've got
      *     there;
-     *   - one it turns off: its fade knobs glide to their defaults, the key goes off and the
-     *     rest switch at the landing;
+     *   - one it turns off: its fade knobs glide to their defaults and the key goes off at the
+     *     landing; the engine keeps it there, silent, until its key next comes on;
      *   - an FX without fade knobs it turns on or off: all at the landing.
      *  Only what changes is sent, as in a recall
      *  On the device, call it with the audio interrupt blocked */
@@ -194,13 +210,13 @@ public:
     {
         engine_->LandFxMorph();
         FxMorphPlan plan;
-        plan.deferred = plan.wake = plan.was_on = 0;
+        plan.deferred = plan.wake = plan.was_on = plan.park = 0;
         for (size_t fx = 0; fx < kNumFx; fx++)
         {
             const FxParams& fxp = kFxParams[fx];
             const bool was = IsOn(fx);
             const bool will = held_[fx] || ((scene.latched >> fx) & 1);
-            const uint16_t bit = static_cast<uint16_t>(1u << fx);
+            const uint16_t bit = Bit(fx);
             if (was)
                 plan.was_on |= bit;
             if (was != will)
@@ -209,6 +225,25 @@ public:
                 if (will && fxp.fade)
                     plan.wake |= bit;
             }
+            if (was && !will)
+            {
+                // parked at the landing: the engine lags the controls until it's on again
+                plan.park |= bit;
+                stale_ |= bit;
+            }
+            if (!was && !will && (kFxSends & bit))
+            {
+                // a send ringing out: untouched, it takes the scene when it next comes on
+                for (size_t p = 0; p < kNumFxParams; p++)
+                {
+                    plan.start[fx][p] = plan.target[fx][p] = scene.params[fx][p];
+                    plan.how[fx][p] = MorphParam::HOLD;
+                    if (scene.params[fx][p] != params_[fx][p])
+                        stale_ |= bit;
+                }
+                continue;
+            }
+            const bool stale = Stale(fx) && !was;
             for (size_t p = 0; p < kNumFxParams; p++)
             {
                 const float to = scene.params[fx][p];
@@ -230,9 +265,11 @@ public:
                 plan.target[fx][p] = to;
                 plan.how[fx][p] = how;
                 // the morph starts from what the engine has
-                if (from != params_[fx][p])
+                if (stale || from != params_[fx][p])
                     engine_->SetFxParam(fx, p, from);
             }
+            if (stale)
+                stale_ &= static_cast<uint16_t>(~bit);
         }
         engine_->StartFxMorph(plan);
 
@@ -243,6 +280,7 @@ public:
                 params_[fx][p] = scene.params[fx][p];
             engine_->SetFxOn(fx, IsOn(fx));
         }
+        morph_touched_ = 0;
         ClearChunks();
         edited_ = false;
     }
@@ -253,8 +291,9 @@ public:
     inline bool Morphing() const { return engine_->FxMorphing(); }
 
     /** Stops the morph where it is: the knobs take the values it got to, and an FX it hadn't
-     *  switched yet is latched as it still is. Edited, since that's neither scene. False if
-     *  none runs. On the device, call it with the audio interrupt blocked */
+     *  switched yet stays as it was, unless its key was pressed meanwhile. Edited, since
+     *  that's neither scene. False if none runs. On the device, call it with the audio
+     *  interrupt blocked */
     bool FreezeMorph()
     {
         float live[kNumFx][kNumFxParams];
@@ -263,12 +302,18 @@ public:
             return false;
         for (size_t fx = 0; fx < kNumFx; fx++)
         {
+            const uint16_t bit = Bit(fx);
+            // a send left ringing out keeps the scene for when it comes on
+            if (Stale(fx) && !(unswitched & bit))
+                continue;
             for (size_t p = 0; p < kNumFxParams; p++)
                 params_[fx][p] = live[fx][p];
-            if ((unswitched >> fx) & 1)
+            stale_ &= static_cast<uint16_t>(~bit);
+            if (unswitched & bit)
             {
-                latched_[fx] = (was_on >> fx) & 1;
-                engine_->SetFxOn(fx, IsOn(fx)); // a key held meanwhile stays on
+                if (!(morph_touched_ & bit))
+                    latched_[fx] = was_on & bit;
+                SendOn(fx); // a key held meanwhile stays on
             }
         }
         ClearChunks();
@@ -317,6 +362,28 @@ public:
     inline void MarkEdited() { edited_ = true; }
 
 private:
+    static inline uint16_t Bit(size_t fx) { return static_cast<uint16_t>(1u << fx); }
+    inline bool Stale(size_t fx) const { return (stale_ >> fx) & 1; }
+
+    /** The key's state to the engine; coming on, first the parameters it lags behind in */
+    void SendOn(size_t fx)
+    {
+        if (IsOn(fx) && Stale(fx))
+        {
+            for (size_t p = 0; p < kNumFxParams; p++)
+                engine_->SetFxParam(fx, p, params_[fx][p]);
+            stale_ &= static_cast<uint16_t>(~Bit(fx));
+        }
+        engine_->SetFxOn(fx, IsOn(fx));
+    }
+
+    /** A key pressed during a morph: it decides that FX's latch, also if the morph stops */
+    void TouchedInMorph(size_t fx)
+    {
+        if (engine_->FxMorphing())
+            morph_touched_ |= Bit(fx);
+    }
+
     void ClearChunks()
     {
         for (size_t knob = 0; knob < kNumFxParams; knob++)
@@ -340,6 +407,9 @@ private:
     float chunk_[kNumFxParams]; // detents towards the next step or grid point
     bool chunk_shift_ = false;  // whether they were turned with SHIFT
     bool edited_ = false;
+    uint16_t stale_ = 0;         // bit fx: off, and the engine has older parameters than
+                                 // params_: a send ringing out, or an FX a morph parked
+    uint16_t morph_touched_ = 0; // bit fx: its key pressed during the morph
 };
 
 } // namespace chompi

@@ -236,10 +236,12 @@ public:
     }
     /** Whether a position Pulse() returned is on a bar line: every loop wrap is one too */
     static inline bool IsBarLine(uint32_t pos) { return pos % kPulsesPerBar == 0; }
-    /** The time between two pulses at the FX's tempo, in samples */
+    /** The time between two pulses, in samples: at the loop's real rate while one plays (it
+     *  can be slower than kMinBpm, which only limits the FX's tempo), else the tempo's */
     inline float PulseSamples() const
     {
-        return 60.f * sample_rate_ / (static_cast<float>(tempo_) * kPulsesPerBeat);
+        const float bpm = HasLoop() ? pulse_bpm_ : static_cast<float>(tempo_);
+        return bpm > 0.f ? 60.f * sample_rate_ / (bpm * kPulsesPerBeat) : 1e9f;
     }
     /** The position the last Pulse() returned */
     inline uint32_t Position() const { return pulse_count_; }
@@ -271,6 +273,8 @@ private:
         const float bpm = ClampBpm(loop_bpm_ * fabsf(speed));
         tempo_ = static_cast<int>(bpm + .5f);
         had_clock_ = false;
+        // the pulses' real rate: paused, the grid's own; playing, the loop's, unclamped
+        pulse_bpm_ = paused ? bpm : loop_bpm_ * fabsf(speed);
 
         if (paused)
         {
@@ -301,7 +305,9 @@ private:
             delta -= pulses;
         else if (delta < -pulses / 2)
             delta += pulses;
-        dir_ = delta < 0 ? -1 : 1;
+        // kept between pulses: a block that crosses none says nothing about the direction
+        if (delta != 0)
+            dir_ = delta < 0 ? -1 : 1;
         return static_cast<uint32_t>(delta < 0 ? -delta : delta);
     }
 
@@ -324,6 +330,7 @@ private:
     uint32_t loop_idx_;    // the pulse interval the position was last counted in
     int32_t dir_;          // the pulses' direction, -1 in reverse
     bool paused_ = false;  // the loop is paused: the grid runs on by itself
+    float pulse_bpm_ = kDefaultBpm; // the loop's pulses' real rate (PulseSamples)
     uint32_t free_idx_ = 0; // while paused, the grid's last pulse
 };
 

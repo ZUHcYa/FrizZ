@@ -438,6 +438,85 @@ static void TestMorph()
           "... which ends the morph first");
 }
 
+static void TestTails()
+{
+    FakeEngine e;
+    Fx fx;
+    Fresh(e, fx);
+    FxScene store[kNumSlots] = {};
+    Scenes sc;
+    sc.Init(store, &fx);
+
+    // scene 2: the delay latched at level .6, division and feedback turned
+    store[1] = store[kBlankSlot];
+    store[1].latched = 1u << FX_DELAY;
+    store[1].params[FX_DELAY][3] = .6f;
+    store[1].params[FX_DELAY][1] = .8f;
+    sc.Recall(1);
+    Check(e.on[FX_DELAY] && e.params[FX_DELAY][3] == .6f, "tails: the delay on at .6");
+
+    // the blank scene turns it off: its echoes ring out as they were
+    sc.Recall(kBlankSlot);
+    Check(!e.on[FX_DELAY] && e.params[FX_DELAY][3] == .6f && e.params[FX_DELAY][1] == .8f,
+          "recall: a send it turns off rings out, its settings untouched");
+    Check(fx.Param(FX_DELAY, 3) == 0.f && !sc.Edited(), "recall: the knobs show the scene");
+    fx.KeyPressed(FX_DELAY, true, false);
+    Check(e.on[FX_DELAY] && e.params[FX_DELAY][3] == 0.f && e.params[FX_DELAY][1] == .4f,
+          "recall: its key on again, it takes the scene's settings");
+    fx.KeyPressed(FX_DELAY, false, false);
+
+    // a knob turned while it rings out moves the tail
+    sc.Recall(1);
+    sc.Recall(kBlankSlot);
+    fx.KeyPressed(FX_DELAY, true, false);
+    fx.KeyPressed(FX_DELAY, false, false);
+    sc.Recall(1);
+    sc.Recall(kBlankSlot);
+    fx.KnobTurned(3, 10.f, false); // the delay is still the one the knobs edit
+    Check(Near(e.params[FX_DELAY][3], .1f), "a knob turned on a send ringing out moves it");
+
+    // a morph between two scenes without the delay leaves its tail alone
+    store[2] = store[kBlankSlot];
+    store[2].params[FX_DELAY][3] = .3f;
+    sc.Recall(1);
+    sc.Recall(kBlankSlot);
+    sc.Morph(2);
+    Check(e.plan.how[FX_DELAY][3] == MorphParam::HOLD && e.params[FX_DELAY][3] == .6f,
+          "morph: a send off in both rings out untouched");
+    sc.Recall(kBlankSlot);
+
+    // a morph that turns an effect off parks it faded out
+    sc.Recall(1);
+    sc.Morph(kBlankSlot);
+    Check(e.plan.park == (1u << FX_DELAY) && e.plan.how[FX_DELAY][3] == MorphParam::FADE_OUT,
+          "morph: the one it turns off is parked at the landing");
+    e.LandFxMorph();
+    fx.KeyPressed(FX_DELAY, true, false);
+    Check(e.params[FX_DELAY][3] == 0.f && e.params[FX_DELAY][1] == .4f,
+          "morph: parked, then its key on: the scene's settings first");
+    fx.KeyPressed(FX_DELAY, false, false);
+
+    // a latch changed during a morph survives stopping it
+    sc.Recall(1);
+    sc.Morph(kBlankSlot); // the delay fading out
+    fx.KeyPressed(FX_DELAY, true, true);
+    fx.KeyPressed(FX_DELAY, false, true); // latched again meanwhile
+    sc.FreezeMorph();
+    Check(fx.IsLatched(FX_DELAY) && e.on[FX_DELAY], "stopped: a latch changed meanwhile stays");
+    sc.Recall(1);
+    sc.Morph(kBlankSlot);
+    sc.FreezeMorph();
+    Check(fx.IsLatched(FX_DELAY) && e.on[FX_DELAY], "stopped untouched: it stays as it was, on");
+
+    // a deleted target stops blinking, and takes no more taps
+    sc.Recall(kBlankSlot);
+    sc.Morph(1);
+    store[1].used = false;
+    Check(sc.Morphing() == kNoScene && sc.SlotPressed(1, true) == Scenes::Slot::REFUSED,
+          "morph to a deleted slot: no blink, no more bars");
+    sc.Recall(kBlankSlot);
+}
+
 int main()
 {
     TestInit();
@@ -445,5 +524,6 @@ int main()
     TestKnobs();
     TestScenes();
     TestMorph();
+    TestTails();
     return Finish();
 }

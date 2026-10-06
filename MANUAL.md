@@ -333,7 +333,9 @@ A recall is meant for performing, a build-up on one scene and the drop on the ne
   attacks.
 - **An effect latched in both scenes keeps running** without restarting. A freeze held
   through the drop stays frozen.
-- **Delay and reverb tails ring out** after a scene unlatches them.
+- **Delay and reverb tails ring out** after a scene unlatches them, as they were: a scene
+  changes the settings of a delay or reverb that's off only when its key next comes on.
+  Turning its knobs meanwhile still moves the tail.
 - The input/loop mix, the volumes, the compressor and the looper aren't part of a scene.
 
 Save, copy and delete work like TAPE's and TEMPO's preset keys, on the last three dark keys,
@@ -389,7 +391,8 @@ The glide stretches to the new end without a jump.
   values at once. The folder, crusher and filter colour the sound with their other knobs
   too, so all of theirs (but the filter's LFO division) start on their defaults and glide.
 - **An effect the scene turns off fades out:** the same knobs glide back to their defaults,
-  and on the bar line the effect goes off and its knobs take the scene's values.
+  and on the bar line the effect goes off. It stays faded out (a delay or reverb tail rings
+  out at that level) and takes the scene's settings when its key next comes on.
 - **The freezer, shifter and slicer** have no knob to fade with: one the scene turns on or off
   switches on the bar line, so the freezer grabs, the shifter swoops and the slicer attacks on
   the downbeat.
@@ -401,7 +404,8 @@ bars of MIDI clock or the tapped tempo, counted from when the clock locked, the 
 power-on. A loop playing backwards or paused keeps counting bars.
 
 While it morphs:
-- The scene key blinks on the beat; the scene is the active one once it lands.
+- The scene key blinks on the beat. The scene is the active one from the press: saving
+  meanwhile saves the scene as it will land.
 - The knobs and keys already show the scene. Turning a knob changes where that parameter
   lands. The FX keys work as usual, except on an effect waiting to switch on or off (fading
   in, fading out, or waiting for the bar line): there they decide whether it's on once
@@ -410,7 +414,8 @@ While it morphs:
   jumps straight to the end).
 - SHIFT + another scene key, or an empty one, blinks red and changes nothing.
 - **SHIFT + PLAY stops it where it is:** every knob stays at the value the glide got to, and
-  an effect still waiting to switch stays as it was, so one fading out stays on. The scene
+  an effect still waiting to switch stays as it was, so one fading out stays on, unless you
+  pressed its key meanwhile: then it's as you left it. The scene
   key pulses as edited, since the sound is now between two scenes: save it to keep it.
   Without a morph, SHIFT + PLAY plays and pauses like PLAY.
 

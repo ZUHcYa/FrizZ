@@ -270,6 +270,15 @@ static void TestBarLines()
     Pulses(clock, 10.5f / 48.f, 1.f);
     Pulses(clock, 9.5f / 48.f, -1.f);
     Check(clock.Reverse() && clock.PulsesToBarLine() == 10, "bar lines, reverse: 9 down to 0 is 10 pulses");
+    Pulses(clock, 9.3f / 48.f, -1.f); // between two pulses
+    Check(clock.Reverse() && clock.PulsesToBarLine() == 10,
+          "bar lines, reverse: still known between pulses");
+
+    // a loop slowed below the FX's slowest tempo: the pulses' real rate
+    clock.SetLoop(48000, 4); // 1s, 240 BPM
+    Pulses(clock, 0.f, 1.f / 16.f);
+    Check(clock.GetTempo() == kMinBpm && fabsf(clock.PulseSamples() - 4000.f * 16.f / 2.f / 2.f) < 1.f,
+          "bar lines: a slowed loop's pulse period at its real rate, not the clamped tempo");
     clock.ClearLoop();
 }
 
@@ -302,7 +311,7 @@ static bool MorphBlock(TempoClock& clock, FxMorphT<FakeChain>& morph)
 static FxMorphPlan Plan(MorphParam how, float from, float to)
 {
     FxMorphPlan plan;
-    plan.deferred = plan.wake = plan.was_on = 0;
+    plan.deferred = plan.wake = plan.was_on = plan.park = 0;
     for (size_t fx = 0; fx < kNumFx; fx++)
         for (size_t p = 0; p < kNumFxParams; p++)
         {
@@ -426,6 +435,22 @@ static void TestMorph()
     Check(!chain.on[FX_DELAY] && chain.params[FX_DELAY][3] == .3f,
           "fades: at the landing, the key off and the level the scene's");
     Check(chain.params[FX_REVERB][3] == .9f, "fades: the fade-in's level the scene's");
+
+    // parked: a fade-out that ends off stays faded out, its key off, the rest untouched
+    plan.park = 1u << FX_DELAY;
+    chain.on[FX_DELAY] = true;
+    chain.params[FX_DELAY][0] = .2f;
+    plan.start[FX_DELAY][0] = .2f;
+    plan.target[FX_DELAY][0] = .9f;
+    plan.how[FX_DELAY][0] = MorphParam::HOLD;
+    while (clock.Position() != 0)
+        MorphBlock(clock, morph);
+    morph.Start(plan, clock.PulsesToBarLine());
+    morph.SetOn(FX_DELAY, false);
+    while (morph.Active())
+        MorphBlock(clock, morph);
+    Check(!chain.on[FX_DELAY] && chain.params[FX_DELAY][3] < .01f && chain.params[FX_DELAY][0] == .2f,
+          "parked: off, faded out, the rest as it was: the tail rings out");
 
     // a knob turned meanwhile moves the destination
     morph.Start(Plan(MorphParam::GLIDE, 0.f, 1.f), clock.PulsesToBarLine());

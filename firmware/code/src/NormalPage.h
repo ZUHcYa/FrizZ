@@ -266,13 +266,20 @@ namespace chompi
                 if (rising)
                 {
                     play_combo_ = false;
-                    // SHIFT + PLAY during a scene morph: stops it there, and only that
-                    if (Shift() && scene_ctl_.Morphing() != kNoScene)
+                    // SHIFT + PLAY during a scene morph: stops it there, and only that. Without
+                    // one (it may have landed just now), PLAY as ever
+                    if (Shift())
                     {
-                        ScopedIrqBlocker irq;
-                        scene_ctl_.FreezeMorph();
-                        play_combo_ = true;
-                        break;
+                        bool stopped;
+                        {
+                            ScopedIrqBlocker irq;
+                            stopped = scene_ctl_.FreezeMorph();
+                        }
+                        if (stopped)
+                        {
+                            play_combo_ = true;
+                            break;
+                        }
                     }
                     // LOOP held first, then PLAY: same erase combo
                     if (loop_pressed_ && LoopExists())
