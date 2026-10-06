@@ -1,17 +1,25 @@
-// Host stand-in for FRIZZ's MidiClock: no clock, so TempoClock runs on its internal 120 BPM
+// Host stand-in for FRIZZ's MidiClock: no clock unless a test sets one, so TempoClock runs on
+// its internal 120 BPM. tempo.cpp sets the fields to fake a running clock.
 #pragma once
 #include "daisy.h"
 namespace chompi
 {
 static const uint32_t kTicksPerBeat = 24;
-static const uint32_t kTicksPerBar = kTicksPerBeat * 4;
+static const uint32_t kBeatsPerBar = 4;
+static const uint32_t kTicksPerBar = kTicksPerBeat * kBeatsPerBar;
 class MidiClock
 {
 public:
-    inline bool HasClock() const { return false; }
-    inline uint32_t GetTicks() const { return 0; }
-    inline uint32_t GetLastTickTime() const { return 0; }
-    inline float GetTickPeriod() const { return 0.f; }
-    inline float GetBpm() const { return 0.f; }
+    inline bool HasClock() const { return has_clock; }
+    inline uint32_t GetTicks() const { return ticks; }
+    inline uint32_t GetLastTickTime() const { return last_tick_time; }
+    inline float GetTickPeriod() const { return tick_period; }
+    inline float GetBpm() const { return bpm; }
+
+    bool has_clock = false;
+    uint32_t ticks = 0;
+    uint32_t last_tick_time = 0;
+    float tick_period = 0.f;
+    float bpm = 0.f;
 };
 }

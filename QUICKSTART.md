@@ -81,8 +81,10 @@ Things to try first:
 - **Delay + reverb (the last two keys):** turn up their knob 4, then tap them to throw echoes and
   tails onto single notes.
 
-With MIDI clock, the freezer, slicer, filter LFO and delay follow the tempo. Without it they run
-at the last tempo received, or 120 BPM.
+The freezer, slicer, filter LFO and delay follow a tempo: the loop's while there is one, so
+they lock to it; otherwise MIDI clock, or the last tempo (120 BPM at power-on). Hold SHIFT
+and tap LOOP three times or more to tap a tempo, or to tell FRIZZ how many beats a loop has.
+See [Tempo](MANUAL.md#tempo).
 
 ## 4. Save scenes
 

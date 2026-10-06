@@ -9,7 +9,8 @@
  *
  *  Looper keys: LOOP acts on press so recording starts and stops exactly then. PLAY acts on
  *  release, and only if LOOP wasn't pressed during the hold, so the PLAY + LOOP combos (the
- *  quantized record, the erase) never also toggle play.
+ *  quantized record, the erase) never also toggle play. SHIFT + LOOP is tap tempo
+ *  (TapTempo.h), and only that.
  *
  *  FX keys: SHIFT toggles the latch whichever goes down first, so SHIFT going down also
  *  toggles every FX key already held (ShiftPressed). Knobs 1-4 edit the FX pressed last.
@@ -24,6 +25,7 @@
 #include "FxSlots.h"
 #include "hardware.h"
 #include "SceneControls.h"
+#include "TapTempo.h"
 #include "SceneStore.h"
 #include "LedColors.h"
 #include "passthroughEngine.h"
@@ -53,6 +55,7 @@ namespace chompi
     static const float kPausedDim = .3f;
     static const uint32_t kClosingBlinkMs = 150;
     static const uint32_t kRefusedBlinkMs = 100; // 3 blinks = 6 half-periods
+    static const uint32_t kTapFlashMs = 80;      // LOOP flashes white on a tempo tap
     static const uint32_t kEraseHoldMs = 2000;
     static const float kSpeedStepPerTurn = .25f; // 4 transport detents per speed step
 
@@ -277,6 +280,15 @@ namespace chompi
                 break;
 
             case static_cast<uint16_t>(Hardware::SwId::KEY_28): // LOOP
+                // SHIFT + LOOP: tap tempo, never record, stop or erase; nor does it count as
+                // LOOP held for PLAY's combos, or let a held PLAY toggle on release
+                if (rising && Shift())
+                {
+                    if (play_pressed_)
+                        play_combo_ = true;
+                    TapPressed();
+                    break;
+                }
                 loop_pressed_ = rising;
                 if (rising)
                     LoopPressed();
@@ -434,6 +446,21 @@ namespace chompi
                     ArmErase();
                 break;
             }
+        }
+
+        /** A tempo tap: with a loop, it refits the loop's beats; without one, it sets the
+         *  tempo, unless MIDI clock runs (TempoClock.h) */
+        void TapPressed()
+        {
+            const uint32_t now = System::GetNow();
+            if (!engine_->CanTap())
+            {
+                record_refused_ = now;
+                return;
+            }
+            tap_flash_ = now;
+            if (tap_tempo_.Tap(now))
+                engine_->TapTempo(tap_tempo_.Bpm());
         }
 
         void SetMix(float mix)
@@ -605,7 +632,11 @@ namespace chompi
                 loop[0] = loop[1] = loop[2] = pos * level;
             }
 
-            // refused quantized record: 3 fast red blinks, over whatever LOOP was showing
+            // a tempo tap: a white flash, over whatever LOOP was showing
+            if (tap_flash_ && now - tap_flash_ < kTapFlashMs)
+                loop[0] = loop[1] = loop[2] = 1.f;
+
+            // refused quantized record or tap: 3 fast red blinks, over whatever LOOP was showing
             if (record_refused_ && now - record_refused_ < 6 * kRefusedBlinkMs)
             {
                 const bool on = ((now - record_refused_) / kRefusedBlinkMs) % 2 == 0;
@@ -703,6 +734,8 @@ namespace chompi
         bool erase_armed_ = false;  // PLAY + LOOP held on an existing loop
         uint32_t erase_hold_ = 0;
         uint32_t record_refused_ = 0;
+        TapTempo tap_tempo_;
+        uint32_t tap_flash_ = 0;
         float speed_chunk_ = 0.f;   // transport detents towards the next speed step
 
         FxControls<PassthroughEngine> fx_;

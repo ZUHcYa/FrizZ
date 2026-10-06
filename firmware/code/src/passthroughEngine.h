@@ -9,10 +9,14 @@
  *  The headphones mirror the master out, or with SetHeadphoneDry() carry the input on its
  *  own: after the input gain and VOLUME, but no loop, no FX, no MIX and no compressor.
  *
+ *  The FX's tempo (TempoClock.h) comes from the loop while there is one, otherwise from MIDI
+ *  clock or taps.
+ *
  *  The input level, output level and compressor stage are ported from TAPE's DSPEngine
  *  so the gains match the hardware the way TAPE tuned them.
  */
 #pragma once
+#include <atomic>
 #include "daisy.h"
 #include "daisysp.h"
 #include "EnvFollower.h"
@@ -40,6 +44,7 @@ public:
               daisysp::Reverb* reverb,
               float* freezer_mem_l, float* freezer_mem_r, size_t freezer_frames)
     {
+        sample_rate_ = sample_rate;
         looper.Init(loop_mem, midi_clock);
         tempo_clock_.Init(sample_rate, midi_clock);
         fx_.Init(sample_rate, delay_mem, delay_frozen_mem, delay_frames, reverb,
@@ -74,11 +79,17 @@ public:
 
         looper.Process(dryl, dryr, wetl, wetr, size);
 
-        // the FX's tempo and clock, once per block
-        const uint32_t pulses = tempo_clock_.Process(size);
+        // the FX's tempo and clock, once per block, from the loop while there is one
+        SyncLoopTempo();
+        const float tap = tap_bpm_.exchange(0.f);
+        if (tap > 0.f)
+            tempo_clock_.Tap(tap);
+        const uint32_t pulses = tempo_clock_.Process(
+            size, looper.GetPosition(), looper.GetActualSpeed(),
+            looper.GetState() == chompi::Looper::State::PAUSED);
         fx_.SetTempo(tempo_clock_.GetTempo());
         for (uint32_t p = 0; p < pulses; p++)
-            fx_.ClockPulse(tempo_clock_.Pulse());
+            fx_.ClockPulse(tempo_clock_.Pulse(), tempo_clock_.Reverse());
 
         for (size_t i = 0; i < size; i++)
         {
@@ -140,9 +151,38 @@ public:
 
     inline float GetVUSample() { return output_env_follower.GetLastSamp(); }
 
+    /** A tapped tempo, from the UI (TapTempo.h): applied at the next block */
+    inline void TapTempo(float bpm) { tap_bpm_.store(bpm); }
+    /** Whether a tap would be taken: not without a loop while MIDI clock runs */
+    inline bool CanTap() const { return tempo_clock_.CanTap(); }
+
     chompi::Looper looper;
 
 private:
+    /** Hands a loop that just closed to the tempo clock, and takes an erased one away. A
+     *  quantized loop knows its beats; an unquantized one fits the tempo set before it, or
+     *  is guessed */
+    void SyncLoopTempo()
+    {
+        const chompi::Looper::State state = looper.GetState();
+        const bool loop = state == chompi::Looper::State::PLAYING
+                          || state == chompi::Looper::State::PAUSED;
+        if (loop && !tempo_clock_.HasLoop())
+        {
+            const size_t length = looper.GetLength();
+            uint32_t beats = looper.GetBeats();
+            if (beats == 0)
+                beats = tempo_clock_.TempoSet()
+                            ? chompi::FitBeats(length, sample_rate_, tempo_clock_.GetBpm())
+                            : chompi::GuessBeats(length, sample_rate_);
+            tempo_clock_.SetLoop(length, beats);
+        }
+        else if (!loop && tempo_clock_.HasLoop())
+            tempo_clock_.ClearLoop();
+    }
+
+    float sample_rate_;
+    std::atomic<float> tap_bpm_{0.f};
     daisysp::DcBlock dcblock_line_in_l_, dcblock_line_in_r_;
     chompi::Limiter lim_hp_l_, lim_hp_r_, lim_line_l_, lim_line_r_;
     chompi::EnvFollower output_env_follower;

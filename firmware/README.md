@@ -77,6 +77,7 @@ cd firmware/test
 ./scenes.sh       # the FX scene file round-trips, and the recall's fast slew ends
 ./controls.sh     # the play page's FX keys, knobs and scene flow (FxControls.h, SceneControls.h)
 ./looper.sh       # the looper records, plays back, pauses, erases and steps its speed
+./tempo.sh        # tap tempo, a loop's beats, and the FX's tempo locked to the loop
 ```
 
 They don't cover the LEDs, the routing of keys in `NormalPage.h`, MIDI clock or the hardware. See [`test/README.md`](test/README.md).

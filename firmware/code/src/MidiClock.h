@@ -21,7 +21,8 @@ namespace chompi
 {
 
 static const uint32_t kTicksPerBeat = 24;
-static const uint32_t kTicksPerBar = kTicksPerBeat * 4; // 4/4 fixed
+static const uint32_t kBeatsPerBar = 4;                 // 4/4 fixed
+static const uint32_t kTicksPerBar = kTicksPerBeat * kBeatsPerBar;
 static const uint32_t kClockTimeoutSamples = 24000;     // 0.5s at 48kHz
 
 class MidiClock

@@ -51,10 +51,12 @@ public:
     /** Once per block: the tempo, plus one call per clock pulse in this block, with the
      *  clock's position (TempoClock::Pulse) */
     void SetTempo(int bpm) { tempo_ = bpm; }
-    void ClockPulse(uint32_t pos)
+    /** reverse: the position counts down, so the LFO eases down towards the pulse before */
+    void ClockPulse(uint32_t pos, bool reverse = false)
     {
         lfo_pulses_ = pos;
         lfo_frac_ = 0.f;
+        lfo_reverse_ = reverse;
     }
 
     void Process(float* l, float* r)
@@ -64,11 +66,17 @@ public:
         const float depth = depth_.Process();
 
         // move smoothly between pulses at the tempo, but wait at the next pulse rather than
-        // run past it, so a late MIDI clock tick doesn't make the phase jump back
-        lfo_frac_ += static_cast<float>(tempo_) * 12.f / (60.f * sample_rate_);
+        // run past it, so a late MIDI clock tick doesn't make the phase jump back. In
+        // reverse, the next pulse is the one below
+        const float inc = static_cast<float>(tempo_) * 12.f / (60.f * sample_rate_);
+        lfo_frac_ += lfo_reverse_ ? -inc : inc;
         if (lfo_frac_ > .999f)
             lfo_frac_ = .999f;
-        const float pos = static_cast<float>(lfo_pulses_ % lfo_div_pulses_) + lfo_frac_;
+        else if (lfo_frac_ < -.999f)
+            lfo_frac_ = -.999f;
+        float pos = static_cast<float>(lfo_pulses_ % lfo_div_pulses_) + lfo_frac_;
+        if (pos < 0.f)
+            pos += static_cast<float>(lfo_div_pulses_);
         float phase = pos / static_cast<float>(lfo_div_pulses_) + .25f;
         if (phase >= 1.f)
             phase -= 1.f;
@@ -114,7 +122,8 @@ private:
     Smoothed depth_;
     int tempo_;
     uint32_t lfo_pulses_;     // the clock's position
-    float lfo_frac_;          // progress towards the next pulse
+    float lfo_frac_;          // progress towards the next pulse, negative in reverse
+    bool lfo_reverse_ = false;
     uint32_t lfo_div_pulses_; // pulses per LFO cycle
 };
 

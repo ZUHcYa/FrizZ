@@ -50,6 +50,7 @@ as the loop.
 | Recording | LOOP | Stop now, or for a quantized recording at the end of the current bar, then play |
 | Loop exists | PLAY | Play / pause |
 | Loop exists | hold PLAY + LOOP 2 s | Erase |
+| Any | SHIFT + LOOP | Tap tempo (see [Tempo](#tempo)); never records, stops or erases |
 
 - **Quantized:** recording starts on the press, which counts as bar 1 (4/4). Ending it records
   to the end of the bar in progress, so the loop is always a whole number of bars. It closes
@@ -67,6 +68,43 @@ Transport knob (the big purple one), once a loop exists:
 LEDs: LOOP is red while recording and blinks while a quantized recording finishes its bar.
 While a loop plays, PLAY and LOOP crossfade in white to show the position (dimmed when
 paused). The transport LEDs show speed and direction.
+
+## Tempo
+
+The effects that follow a tempo (the delay, the filter LFO, the freezer and the slicer) take
+it from one of three places, the first that applies:
+
+1. **The loop, while there is one**, with or without MIDI clock. Beat 1 is the loop's start,
+   so the slicer chops on the loop's beat from the first pass and the delay's echoes land on
+   it. The effects follow the transport knob: at half speed the tempo halves and in reverse
+   the beats run backwards. While the loop is paused, the beat runs on by itself at the
+   loop's tempo, so the effects keep working on the input; scrubbing doesn't move it. When
+   the loop resumes, the beat snaps back onto it at the next 1/48 of a bar: a filter LFO
+   or slicer can jump there. Once a loop exists, MIDI clock
+   no longer matters: a tempo change in your DAW moves neither the loop nor the effects.
+2. **MIDI clock**, when there's no loop.
+3. **The last tempo**: tapped, from the last loop or from the clock. 120 BPM at power-on.
+
+A loop gets a whole number of beats:
+- **Quantized:** its bars from the clock it was recorded to, exactly.
+- **Unquantized, after a tempo was set** (by a clock, taps or an earlier loop): the number
+  of beats closest to that tempo. Record at the tempo you tapped and the loop takes it on.
+- **Unquantized, with no tempo set:** a guess: 1, 2, 4, 8 … beats, whichever puts it
+  between 80 and 160 BPM. It goes wrong on loops of 3 or 6 bars, or with a pickup, and may
+  come out at half or double the tempo you had in mind. Tap to correct it.
+
+**Tap tempo (SHIFT + LOOP):** tap at least three times, at the tempo you want; the last four
+taps count, and a pause of over 2 s starts over. LOOP flashes white on each tap.
+- With a loop, the taps pick how many beats the loop holds; the loop's length then gives the
+  exact tempo, so the effects' beats stay locked to it even if the taps were a little off.
+  (Delay times and freezer lengths use the tempo rounded to whole BPM, so on a long
+  unquantized loop the echoes can sit a few ms off the loop's beat.) Tapping
+  at double the loop's tempo, for example, doubles the effects' tempo.
+- Without a loop, the taps set the tempo, and the last tap lands on a beat.
+- Without a loop while MIDI clock runs, the clock is the tempo: LOOP blinks red 3 times.
+
+The tempo is limited to 50-300 BPM: at very slow loop speeds the effects stop slowing down
+at 50 BPM.
 
 ## Punch-in FX
 
@@ -162,8 +200,8 @@ Filter details:
 - **LFO:** a triangle on the cutoff, like WAVE's filter LFO but synced to the same tempo as
   the delay. At full depth it sweeps half the cutoff knob either way, so from the centre it
   goes all the way from lowpass to highpass. It's at the centre of the cutoff on the beat and
-  rises towards highpass first. Like the delay's events, the beat is counted from when the
-  clock locked, not from the DAW's beat 1.
+  rises towards highpass first. Like the delay's events, the beat is counted from the loop's
+  start, or without a loop from when the clock locked, not from the DAW's beat 1.
 - LEDs: the key is pink; the knobs go pink (0%) through white to light blue (100%).
 
 Freezer details:
@@ -185,7 +223,7 @@ Freezer details:
 - LEDs: the key is purple; the knobs go purple through white to light blue.
 
 Slicer details:
-- **Steps** are 16ths, counted from the clock like the filter LFO, so a pattern is half a
+- **Steps** are 16ths, counted from the [tempo](#tempo) like the filter LFO, so a pattern is half a
   bar. Each step that's on retriggers a 10 ms attack and the decay. Pressing the key also
   triggers it, so the signal doesn't drop out until the next step.
 - LEDs: the key is yellow; the knobs go yellow through white to green.
@@ -250,13 +288,14 @@ Resonator details:
 - LEDs: the key is lime; the knobs go orange through white to light blue.
 
 Delay details:
-- **Tempo:** follows MIDI clock, rounded to whole BPM. Without clock it keeps the last tempo
-  (120 BPM until a clock arrives). Limited to 50-300 BPM so 2 bars fit the 10 s buffer.
+- **Tempo:** the [tempo](#tempo), rounded to whole BPM. Limited to 50-300 BPM so 2 bars fit
+  the 10 s buffer.
 - **Random events** are rolled on every 8th note; the knob's distance from centre is the
   chance. (TEMPO rolled them on its arpeggiator's step instead.)
-- **Beat phase:** only the clock's tempo is used, not MIDI Start / Song Position, so the 8th
-  notes that random events follow are counted from when the clock locked
-  (or from power-on without clock), not from the DAW's beat 1. Echo spacing is unaffected.
+- **Beat phase:** the 8th notes that random events follow are counted from the loop's start.
+  Without a loop, only the clock's tempo is used, not MIDI Start / Song Position, so they're
+  counted from when the clock locked (or from power-on, or the last tap, without clock), not
+  from the DAW's beat 1. Echo spacing is unaffected.
 - LEDs: division green (short) through white to blue (long); random green (events) through
   white to blue (shimmer).
 
@@ -332,7 +371,8 @@ never on a recall. Saving takes a moment in which the LEDs may pause.
 
 ## MIDI clock
 
-Quantized recording follows MIDI clock (24 PPQN) from the TRS MIDI input or USB. CHOMPI is a
+Quantized recording, and the effects' tempo while there's no loop, follow MIDI clock
+(24 PPQN) from the TRS MIDI input or USB. CHOMPI is a
 USB device, so USB clock comes from a computer or a host. Whichever source ticks first is
 used, until it has been silent for 0.5 s. Only clock is read; there's no MIDI out.
 

@@ -116,6 +116,14 @@ public:
     /** Current speed target: negative is reverse, 1 is the recorded speed */
     inline float GetSpeed() const { return speed_target_; }
 
+    /** Loop length in frames, 0 until a recording closes */
+    inline size_t GetLength() const { return length_; }
+    /** Beats in a quantized loop, from the clock it was recorded to; 0 for an unquantized
+     *  loop, or one closed early because the clock stopped */
+    inline uint32_t GetBeats() const { return beats_; }
+    /** The speed the read head is moving at right now, gliding towards GetSpeed() */
+    inline float GetActualSpeed() const { return speed_; }
+
     /** Playback position 0-1 through the loop */
     inline float GetPosition() const
     {
@@ -145,7 +153,7 @@ public:
                 out_l[i] = out_r[i] = 0.f;
 
                 if (target_length_ > 0 && write_pos_ >= target_length_)
-                    CloseLoop(target_length_);
+                    CloseLoop(target_length_, target_bars_);
                 else if (write_pos_ >= kLoopMaxFrames - kXfadeFrames)
                     CloseAtMaxLength();
                 break;
@@ -274,6 +282,7 @@ private:
             closing_ = false;
             write_pos_ = 0;
             target_length_ = 0;
+            target_bars_ = 0;
             start_ticks_ = midi_clock_->GetTicks();
             first_tick_time_ = 0;
             first_tick_count_ = 0;
@@ -294,12 +303,13 @@ private:
                 const float bar = kTicksPerBar * TickPeriod();
                 const uint32_t bars = static_cast<uint32_t>(write_pos_ / bar) + 1;
                 target_length_ = static_cast<size_t>(bars * bar + .5f);
+                target_bars_ = bars;
                 closing_ = true;
 
                 if (target_length_ > kLoopMaxFrames - kXfadeFrames)
                     CloseAtMaxLength();
                 else if (write_pos_ >= target_length_)
-                    CloseLoop(target_length_);
+                    CloseLoop(target_length_, target_bars_);
             }
             break;
 
@@ -376,19 +386,21 @@ private:
     void CloseAtMaxLength()
     {
         size_t length = write_pos_;
+        uint32_t bars = 0;
 
         if (quantized_)
         {
             const float bar = kTicksPerBar * TickPeriod();
-            const uint32_t bars = static_cast<uint32_t>(length / bar);
+            bars = static_cast<uint32_t>(length / bar);
             if (bars > 0)
                 length = static_cast<size_t>(bars * bar + .5f);
         }
 
-        CloseLoop(length);
+        CloseLoop(length, bars);
     }
 
-    void CloseLoop(size_t length)
+    /** bars: a quantized loop's whole bars, 0 when the length isn't on the clock's grid */
+    void CloseLoop(size_t length, uint32_t bars = 0)
     {
         if (length == 0)
         {
@@ -397,6 +409,7 @@ private:
         }
 
         length_ = length;
+        beats_ = bars * kBeatsPerBar;
         // anything already recorded past the loop end is the start of the post-roll
         postroll_ = write_pos_ > length ? write_pos_ - length : 0;
         if (postroll_ > kXfadeFrames)
@@ -417,6 +430,8 @@ private:
         erasing_ = false;
         fading_out_ = false;
         length_ = 0;
+        beats_ = 0;
+        target_bars_ = 0;
         write_pos_ = 0;
         play_pos_ = 0;
         play_frac_ = 0.f;
@@ -532,6 +547,8 @@ private:
     float play_frac_;      // playback position, fraction of a frame
     size_t postroll_;      // frames of post-roll written so far
     size_t target_length_; // quantized: where the recording will close, 0 if not yet known
+    uint32_t target_bars_; // quantized: the bars it will hold
+    uint32_t beats_;       // a quantized loop's beats, once closed; 0 if not known
     float fade_;
 
     // speed, see StepSpeed(). The UI posts steps and resets, the audio applies them

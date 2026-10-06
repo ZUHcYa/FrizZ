@@ -37,6 +37,7 @@ deviations listed below. Where this document and the guidebook disagree, this do
 | Recording (quantized) | `LOOP` | Keep recording to the end of the current bar, then close the loop. Playback starts seamlessly at that bar line |
 | Loop exists | `PLAY` | Toggle play / pause |
 | Loop exists | `LOOP` | Nothing (no overdub). Erase first to record a new loop |
+| Any | SHIFT + `LOOP` | Tap tempo (`TapTempo.h`), never a looper action |
 | Loop exists | hold `PLAY` + `LOOP` 2 s | **Erase**. LEDs above both keys go dark |
 
 Not implemented, on purpose: overdub, overdub decay, re-recording over an existing loop,
@@ -52,7 +53,9 @@ TAPE's monitor-routing modes.
 - The loop is always a whole number of bars, minimum 1.
 - **"No clock"** means no tick received in the last 0.5 s. Quantized recording is refused then.
 - The clock matters **only while a quantized recording is running.** After that the loop
-  free-runs and ignores the incoming tempo.
+  free-runs and ignores the incoming tempo, and the loop is the punch-in FX's clock
+  (`TempoClock.h`, MANUAL.md "Tempo"): its bars from the clock give its beats, and the FX's
+  beat grid starts at the loop's start and follows its play position.
 - **Clock stops mid-recording** (no tick for 0.5 s, e.g. the DAW is stopped before the bar
   ends): the loop closes immediately at the current position, as if unquantized.
 

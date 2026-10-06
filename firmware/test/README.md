@@ -58,11 +58,12 @@ a knob's. The recall must land sooner and within 30 ms, without a larger step be
 and hand back to the knobs' slew afterwards. It doesn't touch the card (`SceneStore.h`) or the
 play page. Needs `run.sh` to have built DaisySP once.
 
-## Play page and looper checks
+## Play page, looper and tempo checks
 
 ```bash
 ./controls.sh
 ./looper.sh
+./tempo.sh
 ```
 
 `controls.sh` runs the play page's logic (`FxControls.h`, `SceneControls.h`) against a fake
@@ -70,9 +71,14 @@ engine that records what it's sent: holding and latching in either order, fine, 
 coarse knob turns, SHIFT + press, and the scene save / copy / delete / recall flow, including
 that a recall sends only what changes. `looper.sh` runs `Looper.h` without MIDI clock: a free
 recording plays back frame for frame at its length, play / pause, erase, the speed ladder, and
-the refused quantized record. Neither covers the LEDs or `NormalPage.h`'s routing of the keys,
-nor quantized recording with a clock. Both need `run.sh` to have built DaisySP once.
+the refused quantized record. `tempo.sh` checks the FX's tempo: tap tempo (`TapTempo.h`), how
+a loop's beats are fitted or guessed, the tempo clock locked to a loop (`TempoClock.h`: beat 1
+on the loop's start, counting down in reverse, standing still when paused, the tempo times the
+speed, a tap refitting the beats, the loop overriding MIDI clock) and the beats of a loop
+recorded quantized to a faked clock. None covers the LEDs or `NormalPage.h`'s routing of the
+keys. All need `run.sh` to have built DaisySP once.
 
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample
-conversions) and `MidiClock.h` (no clock). DaisySP is compiled for the host once into `build/`,
+conversions) and `MidiClock.h` (no clock, unless a test sets its fields, as `tempo.cpp`
+does). DaisySP is compiled for the host once into `build/`,
 which is ignored.

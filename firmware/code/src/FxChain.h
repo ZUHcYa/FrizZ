@@ -114,10 +114,11 @@ public:
         filter_.SetTempo(bpm);
         freezer_.SetTempo(bpm);
     }
-    void ClockPulse(uint32_t pos)
+    /** reverse: the position counts down, a loop playing backwards (TempoClock.h) */
+    void ClockPulse(uint32_t pos, bool reverse = false)
     {
         delay_.ClockPulse(pos);
-        filter_.ClockPulse(pos);
+        filter_.ClockPulse(pos, reverse);
         freezer_.ClockPulse(pos);
         slicer_.ClockPulse(pos);
     }
