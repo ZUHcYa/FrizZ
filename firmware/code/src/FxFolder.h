@@ -15,9 +15,12 @@ namespace chompi
  *  DaisySP's Wavefolder is the triangle alone, unfiltered; here the fold is antialiased
  *  with first-order ADAA (the fold's antiderivative, differenced), DC-blocked, and followed
  *  by a lowpass. The sine fold barely aliases anyway; on the triangle the ADAA takes off
- *  5-13dB, which at high drive on bright material still leaves some grit. A folder's output is about full scale whatever goes in, so the result is
+ *  5-13dB, which at high drive on bright material still leaves some grit. The sine's and the
+ *  triangle's antiderivatives are kept apart and blended with the current shape, so moving
+ *  the shape knob doesn't put its change into the difference. A folder's output is about full scale whatever goes in, so the result is
  *  matched to the input's level (linked stereo, ~50ms): punching in changes the sound, not
- *  the loudness. Fully wet while on.
+ *  the loudness. Fully wet while on. It runs while off too: skipping it then changes the
+ *  first 100ms of the next press, since the level match can't be caught up.
  *  Params: 0 drive, 1 shape (sine to triangle), 2 tone, 3 symmetry. */
 class Folder : public FxBase
 {
@@ -37,7 +40,7 @@ public:
         for (size_t c = 0; c < 2; c++)
         {
             u1_[c] = 0.f;
-            f1_[c] = Antiderivative(0.f, 0.f);
+            Antiderivatives(0.f, &f1_sine_[c], &f1_tri_[c]);
             lp_[c] = 0.f;
             dc_[c].Init(sample_rate);
         }
@@ -65,15 +68,25 @@ public:
         for (size_t c = 0; c < 2; c++)
         {
             const float u = *io[c] * drive + bias;
-            const float f = Antiderivative(u, shape);
+            float f_sine, f_tri;
+            Antiderivatives(u, &f_sine, &f_tri);
             // ADAA: the fold averaged over the step from the last sample, which takes some
             // of the aliasing out of the triangle's corners; the plain fold at the midpoint
-            // when the step is too small to divide by
+            // when the step is too small to divide by. Both antiderivatives at this sample's
+            // shape, so a moving shape adds nothing to the difference
             const float du = u - u1_[c];
-            const float y = fabsf(du) > kAdaaMinStep ? (f - f1_[c]) / du
-                                                     : Fold(.5f * (u + u1_[c]), shape);
+            float y;
+            if (fabsf(du) > kAdaaMinStep)
+            {
+                const float d_sine = (f_sine - f1_sine_[c]) / du;
+                const float d_tri = (f_tri - f1_tri_[c]) / du;
+                y = d_sine + shape * (d_tri - d_sine);
+            }
+            else
+                y = Fold(.5f * (u + u1_[c]), shape);
             u1_[c] = u;
-            f1_[c] = f;
+            f1_sine_[c] = f_sine;
+            f1_tri_[c] = f_tri;
 
             // the bias's DC out, then the tone
             lp_[c] += tone_coeff * (dc_[c].Process(y) - lp_[c]);
@@ -129,13 +142,12 @@ private:
         return sine + shape * (tri - sine);
     }
 
-    /** Fold's antiderivative, for the ADAA */
-    static inline float Antiderivative(float u, float shape)
+    /** The sine fold's and the triangle fold's antiderivatives, for the ADAA */
+    static inline void Antiderivatives(float u, float* sine, float* tri)
     {
-        const float sine = -(2.f / PI_F) * cosf(HALFPI_F * u);
+        *sine = -(2.f / PI_F) * cosf(HALFPI_F * u);
         const float v = Wrap(u);
-        const float tri = v < 2.f ? .5f * v * v - v : 3.f * v - .5f * v * v - 4.f;
-        return sine + shape * (tri - sine);
+        *tri = v < 2.f ? .5f * v * v - v : 3.f * v - .5f * v * v - 4.f;
     }
 
     /** u + 1 wrapped into 0..4, where the triangle starts its period at -1 */
@@ -147,7 +159,8 @@ private:
 
     float sample_rate_;
     float env_coeff_;
-    float u1_[2], f1_[2]; // the last sample's fold input and antiderivative
+    float u1_[2];                 // the last sample's fold input
+    float f1_sine_[2], f1_tri_[2]; // and its antiderivatives
     float lp_[2];
     daisysp::DcBlock dc_[2];
     float env_in_, env_out_; // mean squares, linked stereo
