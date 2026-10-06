@@ -84,7 +84,7 @@ freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> delay 
 | Control | Function |
 |---|---|
 | Hold an FX key | Effect on while held |
-| SHIFT + FX key | Latch on / off; a latched effect stays on after release |
+| SHIFT + FX key | Latch on / off; a latched effect stays on after release. Either may go down first: SHIFT then the key, or the key then SHIFT |
 | FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
 | Knobs 1-4 | The parameters of the most recently pressed FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo) move one step per 3 detents |
 | Press knobs 1-4 | Resets that parameter to its default |

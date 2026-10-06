@@ -54,7 +54,7 @@ The white keys between the slicer and the delay do nothing.
 | Effect | Freezer | Shifter | Folder | Crusher | Filter | Flanger | Resonator | Slicer | Delay | Reverb |
 
 - **Hold a key:** the effect is on while you hold it.
-- **SHIFT + key:** latch the effect on. Do it again to turn it off.
+- **SHIFT + key** (either first): latch the effect on. Do it again to turn it off.
 - **Knobs 1-4:** shape the effect whose key you pressed last. Their LEDs show the settings;
   a dark knob does nothing for that effect.
 - **Press a knob:** reset that setting.

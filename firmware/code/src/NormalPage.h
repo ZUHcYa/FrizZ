@@ -37,7 +37,8 @@
  *
  *  Punch-in FX (FxChain.h) on the white keys, which key is which in FxSlots.h:
  *   - hold the key:          the effect is on while held
- *   - SHIFT + key:           toggles the latch, the effect stays on after release
+ *   - SHIFT + key:           toggles the latch, the effect stays on after release; either
+ *                            may go down first
  *   - key on a latched FX:   clears the latch, the effect stays on until the key is released
  *   - knobs 1-4 (enc 0-3):   the parameters of the most recently pressed FX key, 1% per
  *                            detent; stepped parameters move one step per
@@ -247,6 +248,8 @@ namespace chompi
 
             case static_cast<uint16_t>(Hardware::SwId::KEY_26):
                 chompi_key_pressed = rising;
+                if (rising)
+                    ShiftPressed();
                 break;
 
             // transport press: back to 1x forward
@@ -407,6 +410,19 @@ namespace chompi
             }
             fx_held_[fx] = rising;
             engine_->SetFxOn(fx, fx_held_[fx] || fx_latched_[fx]);
+        }
+
+        // SHIFT going down toggles the latch of every FX key already held, so the combo
+        // works in either order
+        void ShiftPressed()
+        {
+            for (size_t fx = 0; fx < kNumFx; fx++)
+            {
+                if (!fx_held_[fx])
+                    continue;
+                fx_latched_[fx] = !fx_latched_[fx];
+                engine_->SetFxOn(fx, true);
+            }
         }
 
         void FxKnobTurned(uint16_t knob, int16_t turns)
