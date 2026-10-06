@@ -48,7 +48,6 @@ namespace chompi
     /** Tweaked for Rev2 hardware */
     const int kOneTime = 20; /**< measured 0.68us */
     const int kZeroTime = 10; /**< measured 0.334us */
-    const int kLedResetTime = 1; // reset time in ms, actually ends up being 2x this
 
     /** map pth led index to chain index */
 

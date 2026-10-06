@@ -26,8 +26,8 @@ namespace chompi
  *  Swoop is Kastle's trigger envelope (0.1s up, 1s down), fired by the key press, pushing
  *  the shift up to 2 octaves further in its direction and back. Feedback recirculates the
  *  shifted output, so each pass shifts again and the shift spirals.
- *  Params: 0 shift (kNumShifts steps, -12 to +12 semitones, the centre dry), 1 swoop,
- *  2 feedback, 3 stereo (the right channel up to a semitone higher). */
+ *  Params: 0 shift (kNumShifts steps, -12 to +12 semitones, the centre dry), 1 feedback,
+ *  2 swoop, 3 stereo (the right channel up to a semitone higher). */
 class Shifter : public FxBase
 {
 public:

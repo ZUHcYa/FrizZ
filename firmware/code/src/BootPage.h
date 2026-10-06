@@ -1,6 +1,6 @@
 /** @file BootPage.h
- *  @brief The boot page. This is active when things are still loading. In TAPE, its reading
- *  your SD card samples which can take a while.
+ *  @brief The boot page: a slow glow in random colours while FRIZZ starts up (kBootScreenMs,
+ *  chompi_main.cpp).
  */
 #include "hardware.h"
 #include "temp_led_stuff.h"
@@ -11,9 +11,8 @@ namespace chompi
     {
     public:
 
-        void Init(Hardware* hw)
+        void Init(Hardware*)
         {
-            hw_ = hw;
             RandomColors();
         }
 
@@ -70,7 +69,6 @@ namespace chompi
         }
 
     private:
-        Hardware* hw_;
         float r = 0.f;
         float g = 0.f;
         float b = 0.f;

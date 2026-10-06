@@ -39,7 +39,6 @@ int16_t DSY_SDRAM_BSS loop_mem[kLoopMemSize];
 // TEMPO's delay buffers: 10s of interleaved stereo float each, the live and the frozen one
 static const size_t kDelayFrames = 480000;
 float DSY_SDRAM_BSS delay_mem[kDelayFrames * 2];
-float DSY_SDRAM_BSS delay_frozen_mem[kDelayFrames * 2];
 
 // the freezer's buffers (FxFreezer.h): 1 bar at the slowest tempo (4.8s at 50 BPM), plus the
 // stereo offset and the seam crossfade, per channel
@@ -225,7 +224,7 @@ int main(void)
     scene_store.Init(&fsi.GetSDFileSystem(), fsi.GetSDPath());
 
     engine.Init(hw.seed.AudioSampleRate(), loop_mem, &midi_clock,
-                delay_mem, delay_frozen_mem, kDelayFrames, &reverb,
+                delay_mem, kDelayFrames, &reverb,
                 freezer_mem_l, freezer_mem_r, kFreezerFrames);
 
     LedSetup();

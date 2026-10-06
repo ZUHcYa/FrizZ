@@ -1,12 +1,9 @@
 #pragma once
 
-using namespace daisysp;
-
 namespace chompi
 {
 
-
-/** A cheap state-variable-style filter */
+/** A cheap state-variable-style filter, lowpass or highpass */
 class BasicMMF
 {
   public:
@@ -14,7 +11,6 @@ class BasicMMF
     {
         Lowpass,
         Highpass,
-        Bandpass,
     };
     BasicMMF()
     : mode_(Mode::Lowpass),
@@ -22,14 +18,13 @@ class BasicMMF
       res_(0.5f),
       buf0_(0.f),
       buf1_(0.f),
-      fb_amt_(0.f),
-      sr_(48000.f)
+      fb_amt_(0.f)
     {
     }
 
     ~BasicMMF() {}
 
-    void Init(float samplerate) { CalculateFeedback(); }
+    void Init(float) { CalculateFeedback(); }
 
     float Process(const float in)
     {
@@ -39,7 +34,6 @@ class BasicMMF
         {
             case Mode::Lowpass: return buf1_;
             case Mode::Highpass: return in - buf0_;
-            case Mode::Bandpass: return buf0_ - buf1_;
             default: return 0.f;
         }
     }
@@ -51,17 +45,14 @@ class BasicMMF
         freq_ = f;
         CalculateFeedback();
     }
-    inline float GetFreq() const { return freq_; }
 
     inline void SetRes(float r)
     {
         res_ = r;
         CalculateFeedback();
     }
-    inline float GetRes() const { return res_; }
 
     inline void SetMode(Mode m) { mode_ = m; }
-    inline Mode GetMode() const { return mode_; }
 
   private:
     Mode  mode_;
@@ -69,7 +60,6 @@ class BasicMMF
 
     float buf0_, buf1_;
     float fb_amt_;
-    float sr_;
 
     inline void CalculateFeedback() { fb_amt_ = res_ + (res_ / (1.f - freq_)); }
 };

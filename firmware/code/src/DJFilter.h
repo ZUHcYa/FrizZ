@@ -12,8 +12,6 @@ class DjFilter
   public:
     void Init(float samplerate)
     {
-        sr_ = samplerate;
-
         feedback_filt_llp_.Init(samplerate);
         feedback_filt_rlp_.Init(samplerate);
         feedback_filt_lhp_.Init(samplerate);
@@ -59,13 +57,7 @@ class DjFilter
         const float hp = fmaxf(hp_, 1e-3f);
         feedback_filt_lhp_.SetFreq(hp);
         feedback_filt_rhp_.SetFreq(hp);
-
-        if(hp_ > .8f)
-        {
-            const float param = 5.f * (1.f - cutoff_);
-            feedback_filt_lhp_.SetRes(res_ * param);
-            feedback_filt_rhp_.SetRes(res_ * param);
-        }
+        // (WAVE raised the highpass's resonance above hp_ .8; hp_ tops out at .9^3 = .73)
 
         float filt_l = feedback_filt_llp_.Process(in_l);
         float filt_r = feedback_filt_rlp_.Process(in_r);
@@ -79,19 +71,16 @@ class DjFilter
 
     void SetControl(float cutoff)
     {
-        cutoff_ = cutoff;
-        lp_target_ = daisysp::fclamp(.01f + cutoff_ * 2.f, 0.f, .98f); //these have to be limited
+        lp_target_ = daisysp::fclamp(.01f + cutoff * 2.f, 0.f, .98f); //these have to be limited
         lp_target_ = lp_target_ * lp_target_ * lp_target_;
 
-        hp_target_ = daisysp::fclamp((cutoff_ * 1.9f) - 1.f, 0.f, .9f);
+        hp_target_ = daisysp::fclamp((cutoff * 1.9f) - 1.f, 0.f, .9f);
         hp_target_ = hp_target_ * hp_target_ * hp_target_;
     }
-    float GetControl() { return cutoff_; }
 
     void SetRes(float res) 
     {
         res *= .95f;
-        res_ = res;
         feedback_filt_llp_.SetRes(res);
         feedback_filt_rlp_.SetRes(res);
 
@@ -99,11 +88,8 @@ class DjFilter
         feedback_filt_rhp_.SetRes(res);
     }
 
-    float sr_;
     BasicMMF   feedback_filt_llp_, feedback_filt_rlp_;
     BasicMMF   feedback_filt_lhp_, feedback_filt_rhp_;
-    float lp_min, lp_max, hp_min, hp_max;
-    float cutoff_, res_;
     float slew_;
     float lp_, lp_target_;
     float hp_, hp_target_;

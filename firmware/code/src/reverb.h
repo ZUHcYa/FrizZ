@@ -45,7 +45,6 @@ class Reverb {
     engine_.SetLFOFrequency(LFO_2, 0.3f / sample_rate);
     lp_ = 0.7f;
     diffusion_ = 0.625f;
-    freeze_ = 0.f;
     // FRIZZ: the reverb lives in DTCMRAM, which the startup code doesn't zero, so clear the
     // buffer and every state Process() reads instead of relying on static zero-init
     engine_.Clear();
@@ -84,11 +83,11 @@ class Reverb {
     E::Context c;
 
     const float kap = diffusion_;
-    const float krt = fclamp(reverb_time_ + freeze_, 0.f, 1.f);
-    const float lock = 1.0f - freeze_;
+    // (FRIZZ: without Rings' freeze, which held the loop and shut the input)
+    const float krt = fclamp(reverb_time_, 0.f, 1.f);
     const float amount = amount_;
-    const float klp = fclamp(lp_ + freeze_ * (1.0f - lp_), 0.f, 1.f);
-    const float gain = input_gain_ * lock;
+    const float klp = fclamp(lp_, 0.f, 1.f);
+    const float gain = input_gain_;
 
     float lp_1 = lp_decay_1_;
     float lp_2 = lp_decay_2_;
@@ -96,10 +95,6 @@ class Reverb {
       float wet;
       float apout = 0.0f;
       engine_.Start(&c);
-
-    // Smear AP1 inside the loop.
-    //c.Interpolate(ap1, 10.0f, LFO_1, 80.0f, 1.0f);
-    //c.Write(ap1, 100, 0.0f);
 
     c.Read(*left + *right, gain);
 
@@ -167,11 +162,6 @@ class Reverb {
     engine_.Clear();
   }
 
-  // FRIZZ: takes the amount 0..1 instead of a bool, so the caller can slew it without clicks
-  inline void SetFreeze(float freeze) {
-    freeze_ = freeze;
-  }
-  
  private:
   typedef FxEngine<32768, FORMAT_16_BIT> E;
   E engine_;
@@ -186,7 +176,6 @@ class Reverb {
   float lp_decay_2_;
   
   uint16_t  buffer_[32768];
-  float freeze_;
 };
 
 }  // namespace daisysp

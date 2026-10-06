@@ -119,19 +119,23 @@ FxChain.h              the punch-in effects in their processing order, with a le
 FxParams.h             each effect's knobs: how many, defaults, steps, coarse grids
 FxSlots.h              each effect's key, LED and colours
 FxControls.h           the FX keys and knobs: latches, fine / stepped / coarse turns, scene snapshot and recall
-SceneControls.h        the scene keys: recall, and the save / copy / delete flow
-FxCommon.h             what the effects share: the key's fade, smoothed settings, the base class
+SceneControls.h        the scene keys: recall, morph, and the save / copy / delete flow
+FxMorph.h              a scene morph: glides the effects to a scene, landing on a bar line
+PlayKeys.h             the CHOMPI, PLAY and LOOP keys: SHIFT, the confirm tap, the looper's combos
+FxCommon.h             what the effects share: the key's fade, smoothed settings, the base class,
+                       tone lowpass, press envelope, stereo delay line
 Fx*.h                  one effect each: Freezer, Shifter, Folder, Crusher, Filter, Flanger,
                        Resonator, Slicer, Delay, Reverb
 LICENSE-kastle2        the MIT license of the effects ported from Bastl's Kastle 2 FX Wizard
 LedColors.h            the LED colours
 DJFilter.h, BasicMMF.h WAVE's DJ filter
-granularDelay.h        TEMPO's tempo-synced delay (SimpleCrossfade.h: its crossfades)
+granularDelay.h        TEMPO's tempo-synced delay, without its freeze
 reverb.h, fx_engine.h  TEMPO's reverb
 TempoClock.h           the tempo and the shared 12 PPQN pulse position for the clocked effects, from MIDI clock or internal
 Looper.h               the looper: recording, quantized end, playback, speed, scrub
 MidiClock.h            MIDI clock input over TRS and USB
 NormalPage.h           the play page: routes the controls (VOLUME, PLAY/LOOP, transport, FX and scene keys) and draws the LEDs
+LedSignal.h            the play page's short LED signals: 3 red or white blinks, a flash
 ui.h                   page plumbing: events, page switching
 limiter.h, EnvFollower.h
                        compressor and VU meter blocks

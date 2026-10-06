@@ -10,13 +10,11 @@ APP_TYPE=BOOT_SRAM
 BOOT_BIN = ../../bin/CHOMPI_Bootloader_V6_2_0.bin
 LDSCRIPT = chompi_sram.lds
 
-LDSCRIPT=chompi_sram.lds
-
 # Sources
 CPP_SOURCES = chompi_main.cpp \
 	encoder.cpp
 
-# FatFs is only used by the hardware self-test's SD card check (TestPage)
+# FatFs: the FX scenes on the card (SceneStore.h) and the self-test's card check (TestPage)
 USE_FATFS = 1
 
 # Libs

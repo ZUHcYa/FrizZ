@@ -83,7 +83,6 @@ public:
         return value_;
     }
 
-    inline float Value() const { return value_; }
     inline bool IsOn() const { return on_; }
 
     /** True once after each press, for the audio callback */

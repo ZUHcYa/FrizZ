@@ -10,7 +10,6 @@ namespace chompi
     class RainbowPage : public daisy::UiPage
     {
     public:
-        void Init() {}
 
         // roygbivr (roll over at end for programming ease)
         const int reds[8] = {255, 255, 255, 0, 0, 75, 238, 255};
@@ -174,6 +173,5 @@ namespace chompi
 
     private:
         uint32_t last_blink_time;
-        bool blink;
     };
 } // namespace chompi

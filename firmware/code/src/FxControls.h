@@ -383,7 +383,6 @@ public:
     }
 
     inline float Param(size_t fx, size_t param) const { return params_[fx][param]; }
-    inline bool IsHeld(size_t fx) const { return held_[fx]; }
     inline bool IsLatched(size_t fx) const { return latched_[fx]; }
     inline bool IsOn(size_t fx) const { return held_[fx] || latched_[fx]; }
     /** The FX the knobs edit: the last one pressed */

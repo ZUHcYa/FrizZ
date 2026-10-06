@@ -18,7 +18,7 @@ namespace chompi
  *  5-13dB, which at high drive on bright material still leaves some grit. A folder's output is about full scale whatever goes in, so the result is
  *  matched to the input's level (linked stereo, ~50ms): punching in changes the sound, not
  *  the loudness. Fully wet while on.
- *  Params: 0 drive, 1 shape (sine to triangle), 2 symmetry, 3 tone. */
+ *  Params: 0 drive, 1 shape (sine to triangle), 2 tone, 3 symmetry. */
 class Folder : public FxBase
 {
 public:

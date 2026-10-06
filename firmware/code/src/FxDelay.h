@@ -9,8 +9,7 @@
 namespace chompi
 {
 
-/** TEMPO's tempo-synced delay (granularDelay.h) as a send. Its freeze isn't used, but it
- *  still needs the frozen buffer, which it writes every sample.
+/** TEMPO's tempo-synced delay (granularDelay.h) as a send.
  *  Params: 0 division (9 steps), 1 feedback, 2 random (bipolar, 0.5 = off), 3 level. */
 class DelaySend : public FxBase
 {
@@ -25,9 +24,9 @@ public:
 
     static const size_t kNumDivisions = 9;
 
-    void Init(float* buffer, float* frozen_buffer, size_t buffer_frames)
+    void Init(float* buffer, size_t buffer_frames)
     {
-        delay_.Init(buffer, frozen_buffer, buffer_frames);
+        delay_.Init(buffer, buffer_frames);
         gate_.Init();
         level_.Reset(0.f);
     }
@@ -38,7 +37,6 @@ public:
     void SetTempo(int bpm) { delay_.SetTempo(bpm); }
     void ClockPulse(uint32_t pos)
     {
-        delay_.setClockPulse();
         if (pos % kPulsesPerEdge == 0)
             delay_.setClockEdge();
     }

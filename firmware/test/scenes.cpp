@@ -34,7 +34,6 @@ static const size_t kBlock = 24;
 static int16_t loop_mem[kLoopMemSize];
 static const size_t kDelayFrames = 480000;
 static float delay_mem[kDelayFrames * 2];
-static float delay_frozen_mem[kDelayFrames * 2];
 static const size_t kFreezerFrames = 240000;
 static float freezer_mem_l[kFreezerFrames];
 static float freezer_mem_r[kFreezerFrames];
@@ -48,7 +47,7 @@ static PassthroughEngine engine;
  *  to where it ends up */
 static void RecallJump(bool fast, float* max_step, float* settle_ms)
 {
-    engine.Init(kSr, loop_mem, &midi_clock, delay_mem, delay_frozen_mem, kDelayFrames, &reverb,
+    engine.Init(kSr, loop_mem, &midi_clock, delay_mem, kDelayFrames, &reverb,
                 freezer_mem_l, freezer_mem_r, kFreezerFrames);
     engine.SetMainGain(1.f);
     engine.SetInputGain(1.f);

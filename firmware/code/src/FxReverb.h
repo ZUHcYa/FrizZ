@@ -9,7 +9,7 @@ namespace chompi
 {
 
 /** TEMPO's reverb (reverb.h, the Rings/Clouds Griesinger topology) as a send.
- *  Params: 0 decay, 1 tone (damping), 2 diffusion, 3 level. */
+ *  Params: 0 decay, 1 diffusion, 2 tone (damping), 3 level. */
 class ReverbSend : public FxBase
 {
 public:

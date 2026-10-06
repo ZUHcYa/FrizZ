@@ -37,19 +37,6 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
             ENC_LAST,
         };
 
-        /** A B reference for encoder 4021 */
-        enum class EncoderSrId : int
-        {
-            ENC_1_A,
-            ENC_1_B,
-            ENC_2_A,
-            ENC_2_B,
-            ENC_3_A,
-            ENC_3_B,
-            ENC_4_A,
-            ENC_4_B,
-        };
-
         /** Switch reference for the 4021 chain
          */
         enum class SwId
@@ -186,9 +173,6 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
 
             /** Digital LEDs */
             /** TODO: cleanup stuff in temp_led_stuff.h and add here */
-
-            for (size_t i = 0; i < 6; i++)
-                enc_trackers[i] = 0;
         }
 
         enum BatteryLevel {
@@ -445,13 +429,6 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
 
             enc[4].Debounce();
             enc[5].Debounce();
-
-            for (int i = 0; i < 6; i++)
-            {
-                enc_trackers[i] += enc[i].Increment();
-                if (enc[i].RisingEdge())
-                    enc_trackers[i] = 0;
-            }
         }
 
         void StartAudio(AudioHandle::AudioCallback cb)
@@ -459,56 +436,14 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
             seed.StartAudio(cb);
         }
 
-        /** This starts up a callback that is on the lowest priority interrupt level
-            *  This provides an area for non-background tasks that should interrupt low
-            *  level activity like diskio.
-            *  Adapted from Electrosmith reference source for the SD card interrupt 
-            *
-            *  @param cb callback to take place at target frequency
-            *  @param target_freq freq in hz that the callback should take place.
-            *  @param data any data to send through callback; this defaults to nullptr
-            */
-        void StartLowPriorityCallback(TimerHandle::PeriodElapsedCallback cb,
-                                    uint32_t target_freq,
-                                    void    *data = nullptr)
-        {
-            TimerHandle::Config timcfg;
-            timcfg.periph        = TimerHandle::Config::Peripheral::TIM_4; // originally 5, we use that for leds though
-            timcfg.dir           = TimerHandle::Config::CounterDir::UP;
-            auto tim_base_freq   = System::GetPClk2Freq();
-            auto tim_target_freq = target_freq;
-            auto tim_period      = tim_base_freq / tim_target_freq;
-            timcfg.period        = tim_period;
-            timcfg.enable_irq    = true;
-            tim4_handle.Init(timcfg);
-            tim4_handle.SetCallback(cb, data);
-            /** Start Audio */
-            tim4_handle.Start();
-        }
-
-        /** Prints all controls via the Daisy's micro USB */
-        void PrintAllControls()
-        {
-            seed.PrintLine("-----------------------------");
-            seed.PrintLine("Encoder States:");
-            for (int i = 0; i < 6; i++)
-            {
-                seed.PrintLine("enc:\t%d\tval:\t%d", i, enc_trackers[i]);
-            }
-            seed.PrintLine("Jack Detection: %s", jack_detect.Read() ? "Plugged In" : "Unplugged");
-        }
-
         DaisySeed seed;
-
-        int enc_trackers[6];
 
         ChompiEncoder enc[6];
         ShiftRegister4021<5, 1> button_sr;
         ShiftRegister4021<1, 1> encoder_sr;
         SaiHandle external_sai_handle;
         I2CHandle i2c; // comms w/ MP2722
-        GPIO usb_sw, mpc_int, jack_detect;
-        TimerHandle tim4_handle;
+        GPIO usb_sw, mpc_int, jack_detect; // mpc_int and jack_detect are set up, but not read
     private:
     };
 

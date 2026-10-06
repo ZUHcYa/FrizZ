@@ -28,7 +28,6 @@ static const size_t kBlock = 24;
 static int16_t loop_mem[kLoopMemSize];
 static const size_t kDelayFrames = 480000;
 static float delay_mem[kDelayFrames * 2];
-static float delay_frozen_mem[kDelayFrames * 2];
 static const size_t kFreezerFrames = 240000;
 static float freezer_mem_l[kFreezerFrames];
 static float freezer_mem_r[kFreezerFrames];
@@ -62,7 +61,7 @@ int main(int argc, char** argv)
     FILE* f = fopen(argv[1], "wb");
     srand(1);
 
-    engine.Init(kSr, loop_mem, &midi_clock, delay_mem, delay_frozen_mem, kDelayFrames, &reverb,
+    engine.Init(kSr, loop_mem, &midi_clock, delay_mem, kDelayFrames, &reverb,
                 freezer_mem_l, freezer_mem_r, kFreezerFrames);
     engine.SetMainGain(.75f);
     engine.SetInputGain(.75f);

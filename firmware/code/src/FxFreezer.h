@@ -24,7 +24,7 @@ static const uint8_t kFreezerRollStages[] = {0, 8, 4, 2, 1};
  *  it recorded until the key is released. It keeps recording past the loop for as long as
  *  the buffer lasts, so the length can be turned up while it repeats. The roll halves the
  *  loop as it repeats, down to 1/64 bar, a beat repeat's build-up; it isn't Kastle's.
- *  Params: 0 length (kNumLengths steps), 1 feedback, 2 stereo, 3 roll (kNumRolls steps).
+ *  Params: 0 length (kNumLengths steps), 1 feedback, 2 roll (kNumRolls steps), 3 stereo.
  *  The freezer's buffers are separate (SDRAM, chompi_main.cpp), kFreezerFrames per channel. */
 class Freezer : public FxBase
 {

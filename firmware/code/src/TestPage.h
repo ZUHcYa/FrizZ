@@ -18,10 +18,8 @@ namespace chompi
             int ctr = 0;
         };
 
-        void Init(Hardware* hw)
+        void Init(Hardware*)
         {
-            hw_ = hw;
-
             for(size_t i = 0; i < size_t(Hardware::SwId::SR_LAST); i++)
             {
                 clicked[i] = false;
@@ -46,34 +44,6 @@ namespace chompi
                 }
             }
 
-            // jack detection test
-            jack_detect |= false;
-
-            // send midi notes
-            if(now - last_midi_out > 50 && now - midi_timeout > 500)
-            {
-                if(!note_sent)
-                {
-                    if(note_out == 60)
-                        note_out = 64;
-                    else if(note_out == 64)
-                        note_out = 67;
-                    else if(note_out == 67)
-                        note_out = 60;
-    
-                    //hw_->SendNoteOn(0, note_out, 127);
-                    note_received = false;
-                }
-                else
-                {
-                    if(note_received == false && num_notes_received != 20)
-                        num_notes_received = 0;
-                    //hw_->SendNoteOff(0, note_out, 127);
-                }
-
-                note_sent = !note_sent;
-                last_midi_out = now;
-            }
             
             for(size_t i = 0; i < size_t(Hardware::SwId::SR_LAST); i++)
             {
@@ -122,18 +92,6 @@ namespace chompi
                 {
                     r = 1.f;
                     b = bmc_good;
-                    SetSmtLedFloat(led_map[i], r, g, b);
-                }
-                else if(i == 15)
-                {
-                    r = 1.f;
-                    b = num_notes_received == 20;
-                    SetSmtLedFloat(led_map[i], r, g, b);
-                }
-                else if(i == 28)
-                {
-                    r = 1.f;
-                    b = jack_detect;
                     SetSmtLedFloat(led_map[i], r, g, b);
                 }
                 else
@@ -189,19 +147,7 @@ namespace chompi
 
             bool rising = numberOfPresses == 1;
 
-            if(isRetriggering) // midi key
-            {
-                if( (note_out == 60 && buttonID == 18)
-                    || (note_out == 64 && buttonID == 20)
-                    || (note_out == 67 && buttonID == 25))
-                {
-                    note_received = true;
-                    num_notes_received = num_notes_received >= 20 ? 20 : num_notes_received + 1;
-                }
-
-                return true; // fall through to normal page, plays back samples from SD card
-            }
-            else if(rising && buttonID != 5) // normal keypress, ignore chompi key
+            if(rising && buttonID != 5) // normal keypress, ignore chompi key
             {
                 clicked[buttonID] = true;
             }
@@ -238,7 +184,6 @@ namespace chompi
         {
             if(cable && power_low) // detect rising edge
             {
-                midi_timeout = System::GetNow();
                 power_cable = true;
             }
         
@@ -306,8 +251,6 @@ namespace chompi
             {
                 clicked[i] = false;
             }
-
-            start_time = System::GetNow();
         }
 
         
@@ -317,7 +260,7 @@ namespace chompi
         {
             bool ret = true;
 
-            // no MIDI-note or jack-detect check: TAPE's tests, which FRIZZ can't pass
+            // (TAPE's test also wanted MIDI notes back and a jack detect, which FRIZZ has neither of)
             ret &= tog_sw.left && tog_sw.right;
             ret &= sd_card;
 
@@ -347,24 +290,15 @@ namespace chompi
     private:
         bool init_ignore;
         uint32_t init_time;
-        Hardware* hw_;
 
         // interface elements
         bool clicked[size_t(Hardware::SwId::SR_LAST)];
         Dir turned[size_t(Hardware::EncoderId::ENC_LAST)];
         Dir tog_sw;
-        bool jack_detect, sd_card;
+        bool sd_card;
         bool power_low, power_cable;
         bool bmc_good;
 
-        // midi out
-        bool note_sent, note_received;
-        int note_out = 60;
-        uint8_t num_notes_received;
-        uint32_t last_midi_out;
-        uint32_t midi_timeout;
-
-        uint32_t start_time;
 
         /** TODO: I have another copy of this in the NormalPage*/
         uint8_t led_map[40]{

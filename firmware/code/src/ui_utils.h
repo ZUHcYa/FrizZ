@@ -3,16 +3,8 @@
  *  Actual LED output in temp_led_stuff.h
  */
 #pragma once
-#include "hardware.h"
+#include "daisy.h"
 
-/** Needed for the Flush/Clear LEDs functions */
-extern chompi::Hardware hw;
-
-void FlushLeds(const daisy::UiCanvasDescriptor& canvasDescriptor)
-{
-    // hw.UpdateLeds();
-}
-void ClearLeds(const daisy::UiCanvasDescriptor& canvasDescriptor)
-{
-    // hw.ClearLeds();
-}
+/** The pages draw their LEDs themselves (fill_led_data), so these do nothing */
+void FlushLeds(const daisy::UiCanvasDescriptor&) {}
+void ClearLeds(const daisy::UiCanvasDescriptor&) {}

@@ -42,14 +42,14 @@ public:
     ~PassthroughEngine() {};
 
     void Init(float sample_rate, int16_t* loop_mem, chompi::MidiClock* midi_clock,
-              float* delay_mem, float* delay_frozen_mem, size_t delay_frames,
+              float* delay_mem, size_t delay_frames,
               daisysp::Reverb* reverb,
               float* freezer_mem_l, float* freezer_mem_r, size_t freezer_frames)
     {
         sample_rate_ = sample_rate;
         looper.Init(loop_mem, midi_clock);
         tempo_clock_.Init(sample_rate, midi_clock);
-        fx_.Init(sample_rate, delay_mem, delay_frozen_mem, delay_frames, reverb,
+        fx_.Init(sample_rate, delay_mem, delay_frames, reverb,
                  freezer_mem_l, freezer_mem_r, freezer_frames);
         morph_.Init(&fx_);
 

@@ -75,14 +75,14 @@ public:
     /** The delay's, the reverb's and the freezer's buffers are statics in chompi_main.cpp:
      *  SDRAM for the delay and freezer, DTCMRAM for the reverb */
     void Init(float sample_rate,
-              float* delay_mem, float* delay_frozen_mem, size_t delay_frames,
+              float* delay_mem, size_t delay_frames,
               daisysp::Reverb* reverb,
               float* freezer_mem_l, float* freezer_mem_r, size_t freezer_frames)
     {
         filter_.Init(sample_rate);
         crusher_.Init(sample_rate);
         folder_.Init(sample_rate);
-        delay_.Init(delay_mem, delay_frozen_mem, delay_frames);
+        delay_.Init(delay_mem, delay_frames);
         reverb_.Init(sample_rate, reverb);
         freezer_.Init(sample_rate, freezer_mem_l, freezer_mem_r, freezer_frames);
         slicer_.Init(sample_rate);
