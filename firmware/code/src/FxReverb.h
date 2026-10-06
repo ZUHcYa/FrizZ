@@ -16,8 +16,8 @@ public:
     enum Param
     {
         DECAY,
-        TONE,
         DIFFUSION,
+        TONE,
         LEVEL,
     };
 

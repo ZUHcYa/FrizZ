@@ -33,8 +33,8 @@ public:
     {
         LENGTH,
         FEEDBACK,
-        STEREO,
         ROLL,
+        STEREO,
     };
 
     static const size_t kNumLengths = sizeof(kFreezerBarDivisions);

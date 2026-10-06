@@ -34,8 +34,8 @@ public:
     enum Param
     {
         SHIFT,
-        SWOOP,
         FEEDBACK,
+        SWOOP,
         STEREO,
     };
 

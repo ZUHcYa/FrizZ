@@ -57,7 +57,9 @@ The white keys between the slicer and the delay do nothing.
 - **Hold a key:** the effect is on while you hold it.
 - **SHIFT + key** (either first): latch the effect on. Do it again to turn it off.
 - **Knobs 1-4:** shape the effect whose key you pressed last. Their LEDs show the settings;
-  a dark knob does nothing for that effect.
+  a dark knob does nothing for that effect. The knobs follow one pattern: 1 is the main
+  control, 2 the feedback, 3 the tone or colour, 4 the stereo width or level (where an effect
+  has no such setting, it puts another one there).
 - **SHIFT + turn a knob:** jump in big steps: notes, octaves or musical intervals where the
   setting has them, 10% otherwise.
 - **SHIFT + press a knob:** reset that setting.
@@ -68,7 +70,7 @@ release the key. Settings reset when you switch off, unless you save them as a s
 Things to try first:
 
 - **Freezer (1st key)** on a beat: it grabs 1/8 from the moment you press and repeats it while
-  you hold the key. Turn knob 4 for a roll that speeds up.
+  you hold the key. Turn knob 3 for a roll that speeds up.
 - **Shifter (2nd key):** a fifth up by default. Knob 1 sets the interval.
 - **Resonator (7th key)** with the crusher or the shifter latched: the ringing goes through them on
   every pass.

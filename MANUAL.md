@@ -112,18 +112,28 @@ glow with the tail, fading from full back to dim. The knob LEDs show the paramet
 in the effect's colours; a knob the effect doesn't use is dark and does nothing. Values
 reset at power-off unless they're saved in a [scene](#fx-scenes).
 
+The knobs do the same kind of job on every effect, so you can find a setting without
+looking it up:
+
+| Knob | Role | Where an effect has none |
+|---|---|---|
+| 1 | The main control: length, pitch, drive, rate, cutoff, pattern, division, decay | — |
+| 2 | Feedback (the filter's resonance) | its second main control: shape, bits, decay, diffusion |
+| 3 | Tone or colour: tone, roll, swoop, amount, LFO depth, chance, random | — |
+| 4 | Stereo, or level on the delay and reverb | its odd one out: symmetry, XOR, LFO division |
+
 | Key | Effect | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|---|
-| 1st white | Freezer: Kastle 2 FX Wizard's, as a beat repeat | Length: 1/16, 1/8T, 1/8, 1/4T, 1/4, 1/2T, 1/2, 1 bar (default 1/8) | Feedback: the input overdubbed into the repeats (default 0, pure repeat) | Stereo: the left loop up to 45 ms longer (default off) | Roll: the loop halves as it repeats, down to 1/64 bar: off, slow, … fast, one step per 3 detents (default off) |
-| 2nd white | Shifter: a two-tap pitch shifter, with Kastle 2 FX Wizard's swoop and feedback | Shift in semitones, -12 to +12, one step per 3 detents; centre off (default +7, a fifth) | Swoop: on the key press, the shift pushes up to 2 octaves further and falls back over 1 s (default off) | Feedback: the shifted sound spirals (default off) | Stereo: the right channel up to a semitone higher (default off) |
-| 3rd white | Folder: a sine-to-triangle wavefolder, antialiased and level-matched | Drive: 1x up to 32x, from barely folding to many folds (default 50%, 5.7x) | Shape: sine (smooth) to triangle (bright) (default sine) | Symmetry: a bias for uneven folds and even harmonics (default off) | Tone, lowpass 200 Hz to open (default open) |
+| 1st white | Freezer: Kastle 2 FX Wizard's, as a beat repeat | Length: 1/16, 1/8T, 1/8, 1/4T, 1/4, 1/2T, 1/2, 1 bar (default 1/8) | Feedback: the input overdubbed into the repeats (default 0, pure repeat) | Roll: the loop halves as it repeats, down to 1/64 bar: off, slow, … fast, one step per 3 detents (default off) | Stereo: the left loop up to 45 ms longer (default off) |
+| 2nd white | Shifter: a two-tap pitch shifter, with Kastle 2 FX Wizard's swoop and feedback | Shift in semitones, -12 to +12, one step per 3 detents; centre off (default +7, a fifth) | Feedback: the shifted sound spirals (default off) | Swoop: on the key press, the shift pushes up to 2 octaves further and falls back over 1 s (default off) | Stereo: the right channel up to a semitone higher (default off) |
+| 3rd white | Folder: a sine-to-triangle wavefolder, antialiased and level-matched | Drive: 1x up to 32x, from barely folding to many folds (default 50%, 5.7x) | Shape: sine (smooth) to triangle (bright) (default sine) | Tone, lowpass 200 Hz to open (default open) | Symmetry: a bias for uneven folds and even harmonics (default off) |
 | 4th white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz, halving every 18% of the knob (default 24%, 8.6 kHz) | Bits, 16 down to 2 (default 50%, 9 bits) | Tone, lowpass 200 Hz to open (default open) | XOR: flips bits of every sample for a digital buzz, from Kastle 2 FX Wizard's crusher (default off) |
 | 5th white | Filter: the DJ filter from TAPE, TEMPO and WAVE (WAVE's copy) | Cutoff: lowpass left of centre, highpass right, flat at centre (default 30%, lowpass) | Resonance (default 50%) | LFO depth (default off) | LFO division: 1/16, 1/8, 1/4, 1/2, 1 bar, 2 bars, 4 bars (default 1 bar) |
-| 6th white | Flanger: Kastle 2 FX Wizard's | Rate, 0.02 Hz to 50 Hz (default 0.55 Hz) | Amount: sweep depth and mix together, the top is pure vibrato (default 50%) | Feedback, up to 85% (default 50%) | Stereo: the right LFO runs free and detuned (default off) |
+| 6th white | Flanger: Kastle 2 FX Wizard's | Rate, 0.02 Hz to 50 Hz (default 0.55 Hz) | Feedback, up to 85% (default 50%) | Amount: sweep depth and mix together, the top is pure vibrato (default 50%) | Stereo: the right LFO runs free and detuned (default off) |
 | 7th white | Resonator: the comb Kastle 2 FX Wizard runs around every mode | Pitch, 22 Hz to 880 Hz (default 110 Hz) | Feedback, up to 98% (default 70%) | Tone: the loop's lowpass, 1 kHz to 15 kHz (default 6.6 kHz) | Stereo: the right channel up to 12 semitones higher (default off) |
 | 8th white | Slicer: Kastle 2 FX Wizard's rhythmic gate | Pattern, 8 steps of 16ths: `x.......`, `x...x...`, `..x...x.`, `x....x..`, `x..x..x.`, `x.x.x.x.`, `x.x.xx..`, `xxxxxxxx` (default `x..x..x.`) | Decay, 10 ms to 1 s (default 100 ms) | Chance: each step flipped at random, up to 90% (default off) | Stereo: the left channel plays a pattern up the list, the right one down, 0-7 apart (default off) |
 | 2nd-to-last white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 70%) |
-| Last white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Tone, dark to open (default 60%) | Diffusion (default 60%) | Level (default 70%) |
+| Last white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Diffusion (default 60%) | Tone, dark to open (default 60%) | Level (default 70%) |
 
 SHIFT + turn moves one point of a fixed grid per detent, always to the next point in the
 direction you turn, so a value set finely snaps onto the grid with the first coarse move:

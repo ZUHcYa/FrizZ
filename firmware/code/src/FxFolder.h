@@ -26,8 +26,8 @@ public:
     {
         DRIVE,
         SHAPE,
-        SYMMETRY,
         TONE,
+        SYMMETRY,
     };
 
     void Init(float sample_rate)

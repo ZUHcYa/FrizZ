@@ -83,9 +83,9 @@ int main(int argc, char** argv)
         engine.SetFxParam(chompi::FX_RESONATOR, 2, 1.f);
         engine.SetFxParam(chompi::FX_FILTER, 0, .2f);
         engine.SetFxParam(chompi::FX_FILTER, 1, 1.f);
-        engine.SetFxParam(chompi::FX_FLANGER, 1, .5f);
-        engine.SetFxParam(chompi::FX_FLANGER, 2, 1.f);
-        engine.SetFxParam(chompi::FX_SHIFTER, 2, 1.f);
+        engine.SetFxParam(chompi::FX_FLANGER, 2, .5f);
+        engine.SetFxParam(chompi::FX_FLANGER, 1, 1.f);
+        engine.SetFxParam(chompi::FX_SHIFTER, 1, 1.f);
         engine.SetFxParam(chompi::FX_DELAY, 1, 1.f);
         engine.SetFxParam(chompi::FX_REVERB, 0, 1.f);
         engine.SetFxParam(chompi::FX_REVERB, 3, 1.f);

@@ -30,8 +30,8 @@ public:
     enum Param
     {
         RATE,
-        AMOUNT,
         FEEDBACK,
+        AMOUNT,
         STEREO,
     };
 

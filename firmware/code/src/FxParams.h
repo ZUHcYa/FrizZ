@@ -3,6 +3,10 @@
  *  many knobs each uses, their defaults, which are stepped and their coarse grids for SHIFT +
  *  turn. No hardware here, so the play page's logic (FxControls.h) can be tested on the host.
  *  The keys, LEDs and colours that go with each FX are in FxSlots.h.
+ *
+ *  Every effect's knobs follow one pattern, so they're guessable without labels: knob 1 is the
+ *  main control, 2 feedback (or resonance), 3 tone or colour, 4 stereo or level. An effect
+ *  without one of these puts its odd parameter there.
  */
 #pragma once
 #include "FxChain.h"
@@ -39,18 +43,18 @@ struct FxParams
 };
 
 static const FxParams kFxParams[] = {
-    // freezer: length (1/8), feedback (pure repeat), stereo (off), roll (off)
-    {4, {2.f / 7.f, 0.f, 0.f, 0.f}, {Freezer::kNumLengths, 0, 0, Freezer::kNumRolls},
-     {StepGrid(Freezer::kNumLengths), kGrid10, kGrid10, StepGrid(Freezer::kNumRolls)}},
-    // shifter: shift (+7 semitones, a fifth), swoop (off), feedback (off), stereo (off).
+    // freezer: length (1/8), feedback (pure repeat), roll (off), stereo (off)
+    {4, {2.f / 7.f, 0.f, 0.f, 0.f}, {Freezer::kNumLengths, 0, Freezer::kNumRolls, 0},
+     {StepGrid(Freezer::kNumLengths), kGrid10, StepGrid(Freezer::kNumRolls), kGrid10}},
+    // shifter: shift (+7 semitones, a fifth), feedback (off), swoop (off), stereo (off).
     // Coarse stereo: quarter semitones
     {4, {19.f / 24.f, 0.f, 0.f, 0.f}, {Shifter::kNumShifts, 0, 0, 0},
      {{0.f, 1.f, kShiftPoints, sizeof(kShiftPoints) / sizeof(kShiftPoints[0])}, kGrid10, kGrid10,
       {0.f, .25f, nullptr, 0}}},
-    // folder: drive (5.7x), shape (sine), symmetry (off: odd harmonics only), tone (open).
+    // folder: drive (5.7x), shape (sine), tone (open), symmetry (off: odd harmonics only).
     // Coarse drive: doublings, 1x to 32x
-    {4, {.5f, 0.f, 0.f, 1.f}, {0, 0, 0, 0},
-     {{0.f, .2f, nullptr, 0}, kGrid10, kGrid10, kGridTone}},
+    {4, {.5f, 0.f, 1.f, 0.f}, {0, 0, 0, 0},
+     {{0.f, .2f, nullptr, 0}, kGrid10, kGridTone, kGrid10}},
     // crusher: rate (8.6kHz), bits, tone, XOR (off). Coarse rate: 48kHz / 4, 8 ... 64, so
     // 12k, 6k, 3k, 1.5k, 750Hz; coarse bits: whole bits
     {4, {.24f, .5f, 1.f, 0.f}, {0, 0, 0, 0},
@@ -59,7 +63,7 @@ static const FxParams kFxParams[] = {
     // is a DJ filter's (lowpass below the centre, highpass above), not in Hz, so coarse is 10%
     {4, {.3f, .5f, 0.f, .6667f}, {0, 0, 0, Filter::kNumLfoDivisions},
      {kGrid10, kGrid10, kGrid10, StepGrid(Filter::kNumLfoDivisions)}},
-    // flanger: rate (.55Hz), amount (half), feedback, stereo (off)
+    // flanger: rate (.55Hz), feedback, amount (half), stereo (off)
     {4, {.45f, .5f, .5f, 0.f}, {0, 0, 0, 0},
      {kGrid10, kGrid10, kGrid10, kGrid10}},
     // resonator: pitch (110Hz), feedback, tone (6.6kHz), stereo (off). Coarse pitch: the
@@ -72,7 +76,7 @@ static const FxParams kFxParams[] = {
     // delay: division (1/4), feedback, random (off), level
     {4, {.25f, .4f, .5f, .7f}, {DelaySend::kNumDivisions, 0, 0, 0},
      {StepGrid(DelaySend::kNumDivisions), kGrid10, kGrid10, kGrid10}},
-    // reverb: decay, tone, diffusion, level
+    // reverb: decay, diffusion, tone, level
     {4, {.6f, .6f, .6f, .7f}, {0, 0, 0, 0},
      {kGrid10, kGrid10, kGrid10, kGrid10}},
 };
