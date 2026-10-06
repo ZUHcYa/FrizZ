@@ -340,12 +340,16 @@ namespace chompi
                 engine_->looper.Erase();
                 SetMix(0.f); // the input fades in while the loop fades out
                 erase_armed_ = false;
+                speed_chunk_ = 0.f;
             }
 
             // jump to fully wet when a recording closes into playback
             const Looper::State looper_state = engine_->looper.GetState();
             if (last_looper_state_ == Looper::State::RECORDING && looper_state == Looper::State::PLAYING)
+            {
                 SetMix(1.f);
+                speed_chunk_ = 0.f; // a new loop starts at 1x with no detents carried over
+            }
             last_looper_state_ = looper_state;
 
             // a scene confirmed: flash its slot once the card has been written, green if it was

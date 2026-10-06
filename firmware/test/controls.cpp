@@ -157,6 +157,21 @@ static void TestKnobs()
     fx.KnobPressed(0, true);
     Check(fx.Param(FX_REVERB, 0) == kFxParams[FX_REVERB].defaults[0], "SHIFT + press: the default");
 
+    // leftover detents stay with their FX and their mode
+    fx.KeyPressed(FX_DELAY, true, false);
+    const float div2 = fx.Param(FX_DELAY, 0);
+    fx.KnobTurned(0, 2.f, false);
+    fx.KeyPressed(FX_SLICER, true, false);
+    const float pattern = fx.Param(FX_SLICER, 0);
+    fx.KnobTurned(0, 1.f, false);
+    Check(fx.Param(FX_SLICER, 0) == pattern, "detents don't carry over to another FX");
+    fx.KeyPressed(FX_DELAY, true, false);
+    fx.KnobTurned(0, 2.f, false);
+    fx.KnobTurned(0, .5f, true);
+    Check(fx.Param(FX_DELAY, 0) == div2, "fine detents don't carry over into coarse");
+    fx.KnobTurned(0, .5f, true);
+    Check(fx.Param(FX_DELAY, 0) != div2, "... coarse counts its own");
+
     // the grid's helper on its own
     const FxGrid g = {0.f, .25f, nullptr, 0};
     Check(Near(Fx::CoarseStep(g, .5f, 1.f), .75f) && Near(Fx::CoarseStep(g, .5f, -1.f), .25f),

@@ -37,8 +37,8 @@ public:
             }
             engine_->SetFxOn(fx, false);
         }
-        for (size_t knob = 0; knob < kNumFxParams; knob++)
-            chunk_[knob] = 0.f;
+        ClearChunks();
+        chunk_shift_ = false;
         selected_ = 0;
         edited_ = false;
     }
@@ -49,6 +49,9 @@ public:
     {
         if (down)
         {
+            // detents towards a step belong to the FX they were turned on
+            if (fx != selected_)
+                ClearChunks();
             selected_ = fx;
             const bool latched = shift ? !latched_[fx] : false;
             if (latched != latched_[fx])
@@ -83,6 +86,13 @@ public:
             return;
 
         const float val = params_[selected_][knob];
+
+        // fine and coarse turns count their detents separately
+        if (shift != chunk_shift_)
+        {
+            ClearChunks();
+            chunk_shift_ = shift;
+        }
 
         if (shift)
         {
@@ -159,8 +169,7 @@ public:
             latched_[fx] = (scene.latched >> fx) & 1;
             engine_->SetFxOn(fx, IsOn(fx));
         }
-        for (size_t knob = 0; knob < kNumFxParams; knob++)
-            chunk_[knob] = 0.f;
+        ClearChunks();
         edited_ = false;
     }
 
@@ -205,6 +214,12 @@ public:
     inline void MarkEdited() { edited_ = true; }
 
 private:
+    void ClearChunks()
+    {
+        for (size_t knob = 0; knob < kNumFxParams; knob++)
+            chunk_[knob] = 0.f;
+    }
+
     void SetParam(size_t fx, size_t param, float val)
     {
         val = fclamp(val, 0.f, 1.f);
@@ -220,6 +235,7 @@ private:
     bool latched_[kNumFx];
     size_t selected_ = 0;
     float chunk_[kNumFxParams]; // detents towards the next step or grid point
+    bool chunk_shift_ = false;  // whether they were turned with SHIFT
     bool edited_ = false;
 };
 
