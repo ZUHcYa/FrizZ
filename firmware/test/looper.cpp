@@ -3,18 +3,11 @@
 // refused quantized record. Exits 0 when everything passes. Run by looper.sh.
 #include <cmath>
 #include <cstdio>
+#include "check.h"
 #include "Looper.h"
 
 using namespace chompi;
 
-static int failures = 0;
-
-static void Check(bool ok, const char* what)
-{
-    printf("%s  %s\n", ok ? "ok  " : "FAIL", what);
-    if (!ok)
-        failures++;
-}
 
 static const size_t kBlock = 24;
 static int16_t mem[kLoopMemSize];
@@ -166,9 +159,5 @@ int main()
     TestRecordAndPlay();
     TestPauseAndErase();
     TestSpeed();
-    if (failures)
-        printf("%d failed\n", failures);
-    else
-        printf("all passed\n");
-    return failures ? 1 : 0;
+    return Finish();
 }

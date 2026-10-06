@@ -4,6 +4,7 @@
 // clock's bar lines (FxMorph.h). Exits 0 when everything passes. Run by tempo.sh.
 #include <cmath>
 #include <cstdio>
+#include "check.h"
 #include <vector>
 #include "FxMorph.h"
 #include "Looper.h"
@@ -12,14 +13,6 @@
 
 using namespace chompi;
 
-static int failures = 0;
-
-static void Check(bool ok, const char* what)
-{
-    printf("%s  %s\n", ok ? "ok  " : "FAIL", what);
-    if (!ok)
-        failures++;
-}
 
 static const float kSr = 48000.f;
 static const size_t kBlock = 24;
@@ -476,9 +469,5 @@ int main()
     TestQuantizedBeats();
     TestBarLines();
     TestMorph();
-    if (failures)
-        printf("%d failed\n", failures);
-    else
-        printf("all passed\n");
-    return failures ? 1 : 0;
+    return Finish();
 }

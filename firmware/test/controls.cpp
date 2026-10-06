@@ -3,18 +3,11 @@
 // controls.sh.
 #include <cmath>
 #include <cstdio>
+#include "check.h"
 #include "SceneControls.h"
 
 using namespace chompi;
 
-static int failures = 0;
-
-static void Check(bool ok, const char* what)
-{
-    printf("%s  %s\n", ok ? "ok  " : "FAIL", what);
-    if (!ok)
-        failures++;
-}
 
 static bool Near(float a, float b) { return fabsf(a - b) < 1e-5f; }
 
@@ -452,9 +445,5 @@ int main()
     TestKnobs();
     TestScenes();
     TestMorph();
-    if (failures)
-        printf("%d failed\n", failures);
-    else
-        printf("all passed\n");
-    return failures ? 1 : 0;
+    return Finish();
 }

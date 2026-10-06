@@ -119,7 +119,8 @@ for the bootloader, does the md5 match. Verify changes by building; real validat
 hardware.
 
 The exception is FRIZZ: `firmware/test/` compiles its audio engine on the host and runs a
-scripted 39 s of key presses and knob turns through it. `./check.sh` compares HEAD with the
+scripted 39 s of key presses and knob turns through it. `./all.sh` runs every check below.
+`./check.sh` compares HEAD with the
 working tree; a refactor must come out `bit-identical`. `./pitch.sh` checks the shifter lands on
 every interval; `./scenes.sh` checks the FX scene file format; `./controls.sh` checks the play
 page's FX and scene logic (`FxControls.h`, `SceneControls.h`); `./looper.sh` checks the looper

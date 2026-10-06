@@ -6,6 +6,7 @@ script of key presses and knob turns through it, and writes every output sample 
 to a file. Two versions of the engine can then be compared.
 
 ```bash
+./all.sh                    # every check below, one line each; exits 0 when all pass
 ./check.sh                  # HEAD against the working tree
 ./check.sh 9da090e 647185b  # any two git refs ("work" = the working tree)
 STRESS=1 ./run.sh work out.bin
@@ -56,7 +57,7 @@ missing ones on their defaults, and that a foreign, empty or truncated file does
 anything. Last, it runs a filter jump through the engine with a recall's fast slew and with
 a knob's. The recall must land sooner and within 30 ms, without a larger step between samples,
 and hand back to the knobs' slew afterwards. It doesn't touch the card (`SceneStore.h`) or the
-play page. Needs `run.sh` to have built DaisySP once.
+play page.
 
 ## Play page, looper and tempo checks
 
@@ -79,9 +80,17 @@ speed, a tap refitting the beats, the loop overriding MIDI clock) and the beats 
 recorded quantized to a faked clock; then the bar lines (free, on 2-, 4- and 6-beat loops, in
 reverse) and a scene morph (`FxMorph.h`) on them: landing on the bar line, one per tap, the
 glide, fades in and out, stopping it halfway. None covers the LEDs or `NormalPage.h`'s routing of the
-keys. All need `run.sh` to have built DaisySP once.
+keys.
 
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample
 conversions) and `MidiClock.h` (no clock, unless a test sets its fields, as `tempo.cpp`
 does). DaisySP is compiled for the host once into `build/`,
 which is ignored.
+
+## How the scripts are built
+
+Every script sources `lib.sh`, which builds DaisySP for the host once (into `build/`) and has
+`unit_test NAME`: it copies the working tree's headers next to the host `MidiClock.h`, builds
+`NAME.cpp` with warnings on and runs it. A test's own warnings are shown; if it doesn't build,
+so is every message, including the headers'. The `.cpp` checks share `check.h` (`Check()`,
+`Finish()`). A new check is a `NAME.cpp` plus a two-line `NAME.sh`, and a line in `all.sh`.

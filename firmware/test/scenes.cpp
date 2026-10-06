@@ -2,20 +2,13 @@
 // recall's fast slew (FxChain::FastSlew). Exits 0 when everything passes. Run by scenes.sh.
 #include <cmath>
 #include <cstdio>
+#include "check.h"
 #include <cstring>
 #include "FxScenes.h"
 #include "passthroughEngine.h"
 
 using namespace chompi;
 
-static int failures = 0;
-
-static void Check(bool ok, const char* what)
-{
-    printf("%s  %s\n", ok ? "ok  " : "FAIL", what);
-    if (!ok)
-        failures++;
-}
 
 static float defaults[kNumFx][kNumFxParams];
 
@@ -243,6 +236,5 @@ int main()
     Check(step[1] < .1f, "without a click");
     Check(FxSlew::coeff == kFxParamCoeff, "then the knobs slew normally again");
 
-    printf(failures ? "%d failed\n" : "all passed\n", failures);
-    return failures ? 1 : 0;
+    return Finish();
 }

@@ -72,6 +72,7 @@ don't normally rebuild them. If you change a library, run `make` in `code/libs/l
 
 ```bash
 cd firmware/test
+./all.sh          # all of the below, one line each
 ./check.sh        # engine at HEAD vs the working tree: a refactor must print "bit-identical"
 ./pitch.sh        # the shifter lands on every interval from -12 to +12 semitones
 ./scenes.sh       # the FX scene file round-trips, and the recall's fast slew ends
