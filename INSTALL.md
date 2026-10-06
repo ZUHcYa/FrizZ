@@ -24,10 +24,11 @@ tools or drivers, and the CHOMPI's bootloader is never touched.
 5. **Wait.** A slow rainbow LED pattern means the CHOMPI is writing FRIZZ into its memory.
    Don't switch it off while that runs. FRIZZ starts by itself when it's done.
 
-Leave the card in: FRIZZ keeps its FX scenes on it, in `frizz_scenes.txt`. That file goes in
-a `FRIZZ` folder if the card has one, otherwise in the top folder. Without a card FRIZZ still
-runs, but scenes you save are gone at power-off. A later FRIZZ update keeps your scenes as
-long as that file stays on the card.
+Leave the card in: FRIZZ keeps its FX scenes on it, in `FRIZZ/frizz_scenes.txt`. FRIZZ
+creates the `FRIZZ` folder the first time it starts, and moves a `frizz_scenes.txt` an older
+FRIZZ left in the top folder into it. Without a card FRIZZ still runs, but scenes you save are
+gone at power-off. A later FRIZZ update keeps your scenes as long as that folder stays on the
+card.
 
 ## Check that it works
 
@@ -52,8 +53,9 @@ as one of them:
    in the top folder.
 2. Copy `FRIZZ.bin` into the `FIRMWARE` folder, named after the key you want it on, for
    example `FIRMWARE/04_FRIZZ.bin` for the 4th white key.
-3. Create a folder called `FRIZZ` in the top folder. FRIZZ keeps its scenes there, apart from
-   the other firmwares' files. If you already have scenes, move `frizz_scenes.txt` into it.
+3. Copy your `FRIZZ` folder over too, if you have scenes from another card. Otherwise FRIZZ
+   creates it on its first start and keeps its scenes there, apart from the other firmwares'
+   files.
 
 With the launcher, the CHOMPI goes back to its picker every time you switch it on. A FRIZZ
 update is a new `FIRMWARE/04_FRIZZ.bin`; no rainbow pattern, since the launcher stays

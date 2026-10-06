@@ -1,6 +1,6 @@
 /** @file SceneStore.h
  *  @brief The FX scenes (FxScenes.h) and their file on the SD card, frizz_scenes.txt in the
- *  current directory: /FRIZZ if the card has it, otherwise the root (chompi_main.cpp). Read once at boot; written only when the play page saves, copies or deletes one,
+ *  current directory, /FRIZZ (EnterFrizzDir), or the root if that can't be made. Read once at boot; written only when the play page saves, copies or deletes one,
  *  never on a recall, so a performance doesn't touch the card.
  *
  *  The write runs in MainLoop (Process), not in the button handler: the audio callback runs
@@ -21,6 +21,32 @@ namespace chompi
 
 static const char kSceneFile[] = "frizz_scenes.txt";
 static const char kSceneTmpFile[] = "frizz_scenes.tmp";
+
+// FRIZZ's folder on the card, so it can share a card with other firmwares (the launcher at
+// github.com/sfaber02/CHOMPI gives each its own folder)
+static const char kFrizzDir[] = "/FRIZZ";
+
+/** After f_mount: makes /FRIZZ the current directory, creating it on a card that doesn't have
+ *  it yet and moving the scene files a FRIZZ before it left in the root into it. Every path
+ *  FRIZZ opens is relative, so they all land there. If the folder can't be made (a file in
+ *  the way, a read-only card), FRIZZ stays in the root. Before audio starts */
+inline void EnterFrizzDir()
+{
+    if (f_chdir(kFrizzDir) == FR_OK)
+        return;
+    if (f_mkdir(kFrizzDir) != FR_OK)
+        return;
+
+    // FRIZZ's earlier home: the root
+    static const char* const kOldFiles[][2] = {
+        {"/frizz_scenes.txt", "/FRIZZ/frizz_scenes.txt"},
+        {"/frizz_scenes.tmp", "/FRIZZ/frizz_scenes.tmp"},
+    };
+    for (const auto& f : kOldFiles)
+        f_rename(f[0], f[1]); // FR_NO_FILE when there's nothing to move
+
+    f_chdir(kFrizzDir);
+}
 
 class SceneStore
 {

@@ -143,7 +143,8 @@ chompi_sram.lds        linker script (the firmware runs from SRAM, placed there 
 ## Rules the code follows
 
 - **No file I/O and no blocking calls in the audio callback.** FRIZZ reads the SD card once at
-  boot (the FX scenes) and writes it only from `MainLoop`, when a scene is saved, copied or
+  boot (the FX scenes, after changing into `/FRIZZ`, which it creates on a new card) and writes
+  it only from `MainLoop`, when a scene is saved, copied or
   deleted (`SceneStore.h`). The self-test writes to it too.
 - Large buffers (the loop, the delay, the freezer) live in SDRAM (`DSY_SDRAM_BSS`) and are
   cleared at boot.

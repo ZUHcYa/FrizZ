@@ -282,9 +282,10 @@ The scene keys show the slots: dark when empty, dimly white when saved, bright f
 you recalled or saved last, and pulsing once you've turned a knob or changed a latch since.
 The save, copy and delete keys are dimly lit in their colour.
 
-The scenes live in `frizz_scenes.txt`, in the card's `FRIZZ` folder if it has one, otherwise
-at the card root, one line per effect, keyed by its name. The card is written only when you
-save, copy or delete, never on a recall. Saving takes a moment in which the LEDs may pause.
+The scenes live in `FRIZZ/frizz_scenes.txt` on the card, one line per effect, keyed by its
+name. FRIZZ creates the folder on its first start (moving the file from the card root, where
+older versions kept it); after that the card is written only when you save, copy or delete,
+never on a recall. Saving takes a moment in which the LEDs may pause.
 
 ## MIDI clock
 

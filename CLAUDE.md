@@ -167,7 +167,8 @@ committed by writing a temp file then renaming it.
 
 **FRIZZ is simpler:** it builds `FRIZZ.bin`, has no `SDCallback()`, `FileStreamingManager`,
 NoSDPage or MenuPage, and no MIDI out. It reads the card once at boot and writes it only from
-`MainLoop()` when an FX scene is saved, copied or deleted (`SceneStore.h`). Its play page is
+`MainLoop()` when an FX scene is saved, copied or deleted (`SceneStore.h`). Its files live in
+`/FRIZZ`, which `EnterFrizzDir()` creates at boot on a card without it. Its play page is
 `NormalPage.h`; its engine is `passthroughEngine.h` → `Looper.h` + `FxChain.h`.
 
 Supporting layers, same names in all three firmwares (different contents):
