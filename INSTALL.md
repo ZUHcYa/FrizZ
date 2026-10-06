@@ -8,9 +8,8 @@ tools or drivers, and the CHOMPI's bootloader is never touched.
 - A CHOMPI. It doesn't matter which firmware it runs now (TAPE, TEMPO or WAVE).
 - Its microSD card, or any FAT32-formatted microSD card.
 - A computer with a card reader.
-- `FRIZZ.bin`. Download it from the [Releases page](https://github.com/ZUHcYa/FrizZ/releases).
-  Until the first release is published, build it yourself as described in
-  [`firmware/README.md`](firmware/README.md).
+- `FRIZZ.bin`. Download it from the [Releases page](https://github.com/ZUHcYa/FrizZ/releases),
+  or build it yourself as described in [`firmware/README.md`](firmware/README.md).
 
 ## Install
 
@@ -59,7 +58,7 @@ as one of them:
 
 With the launcher, the CHOMPI goes back to its picker every time you switch it on. A FRIZZ
 update is a new `FIRMWARE/04_FRIZZ.bin`; no rainbow pattern, since the launcher stays
-installed. FRIZZ hasn't been tested with the launcher yet.
+installed.
 
 ## Going back to stock firmware
 
