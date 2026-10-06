@@ -57,6 +57,11 @@ uint32_t sample_clock = 0;
 
 daisysp::Oscillator osc;
 
+// Set just before main() enters its loop. Until then main() blocks in its setup and the audio
+// callback runs the UI (the boot animation); from then on only MainLoop does, so the UI is
+// never re-entered from the interrupt
+volatile bool main_loop_running = false;
+
 bool booting = true;
 bool rainbow_done = false;
 bool loading_screen = true;
@@ -97,7 +102,8 @@ void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, s
 
     if((booting || loading_screen) && !ui.InTestMode())
     {
-        ui.DoEvents();
+        if(!main_loop_running)
+            ui.DoEvents();
 
         for(size_t i = 0; i < size; i++)
         {
@@ -259,6 +265,7 @@ int main(void)
     daisy::System::Delay(1); // Wait a sec
     hw.usb_sw.Write(true);     // take USB control
 
+    main_loop_running = true;
     while (1)
     {
         MainLoop(nullptr);
