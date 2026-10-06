@@ -11,7 +11,7 @@ The stereo AUX input goes to the headphone and master outputs through a volume s
 from TAPE's Volume Engine, with a looper on the wet side of a dry/wet mix. The looper can
 record free-length loops or loops quantized to whole bars of an incoming MIDI clock. The
 white keys punch in effects on the mixed signal, and four dark keys save and recall their
-settings as scenes. The built-in microphone is not used.
+settings as scenes, next to one that clears them. The built-in microphone is not used.
 
 ## Mode switch: headphone feed
 
@@ -262,16 +262,24 @@ Delay details:
 
 ## FX scenes
 
-A scene holds every effect's four knob values and whether it's latched. There are four slots,
-on the first four dark keys from the left (C#, D#, F#, G# of the lower octave). Scenes are
-saved to the SD card and come back at power-on. A scene is what you last saved into it:
-changes you make after recalling one are only kept if you save again.
+A scene holds every effect's four knob values and whether it's latched. The five dark keys of
+the lower octave (C#, D#, F#, G#, A#) are scene keys:
+
+- **The first (C#) is the blank scene:** every effect off and every knob on its default. It's
+  always there, a one-press way back to no effects. You can't save over it or delete it,
+  but you can copy it into a slot to start a scene from scratch.
+- **The other four (D#, F#, G#, A#) hold your scenes.** They're saved to the SD card and
+  come back at power-on. (Before the blank scene, the scenes sat one key further left.)
+
+A saved scene stays as you saved it: changes you make after recalling one are only kept if you
+save again.
 
 | Control | Function |
 |---|---|
 | Scene key | Recall the scene at once: every effect's knobs jump to it, the effects it latched come on and all others are unlatched. FX keys you're holding stay on |
 | Scene key of the active scene | Back to the scene as saved, dropping your changes |
 | Scene key of an empty slot | Nothing (the key blinks red) |
+| Blank scene key | Every effect off, every knob back on its default |
 
 A recall is meant for performing, a build-up on one scene and the drop on the next:
 
@@ -297,7 +305,8 @@ no SHIFT needed:
 1. **Tap the function's key.** It lights up fully; the scene keys now select slots instead of
    recalling them. The effects and knobs keep working.
    The scene keys you can tap light dimly in the function's colour, the others go dark:
-   every slot for save, the saved ones for delete and for copy's source.
+   every slot but the blank one for save, the saved ones for delete, the saved ones and the
+   blank one for copy's source.
 2. **Tap the slot.** It blinks in the function's colour. For copy, tap the source first
    (it stays lit), then the destination. Tapping a picked slot again unpicks it.
 3. **Press the CHOMPI key**, which blinks in the function's colour once there's something to
@@ -311,7 +320,8 @@ it's done, red that it was refused (a dark slot tapped) or not stored. The slot 
 instead of white when there's no SD card, or the card couldn't be written: the change works
 until power-off but isn't stored. The next save, copy or delete tries the card again.
 
-Outside a function, the scene keys show the slots: dark when empty, dimly white when saved,
+Outside a function, the scene keys show the slots: dark when empty, dimly white when saved
+(the blank one always is),
 bright for the scene you recalled or saved last, and pulsing once you've turned a knob or
 changed a latch since. The save, copy and delete keys are dimly lit in their colour.
 

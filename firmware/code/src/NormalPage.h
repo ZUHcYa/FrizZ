@@ -70,17 +70,19 @@ namespace chompi
     static const float kFxMeterFloorDb = -30.f; // the meters' range, up to 0 dBFS
     static const float kFxWhiteMax = .8f;     // on: how far the loudest audio pushes to white
 
-    // FX scenes: the slots on KEY_16-19, and SAVE / COPY / DELETE on TAPE's preset keys in
-    // TEMPO's colours. One language for all three: the mode's colour shows what will happen
-    // (the slots it can act on, the pick, the CHOMPI key that confirms), white that it's
-    // done, red that it was refused or isn't on the card
-    static const Hardware::SwId kSceneKeys[kNumScenes] = {
+    // FX scenes: the slots on KEY_16-20, the lower octave's dark keys, the blank one first;
+    // SAVE / COPY / DELETE on TAPE's preset keys in TEMPO's colours. One language for all
+    // three: the mode's colour shows what will happen (the slots it can act on, the pick, the
+    // CHOMPI key that confirms), white that it's done, red that it was refused or isn't on
+    // the card
+    static const Hardware::SwId kSceneKeys[kNumSlots] = {
         Hardware::SwId::KEY_16,
         Hardware::SwId::KEY_17,
         Hardware::SwId::KEY_18,
         Hardware::SwId::KEY_19,
+        Hardware::SwId::KEY_20,
     };
-    static const uint8_t kSceneLeds[kNumScenes] = {0, 1, 2, 3};
+    static const uint8_t kSceneLeds[kNumSlots] = {0, 1, 2, 3, 4};
     struct SceneModeKey
     {
         SceneMode mode;
@@ -95,7 +97,7 @@ namespace chompi
     };
     static const uint32_t kSceneBlinkMs = 250;      // a picked slot, the armed CHOMPI key
     static const uint32_t kSceneFlashMs = 100;      // the confirmation: 3 fast blinks
-    static const uint32_t kSceneEmptyBlinkMs = 300; // an empty slot pressed
+    static const uint32_t kSceneRefusedBlinkMs = 300; // a slot the mode can't act on pressed
     static const uint32_t kScenePulseMs = 1000;     // the active scene, edited
 
     class NormalPage : public daisy::UiPage
@@ -283,7 +285,7 @@ namespace chompi
                 break;
 
             default:
-                for (size_t s = 0; s < kNumScenes; s++)
+                for (size_t s = 0; s < kNumSlots; s++)
                 {
                     if (rising && buttonID == static_cast<uint16_t>(kSceneKeys[s]))
                         ScenePressed(s);
@@ -451,8 +453,8 @@ namespace chompi
                 scene_ctl_.Recall(slot);
                 break;
             }
-            case SceneControls<PassthroughEngine>::Slot::EMPTY:
-                SceneEmptyBlink(slot);
+            case SceneControls<PassthroughEngine>::Slot::REFUSED:
+                SceneRefusedBlink(slot);
                 break;
             case SceneControls<PassthroughEngine>::Slot::SELECTED:
                 break;
@@ -470,10 +472,10 @@ namespace chompi
             scene_flash_waiting_ = true;
         }
 
-        void SceneEmptyBlink(size_t slot)
+        void SceneRefusedBlink(size_t slot)
         {
-            scene_empty_ = static_cast<int>(slot);
-            scene_empty_time_ = System::GetNow();
+            scene_refused_ = static_cast<int>(slot);
+            scene_refused_time_ = System::GetNow();
         }
 
         /** The current scene mode's colour, white without one */
@@ -498,7 +500,7 @@ namespace chompi
             }
 
             const bool blink_on = (now / kSceneBlinkMs) % 2 == 0;
-            for (size_t slot = 0; slot < kNumScenes; slot++)
+            for (size_t slot = 0; slot < kNumSlots; slot++)
             {
                 const int s = static_cast<int>(slot);
                 const float* color = white;
@@ -510,7 +512,7 @@ namespace chompi
                     color = scene_flash_ok_ ? white : red;
                     level = ((now - scene_flash_time_) / kSceneFlashMs) % 2 == 0 ? 1.f : 0.f;
                 }
-                else if (s == scene_empty_ && now - scene_empty_time_ < kSceneEmptyBlinkMs)
+                else if (s == scene_refused_ && now - scene_refused_time_ < kSceneRefusedBlinkMs)
                 {
                     color = red;
                     level = 1.f;
@@ -709,8 +711,8 @@ namespace chompi
         uint32_t scene_flash_time_ = 0;
         bool scene_flash_waiting_ = false; // for the card to be written
         bool scene_flash_ok_ = false;  // saved to the card
-        int scene_empty_ = kNoScene;   // empty, pressed
-        uint32_t scene_empty_time_ = 0;
+        int scene_refused_ = kNoScene; // refused, pressed
+        uint32_t scene_refused_time_ = 0;
 
         bool batt_display = false; // VOLUME held
         uint32_t batt_hold = 0;     // when VOLUME was last pressed or released

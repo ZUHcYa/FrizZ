@@ -9,7 +9,8 @@ box and looper for whatever you plug into its AUX input.
   filter, flanger, resonator, slicer, tempo-synced delay and reverb. Hold a key to play an effect,
   or SHIFT + key to latch it. Knobs 1-4 shape the last effect you touched.
 - **Four FX scenes on the dark keys:** save every effect's settings and latches, recall them
-  at once for a drop, copy and delete them. Kept on the SD card.
+  at once for a drop, copy and delete them. Kept on the SD card. A fifth key clears every
+  effect at once.
 - **An input/loop mix** between the live input and the loop, plus input gain, output gain and a
   master compressor, all on the VOLUME knob.
 - **MIDI clock** over TRS or USB, for quantized loops and the tempo-synced effects.

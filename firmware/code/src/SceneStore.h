@@ -65,7 +65,7 @@ public:
         mounted_ = mounted;
         save_state_ = SaveState::IDLE;
         for (size_t s = 0; s < kNumScenes; s++)
-            scenes[s].used = false;
+            Saved()[s].used = false;
 
         // for the effects a saved scene leaves out
         float defaults[kNumFx][kNumFxParams];
@@ -91,9 +91,13 @@ public:
         save_state_ = mounted_ && Save() ? SaveState::OK : SaveState::FAILED;
     }
 
-    FxScene scenes[kNumScenes];
+    /** The play page's slots; SceneControls fills the blank one (kBlankSlot) */
+    FxScene scenes[kNumSlots];
 
 private:
+    /** The slots the file holds, its scene 1 first */
+    inline FxScene* Saved() { return scenes + kBlankSlot + 1; }
+
     bool Load(const char* name, const float (*defaults)[kNumFxParams])
     {
         if (f_open(&file_, name, FA_READ) != FR_OK)
@@ -104,12 +108,12 @@ private:
         if (res != FR_OK)
             return false;
         buf_[len] = '\0';
-        return ParseScenes(buf_, defaults, scenes);
+        return ParseScenes(buf_, defaults, Saved());
     }
 
     bool Save()
     {
-        const size_t len = FormatScenes(scenes, buf_, kSceneFileMax);
+        const size_t len = FormatScenes(Saved(), buf_, kSceneFileMax);
         if (len == 0)
             return false;
 

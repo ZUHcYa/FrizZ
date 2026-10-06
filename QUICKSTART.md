@@ -86,10 +86,13 @@ at the last tempo received, or 120 BPM.
 
 ## 4. Save scenes
 
-The first four dark keys from the left hold scenes: every effect's settings and latches.
+The dark keys of the lower octave hold scenes: every effect's settings and latches. The first
+one is the blank scene: it turns every effect off and resets the knobs, and can't be saved
+over. The other four are yours.
 
 - **Save:** tap the last dark key (blue), tap a scene key, press CHOMPI to confirm.
-- **Recall:** press a scene key. Try a build-up on one scene and the drop on the next.
+- **Recall:** press a scene key. Try a build-up on one scene and the drop on the next, then
+  the first key to turn every effect off.
 - **Copy and delete:** the same steps with the green and red dark keys. Tap the
   function's key again to back out.
 

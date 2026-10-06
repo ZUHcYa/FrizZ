@@ -187,11 +187,11 @@ static void TestScenes()
     FakeEngine e;
     Fx fx;
     Fresh(e, fx);
-    FxScene store[kNumScenes] = {};
+    FxScene store[kNumSlots] = {};
     Scenes sc;
     sc.Init(store, &fx);
 
-    Check(sc.SlotPressed(0) == Scenes::Slot::EMPTY, "recall an empty slot: empty");
+    Check(sc.SlotPressed(1) == Scenes::Slot::REFUSED, "recall an empty slot: refused");
 
     // save the filter latched, its cutoff turned
     fx.KeyPressed(FX_FILTER, true, true);
@@ -200,16 +200,16 @@ static void TestScenes()
     const float cutoff = fx.Param(FX_FILTER, 0);
     sc.ModePressed(SceneMode::SAVE);
     Check(!sc.Armed(), "save: not armed before a slot");
-    Check(sc.Valid(0) && sc.Valid(3), "save: every slot valid, empty ones too");
-    sc.SlotPressed(1);
-    Check(sc.Armed() && sc.Selected() == 1, "save: armed on its slot");
-    sc.SlotPressed(1);
+    Check(sc.Valid(1) && sc.Valid(4), "save: every slot valid, empty ones too");
+    sc.SlotPressed(2);
+    Check(sc.Armed() && sc.Selected() == 2, "save: armed on its slot");
+    sc.SlotPressed(2);
     Check(!sc.Armed() && sc.Mode() == SceneMode::SAVE, "save: the slot again deselects it");
-    sc.SlotPressed(1);
-    Check(sc.Confirm() == 1, "save: confirm changes slot 2");
-    Check(store[1].used && (store[1].latched >> FX_FILTER & 1) && store[1].params[FX_FILTER][0] == cutoff,
+    sc.SlotPressed(2);
+    Check(sc.Confirm() == 2, "save: confirm changes slot 3");
+    Check(store[2].used && (store[2].latched >> FX_FILTER & 1) && store[2].params[FX_FILTER][0] == cutoff,
           "save: the slot holds the latch and the knob");
-    Check(sc.Active() == 1 && !sc.Edited() && sc.Mode() == SceneMode::NONE,
+    Check(sc.Active() == 2 && !sc.Edited() && sc.Mode() == SceneMode::NONE,
           "save: active, not edited, the mode ends");
 
     // change the sound, then recall
@@ -219,46 +219,46 @@ static void TestScenes()
     Check(sc.Edited(), "a change after saving: edited");
     fx.KeyPressed(FX_FILTER, false, false);
     const int calls = e.param_calls;
-    Check(sc.SlotPressed(1) == Scenes::Slot::RECALL, "recall a saved slot");
-    sc.Recall(1);
+    Check(sc.SlotPressed(2) == Scenes::Slot::RECALL, "recall a saved slot");
+    sc.Recall(2);
     Check(e.fast_slews == 1, "recall: at the fast slew");
     Check(e.param_calls - calls == 1, "recall: only the changed parameter sent");
     Check(fx.Param(FX_FILTER, 0) == cutoff && fx.IsLatched(FX_FILTER) && e.on[FX_FILTER],
           "recall: the knob and the latch come back");
     Check(e.on[FX_CRUSHER] && !fx.IsLatched(FX_CRUSHER), "recall: a key held stays on");
-    Check(!sc.Edited() && sc.Active() == 1, "recall: active, not edited");
+    Check(!sc.Edited() && sc.Active() == 2, "recall: active, not edited");
     fx.KeyPressed(FX_CRUSHER, false, false);
 
-    // copy 2 to 3, then over the active one
+    // copy 3 to 4, then over the active one
     sc.ModePressed(SceneMode::COPY);
-    Check(sc.Valid(1) && !sc.Valid(2), "copy: only saved slots valid as the source");
-    Check(sc.SlotPressed(2) == Scenes::Slot::EMPTY, "copy: an empty source refused");
-    sc.SlotPressed(1);
-    Check(sc.Source() == 1 && !sc.Armed(), "copy: the source, not armed yet");
-    Check(!sc.Valid(1) && sc.Valid(2), "copy: any slot but the source valid as the destination");
-    sc.SlotPressed(1);
+    Check(sc.Valid(2) && !sc.Valid(3), "copy: only saved slots valid as the source");
+    Check(sc.SlotPressed(3) == Scenes::Slot::REFUSED, "copy: an empty source refused");
+    sc.SlotPressed(2);
+    Check(sc.Source() == 2 && !sc.Armed(), "copy: the source, not armed yet");
+    Check(!sc.Valid(2) && sc.Valid(3), "copy: any slot but the source valid as the destination");
+    sc.SlotPressed(2);
     Check(!sc.Armed() && sc.Source() == kNoScene, "copy: the source again deselects it");
-    sc.SlotPressed(1);
     sc.SlotPressed(2);
-    sc.SlotPressed(2);
-    Check(!sc.Armed() && sc.Source() == 1, "copy: the destination again deselects it, the source stays");
-    sc.SlotPressed(2);
-    Check(sc.Confirm() == 2 && store[2].used && store[2].params[FX_FILTER][0] == cutoff, "copy: 2 to 3");
+    sc.SlotPressed(3);
+    sc.SlotPressed(3);
+    Check(!sc.Armed() && sc.Source() == 2, "copy: the destination again deselects it, the source stays");
+    sc.SlotPressed(3);
+    Check(sc.Confirm() == 3 && store[3].used && store[3].params[FX_FILTER][0] == cutoff, "copy: 3 to 4");
     Check(!sc.Edited(), "copy elsewhere: still not edited");
-    store[0] = store[2];
-    store[0].params[FX_FILTER][0] = 0.f;
+    store[1] = store[3];
+    store[1].params[FX_FILTER][0] = 0.f;
     sc.ModePressed(SceneMode::COPY);
-    sc.SlotPressed(0);
     sc.SlotPressed(1);
+    sc.SlotPressed(2);
     sc.Confirm();
-    Check(sc.Edited() && sc.Active() == 1, "copy over the active scene: edited");
+    Check(sc.Edited() && sc.Active() == 2, "copy over the active scene: edited");
 
     // mode keys
     sc.ModePressed(SceneMode::DELETE);
     sc.ModePressed(SceneMode::DELETE);
     Check(sc.Mode() == SceneMode::NONE, "the mode key again cancels");
     sc.ModePressed(SceneMode::DELETE);
-    sc.SlotPressed(1);
+    sc.SlotPressed(2);
     sc.ModePressed(SceneMode::SAVE);
     Check(sc.Mode() == SceneMode::SAVE && sc.Selected() == kNoScene, "another mode key switches, the slot cleared");
     Check(sc.Confirm() == kNoScene, "confirm without a slot: nothing");
@@ -266,14 +266,50 @@ static void TestScenes()
     // delete the active one
     sc.ModePressed(SceneMode::SAVE);
     sc.ModePressed(SceneMode::DELETE);
-    Check(sc.Valid(1) && !sc.Valid(3), "delete: only saved slots valid");
-    sc.SlotPressed(1);
-    sc.SlotPressed(1);
+    Check(sc.Valid(2) && !sc.Valid(4), "delete: only saved slots valid");
+    sc.SlotPressed(2);
+    sc.SlotPressed(2);
     Check(!sc.Armed(), "delete: the slot again deselects it");
-    sc.SlotPressed(1);
-    Check(sc.Confirm() == 1 && !store[1].used && sc.Active() == kNoScene, "delete the active scene");
+    sc.SlotPressed(2);
+    Check(sc.Confirm() == 2 && !store[2].used && sc.Active() == kNoScene, "delete the active scene");
     sc.ModePressed(SceneMode::DELETE);
-    Check(sc.SlotPressed(1) == Scenes::Slot::EMPTY, "delete: an empty slot refused");
+    Check(sc.SlotPressed(2) == Scenes::Slot::REFUSED, "delete: an empty slot refused");
+    sc.ModePressed(SceneMode::DELETE);
+
+    // the blank slot: every effect off, every knob on its default
+    bool blank = store[kBlankSlot].used && store[kBlankSlot].latched == 0;
+    for (size_t f = 0; f < kNumFx; f++)
+        for (size_t p = 0; p < kNumFxParams; p++)
+            blank = blank && store[kBlankSlot].params[f][p] == kFxParams[f].defaults[p];
+    Check(blank, "blank: filled by Init, all off and on the defaults");
+    fx.KeyPressed(FX_DELAY, true, true);
+    fx.KeyPressed(FX_DELAY, false, true);
+    fx.KnobTurned(3, 10.f, false);
+    Check(sc.SlotPressed(kBlankSlot) == Scenes::Slot::RECALL, "blank: recalled");
+    sc.Recall(kBlankSlot);
+    bool cleared = sc.Active() == static_cast<int>(kBlankSlot) && !fx.IsLatched(FX_DELAY) && !e.on[FX_DELAY];
+    for (size_t f = 0; f < kNumFx; f++)
+        for (size_t p = 0; p < kNumFxParams; p++)
+            cleared = cleared && fx.Param(f, p) == kFxParams[f].defaults[p];
+    Check(cleared, "blank: unlatches everything, the knobs back on their defaults");
+
+    sc.ModePressed(SceneMode::SAVE);
+    Check(!sc.Valid(kBlankSlot) && sc.SlotPressed(kBlankSlot) == Scenes::Slot::REFUSED && !sc.Armed(),
+          "blank: can't be saved over");
+    sc.ModePressed(SceneMode::DELETE);
+    Check(!sc.Valid(kBlankSlot) && sc.SlotPressed(kBlankSlot) == Scenes::Slot::REFUSED && !sc.Armed(),
+          "blank: can't be deleted");
+    sc.ModePressed(SceneMode::COPY);
+    Check(sc.Valid(kBlankSlot), "blank: a copy's source");
+    sc.SlotPressed(1);
+    Check(!sc.Valid(kBlankSlot) && sc.SlotPressed(kBlankSlot) == Scenes::Slot::REFUSED && !sc.Armed(),
+          "blank: not a copy's destination");
+    sc.SlotPressed(1);
+    sc.SlotPressed(kBlankSlot);
+    sc.SlotPressed(4);
+    Check(sc.Confirm() == 4 && store[4].used && store[4].latched == 0
+              && store[4].params[FX_DELAY][3] == kFxParams[FX_DELAY].defaults[3],
+          "blank: copied into a slot as a starting point");
 }
 
 int main()

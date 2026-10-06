@@ -24,7 +24,13 @@
 namespace chompi
 {
 
+// The scenes saved on the card, "scene 1" to "scene 4" in the file
 static const size_t kNumScenes = 4;
+// The play page's slots: the blank scene first, a fixed one that unlatches every effect and
+// puts every knob on its default (SceneControls.h), never stored; then the saved ones, slot s
+// holding the file's scene s
+static const size_t kBlankSlot = 0;
+static const size_t kNumSlots = kNumScenes + 1;
 // The file's size at most: 4 scenes of 10 effects take under 2KB
 static const size_t kSceneFileMax = 4096;
 
