@@ -4,7 +4,7 @@
 # (check.sh not bit-identical) counts as a failure: run ./check.sh to see what changed.
 T=$(cd "$(dirname "$0")" && pwd)
 fail=0
-for t in check pitch scenes controls looper tempo; do
+for t in check pitch scenes controls keys looper tempo; do
     if out=$("$T/$t.sh" 2>&1); then
         echo "ok    $t: $(echo "$out" | tail -1)"
     else

@@ -123,7 +123,8 @@ scripted 39 s of key presses and knob turns through it. `./all.sh` runs every ch
 `./check.sh` compares HEAD with the
 working tree; a refactor must come out `bit-identical`. `./pitch.sh` checks the shifter lands on
 every interval; `./scenes.sh` checks the FX scene file format; `./controls.sh` checks the play
-page's FX and scene logic (`FxControls.h`, `SceneControls.h`); `./looper.sh` checks the looper
+page's FX and scene logic (`FxControls.h`, `SceneControls.h`); `./keys.sh` its CHOMPI, PLAY and
+LOOP keys (`PlayKeys.h`); `./looper.sh` checks the looper
 without a clock; `./tempo.sh` checks tap tempo, the FX's tempo locked to the loop and scene morphs landing on
 its bar lines (`FxMorph.h`). None
 covers the LEDs, `NormalPage.h`'s key routing, real MIDI or the hardware. See its README.

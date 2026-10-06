@@ -36,6 +36,7 @@ public:
         for (size_t fx = 0; fx < kNumFx; fx++)
         {
             held_[fx] = latched_[fx] = false;
+            on_release_[fx] = OnRelease::KEEP;
             for (size_t p = 0; p < kNumFxParams; p++)
             {
                 params_[fx][p] = -1.f; // so every default counts as a change and is sent
@@ -50,8 +51,10 @@ public:
         stale_ = morph_touched_ = 0;
     }
 
-    /** An FX key going down or up. Down selects it for the knobs; SHIFT toggles the latch, a
-     *  plain press clears it. Either way the effect is on for as long as the key is held */
+    /** An FX key going down or up. Down selects it for the knobs. The effect is on for as long
+     *  as the key is held; the latch is decided on the release, which is inaudible: SHIFT
+     *  during the hold toggles it (ShiftPressed, so either order works), a plain press clears
+     *  it. A release without its press (held through boot) does nothing */
     void KeyPressed(size_t fx, bool down, bool shift)
     {
         if (down)
@@ -60,28 +63,49 @@ public:
             if (fx != selected_)
                 ClearChunks();
             selected_ = fx;
-            const bool latched = shift ? !latched_[fx] : false;
+            on_release_[fx] = shift ? OnRelease::TOGGLE_PRESSED : OnRelease::CLEAR;
+        }
+        else
+        {
+            if (!held_[fx])
+                return;
+            bool latched = latched_[fx];
+            if (on_release_[fx] == OnRelease::CLEAR)
+                latched = false;
+            else if (on_release_[fx] != OnRelease::KEEP)
+                latched = !latched;
             if (latched != latched_[fx])
+            {
                 edited_ = true;
+                TouchedInMorph(fx);
+            }
             latched_[fx] = latched;
-            TouchedInMorph(fx);
+            on_release_[fx] = OnRelease::KEEP;
         }
         held_[fx] = down;
         SendOn(fx);
     }
 
-    /** SHIFT going down toggles the latch of every FX key already held, so the combo works in
-     *  either order */
+    /** SHIFT going down: every FX key held will toggle its latch on release, as if SHIFT had
+     *  been down first */
     void ShiftPressed()
     {
         for (size_t fx = 0; fx < kNumFx; fx++)
         {
-            if (!held_[fx])
-                continue;
-            latched_[fx] = !latched_[fx];
-            edited_ = true;
-            TouchedInMorph(fx);
-            engine_->SetFxOn(fx, true);
+            if (held_[fx] && on_release_[fx] == OnRelease::CLEAR)
+                on_release_[fx] = OnRelease::TOGGLE_ADDED;
+        }
+    }
+
+    /** SHIFT was used for something else while FX keys were held (a coarse turn, tap tempo, a
+     *  scene...), or the CHOMPI key turned out to be a confirm: the latches go back to what
+     *  the presses alone would do */
+    void ShiftUsed()
+    {
+        for (size_t fx = 0; fx < kNumFx; fx++)
+        {
+            if (held_[fx] && on_release_[fx] == OnRelease::TOGGLE_ADDED)
+                on_release_[fx] = OnRelease::CLEAR;
         }
     }
 
@@ -90,6 +114,8 @@ public:
      *  detent. Knobs past the selected FX's num_params do nothing */
     void KnobTurned(size_t knob, float detents, bool shift)
     {
+        if (shift)
+            ShiftUsed();
         const FxParams& fxp = kFxParams[selected_];
         if (knob >= fxp.num_params)
             return;
@@ -140,6 +166,8 @@ public:
      *  kept free for a second parameter page */
     void KnobPressed(size_t knob, bool shift)
     {
+        if (shift)
+            ShiftUsed();
         if (!shift || knob >= kFxParams[selected_].num_params)
             return;
 
@@ -168,6 +196,7 @@ public:
      *  the audio interrupt blocked, so it lands within one block */
     void Recall(const FxScene& scene)
     {
+        SceneDecides();
         engine_->LandFxMorph();
         engine_->FastFxSlew();
         for (size_t fx = 0; fx < kNumFx; fx++)
@@ -208,6 +237,7 @@ public:
      *  On the device, call it with the audio interrupt blocked */
     void Morph(const FxScene& scene)
     {
+        SceneDecides();
         engine_->LandFxMorph();
         FxMorphPlan plan;
         plan.deferred = plan.wake = plan.was_on = plan.park = 0;
@@ -300,6 +330,7 @@ public:
         uint16_t unswitched, was_on;
         if (!engine_->FreezeFxMorph(live, &unswitched, &was_on))
             return false;
+        SceneDecides();
         for (size_t fx = 0; fx < kNumFx; fx++)
         {
             const uint16_t bit = Bit(fx);
@@ -377,6 +408,13 @@ private:
         engine_->SetFxOn(fx, IsOn(fx));
     }
 
+    /** A recall, morph or stop: the latches are the scene's, and the keys held keep them */
+    void SceneDecides()
+    {
+        for (size_t fx = 0; fx < kNumFx; fx++)
+            on_release_[fx] = OnRelease::KEEP;
+    }
+
     /** A key pressed during a morph: it decides that FX's latch, also if the morph stops */
     void TouchedInMorph(size_t fx)
     {
@@ -399,10 +437,20 @@ private:
         engine_->SetFxParam(fx, param, val);
     }
 
+    /** What a held key's release does to its latch */
+    enum class OnRelease : uint8_t
+    {
+        KEEP,           // nothing: a scene decided it meanwhile
+        CLEAR,          // a plain press
+        TOGGLE_PRESSED, // SHIFT was down at the press
+        TOGGLE_ADDED,   // SHIFT went down during the hold; undone by ShiftUsed
+    };
+
     Engine* engine_ = nullptr;
     float params_[kNumFx][kNumFxParams];
     bool held_[kNumFx];
     bool latched_[kNumFx];
+    OnRelease on_release_[kNumFx];
     size_t selected_ = 0;
     float chunk_[kNumFxParams]; // detents towards the next step or grid point
     bool chunk_shift_ = false;  // whether they were turned with SHIFT

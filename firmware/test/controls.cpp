@@ -110,11 +110,11 @@ static void TestKeys()
     fx.KeyPressed(FX_FILTER, false, true);
     Check(e.on[FX_FILTER] && fx.IsLatched(FX_FILTER), "SHIFT + key: latched, stays on after release");
 
-    // a plain press clears the latch but stays on while held
+    // a plain press clears the latch, on release; it stays on while held
     fx.KeyPressed(FX_FILTER, true, false);
-    Check(e.on[FX_FILTER] && !fx.IsLatched(FX_FILTER), "key on a latched FX: unlatched, on while held");
+    Check(e.on[FX_FILTER], "key on a latched FX: on while held");
     fx.KeyPressed(FX_FILTER, false, false);
-    Check(!e.on[FX_FILTER], "... and off on release");
+    Check(!e.on[FX_FILTER] && !fx.IsLatched(FX_FILTER), "... unlatched and off on release");
 
     // the key first, then SHIFT
     fx.KeyPressed(FX_DELAY, true, false);
@@ -133,6 +133,30 @@ static void TestKeys()
     for (size_t f = 0; f < kNumFx; f++)
         none = none && !fx.IsLatched(f);
     Check(none, "SHIFT alone latches nothing");
+
+    // the key, then SHIFT for something else: no latch
+    fx.KeyPressed(FX_FILTER, true, false);
+    fx.ShiftPressed();
+    fx.KnobTurned(0, 1.f, true); // a coarse turn
+    fx.KeyPressed(FX_FILTER, false, true);
+    Check(!e.on[FX_FILTER] && !fx.IsLatched(FX_FILTER), "key, SHIFT + a coarse turn: not latched");
+    fx.KeyPressed(FX_FILTER, true, false);
+    fx.ShiftPressed();
+    fx.ShiftUsed(); // tap tempo, the mix, a scene key ...
+    fx.KeyPressed(FX_FILTER, false, true);
+    Check(!fx.IsLatched(FX_FILTER), "key, SHIFT used for another combo: not latched");
+
+    // SHIFT first, then the key and a coarse turn: that's the latch combo, it latches
+    fx.KeyPressed(FX_FILTER, true, true);
+    fx.KnobTurned(0, 1.f, true);
+    fx.KeyPressed(FX_FILTER, false, true);
+    Check(fx.IsLatched(FX_FILTER), "SHIFT + key, then a coarse turn: still latched");
+    fx.KeyPressed(FX_FILTER, true, true);
+    fx.KeyPressed(FX_FILTER, false, true);
+
+    // a release without its press (held through boot) does nothing
+    fx.KeyPressed(FX_SLICER, false, false);
+    Check(!e.on[FX_SLICER] && !fx.IsLatched(FX_SLICER), "a release without its press: nothing");
 }
 
 static void TestKnobs()
@@ -272,6 +296,8 @@ static void TestScenes()
     Check(!sc.Armed() && sc.Source() == kNoScene, "copy: the source again deselects it");
     sc.SlotPressed(2);
     sc.SlotPressed(3);
+    Check(sc.SlotPressed(2) == Scenes::Slot::REFUSED && sc.Source() == 2 && sc.Selected() == 3,
+          "copy: the source with a destination picked: refused, both stay");
     sc.SlotPressed(3);
     Check(!sc.Armed() && sc.Source() == 2, "copy: the destination again deselects it, the source stays");
     sc.SlotPressed(3);

@@ -76,11 +76,13 @@ public:
             return shift ? Slot::MORPH : Slot::RECALL;
         }
 
-        // COPY's source again: back to picking the source, once no destination is picked
+        // COPY's source again: back to picking the source, once no destination is picked;
+        // with one picked, the destination has to go first
         if (mode_ == SceneMode::COPY && s == src_)
         {
-            if (sel_ == kNoScene)
-                src_ = kNoScene;
+            if (sel_ != kNoScene)
+                return Slot::REFUSED;
+            src_ = kNoScene;
             return Slot::SELECTED;
         }
         if (!Valid(slot))
@@ -91,6 +93,29 @@ public:
         else
             sel_ = s == sel_ ? kNoScene : s;
         return Slot::SELECTED;
+    }
+
+    /** A scene key, all of it: SlotPressed, then the recall, morph or extra bar it calls for.
+     *  REFUSED also when a morph can't take another bar. On the device, call it with the audio
+     *  interrupt blocked, so a recall lands within one block */
+    Slot Press(size_t slot, bool shift)
+    {
+        const Slot result = SlotPressed(slot, shift);
+        switch (result)
+        {
+        case Slot::RECALL:
+            Recall(slot);
+            break;
+        case Slot::MORPH:
+            Morph(slot);
+            break;
+        case Slot::MORPH_MORE:
+            return MorphMore() ? result : Slot::REFUSED;
+        case Slot::SELECTED:
+        case Slot::REFUSED:
+            break;
+        }
+        return result;
     }
 
     /** Recalls a used slot, which becomes the active scene */

@@ -63,6 +63,7 @@ play page.
 
 ```bash
 ./controls.sh
+./keys.sh
 ./looper.sh
 ./tempo.sh
 ```
@@ -71,7 +72,9 @@ play page.
 engine that records what it's sent: holding and latching in either order, fine, stepped and
 coarse knob turns, SHIFT + press, and the scene save / copy / delete / recall flow, including
 that a recall sends only what changes, and what a scene morph does with each effect, its
-taps and stopping it. `looper.sh` runs `Looper.h` without MIDI clock: a free
+taps and stopping it. `keys.sh` runs the CHOMPI, PLAY and LOOP keys (`PlayKeys.h`) against a
+fake host: the confirm tap, SHIFT combos, the looper's combos and the erase hold, and that a
+release without its press does nothing. `looper.sh` runs `Looper.h` without MIDI clock: a free
 recording plays back frame for frame at its length, play / pause, erase, the speed ladder, and
 the refused quantized record. `tempo.sh` checks the FX's tempo: tap tempo (`TapTempo.h`), how
 a loop's beats are fitted or guessed, the tempo clock locked to a loop (`TempoClock.h`: beat 1
@@ -80,7 +83,7 @@ speed, a tap refitting the beats, the loop overriding MIDI clock) and the beats 
 recorded quantized to a faked clock; then the bar lines (free, on 2-, 4- and 6-beat loops, in
 reverse) and a scene morph (`FxMorph.h`) on them: landing on the bar line, one per tap, the
 glide, fades in and out, stopping it halfway. None covers the LEDs or `NormalPage.h`'s routing of the
-keys.
+keys to these classes.
 
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample
 conversions) and `MidiClock.h` (no clock, unless a test sets its fields, as `tempo.cpp`

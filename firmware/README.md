@@ -77,6 +77,7 @@ cd firmware/test
 ./pitch.sh        # the shifter lands on every interval from -12 to +12 semitones
 ./scenes.sh       # the FX scene file round-trips, and the recall's fast slew ends
 ./controls.sh     # the play page's FX keys, knobs and scene flow (FxControls.h, SceneControls.h)
+./keys.sh         # the CHOMPI, PLAY and LOOP keys: confirm tap, SHIFT and looper combos (PlayKeys.h)
 ./looper.sh       # the looper records, plays back, pauses, erases and steps its speed
 ./tempo.sh        # tap tempo, a loop's beats, the FX's tempo locked to the loop, scene morphs
 ```

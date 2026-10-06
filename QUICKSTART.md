@@ -92,7 +92,7 @@ The dark keys of the lower octave hold scenes: every effect's settings and latch
 one is the blank scene: it turns every effect off and resets the knobs, and can't be saved
 over. The other four are yours.
 
-- **Save:** tap the last dark key (blue), tap a scene key, press CHOMPI to confirm.
+- **Save:** tap the last dark key (blue), tap a scene key, tap CHOMPI to confirm.
 - **Recall:** press a scene key. Try a build-up on one scene and the drop on the next, then
   the first key to turn every effect off.
 - **Morph:** hold CHOMPI and press a scene key: the effects glide there and land at the end

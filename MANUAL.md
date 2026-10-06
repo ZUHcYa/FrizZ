@@ -137,7 +137,7 @@ freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> delay 
 | Control | Function |
 |---|---|
 | Hold an FX key | Effect on while held |
-| SHIFT + FX key | Latch on / off; a latched effect stays on after release. Either may go down first: SHIFT then the key, or the key then SHIFT |
+| SHIFT + FX key | Latch on / off; a latched effect stays on after release. Either may go down first: SHIFT then the key, or the key then SHIFT. The latch is settled when you let go of the key: holding an FX key and using SHIFT for something else (a coarse turn, tap tempo, the mix) doesn't latch it |
 | FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
 | Knobs 1-4 | The parameters of the most recently pressed FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo) move one step per 3 detents |
 | SHIFT + knobs 1-4 | Coarse: jumps to the next point of the parameter's grid per detent (see below) |
@@ -353,9 +353,12 @@ no SHIFT needed:
    every slot but the blank one for save, the saved ones for delete, the saved ones and the
    blank one for copy's source.
 2. **Tap the slot.** It blinks in the function's colour. For copy, tap the source first
-   (it stays lit), then the destination. Tapping a picked slot again unpicks it.
-3. **Press the CHOMPI key**, which blinks in the function's colour once there's something to
-   confirm. The slot flashes white and the function ends.
+   (it stays lit), then the destination. Tapping a picked slot again unpicks it (for copy,
+   the destination first: the source blinks red while one is picked).
+3. **Tap the CHOMPI key**, which blinks in the function's colour once there's something to
+   confirm. It confirms when you let go; the slot flashes white and the function ends.
+   Holding CHOMPI and using another key or knob is SHIFT as ever and doesn't confirm, so
+   you can still latch an effect or turn a knob coarsely before you save.
 
 **To get out without doing anything, tap the function's key again.** Tapping a different
 function key switches to that function.
