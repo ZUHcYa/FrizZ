@@ -3,7 +3,8 @@
  *  back into the wet side of the mix. See LOOPER.md for the spec.
  *
  *  Everything here runs in the audio callback. The UI (MainLoop) only posts commands
- *  (StartRecording, StopRecording, TogglePlay, Erase), which are picked up at the start of
+ *  (StartRecording, StopRecording, TogglePlay, Erase, EraseAtEnd, CancelErase), which are
+ *  picked up at the start of
  *  the next audio block, so recording starts and ends aligned to the audio block. Lengths are
  *  counted in recorded frames, and MIDI clock tick times are on the same sample clock.
  *
@@ -85,6 +86,10 @@ public:
     void StopRecording() { command_.store(Command::STOP_RECORDING); }
     void TogglePlay() { command_.store(Command::TOGGLE_PLAY); }
     void Erase() { command_.store(Command::ERASE); }
+    /** Erases when the read head next crosses the loop point, either way; paused, at once */
+    void EraseAtEnd() { command_.store(Command::ERASE_AT_END); }
+    /** Takes back an EraseAtEnd that hasn't happened yet */
+    void CancelErase() { command_.store(Command::CANCEL_ERASE); }
 
     /** One step along the 5ths-and-octaves ladder. dir > 0 turns right (faster forward /
      *  slower reverse), dir < 0 turns left. Past 1/16x the direction flips at the same speed.
@@ -106,6 +111,10 @@ public:
     inline State GetState() const { return state_; }
     /** True once a quantized recording has been told to stop and is finishing its bar */
     inline bool IsClosing() const { return closing_; }
+    /** True while an EraseAtEnd waits for the loop point */
+    inline bool IsErasePending() const { return erase_at_end_; }
+    /** True from the moment an erase starts fading out until the looper is empty */
+    inline bool IsErasing() const { return erasing_; }
     inline bool CanRecordQuantized() const
     {
         return midi_clock_->HasClock() && midi_clock_->GetTickPeriod() > 0.f;
@@ -189,7 +198,10 @@ public:
                         ReadInterpolated(&out_l[i], &out_r[i]);
                         out_l[i] *= fade_;
                         out_r[i] *= fade_;
-                        Advance(playing || fading_out_ ? speed_ : scrub_);
+                        // an erase waiting for the loop point starts its fade there
+                        if (Advance(playing || fading_out_ ? speed_ : scrub_) && playing
+                            && erase_at_end_)
+                            BeginErase();
                     }
                     else
                     {
@@ -218,6 +230,8 @@ private:
         STOP_RECORDING,
         TOGGLE_PLAY,
         ERASE,
+        ERASE_AT_END,
+        CANCEL_ERASE,
     };
 
     /** One step of the ladder, see StepSpeed */
@@ -340,17 +354,33 @@ private:
             if (state_ == State::RECORDING)
                 Clear(); // nothing is audible yet, so no fade needed
             else if (state_ != State::EMPTY)
-            {
-                erasing_ = true;
-                fading_out_ = true;
-                state_ = State::PAUSED; // fade out, then Clear() in Process
-            }
+                BeginErase();
+            break;
+
+        case Command::ERASE_AT_END:
+            if (state_ == State::PLAYING && !erasing_)
+                erase_at_end_ = true;
+            else if (state_ == State::PAUSED)
+                BeginErase(); // nothing to wait for
+            break;
+
+        case Command::CANCEL_ERASE:
+            erase_at_end_ = false;
             break;
 
         case Command::NONE:
         default:
             break;
         }
+    }
+
+    /** Fades out at play speed, then Clear() in Process */
+    void BeginErase()
+    {
+        erase_at_end_ = false;
+        erasing_ = true;
+        fading_out_ = true;
+        state_ = State::PAUSED;
     }
 
     /** Snapshots the first tick after the record press, and closes a quantized recording
@@ -432,6 +462,7 @@ private:
         quantized_ = false;
         closing_ = false;
         erasing_ = false;
+        erase_at_end_ = false;
         fading_out_ = false;
         length_ = 0;
         beats_ = 0;
@@ -465,21 +496,33 @@ private:
         scrub_target_ = daisysp::fclamp(scrub_turns_.exchange(0) * kScrubPerTurn, -2.f, 2.f);
     }
 
-    /** Moves the read head by speed frames (signed), wrapping around the loop */
-    inline void Advance(float speed)
+    /** Moves the read head by speed frames (signed), wrapping around the loop. True if it
+     *  crossed the loop point */
+    inline bool Advance(float speed)
     {
+        bool wrapped = false;
         play_frac_ += speed;
         while (play_frac_ >= 1.f)
         {
             play_frac_ -= 1.f;
             if (++play_pos_ >= length_)
+            {
                 play_pos_ = 0;
+                wrapped = true;
+            }
         }
         while (play_frac_ < 0.f)
         {
             play_frac_ += 1.f;
-            play_pos_ = play_pos_ == 0 ? length_ - 1 : play_pos_ - 1;
+            if (play_pos_ == 0)
+            {
+                play_pos_ = length_ - 1;
+                wrapped = true;
+            }
+            else
+                play_pos_--;
         }
+        return wrapped;
     }
 
     inline size_t Wrap(size_t frame, int offset) const
@@ -543,6 +586,7 @@ private:
     bool quantized_;
     bool closing_;
     bool erasing_;
+    volatile bool erase_at_end_ = false; // an EraseAtEnd waiting for the loop point
     bool fading_out_ = false; // fading out after a pause or erase, still at play speed
 
     size_t length_;        // loop length in frames, once closed

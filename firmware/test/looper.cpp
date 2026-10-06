@@ -154,10 +154,80 @@ static void TestSpeed()
     Block();
 }
 
+/** A fresh unquantized loop of blocks blocks, playing */
+static void Record(size_t blocks)
+{
+    looper.StartRecording(false);
+    Blocks(blocks);
+    looper.StopRecording();
+    Block();
+}
+
+/** Plays until the looper stops playing; the position it last played at */
+static float PlayUntilErased(size_t max_blocks)
+{
+    float last = looper.GetPosition();
+    for (size_t b = 0; b < max_blocks && looper.GetState() == Looper::State::PLAYING; b++)
+    {
+        last = looper.GetPosition();
+        Block();
+    }
+    return last;
+}
+
+static void TestEraseAtEnd()
+{
+    Record(100);
+    Blocks(20);
+    looper.EraseAtEnd();
+    Block();
+    Check(looper.IsErasePending() && looper.GetState() == Looper::State::PLAYING,
+          "erase at the end: waits, playing");
+    const float last = PlayUntilErased(200);
+    Check(last > .95f && looper.IsErasing() && !looper.IsErasePending(),
+          "erase at the end: fades out at the loop point");
+    Blocks(200);
+    Check(looper.GetState() == Looper::State::EMPTY, "erase at the end: then empty");
+
+    Record(100);
+    looper.EraseAtEnd();
+    Block();
+    looper.CancelErase();
+    Block();
+    Blocks(300);
+    Check(looper.GetState() == Looper::State::PLAYING && !looper.IsErasePending(),
+          "erase at the end, cancelled: plays on past the loop point");
+    looper.Erase();
+    Blocks(200);
+    Check(looper.GetState() == Looper::State::EMPTY, "erase: at once");
+
+    // in reverse, the loop point is crossed at the start
+    Record(100);
+    for (int i = 0; i < 9; i++)
+        Step(-1);
+    Blocks(2000); // the glide down into reverse
+    looper.EraseAtEnd();
+    Block();
+    const float first = PlayUntilErased(40000);
+    Check(first < .05f && looper.IsErasing(), "erase at the end, in reverse: at the loop's start");
+    Blocks(200);
+    Check(looper.GetState() == Looper::State::EMPTY, "... then empty");
+    looper.ResetSpeed();
+    Block();
+
+    Record(100);
+    looper.TogglePlay();
+    Blocks(200);
+    looper.EraseAtEnd();
+    Block();
+    Check(looper.GetState() == Looper::State::EMPTY, "erase at the end, paused and silent: at once");
+}
+
 int main()
 {
     TestRecordAndPlay();
     TestPauseAndErase();
     TestSpeed();
+    TestEraseAtEnd();
     return Finish();
 }

@@ -38,7 +38,8 @@ white while it acts as SHIFT.
 4. **PLAY** pauses and resumes it.
 5. Turn the big **transport knob** to change speed in fifths and octaves, down to 1/16× and
    on into reverse. While paused, turning the knob scrubs. Press the knob to get back to normal speed.
-6. Hold **PLAY + LOOP** for 2 seconds to erase the loop. The mix jumps back to the input.
+6. Press **LOOP** to erase the loop. The mix jumps back to the input. To erase at the end of
+   the loop instead, hold PLAY and press LOOP.
 
 **In sync with a clock:** with MIDI clock coming in over TRS or USB, hold PLAY and press LOOP.
 The recording then ends on a whole bar. Without a clock, LOOP blinks red three times.

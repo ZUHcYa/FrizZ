@@ -337,6 +337,10 @@ namespace chompi
         inline void StartRecording(bool quantized) { engine_->looper.StartRecording(quantized); }
         inline void StopRecording() { engine_->looper.StopRecording(); }
         inline void TogglePlay() { engine_->looper.TogglePlay(); }
+        inline void Erase() { engine_->looper.Erase(); }
+        inline void EraseAtEnd() { engine_->looper.EraseAtEnd(); }
+        inline void CancelErase() { engine_->looper.CancelErase(); }
+        inline bool ErasePending() const { return engine_->looper.IsErasePending(); }
 
         /** Once per frame, before drawing: what follows from time and the looper's state */
         void Update(uint32_t now)
@@ -345,16 +349,21 @@ namespace chompi
             if (init_ignore && now - init_time > 1500)
                 init_ignore = false;
 
-            // hold PLAY + LOOP to erase
-            if (keys_.EraseDue(now))
+            // an erase starting, now or at the loop's end: the input fades in while the loop
+            // fades out. A fade too short to be seen still ends in an empty looper.
+            const Looper::State looper_state = engine_->looper.GetState();
+            const bool erasing = engine_->looper.IsErasing()
+                                 || (looper_state == Looper::State::EMPTY
+                                     && (last_looper_state_ == Looper::State::PLAYING
+                                         || last_looper_state_ == Looper::State::PAUSED));
+            if (erasing && !last_erasing_)
             {
-                engine_->looper.Erase();
-                SetMix(0.f); // the input fades in while the loop fades out
+                SetMix(0.f);
                 speed_chunk_ = 0.f;
             }
+            last_erasing_ = erasing;
 
             // jump to fully wet when a recording closes into playback
-            const Looper::State looper_state = engine_->looper.GetState();
             if (last_looper_state_ == Looper::State::RECORDING && looper_state == Looper::State::PLAYING)
             {
                 SetMix(1.f);
@@ -583,6 +592,12 @@ namespace chompi
                 const float pos = looper.GetPosition();
                 play = (1.f - pos) * level;
                 loop[0] = loop[1] = loop[2] = pos * level;
+                // an erase waiting for the loop's end: LOOP blinks red, as a closing record
+                if (looper.IsErasePending())
+                {
+                    loop[0] = (now / kClosingBlinkMs) % 2 == 0 ? 1.f : 0.f;
+                    loop[1] = loop[2] = 0.f;
+                }
             }
 
             // a tempo tap: a white flash, over whatever LOOP was showing
@@ -680,6 +695,7 @@ namespace chompi
         SceneStore *scenes_;
 
         Looper::State last_looper_state_ = Looper::State::EMPTY;
+        bool last_erasing_ = false;
 
         float out_gain_;
         float in_gain_;

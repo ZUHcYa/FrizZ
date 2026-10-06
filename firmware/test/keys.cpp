@@ -16,6 +16,8 @@ struct FakeHost
     uint32_t now = 0;
     int confirms = 0, shift_presses = 0, shift_uses = 0, freezes = 0, taps = 0, refusals = 0;
     int toggles = 0, records = 0, quantized = 0, stops = 0;
+    int erases = 0, erases_at_end = 0, cancels = 0;
+    bool erase_pending = false;
 
     bool SceneArmed() const { return armed; }
     void ConfirmScene()
@@ -54,6 +56,23 @@ struct FakeHost
         state = Looper::State::PLAYING;
     }
     void TogglePlay() { toggles++; }
+    void Erase()
+    {
+        erases++;
+        erase_pending = false;
+        state = Looper::State::EMPTY;
+    }
+    void EraseAtEnd()
+    {
+        erases_at_end++;
+        erase_pending = true;
+    }
+    void CancelErase()
+    {
+        cancels++;
+        erase_pending = false;
+    }
+    bool ErasePending() const { return erase_pending; }
 };
 
 using Keys = PlayKeys<FakeHost>;
@@ -125,20 +144,60 @@ static void TestPlayLoop()
     k.Play(false);
     Check(h.toggles == 1, "a PLAY release without its press: nothing");
 
-    // PLAY + LOOP on a loop, either order: erase after 2s, and no toggle
-    k.Play(true);
-    h.now = 1000;
+    // LOOP on a loop: erases at once, but not just after it stopped a recording
     k.Loop(true);
-    Check(!k.EraseDue(2999), "erase: not before 2s");
-    Check(k.EraseDue(3000) && !k.EraseDue(3001), "erase: at 2s, once");
+    Check(h.erases == 0, "LOOP right after the stop: no erase");
+    k.Loop(false);
+    h.now = Keys::kEraseLockMs - 1;
+    k.Loop(true);
+    Check(h.erases == 0, "LOOP within the lock: no erase");
+    k.Loop(false);
+    h.now = Keys::kEraseLockMs;
+    k.Loop(true);
+    Check(h.erases == 1 && h.state == Looper::State::EMPTY, "LOOP on a loop: erases at once");
+    k.Loop(false);
+
+    // PLAY held + LOOP on a loop: erases at its end, and PLAY's release doesn't toggle
+    h.state = Looper::State::PLAYING;
+    k.Play(true);
+    k.Loop(true);
+    Check(h.erases_at_end == 1 && h.erases == 1, "PLAY + LOOP on a loop: erase at its end");
     k.Loop(false);
     k.Play(false);
-    Check(h.toggles == 1, "erase combo: PLAY's release doesn't toggle");
+    Check(h.toggles == 1 && h.cancels == 0, "... PLAY's release neither toggles nor cancels");
+
+    // waiting: PLAY alone takes it back, without a toggle
+    k.Play(true);
+    k.Play(false);
+    Check(h.cancels == 1 && h.toggles == 1 && !h.erase_pending, "waiting: PLAY cancels, no toggle");
+
+    // waiting: LOOP erases at once, with PLAY held or not
+    k.Play(true);
+    k.Loop(true);
+    k.Loop(false);
+    k.Play(false);
+    Check(h.erases_at_end == 2, "PLAY + LOOP again: waits again");
+    k.Loop(true);
+    Check(h.erases == 2 && !h.erase_pending, "waiting: LOOP erases at once");
+    k.Loop(false);
+    h.state = Looper::State::PLAYING;
+    k.Play(true);
+    k.Loop(true);
+    k.Loop(false);
+    k.Loop(true);
+    Check(h.erases == 3 && h.erases_at_end == 3, "waiting, PLAY held: LOOP erases at once");
+    k.Loop(false);
+    k.Play(false);
+    Check(h.toggles == 1 && h.cancels == 1, "... PLAY's release does nothing");
+
+    // LOOP first erases; PLAY after it is nothing more
+    h.state = Looper::State::PLAYING;
     k.Loop(true);
     k.Play(true);
     k.Play(false);
-    Check(!k.EraseDue(10000), "erase: let go early, nothing");
     k.Loop(false);
+    Check(h.erases == 4 && h.erases_at_end == 3 && h.toggles == 2,
+          "LOOP, then PLAY: one erase; PLAY is PLAY, on the empty looper");
 
     // quantized record: PLAY held, LOOP on an empty looper
     h.state = Looper::State::EMPTY;
@@ -147,7 +206,7 @@ static void TestPlayLoop()
     Check(h.quantized == 1, "PLAY + LOOP on empty: quantized record");
     k.Loop(false);
     k.Play(false);
-    Check(h.toggles == 1, "... and PLAY's release doesn't toggle");
+    Check(h.toggles == 2, "... and PLAY's release doesn't toggle");
     h.state = Looper::State::EMPTY;
     h.can_quantize = false;
     k.Play(true);

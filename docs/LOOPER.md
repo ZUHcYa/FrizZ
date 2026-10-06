@@ -36,9 +36,10 @@ deviations listed below. Where this document and the guidebook disagree, this do
 | Recording (unquantized) | `LOOP` | Stop recording now. The loop is exactly what was recorded. Playback starts seamlessly |
 | Recording (quantized) | `LOOP` | Keep recording to the end of the current bar, then close the loop. Playback starts seamlessly at that bar line |
 | Loop exists | `PLAY` | Toggle play / pause |
-| Loop exists | `LOOP` | Nothing (no overdub). Erase first to record a new loop |
+| Loop exists | `LOOP` | **Erase** now (not within 500 ms of the press that stopped the recording). LEDs above both keys go dark |
+| Loop playing | hold `PLAY`, press `LOOP` | **Erase at the loop's end**: when the read head next crosses the loop point, either direction. Paused: now |
+| Erase waiting | `LOOP` / `PLAY` | `LOOP` erases now; `PLAY` takes it back without a toggle |
 | Any | SHIFT + `LOOP` | Tap tempo (`TapTempo.h`), never a looper action |
-| Loop exists | hold `PLAY` + `LOOP` 2 s | **Erase**. LEDs above both keys go dark |
 
 Not implemented, on purpose: overdub, overdub decay, re-recording over an existing loop,
 TAPE's monitor-routing modes.
@@ -96,6 +97,7 @@ Same as TAPE's quantized looper pitch (`SetLooperPitchQuantized` in TAPE's `DSPE
 | LOOP key | recording | red |
 | LOOP key | quantized, `LOOP` pressed, waiting for bar end | red, blinking |
 | LOOP key | quantized refused (no clock) | 3 fast red blinks |
+| LOOP key | erase waiting for the loop's end | red, blinking |
 | PLAY + LOOP keys | playing | white, crossfading PLAY → LOOP to show the position in the loop (as TAPE) |
 | PLAY + LOOP keys | paused | dim white at the current position |
 | PLAY + LOOP keys | empty / just erased | off |
@@ -156,9 +158,9 @@ Notes for implementing this against `MidiClock.h`:
      the loop end, see `Looper.h`), quantized end, clock-loss and 2:45 handling.
    - Wire its output into `wetl`/`wetr` in `passthroughEngine.h`.
 3. **Keys.** *(done: `NormalPage.h`)* PLAY/LOOP state machine per 1.2, including the quantized
-   end and the 2 s erase. LOOP acts on press; PLAY acts on release and only if LOOP wasn't
-   pressed during the hold. Erase works with either key going down first, but only on a loop
-   that already existed when both were down.
+   end and the erase (`PlayKeys.h`). LOOP acts on press; PLAY acts on release and only if LOOP
+   wasn't pressed during the hold. The erase mirrors the record: LOOP now, PLAY held + LOOP at
+   the loop's end.
 4. **Transport.** *(done: `Looper.h`, `NormalPage.h`)* Stepped varispeed, reverse,
    press-to-reset, scrub when paused. The read head is a frame index plus a fraction, read
    with 4-point Hermite interpolation. As TAPE's defaults: speed glides ~0.2 s to each new

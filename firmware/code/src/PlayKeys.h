@@ -9,17 +9,20 @@
  *  doesn't confirm. SHIFT + anything else is that combo, and a latch the SHIFT press had
  *  queued for a held FX key is dropped (ShiftUsed).
  *
- *  LOOP acts on press, so recording starts and stops exactly then. PLAY acts on release, and
- *  only if nothing combined with it during the hold, so the PLAY + LOOP combos (the quantized
- *  record, the erase) never also toggle play. SHIFT + LOOP is tap tempo and only that;
- *  SHIFT + PLAY stops a scene morph, or without one is PLAY. A release whose press wasn't seen
- *  (a key held through the boot animation) does nothing.
+ *  LOOP acts on press, so recording starts, stops and erases exactly then. The gestures that
+ *  record on an empty looper erase a loop: LOOP at once, PLAY held + LOOP at the loop's end
+ *  (quantized). LOOP while that waits erases at once; PLAY alone takes it back. For
+ *  kEraseLockMs after LOOP stopped a recording, LOOP doesn't erase, so a double press or a
+ *  bounce can't lose the new loop. PLAY acts on release, and only if nothing combined with it
+ *  during the hold, so the PLAY + LOOP combos never also toggle play. SHIFT + LOOP is tap
+ *  tempo and only that; SHIFT + PLAY stops a scene morph, or without one is PLAY. A release
+ *  whose press wasn't seen (a key held through the boot animation) does nothing.
  *
  *  Host is NormalPage on the device, a fake on the host. It needs: SceneArmed(),
  *  ConfirmScene(), ShiftPressed() (true if it queued a latch) and ShiftUsed() (FxControls'),
- *  FreezeMorph() (true if one was stopped), Tap(), Refused() (LOOP can't do it), Now() in ms, and the looper's
- *  LooperState(), CanRecordQuantized(), StartRecording(quantized), StopRecording(),
- *  TogglePlay().
+ *  FreezeMorph() (true if one was stopped), Tap(), Refused() (LOOP can't do it), Now() in ms,
+ *  and the looper's LooperState(), CanRecordQuantized(), StartRecording(quantized),
+ *  StopRecording(), TogglePlay(), Erase(), EraseAtEnd(), CancelErase(), ErasePending().
  */
 #pragma once
 #include <stdint.h>
@@ -86,19 +89,16 @@ public:
                 play_combo_ = true;
                 return;
             }
-            // LOOP held first, then PLAY: the same erase combo
-            if (loop_down_ && LoopExists())
-            {
-                play_combo_ = true;
-                ArmErase();
-            }
             return;
         }
         if (!play_down_)
             return;
         play_down_ = false;
-        erase_armed_ = false;
-        if (!play_combo_)
+        if (play_combo_)
+            return;
+        if (host_->ErasePending())
+            host_->CancelErase(); // and only that: the loop plays on
+        else
             host_->TogglePlay();
     }
 
@@ -116,26 +116,11 @@ public:
                 host_->Tap();
                 return;
             }
-            loop_down_ = true;
             LoopPressed();
-            return;
         }
-        if (!loop_down_)
-            return;
-        loop_down_ = false;
-        erase_armed_ = false;
     }
 
-    /** PLAY + LOOP held long enough on a loop: true once, then erase it */
-    bool EraseDue(uint32_t now)
-    {
-        if (!erase_armed_ || now - erase_time_ < kEraseHoldMs)
-            return false;
-        erase_armed_ = false;
-        return true;
-    }
-
-    static const uint32_t kEraseHoldMs = 2000;
+    static const uint32_t kEraseLockMs = 500;
 
 private:
     void LoopPressed()
@@ -156,39 +141,29 @@ private:
 
         case Looper::State::RECORDING:
             host_->StopRecording();
+            stopped_ = true;
+            stop_time_ = host_->Now();
             break;
 
         case Looper::State::PLAYING:
         case Looper::State::PAUSED:
-            // only a loop that already existed when both went down can be erased, so holding
-            // the quantized-record combo can't erase the new recording. Either key may go
-            // down first.
-            if (play_down_)
-                ArmErase();
+            if (stopped_ && host_->Now() - stop_time_ < kEraseLockMs)
+                break;
+            if (play_down_ && !host_->ErasePending())
+                host_->EraseAtEnd();
+            else
+                host_->Erase();
             break;
         }
-    }
-
-    bool LoopExists() const
-    {
-        const Looper::State state = host_->LooperState();
-        return state == Looper::State::PLAYING || state == Looper::State::PAUSED;
-    }
-
-    void ArmErase()
-    {
-        erase_armed_ = true;
-        erase_time_ = host_->Now();
     }
 
     Host* host_ = nullptr;
     bool chompi_down_ = false;
     bool combo_ = false;      // something used with CHOMPI during this hold
     bool play_down_ = false;
-    bool loop_down_ = false;
     bool play_combo_ = false; // something combined with this PLAY hold: no toggle
-    bool erase_armed_ = false;
-    uint32_t erase_time_ = 0;
+    bool stopped_ = false;   // LOOP has stopped a recording, at stop_time_
+    uint32_t stop_time_ = 0;
 };
 
 } // namespace chompi

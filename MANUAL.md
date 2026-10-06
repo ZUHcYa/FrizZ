@@ -49,13 +49,18 @@ as the loop.
 | Empty | hold PLAY, press LOOP | Start a **quantized** recording (needs MIDI clock, otherwise LOOP blinks red 3 times) |
 | Recording | LOOP | Stop now, or for a quantized recording at the end of the current bar, then play |
 | Loop exists | PLAY | Play / pause |
-| Loop exists | hold PLAY + LOOP 2 s | Erase |
+| Loop exists | LOOP | Erase now |
+| Loop exists, playing | hold PLAY, press LOOP | Erase at the **end of the loop** (LOOP blinks red until then; paused, it erases now) |
+| Erase waiting for the end | LOOP / PLAY | LOOP erases now; PLAY takes the erase back, the loop plays on |
 | Any | SHIFT + LOOP | Tap tempo (see [Tempo](#tempo)); never records, stops or erases |
 | Any, while a scene morphs | SHIFT + PLAY | Stops the morph where it is (see [Morphing to a scene](#morphing-to-a-scene)); doesn't play or pause |
 
 - **Quantized:** recording starts on the press, which counts as bar 1 (4/4). Ending it records
   to the end of the bar in progress, so the loop is always a whole number of bars. It closes
   immediately if the clock stops.
+- **Erasing** uses the gestures that record: LOOP at once, PLAY + LOOP quantized, here to
+  the loop's own end, so it needs no clock. For half a second after LOOP stopped a recording,
+  LOOP doesn't erase, so a double press can't lose the new loop.
 - **Length:** up to 2:45. The loop lives in RAM and is gone at power-off. There's no overdub.
 
 Transport knob (the big purple one), once a loop exists:
@@ -66,7 +71,8 @@ Transport knob (the big purple one), once a loop exists:
 | Turn while paused | Scrub |
 | Press | Back to 1× forward |
 
-LEDs: LOOP is red while recording and blinks while a quantized recording finishes its bar.
+LEDs: LOOP is red while recording and blinks while a quantized recording finishes its bar or
+an erase waits for the loop's end.
 While a loop plays, PLAY and LOOP crossfade in white to show the position (dimmed when
 paused). The transport LEDs show speed and direction.
 
