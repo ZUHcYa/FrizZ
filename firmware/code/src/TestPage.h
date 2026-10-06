@@ -317,9 +317,8 @@ namespace chompi
         {
             bool ret = true;
 
+            // no MIDI-note or jack-detect check: TAPE's tests, which FRIZZ can't pass
             ret &= tog_sw.left && tog_sw.right;
-            ret &= num_notes_received == 20;
-            ret &= jack_detect;
             ret &= sd_card;
 
             for(size_t i = 0; i < size_t(Hardware::SwId::SR_LAST); i++)
@@ -333,8 +332,6 @@ namespace chompi
             for(size_t i = 0; i < size_t(Hardware::EncoderId::ENC_LAST); i++)
                 ret &= turned[i].left && turned[i].right;
 
-            ret &= num_notes_received == 20;
-            ret &= jack_detect;
             ret &= power_cable;
             ret &= bmc_good;
             

@@ -16,6 +16,12 @@ namespace chompi
 {
 
     /** @brief Hardware support class for the CHOMPI hardware */
+// The MP2722 battery chip's status registers, received by DMA (Hardware::MpReadAll). The D-cache
+// would hide the DMA's writes from a buffer in ordinary RAM, so it lives in D2 RAM, uncached
+// (libDaisy's MPU setup), like the LED data in temp_led_stuff.h. This header is only included
+// by chompi_main.cpp
+uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
+
     class Hardware
     {
     public:
@@ -218,6 +224,8 @@ namespace chompi
             if(batt_level == BatteryLevel::FULL)
                 return;
 
+            // its read is its own (level_read_), and the lockout doesn't read meanwhile, so the
+            // 3V3 reading can't be overwritten before it's used, nor reach the lockout
             uint32_t now = System::GetNow();
             if (batt_check_state == 0 && now - batt_level_checkt > 30000) { // Check every 30s
                 MpWrite(0x0c, 0B01011101); // set BATT_LOW to 3V3
@@ -225,14 +233,17 @@ namespace chompi
                 batt_check_state = 1;
             }
             else if (batt_check_state == 1 && now - batt_level_checkt > 30) {
+                level_read_ = true;
                 MpReadAll();
-                MpWrite(0x0c, 0B01010001); // set BATT_LOW to 3V
                 batt_level_checkt = now;
                 batt_check_state = 2;
             }
-            else if (batt_check_state == 2 && now - batt_level_checkt > 30) {
-                const bool batt_low_stat = mp_buff_[5] >> 4 & 1;
-                batt_level = batt_low_stat ? BatteryLevel::MEDIUM : BatteryLevel::HIGH;
+            else if (batt_check_state == 2 && (!level_read_ || now - batt_level_checkt > 200)) {
+                // read, or given up on (it failed): back to 3V either way
+                MpWrite(0x0c, 0B01010001); // set BATT_LOW to 3V
+                if (!level_read_ && !read_error)
+                    batt_level = level_low_ ? BatteryLevel::MEDIUM : BatteryLevel::HIGH;
+                level_read_ = false;
                 batt_level_checkt = now;
                 batt_check_state = 0;
             }
@@ -265,7 +276,9 @@ namespace chompi
                 return;
             #endif 
 
-            BMCPerformCheck();
+            // not during the level check, whose threshold is raised to 3V3 (BMCMediumBattCheck)
+            if(batt_check_state == 0)
+                BMCPerformCheck();
 
             if(batt_low_bounce == 0xff && vin_gd_bounce == 0x00) // unplugged and low battery
             {
@@ -348,7 +361,14 @@ namespace chompi
         {
             Hardware *self = static_cast<Hardware*>(context);
             if(result != daisy::I2CHandle::Result::OK)
-                return; // handle error or retry later
+            {
+                // nothing new: the debouncing keeps what it had, and a waiting reader goes on
+                self->level_read_ = false;
+                self->read_error = true;
+                self->read_ready = true;
+                return;
+            }
+            self->read_error = false;
 
             uint8_t *buff = self->mp_buff_;
 
@@ -356,6 +376,14 @@ namespace chompi
             const bool vin_gd = (buff[1] >> 6) & 1;
             const bool legacy_cable = (buff[1] >> 4) & 1;
             const bool batt_low_stat = (buff[5] >> 4) & 1;
+
+            if(self->level_read_)
+            {
+                self->level_low_ = batt_low_stat;
+                self->level_read_ = false;
+                self->read_ready = true;
+                return;
+            }
 
             self->batt_low_bounce = (self->batt_low_bounce << 1) | batt_low_stat;
             self->vin_gd_bounce   = (self->vin_gd_bounce << 1) | vin_gd;
@@ -380,8 +408,14 @@ namespace chompi
             self->read_ready = true;
         }
 
-        uint8_t mp_buff_[6];
-        bool read_ready = false;
+        // the MP2722's status, received by DMA: in the uncached D2 RAM (mp_dma_buff)
+        uint8_t* const mp_buff_ = mp_dma_buff;
+        volatile bool read_ready = false;
+        volatile bool read_error = false; // the last read failed: mp_buff_ is older
+        // the level check's own read (BMCMediumBattCheck): taken at the 3V3 threshold, so it
+        // doesn't feed the lockout's debouncing
+        volatile bool level_read_ = false;
+        volatile bool level_low_ = false;
 
         bool GetToggleState()
         {

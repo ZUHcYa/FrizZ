@@ -61,6 +61,9 @@ daisysp::Oscillator osc;
 // callback runs the UI (the boot animation); from then on only MainLoop does, so the UI is
 // never re-entered from the interrupt
 volatile bool main_loop_running = false;
+// While main() reads the keys at boot (the shift registers, for test mode or shipping mode),
+// the audio callback leaves them alone: both bit-banging the same chain garbles it
+volatile bool main_reads_keys = false;
 
 bool booting = true;
 bool rainbow_done = false;
@@ -97,8 +100,11 @@ void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, s
     midi_clock.Process(sample_clock);
     sample_clock += size;
 
-    hw.ProcessAllControls();
-    ui.GenerateEvents();
+    if(!main_reads_keys)
+    {
+        hw.ProcessAllControls();
+        ui.GenerateEvents();
+    }
 
     if((booting || loading_screen) && !ui.InTestMode())
     {
@@ -175,7 +181,9 @@ void MainLoop(void* data)
     {
         hw.MpReadAll();
 
-        while (!hw.read_ready) {
+        // a failed read sets read_ready too; the timeout is for one that never ends
+        const uint32_t read_start = System::GetNow();
+        while (!hw.read_ready && System::GetNow() - read_start < 100) {
             System::Delay(1);
         }
         ui.TestPowerCable(hw.mp_buff_[1] >> 5 & 1); //VIN_RDY
@@ -213,11 +221,8 @@ int main(void)
     System::Delay(100);
     fsi.Init(FatFSInterface::Config::MEDIA_SD);
     System::Delay(100);
-    const bool card_ok = f_mount(&fsi.GetSDFileSystem(), fsi.GetSDPath(), 1) == FR_OK;
     // FRIZZ's files live in /FRIZZ, created on first start (SceneStore.h)
-    if(card_ok)
-        EnterFrizzDir();
-    scene_store.Init(card_ok);
+    scene_store.Init(&fsi.GetSDFileSystem(), fsi.GetSDPath());
 
     engine.Init(hw.seed.AudioSampleRate(), loop_mem, &midi_clock,
                 delay_mem, delay_frozen_mem, kDelayFrames, &reverb,
@@ -246,6 +251,7 @@ int main(void)
     uint32_t vol_state = 0;
     uint32_t sleep_state = 0;
 
+    main_reads_keys = true;
     for(int i = 0; i < 5000; i++)
     {
         hw.ProcessAllControls();
@@ -257,10 +263,17 @@ int main(void)
         System::DelayUs(100);
     }
 
+    main_reads_keys = false;
+
     if(sleep_state > 4000)
         hw.MpWrite(0x08, 0B10111111); // SHIPPING MODE
     else if(vol_state > 4000)
+    {
+        // the test page opens here, from main(): the audio callback must stop running the UI
+        // first (it reads the card in OnFocusGained)
+        main_loop_running = true;
         ui.TestMode();
+    }
 
     hw.usb_sw.Write(false);     // give USB control
     daisy::System::Delay(1); // Wait a sec

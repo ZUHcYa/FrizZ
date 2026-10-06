@@ -5,10 +5,14 @@
  *
  *  The write runs in MainLoop (Process), not in the button handler: the audio callback runs
  *  the UI during boot. It goes to frizz_scenes.tmp first, which then replaces the old file,
- *  so a power cut mid-write leaves one or the other; reading falls back to the .tmp.
+ *  so a power cut mid-write leaves one or the other. Reading falls back to the .tmp, and
+ *  then finishes that save, so the next one doesn't overwrite the only good copy. A file that
+ *  is there but can't be read (another version, edited into something else) isn't
+ *  overwritten: the next save moves it to frizz_scenes.bak first.
  *
  *  Without a card the scenes still work, in RAM only, and are gone at power-off. A write that
- *  fails is reported (GetSaveState) and the next save tries again.
+ *  fails is reported (GetSaveState); the next save mounts the card again and tries again, so
+ *  a card put in or back meanwhile is used.
  */
 #pragma once
 #include "daisy.h"
@@ -21,6 +25,7 @@ namespace chompi
 
 static const char kSceneFile[] = "frizz_scenes.txt";
 static const char kSceneTmpFile[] = "frizz_scenes.tmp";
+static const char kSceneBakFile[] = "frizz_scenes.bak";
 
 // FRIZZ's folder on the card, so it can share a card with other firmwares (the launcher at
 // github.com/sfaber02/CHOMPI gives each its own folder)
@@ -59,13 +64,18 @@ public:
         FAILED,  // the last save isn't: no card, or the write failed
     };
 
-    /** After f_mount, with whether it worked; before audio starts */
-    void Init(bool mounted)
+    /** Mounts the card (fs, path: FatFSInterface's), enters /FRIZZ and reads the scenes;
+     *  before audio starts */
+    void Init(FATFS* fs, const char* path)
     {
-        mounted_ = mounted;
+        fs_ = fs;
+        path_ = path;
         save_state_ = SaveState::IDLE;
+        unreadable_ = false;
         for (size_t s = 0; s < kNumScenes; s++)
             Saved()[s].used = false;
+        if (!Mount())
+            return;
 
         // for the effects a saved scene leaves out
         float defaults[kNumFx][kNumFxParams];
@@ -73,8 +83,17 @@ public:
             for (size_t p = 0; p < kNumFxParams; p++)
                 defaults[fx][p] = kFxParams[fx].defaults[p];
 
-        if (mounted_ && !Load(kSceneFile, defaults))
-            Load(kSceneTmpFile, defaults);
+        if (Load(kSceneFile, defaults))
+            return;
+        const bool there = Exists(kSceneFile);
+        if (Load(kSceneTmpFile, defaults))
+        {
+            // a save cut short before its rename: finish it
+            if (!there || f_unlink(kSceneFile) == FR_OK)
+                f_rename(kSceneTmpFile, kSceneFile);
+        }
+        else if (there)
+            unreadable_ = true;
     }
 
     /** From the play page after a change: the next Process writes the file */
@@ -88,7 +107,11 @@ public:
     {
         if (save_state_ != SaveState::PENDING)
             return;
-        save_state_ = mounted_ && Save() ? SaveState::OK : SaveState::FAILED;
+        // after a failure, or without a card at boot: mount again, the card may be back
+        if (!mounted_ || failed_)
+            Mount();
+        failed_ = !(mounted_ && Save());
+        save_state_ = failed_ ? SaveState::FAILED : SaveState::OK;
     }
 
     /** The play page's slots; SceneControls fills the blank one (kBlankSlot) */
@@ -97,6 +120,21 @@ public:
 private:
     /** The slots the file holds, its scene 1 first */
     inline FxScene* Saved() { return scenes + kBlankSlot + 1; }
+
+    /** (Re)mounts the card and enters /FRIZZ; false without one */
+    bool Mount()
+    {
+        mounted_ = f_mount(fs_, path_, 1) == FR_OK;
+        if (mounted_)
+            EnterFrizzDir();
+        return mounted_;
+    }
+
+    inline bool Exists(const char* name)
+    {
+        FILINFO info;
+        return f_stat(name, &info) == FR_OK;
+    }
 
     bool Load(const char* name, const float (*defaults)[kNumFxParams])
     {
@@ -117,6 +155,17 @@ private:
         if (len == 0)
             return false;
 
+        // a file that couldn't be read is kept, not overwritten
+        if (unreadable_)
+        {
+            const FRESULT del = f_unlink(kSceneBakFile);
+            if (del != FR_OK && del != FR_NO_FILE)
+                return false;
+            if (f_rename(kSceneFile, kSceneBakFile) != FR_OK)
+                return false;
+            unreadable_ = false;
+        }
+
         if (f_open(&file_, kSceneTmpFile, FA_CREATE_ALWAYS | FA_WRITE) != FR_OK)
             return false;
         UINT written = 0;
@@ -131,6 +180,10 @@ private:
         return f_rename(kSceneTmpFile, kSceneFile) == FR_OK;
     }
 
+    FATFS* fs_ = nullptr;
+    const char* path_ = nullptr;
+    bool unreadable_ = false; // a scene file is there that couldn't be read
+    bool failed_ = false;     // the last save failed
     FIL file_;
     // FatFs reads whole sectors straight into it by DMA, so on a cache line of its own
     alignas(32) char buf_[kSceneFileMax];

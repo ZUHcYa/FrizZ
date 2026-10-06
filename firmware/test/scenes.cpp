@@ -205,6 +205,10 @@ int main()
     bad[1].used = true;
     Check(!ParseScenes("hello\nscene 1\n", defaults, bad) && !bad[1].used, "rejects a foreign file");
     Check(!ParseScenes("", defaults, bad), "rejects an empty file");
+    Check(!ParseScenes("FRIZZ scenes 10\nscene 1\n", defaults, bad) && !bad[0].used,
+          "rejects another version whose header starts the same");
+    Check(ParseScenes("FRIZZ scenes 1\r\nscene 1\r\n", defaults, bad) && bad[0].used,
+          "reads a file saved with Windows line ends");
 
     // 5. cut off mid-line (a power cut without the .tmp): what's there is read, nothing crashes
     char cut[kSceneFileMax];

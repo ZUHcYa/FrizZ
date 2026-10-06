@@ -135,6 +135,10 @@ inline bool ParseScenes(const char* text,
     const size_t header_len = sizeof(kHeader) - 1;
     if (strncmp(text, kHeader, header_len) != 0)
         return false;
+    // the whole word: "FRIZZ scenes 10" is another version
+    const char after = text[header_len];
+    if (after != '\0' && after != '\n' && after != '\r' && after != ' ' && after != '\t')
+        return false;
 
     FxScene* scene = nullptr;
     const char* p = text + header_len;

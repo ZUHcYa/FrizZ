@@ -366,7 +366,8 @@ function key switches to that function.
 All three speak the same colours: the function's colour shows what will happen, white that
 it's done, red that it was refused (a dark slot tapped) or not stored. The slot flashes red
 instead of white when there's no SD card, or the card couldn't be written: the change works
-until power-off but isn't stored. The next save, copy or delete tries the card again.
+until power-off but isn't stored. The next save, copy or delete tries the card again, also
+one you've put in since.
 
 Outside a function, the scene keys show the slots: dark when empty, dimly white when saved
 (the blank one always is),
@@ -376,7 +377,9 @@ changed a latch since. The save, copy and delete keys are dimly lit in their col
 The scenes live in `FRIZZ/frizz_scenes.txt` on the card, one line per effect, keyed by its
 name. FRIZZ creates the folder on its first start (moving the file from the card root, where
 older versions kept it); after that the card is written only when you save, copy or delete,
-never on a recall. Saving takes a moment in which the LEDs may pause.
+never on a recall. Saving takes a moment in which the LEDs may pause. A scene file FRIZZ can't
+read (from another version, or edited into something else) starts it with no scenes but
+isn't lost: the first save moves it to `frizz_scenes.bak`.
 
 ### Morphing to a scene
 
