@@ -62,7 +62,7 @@ The white keys between the slicer and the delay do nothing.
 - **SHIFT + press a knob:** reset that setting.
 
 Delay and reverb tails keep ringing after you let go. The other effects stop the moment you
-release the key. Settings reset when you switch off.
+release the key. Settings reset when you switch off, unless you save them as a scene.
 
 Things to try first:
 
@@ -75,6 +75,17 @@ Things to try first:
 
 With MIDI clock, the freezer, slicer, filter LFO and delay follow the tempo. Without it they run
 at the last tempo received, or 120 BPM.
+
+## 4. Save scenes
+
+The first four dark keys from the left hold scenes: every effect's settings and latches.
+
+- **Save:** tap the last dark key (blue), tap a scene key, press CHOMPI to confirm.
+- **Recall:** press a scene key. Try a build-up on one scene and the drop on the next.
+- **Copy and delete:** the same steps with the green and red dark keys. Tap the
+  function's key again to back out.
+
+Scenes are stored on the SD card. See the [manual](MANUAL.md#fx-scenes) for the details.
 
 ## Where next
 

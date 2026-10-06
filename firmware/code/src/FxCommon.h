@@ -17,6 +17,20 @@ static const size_t kNumFxParams = 4;
 static const float kFxGateCoeff = .004f;
 // The knobs' slew, ~20ms at 48kHz
 static const float kFxParamCoeff = .001f;
+// The slew for a moment after a scene recall (FxChain::FastSlew), ~5ms like the punch-in fade,
+// so a scene change is a cut rather than a sweep
+static const float kFxRecallCoeff = kFxGateCoeff;
+
+/** The slew every Smoothed uses: kFxParamCoeff, or kFxRecallCoeff right after a scene recall.
+ *  A template only so the header can define the static */
+template <class Unused = void>
+struct FxSlewT
+{
+    static float coeff;
+};
+template <class Unused>
+float FxSlewT<Unused>::coeff = kFxParamCoeff;
+using FxSlew = FxSlewT<>;
 
 /** A setting with a target, set from the UI, and a live value that follows it */
 struct Smoothed
@@ -27,8 +41,10 @@ struct Smoothed
     void Reset(float v) { value = target = v; }
     /** The live value jumps to the target */
     void Snap() { value = target; }
-    /** Once per sample */
-    float Process(float coeff = kFxParamCoeff)
+    /** Once per sample, at the knobs' slew (FxSlew) */
+    float Process() { return Process(FxSlew::coeff); }
+    /** Once per sample, at a slew of its own */
+    float Process(float coeff)
     {
         fonepole(value, target, coeff);
         return value;

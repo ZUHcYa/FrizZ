@@ -54,6 +54,17 @@ enum FxId
     kNumFx,
 };
 
+/** Their names in the scene file (FxScenes.h): fixed, so saved scenes survive new effects
+ *  and a new order */
+static const char* const kFxNames[] = {
+    "freezer", "shifter", "folder", "crusher", "filter",
+    "flanger", "resonator", "slicer", "delay", "reverb",
+};
+static_assert(sizeof(kFxNames) / sizeof(kFxNames[0]) == kNumFx, "one per FxId");
+
+// How long a scene recall's fast slew lasts, ~50ms at 48kHz: 10 of its time constants
+static const uint32_t kFxRecallSlewSamples = 2400;
+
 // Into the meters' EnvFollowers, which add 5x: full brightness at about 1 (L+R)/2
 static const float kFxMeterScale = .1f;
 
@@ -91,6 +102,7 @@ public:
 
         for (size_t fx = 0; fx < kNumFx; fx++)
             meter_[fx].Init();
+        fast_slew_left_ = 0;
     }
 
     /** Once per block: the tempo, then one call per clock pulse in the block with the
@@ -113,6 +125,9 @@ public:
      *  return, so the send keys show the tails. */
     void Process(float* l, float* r)
     {
+        if (fast_slew_left_ > 0 && --fast_slew_left_ == 0)
+            FxSlew::coeff = kFxParamCoeff;
+
         freezer_.Process(l, r);
         Meter(FX_FREEZER, *l + *r);
         // the resonator's loop wraps everything from here to the flanger
@@ -144,6 +159,13 @@ public:
 
     inline void SetOn(size_t fx, bool on) { fx_[fx]->SetOn(on); }
     inline void SetParam(size_t fx, size_t param, float val) { fx_[fx]->SetParam(param, val); }
+    /** Before a scene recall's SetParams: the knobs slew at kFxRecallCoeff for
+     *  kFxRecallSlewSamples, so the new scene lands at once */
+    void FastSlew()
+    {
+        FxSlew::coeff = kFxRecallCoeff;
+        fast_slew_left_ = kFxRecallSlewSamples;
+    }
     /** 0..1, for the key LEDs */
     inline float GetLevel(size_t fx) { return meter_[fx].GetLastSamp(); }
 
@@ -162,6 +184,7 @@ private:
     ReverbSend reverb_;
     FxBase* fx_[kNumFx];
     EnvFollower meter_[kNumFx];
+    uint32_t fast_slew_left_; // samples of FastSlew to go
 };
 
 } // namespace chompi

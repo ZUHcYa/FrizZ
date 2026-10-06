@@ -74,6 +74,7 @@ don't normally rebuild them. If you change a library, run `make` in `code/libs/l
 cd firmware/test
 ./check.sh        # engine at HEAD vs the working tree: a refactor must print "bit-identical"
 ./pitch.sh        # the shifter lands on every interval from -12 to +12 semitones
+./scenes.sh       # the FX scene file round-trips, and the recall's fast slew ends
 ```
 
 These checks cover the audio engine only. They don't cover the play page, the looper's
@@ -137,8 +138,9 @@ chompi_sram.lds        linker script (the firmware runs from SRAM, placed there 
 
 ## Rules the code follows
 
-- **No file I/O and no blocking calls in the audio callback.** FRIZZ doesn't read the SD card at
-  run time. The self-test is the only thing that writes to it.
+- **No file I/O and no blocking calls in the audio callback.** FRIZZ reads the SD card once at
+  boot (the FX scenes) and writes it only from `MainLoop`, when a scene is saved, copied or
+  deleted (`SceneStore.h`). The self-test writes to it too.
 - Large buffers (the loop, the delay, the freezer) live in SDRAM (`DSY_SDRAM_BSS`) and are
   cleared at boot.
 - `__attribute__((optimize("-O0")))` and similar per-function overrides are deliberate

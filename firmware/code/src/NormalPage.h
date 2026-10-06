@@ -53,11 +53,29 @@
  *  out of it (FxChain's meters, in dB) pushing the colour towards white. Sends follow their
  *  returns, so after release their keys glow with the tail, fading from full to off. The knob LEDs show the parameter values in the FX's colours,
  *  unused knobs dark.
+ *
+ *  FX scenes (FxScenes.h, kept on the card by SceneStore.h): every FX's parameters and latch,
+ *  in four slots on the first four dark keys (KEY_16-19). A scene is what was last saved:
+ *   - scene key:             recalls it at once (FxChain::FastSlew); the latches become
+ *                            the scene's, FX keys held stay on. Again on the active scene:
+ *                            back to how it was saved. An empty slot blinks red
+ *  SAVE, COPY and DELETE are TAPE's and TEMPO's preset keys and flow, on the last three dark
+ *  keys (KEY_25, 24, 23):
+ *   - tap one:               that mode, its key lit; tap it again to cancel, another to
+ *                            switch. Scene keys now select instead of recalling
+ *   - scene key(s):          the slot, blinking in the mode's colour; for COPY the source
+ *                            first (steady), then the destination
+ *   - CHOMPI key:            blinks red once a slot is selected; pressing it confirms, the
+ *                            slot flashes green (red: no card, kept in RAM only) and the
+ *                            mode ends
+ *  Scene LEDs: empty off, saved dim white, the active scene bright, pulsing once a knob or a
+ *  latch has changed since it was recalled or saved.
  */
 #pragma once
 
 #include "FxSlots.h"
 #include "hardware.h"
+#include "SceneStore.h"
 #include "LedColors.h"
 #include "passthroughEngine.h"
 #include "temp_led_stuff.h"
@@ -101,16 +119,50 @@ namespace chompi
     static const float kFxMeterFloorDb = -30.f; // the meters' range, up to 0 dBFS
     static const float kFxWhiteMax = .8f;     // on: how far the loudest audio pushes to white
 
+    // FX scenes: the slots, and SAVE / COPY / DELETE on TAPE's preset keys in TEMPO's colours
+    static const Hardware::SwId kSceneKeys[kNumScenes] = {
+        Hardware::SwId::KEY_16,
+        Hardware::SwId::KEY_17,
+        Hardware::SwId::KEY_18,
+        Hardware::SwId::KEY_19,
+    };
+    static const uint8_t kSceneLeds[kNumScenes] = {0, 1, 2, 3};
+    enum class SceneMode
+    {
+        NONE,
+        SAVE,
+        COPY,
+        DELETE,
+    };
+    struct SceneModeKey
+    {
+        SceneMode mode;
+        Hardware::SwId key;
+        uint8_t led;
+        const float* color;
+    };
+    static const SceneModeKey kSceneModeKeys[] = {
+        {SceneMode::SAVE, Hardware::SwId::KEY_25, 9, blue},
+        {SceneMode::COPY, Hardware::SwId::KEY_24, 8, green},
+        {SceneMode::DELETE, Hardware::SwId::KEY_23, 7, red},
+    };
+    static const int kNoScene = -1;
+    static const uint32_t kSceneBlinkMs = 250;      // a selected slot, the armed CHOMPI key
+    static const uint32_t kSceneFlashMs = 100;      // the confirmation: 3 fast blinks
+    static const uint32_t kSceneEmptyBlinkMs = 300; // an empty slot pressed
+    static const uint32_t kScenePulseMs = 1000;     // the active scene, edited
+
     class NormalPage : public daisy::UiPage
     {
     public:
         uint32_t init_time;
         bool init_ignore = true;
 
-        void Init(PassthroughEngine *engine, Hardware *hw)
+        void Init(PassthroughEngine *engine, Hardware *hw, SceneStore *scenes)
         {
             hw_ = hw;
             engine_ = engine;
+            scenes_ = scenes;
 
             out_gain_ = kDefaultOutGain;
             in_gain_ = kDefaultInGain;
@@ -220,9 +272,17 @@ namespace chompi
 
             DrawLooperLeds(now);
             DrawFxLeds();
+            DrawSceneLeds(now);
 
-            // CHOMPI key lights white while it is acting as SHIFT
-            r = g = b = Shift() ? 1.f : 0.f;
+            // CHOMPI key: blinking red while it would confirm a scene action, otherwise
+            // white while it is acting as SHIFT
+            if (SceneArmed())
+            {
+                r = (now / kSceneBlinkMs) % 2 == 0 ? 1.f : 0.f;
+                g = b = 0.f;
+            }
+            else
+                r = g = b = Shift() ? 1.f : 0.f;
             SetPthLedFloat(kChompiKeyLed, r, g, b);
 
             fill_led_data();
@@ -251,7 +311,9 @@ namespace chompi
 
             case static_cast<uint16_t>(Hardware::SwId::KEY_26):
                 chompi_key_pressed = rising;
-                if (rising)
+                if (rising && SceneArmed())
+                    ConfirmScene();
+                else if (rising)
                     ShiftPressed();
                 break;
 
@@ -293,6 +355,16 @@ namespace chompi
                 break;
 
             default:
+                for (size_t s = 0; s < kNumScenes; s++)
+                {
+                    if (rising && buttonID == static_cast<uint16_t>(kSceneKeys[s]))
+                        ScenePressed(s);
+                }
+                for (const SceneModeKey& key : kSceneModeKeys)
+                {
+                    if (rising && buttonID == static_cast<uint16_t>(key.key))
+                        SceneModePressed(key.mode);
+                }
                 for (size_t fx = 0; fx < kNumFx; fx++)
                 {
                     if (buttonID == static_cast<uint16_t>(kFxSlots[fx].key))
@@ -409,7 +481,10 @@ namespace chompi
                 fx_selected_ = fx;
                 // SHIFT toggles the latch, a plain press clears it; either way the effect
                 // is on for as long as the key is held
-                fx_latched_[fx] = Shift() ? !fx_latched_[fx] : false;
+                const bool latched = Shift() ? !fx_latched_[fx] : false;
+                if (latched != fx_latched_[fx])
+                    scene_edited_ = true;
+                fx_latched_[fx] = latched;
             }
             fx_held_[fx] = rising;
             engine_->SetFxOn(fx, fx_held_[fx] || fx_latched_[fx]);
@@ -424,6 +499,7 @@ namespace chompi
                 if (!fx_held_[fx])
                     continue;
                 fx_latched_[fx] = !fx_latched_[fx];
+                scene_edited_ = true;
                 engine_->SetFxOn(fx, true);
             }
         }
@@ -512,8 +588,181 @@ namespace chompi
 
         void SetFxParam(size_t fx, size_t param, float val)
         {
-            fx_params_[fx][param] = fclamp(val, 0.f, 1.f);
-            engine_->SetFxParam(fx, param, fx_params_[fx][param]);
+            val = fclamp(val, 0.f, 1.f);
+            if (val != fx_params_[fx][param])
+                scene_edited_ = true;
+            fx_params_[fx][param] = val;
+            engine_->SetFxParam(fx, param, val);
+        }
+
+        void ScenePressed(size_t slot)
+        {
+            const bool used = scenes_->scenes[slot].used;
+            const int s = static_cast<int>(slot);
+            switch (scene_mode_)
+            {
+            case SceneMode::NONE:
+                if (used)
+                    RecallScene(slot);
+                else
+                    SceneEmptyBlink(slot);
+                break;
+            case SceneMode::SAVE:
+                scene_sel_ = s;
+                break;
+            case SceneMode::COPY:
+                if (scene_src_ == kNoScene)
+                {
+                    if (used)
+                        scene_src_ = s;
+                    else
+                        SceneEmptyBlink(slot);
+                }
+                else if (s != scene_src_)
+                    scene_sel_ = s;
+                break;
+            case SceneMode::DELETE:
+                if (used)
+                    scene_sel_ = s;
+                else
+                    SceneEmptyBlink(slot);
+                break;
+            }
+        }
+
+        // the same mode key again cancels, another switches over
+        void SceneModePressed(SceneMode mode)
+        {
+            scene_mode_ = scene_mode_ == mode ? SceneMode::NONE : mode;
+            scene_sel_ = scene_src_ = kNoScene;
+        }
+
+        inline bool SceneArmed() const
+        {
+            return scene_mode_ != SceneMode::NONE && scene_sel_ != kNoScene;
+        }
+
+        void ConfirmScene()
+        {
+            FxScene* scenes = scenes_->scenes;
+            FxScene& target = scenes[scene_sel_];
+            switch (scene_mode_)
+            {
+            case SceneMode::SAVE:
+                target.used = true;
+                target.latched = 0;
+                for (size_t fx = 0; fx < kNumFx; fx++)
+                {
+                    if (fx_latched_[fx])
+                        target.latched |= static_cast<uint16_t>(1u << fx);
+                    for (size_t p = 0; p < kNumFxParams; p++)
+                        target.params[fx][p] = fx_params_[fx][p];
+                }
+                active_scene_ = scene_sel_;
+                scene_edited_ = false;
+                break;
+            case SceneMode::COPY:
+                target = scenes[scene_src_];
+                // the sound stays, so it no longer matches the active scene
+                if (active_scene_ == scene_sel_)
+                    scene_edited_ = true;
+                break;
+            case SceneMode::DELETE:
+                target.used = false;
+                if (active_scene_ == scene_sel_)
+                    active_scene_ = kNoScene;
+                break;
+            case SceneMode::NONE:
+                return;
+            }
+
+            scenes_->RequestSave();
+            scene_flash_ = scene_sel_;
+            scene_flash_time_ = System::GetNow();
+            scene_flash_ok_ = scenes_->CardOk();
+            scene_mode_ = SceneMode::NONE;
+            scene_sel_ = scene_src_ = kNoScene;
+        }
+
+        void RecallScene(size_t slot)
+        {
+            const FxScene& scene = scenes_->scenes[slot];
+            {
+                // the whole scene within one audio block
+                ScopedIrqBlocker irq;
+                engine_->FastFxSlew();
+                for (size_t fx = 0; fx < kNumFx; fx++)
+                {
+                    // only what changes, so an effect the scenes share runs on untouched
+                    for (size_t p = 0; p < kNumFxParams; p++)
+                    {
+                        if (scene.params[fx][p] != fx_params_[fx][p])
+                            SetFxParam(fx, p, scene.params[fx][p]);
+                    }
+                    fx_latched_[fx] = (scene.latched >> fx) & 1;
+                    engine_->SetFxOn(fx, fx_held_[fx] || fx_latched_[fx]);
+                }
+            }
+            for (size_t knob = 0; knob < kNumFxParams; knob++)
+                fx_step_chunk_[knob] = 0.f;
+            active_scene_ = static_cast<int>(slot);
+            scene_edited_ = false;
+        }
+
+        void SceneEmptyBlink(size_t slot)
+        {
+            scene_empty_ = static_cast<int>(slot);
+            scene_empty_time_ = System::GetNow();
+        }
+
+        void DrawSceneLeds(uint32_t now)
+        {
+            const float* mode_color = white;
+            for (const SceneModeKey& key : kSceneModeKeys)
+            {
+                const bool on = scene_mode_ == key.mode;
+                if (on)
+                    mode_color = key.color;
+                const float level = on ? 1.f : kFxOffLevel;
+                SetSmtLedFloat(key.led, level * key.color[0], level * key.color[1], level * key.color[2]);
+            }
+
+            const bool blink_on = (now / kSceneBlinkMs) % 2 == 0;
+            for (size_t slot = 0; slot < kNumScenes; slot++)
+            {
+                const int s = static_cast<int>(slot);
+                const float* color = white;
+                float level = 0.f;
+                if (s == scene_flash_ && now - scene_flash_time_ < 6 * kSceneFlashMs)
+                {
+                    color = scene_flash_ok_ ? green : red;
+                    level = ((now - scene_flash_time_) / kSceneFlashMs) % 2 == 0 ? 1.f : 0.f;
+                }
+                else if (s == scene_empty_ && now - scene_empty_time_ < kSceneEmptyBlinkMs)
+                {
+                    color = red;
+                    level = 1.f;
+                }
+                else if (scene_mode_ != SceneMode::NONE && s == scene_src_)
+                {
+                    color = mode_color;
+                    level = 1.f;
+                }
+                else if (scene_mode_ != SceneMode::NONE && s == scene_sel_)
+                {
+                    color = mode_color;
+                    level = blink_on ? 1.f : 0.f;
+                }
+                else if (s == active_scene_)
+                {
+                    // edited: a slow pulse between the saved and the active brightness
+                    const float phase = static_cast<float>(now % kScenePulseMs) / kScenePulseMs;
+                    level = scene_edited_ ? .6f + .4f * cosf(phase * TWOPI_F) : 1.f;
+                }
+                else if (scenes_->scenes[slot].used)
+                    level = kFxOffLevel;
+                SetSmtLedFloat(kSceneLeds[slot], level * color[0], level * color[1], level * color[2]);
+            }
         }
 
         void DrawFxLeds()
@@ -658,6 +907,7 @@ namespace chompi
 
         Hardware *hw_;
         PassthroughEngine *engine_;
+        SceneStore *scenes_;
 
         Looper::State last_looper_state_ = Looper::State::EMPTY;
 
@@ -683,6 +933,17 @@ namespace chompi
         bool fx_latched_[kNumFx] = {};
         size_t fx_selected_ = 0;    // the FX the knobs edit: the last one pressed
         float fx_step_chunk_[kNumFxParams] = {}; // detents towards the next step or grid point
+
+        SceneMode scene_mode_ = SceneMode::NONE;
+        int scene_sel_ = kNoScene;     // the slot SAVE / COPY / DELETE acts on
+        int scene_src_ = kNoScene;     // COPY's source
+        int active_scene_ = kNoScene;  // the last one recalled or saved
+        bool scene_edited_ = false;    // knobs or latches changed since
+        int scene_flash_ = kNoScene;   // confirmed, flashing
+        uint32_t scene_flash_time_ = 0;
+        bool scene_flash_ok_ = false;  // saved to the card
+        int scene_empty_ = kNoScene;   // empty, pressed
+        uint32_t scene_empty_time_ = 0;
 
         bool batt_display;
         uint32_t batt_hold;

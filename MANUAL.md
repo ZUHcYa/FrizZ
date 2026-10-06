@@ -10,7 +10,8 @@ lights white while it acts as SHIFT.
 The stereo AUX input goes to the headphone and master outputs through a volume stage taken
 from TAPE's Volume Engine, with a looper on the wet side of a dry/wet mix. The looper can
 record free-length loops or loops quantized to whole bars of an incoming MIDI clock. The
-white keys punch in effects on the mixed signal. The built-in microphone is not used.
+white keys punch in effects on the mixed signal, and four dark keys save and recall their
+settings as scenes. The built-in microphone is not used.
 
 ## VOLUME knob
 
@@ -96,7 +97,7 @@ on, where the audio coming out of the effect pushes the colour towards white, fr
 up, the peaks most. The delay and reverb keys follow their returns, so after release they
 glow with the tail, fading from full back to dim. The knob LEDs show the parameter values
 in the effect's colours; a knob the effect doesn't use is dark and does nothing. Values
-reset at power-off.
+reset at power-off unless they're saved in a [scene](#fx-scenes).
 
 | Key | Effect | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
 |---|---|---|---|---|---|
@@ -228,6 +229,61 @@ Delay details:
   (or from power-on without clock), not from the DAW's beat 1. Echo spacing is unaffected.
 - LEDs: division green (short) through white to blue (long); random green (events) through
   white to blue (shimmer).
+
+## FX scenes
+
+A scene holds every effect's four knob values and whether it's latched. There are four slots,
+on the first four dark keys from the left (C#, D#, F#, G# of the lower octave). Scenes are
+saved to the SD card and come back at power-on. A scene is what you last saved into it:
+changes you make after recalling one are only kept if you save again.
+
+| Control | Function |
+|---|---|
+| Scene key | Recall the scene at once: every effect's knobs jump to it, the effects it latched come on and all others are unlatched. FX keys you're holding stay on |
+| Scene key of the active scene | Back to the scene as saved, dropping your changes |
+| Scene key of an empty slot | Nothing (the key blinks red) |
+
+A recall is meant for performing, a build-up on one scene and the drop on the next:
+
+- **The knobs land within about 25 ms** instead of gliding over 100 ms like a turned knob.
+  Stepped values (freezer length, slicer pattern, delay division …) switch at once.
+- **An effect a recall turns on starts as if you'd pressed its key:** the freezer grabs fresh
+  audio, the shifter swoops, the crusher dives, the flanger's sweep restarts, the slicer
+  attacks.
+- **An effect latched in both scenes keeps running** without restarting. A freeze held
+  through the drop stays frozen.
+- **Delay and reverb tails ring out** after a scene unlatches them.
+- The input/loop mix, the volumes, the compressor and the looper aren't part of a scene.
+
+Save, copy and delete work like TAPE's and TEMPO's preset keys, on the last three dark keys,
+no SHIFT needed:
+
+| Key | Colour | Function |
+|---|---|---|
+| Last dark key (A#) | blue | **Save** the current effect settings into a slot |
+| 2nd-to-last dark key (G#) | green | **Copy** one slot into another, without changing the sound |
+| 3rd-to-last dark key (F#) | red | **Delete** a slot |
+
+1. **Tap the function's key.** It lights up fully; the scene keys now select slots instead of
+   recalling them. The effects and knobs keep working.
+2. **Tap the slot.** It blinks in the function's colour. For copy, tap the source first
+   (it stays lit), then the destination. Copy and delete need a saved slot.
+3. **Press the CHOMPI key**, which blinks red once there's something to confirm. The slot
+   flashes green and the function ends.
+
+**To get out without doing anything, tap the function's key again.** Tapping a different
+function key switches to that function.
+
+The slot flashes red instead of green when there's no SD card, or the card couldn't be
+written: the change works until power-off but isn't stored.
+
+The scene keys show the slots: dark when empty, dimly white when saved, bright for the scene
+you recalled or saved last, and pulsing once you've turned a knob or changed a latch since.
+The save, copy and delete keys are dimly lit in their colour.
+
+The scenes live in `frizz_scenes.txt` at the card root, one line per effect, keyed by its
+name. The card is written only when you save, copy or delete, never on a recall. Saving
+takes a moment in which the LEDs may pause.
 
 ## MIDI clock
 

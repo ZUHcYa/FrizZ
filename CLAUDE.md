@@ -121,8 +121,8 @@ hardware.
 The exception is FRIZZ: `firmware/test/` compiles its audio engine on the host and runs a
 scripted 39 s of key presses and knob turns through it. `./check.sh` compares HEAD with the
 working tree; a refactor must come out `bit-identical`. `./pitch.sh` checks the shifter lands on
-every interval. Neither covers the play page, the looper's recording, MIDI or the hardware. See
-its README.
+every interval; `./scenes.sh` checks the FX scene file format. None covers the play page, the
+looper's recording, MIDI or the hardware. See its README.
 
 ## SRAM is the binding constraint, especially on TAPE
 

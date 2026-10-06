@@ -1,0 +1,248 @@
+// scenes.cpp: checks the FX scene file format (FxScenes.h) and, through the engine, the
+// recall's fast slew (FxChain::FastSlew). Exits 0 when everything passes. Run by scenes.sh.
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include "FxScenes.h"
+#include "passthroughEngine.h"
+
+using namespace chompi;
+
+static int failures = 0;
+
+static void Check(bool ok, const char* what)
+{
+    printf("%s  %s\n", ok ? "ok  " : "FAIL", what);
+    if (!ok)
+        failures++;
+}
+
+static float defaults[kNumFx][kNumFxParams];
+
+static bool SameScenes(const FxScene* a, const FxScene* b)
+{
+    for (size_t s = 0; s < kNumScenes; s++)
+    {
+        if (a[s].used != b[s].used)
+            return false;
+        if (!a[s].used)
+            continue;
+        if (a[s].latched != b[s].latched)
+            return false;
+        if (memcmp(a[s].params, b[s].params, sizeof(a[s].params)) != 0)
+            return false;
+    }
+    return true;
+}
+
+// the engine, as harness.cpp builds it
+static const float kSr = 48000.f;
+static const size_t kBlock = 24;
+static int16_t loop_mem[kLoopMemSize];
+static const size_t kDelayFrames = 480000;
+static float delay_mem[kDelayFrames * 2];
+static float delay_frozen_mem[kDelayFrames * 2];
+static const size_t kFreezerFrames = 240000;
+static float freezer_mem_l[kFreezerFrames];
+static float freezer_mem_r[kFreezerFrames];
+static daisysp::Reverb reverb;
+static MidiClock midi_clock;
+static PassthroughEngine engine;
+
+/** A 220 Hz sine through the filter, its cutoff jumping from a deep lowpass to flat, with a
+ *  recall's fast slew or a knob's. Gives the largest step between two output samples after
+ *  the jump, and when the output's level (RMS over one period of the sine) is 90% of the way
+ *  to where it ends up */
+static void RecallJump(bool fast, float* max_step, float* settle_ms)
+{
+    engine.Init(kSr, loop_mem, &midi_clock, delay_mem, delay_frozen_mem, kDelayFrames, &reverb,
+                freezer_mem_l, freezer_mem_r, kFreezerFrames);
+    engine.SetMainGain(1.f);
+    engine.SetInputGain(1.f);
+    engine.SetMix(0.f);
+    engine.SetFinalComp(0.f);
+    engine.SetFxParam(FX_FILTER, 0, .05f);
+    engine.SetFxParam(FX_FILTER, 1, 0.f);
+    engine.SetFxParam(FX_FILTER, 2, 0.f);
+    engine.SetFxOn(FX_FILTER, true);
+
+    float zero[kBlock] = {}, inl[kBlock], inr[kBlock], o[4][kBlock];
+    const float* in[4] = {zero, zero, inl, inr};
+    float* out[4] = {o[0], o[1], o[2], o[3]};
+    double phase = 0.;
+    const size_t before = static_cast<size_t>(.5f * kSr / kBlock);
+    const size_t after = static_cast<size_t>(.3f * kSr / kBlock);
+    const size_t period = static_cast<size_t>(kSr / 220.f + .5f);
+
+    // the output, the last period before the jump first
+    static float rec[20000];
+    static float prev[256];
+    size_t n = 0;
+    float last = 0.f;
+    *max_step = 0.f;
+    for (size_t b = 0; b < before + after; b++)
+    {
+        if (b == before)
+        {
+            for (size_t i = 0; i < period; i++)
+                rec[n++] = prev[(b * kBlock + i) % period];
+            if (fast)
+                engine.FastFxSlew();
+            engine.SetFxParam(FX_FILTER, 0, .5f);
+        }
+        for (size_t i = 0; i < kBlock; i++)
+        {
+            inl[i] = inr[i] = static_cast<float>(sin(phase)) * .3f;
+            phase += 2. * M_PI * 220. / kSr;
+        }
+        engine.Process(in, out, kBlock);
+        for (size_t i = 0; i < kBlock; i++)
+        {
+            if (b < before)
+                prev[(b * kBlock + i) % period] = o[2][i];
+            else
+            {
+                *max_step = fmaxf(*max_step, fabsf(o[2][i] - last));
+                if (n < 20000)
+                    rec[n++] = o[2][i];
+            }
+            last = o[2][i];
+        }
+    }
+
+    // rms(k): the period ending k samples after the jump
+    auto rms = [&](size_t k) {
+        double sum = 0.;
+        for (size_t i = k; i < k + period; i++)
+            sum += rec[i] * rec[i];
+        return static_cast<float>(sqrt(sum / period));
+    };
+    const size_t len = n - period;
+    const float start = rms(0), end = rms(len - 1);
+    size_t settled = 0;
+    for (size_t k = 0; k < len; k++)
+        if (fabsf(rms(k) - end) > .1f * fabsf(end - start))
+            settled = k + 1;
+    *settle_ms = settled / (kSr / 1000.f);
+}
+
+int main()
+{
+    for (size_t fx = 0; fx < kNumFx; fx++)
+        for (size_t p = 0; p < kNumFxParams; p++)
+            defaults[fx][p] = .25f + .01f * (fx * kNumFxParams + p);
+
+    // scenes with awkward values: grid points, the ends, and a knob's float drift
+    FxScene scenes[kNumScenes] = {};
+    scenes[0].used = true;
+    scenes[0].latched = 0x2a5;
+    scenes[2].used = true;
+    scenes[2].latched = (1u << kNumFx) - 1;
+    for (size_t fx = 0; fx < kNumFx; fx++)
+        for (size_t p = 0; p < kNumFxParams; p++)
+        {
+            scenes[0].params[fx][p] = (fx * kNumFxParams + p) / 39.f;
+            float drift = 0.f;
+            for (size_t i = 0; i < fx * 7 + p; i++)
+                drift += .01f;
+            scenes[2].params[fx][p] = fminf(drift, 1.f);
+        }
+    scenes[0].params[FX_RESONATOR][0] = .436295f + 17 * .0156585f; // a coarse pitch point
+    scenes[0].params[FX_SHIFTER][0] = 19.f / 24.f;
+    scenes[2].params[FX_FILTER][0] = 0.f;
+    scenes[2].params[FX_FILTER][1] = 1.f;
+
+    static char text[kSceneFileMax];
+    const size_t len = FormatScenes(scenes, text, sizeof(text));
+    Check(len > 0 && len < 2048, "formats into under 2KB");
+
+    // 1. through the text and back: every value within 1e-6, the grid points on the grid
+    FxScene read[kNumScenes];
+    Check(ParseScenes(text, defaults, read), "reads its own file");
+    float worst = 0.f;
+    bool same_latches = true;
+    for (size_t s = 0; s < kNumScenes; s++)
+    {
+        if (read[s].used != scenes[s].used || (scenes[s].used && read[s].latched != scenes[s].latched))
+            same_latches = false;
+        if (!scenes[s].used)
+            continue;
+        for (size_t fx = 0; fx < kNumFx; fx++)
+            for (size_t p = 0; p < kNumFxParams; p++)
+                worst = fmaxf(worst, fabsf(read[s].params[fx][p] - scenes[s].params[fx][p]));
+    }
+    Check(same_latches, "slots and latches come back");
+    printf("      worst parameter error %.2g\n", worst);
+    Check(worst <= 1e-6f, "parameters within 1e-6");
+    // CoarseStep counts a value within 1% of the spacing as on a grid point
+    Check(fabsf(read[0].params[FX_RESONATOR][0] - scenes[0].params[FX_RESONATOR][0]) < .0156585f * .01f,
+          "a resonator pitch grid point stays on it");
+
+    // 2. a second round trip is exact, bit for bit
+    static char text2[kSceneFileMax];
+    FormatScenes(read, text2, sizeof(text2));
+    FxScene read2[kNumScenes];
+    ParseScenes(text2, defaults, read2);
+    Check(strcmp(text, text2) == 0 && SameScenes(read, read2), "the second round trip is exact");
+
+    // 3. by name: unknown effects skipped, missing ones on their defaults, order free,
+    //    short lines keep the rest at defaults, CRLF and junk lines tolerated
+    const char* hand =
+        "FRIZZ scenes 1\r\n"
+        "scene 4\r\n"
+        "reverb 1 100000 200000 300000 400000\r\n"
+        "teleporter 1 1 1 1 1\r\n"
+        "freezer 0 500000\r\n"
+        "\r\n"
+        "this line means nothing\r\n"
+        "scene 9\r\n"
+        "delay 1 0 0 0 0\r\n";
+    FxScene h[kNumScenes];
+    Check(ParseScenes(hand, defaults, h), "reads a hand-written file");
+    Check(!h[0].used && !h[1].used && !h[2].used && h[3].used, "only scene 4 is used");
+    Check(h[3].latched == (1u << FX_REVERB), "reverb latched, the unknown effect and scene 9 skipped");
+    Check(fabsf(h[3].params[FX_REVERB][3] - .4f) < 1e-6f, "reverb level read");
+    Check(fabsf(h[3].params[FX_FREEZER][0] - .5f) < 1e-6f
+              && h[3].params[FX_FREEZER][1] == defaults[FX_FREEZER][1],
+          "a short line keeps the rest at defaults");
+    Check(h[3].params[FX_SHIFTER][2] == defaults[FX_SHIFTER][2], "a missing effect gets its defaults");
+
+    // 4. not a scene file, and an empty one
+    FxScene bad[kNumScenes];
+    bad[1].used = true;
+    Check(!ParseScenes("hello\nscene 1\n", defaults, bad) && !bad[1].used, "rejects a foreign file");
+    Check(!ParseScenes("", defaults, bad), "rejects an empty file");
+
+    // 5. cut off mid-line (a power cut without the .tmp): what's there is read, nothing crashes
+    char cut[kSceneFileMax];
+    strncpy(cut, text, len / 2);
+    cut[len / 2] = '\0';
+    FxScene c[kNumScenes];
+    Check(ParseScenes(cut, defaults, c) && c[0].used, "reads a truncated file");
+
+    // 6. a buffer too small: refused rather than cut short
+    char tiny[100];
+    Check(FormatScenes(scenes, tiny, sizeof(tiny)) == 0, "refuses a buffer too small");
+
+    // 7. no scenes: just the header, which reads back as all empty
+    FxScene none[kNumScenes] = {};
+    char empty[64];
+    FormatScenes(none, empty, sizeof(empty));
+    FxScene e[kNumScenes];
+    Check(ParseScenes(empty, defaults, e) && !e[0].used && !e[3].used, "an empty set round-trips");
+
+    // 8. the fast slew, through the engine: a recall's jump lands quickly, without a click,
+    //    and the knobs slew normally afterwards
+    Check(FxSlew::coeff == kFxParamCoeff, "the knobs slew normally");
+    float step[2], settle_ms[2];
+    for (int fast = 0; fast < 2; fast++)
+        RecallJump(fast, &step[fast], &settle_ms[fast]);
+    printf("      filter jump: 90%% after %.1f ms (knob slew %.1f ms), largest step between "
+           "samples %.3f (knob slew %.3f)\n", settle_ms[1], settle_ms[0], step[1], step[0]);
+    Check(settle_ms[1] < 30.f && settle_ms[1] < settle_ms[0] * .75f, "a recall lands within 30 ms, sooner than a knob");
+    Check(step[1] < .1f, "without a click");
+    Check(FxSlew::coeff == kFxParamCoeff, "then the knobs slew normally again");
+
+    printf(failures ? "%d failed\n" : "all passed\n", failures);
+    return failures ? 1 : 0;
+}

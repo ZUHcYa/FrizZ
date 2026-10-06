@@ -24,7 +24,9 @@ tools or drivers, and the CHOMPI's bootloader is never touched.
 5. **Wait.** A slow rainbow LED pattern means the CHOMPI is writing FRIZZ into its memory.
    Don't switch it off while that runs. FRIZZ starts by itself when it's done.
 
-FRIZZ doesn't use the card while it runs. You can leave it in or take it out.
+Leave the card in: FRIZZ keeps its FX scenes on it, in `frizz_scenes.txt`. Without a card
+FRIZZ still runs, but scenes you save are gone at power-off. A later FRIZZ update keeps your
+scenes as long as that file stays on the card.
 
 ## Check that it works
 

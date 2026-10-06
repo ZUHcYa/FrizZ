@@ -43,6 +43,21 @@ cents off or its level wobbles by more than 2 dB. The engine harness can't tell 
 that's out of tune from one that isn't; this can. Takes about 12 s. (A plain two-tap shifter
 is up to 80 cents off and wobbles up to 10 dB; Kastle's single-tap one fails 48 of the 50.)
 
+## Scene file check
+
+```bash
+./scenes.sh
+```
+
+Checks the FX scene file (`FxScenes.h`): scenes written and read back come out within 1e-6
+(a coarse grid point stays on its grid) and exactly on a second round trip. It also checks
+that a hand-written file is read by effect name, with unknown effects and slots skipped and
+missing ones on their defaults, and that a foreign, empty or truncated file doesn't break
+anything. Last, it runs a filter jump through the engine with a recall's fast slew and with
+a knob's. The recall must land sooner and within 30 ms, without a larger step between samples,
+and hand back to the knobs' slew afterwards. It doesn't touch the card (`SceneStore.h`) or the
+play page. Needs `run.sh` to have built DaisySP once.
+
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample
 conversions) and `MidiClock.h` (no clock). DaisySP is compiled for the host once into `build/`,
 which is ignored.

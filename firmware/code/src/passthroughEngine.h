@@ -122,6 +122,8 @@ public:
     /** Punch-in FX, by FxId (FxChain.h) */
     inline void SetFxOn(size_t fx, bool on) { fx_.SetOn(fx, on); }
     inline void SetFxParam(size_t fx, size_t param, float val) { fx_.SetParam(fx, param, val); }
+    /** Before a scene recall's SetFxParams: they land within ~5ms instead of ~20ms */
+    inline void FastFxSlew() { fx_.FastSlew(); }
     /** 0..1, for the FX key LEDs: an insert's output, a send's return */
     inline float GetFxLevel(size_t fx) { return fx_.GetLevel(fx); }
 

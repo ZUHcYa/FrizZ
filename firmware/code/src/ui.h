@@ -27,7 +27,7 @@ namespace chompi
     class UserInterface
     {
     public:
-        void Init(PassthroughEngine *engine, Hardware *hw)
+        void Init(PassthroughEngine *engine, Hardware *hw, SceneStore *scenes)
         {
             hw_ = hw;
             engine_ = engine;
@@ -48,7 +48,7 @@ namespace chompi
                     {ledDisplayDescriptor},
                     canvasLedDisplay);
 
-            normal_page_.Init(engine_, hw_);
+            normal_page_.Init(engine_, hw_, scenes);
             ui.OpenPage(normal_page_);
 
             boot_page_.Init(hw_);

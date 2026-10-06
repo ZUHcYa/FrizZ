@@ -6,7 +6,8 @@
  *   1. AudioCallback() - the audio ISR. Runs once per audio block (~24 samples
  *      at 48kHz here). Polls the controls and MIDI clock, and passes the AUX input
  *      through the engine.
- *   2. MainLoop() - Lowest priority, handles UI dispatch, battery checks and boot-time stuff.
+ *   2. MainLoop() - Lowest priority, handles UI dispatch, battery checks, writing the FX
+ *      scenes to the SD card, and boot-time stuff.
  */
 #include "hardware.h"
 #include "temp_led_stuff.h"
@@ -15,6 +16,7 @@
 #include "fatfs.h"
 #include "passthroughEngine.h"
 #include "MidiClock.h"
+#include "SceneStore.h"
 
 using namespace daisy;
 using namespace chompi;
@@ -25,11 +27,12 @@ static const uint32_t kBootScreenMs = 1250;
 Hardware hw;
 UserInterface ui;
 
-// The SD card is only used by the hardware self-test (TestPage)
+// The SD card holds the FX scenes (SceneStore.h); the hardware self-test (TestPage) uses it too
 SdmmcHandler sdmmc;
 FatFSInterface fsi;
 PassthroughEngine engine;
 MidiClock midi_clock;
+SceneStore scene_store;
 
 int16_t DSY_SDRAM_BSS loop_mem[kLoopMemSize];
 
@@ -144,6 +147,9 @@ void MainLoop(void* data)
         uit = now;
     }
 
+    // a scene saved, copied or deleted: the card is written here, never in the audio callback
+    scene_store.Process();
+
     if (loading_screen && now - boot_start > kBootScreenMs)
         loading_screen = false;
 
@@ -201,14 +207,15 @@ int main(void)
     System::Delay(100);
     fsi.Init(FatFSInterface::Config::MEDIA_SD);
     System::Delay(100);
-    f_mount(&fsi.GetSDFileSystem(), fsi.GetSDPath(), 1);
+    const bool card_ok = f_mount(&fsi.GetSDFileSystem(), fsi.GetSDPath(), 1) == FR_OK;
+    scene_store.Init(card_ok);
 
     engine.Init(hw.seed.AudioSampleRate(), loop_mem, &midi_clock,
                 delay_mem, delay_frozen_mem, kDelayFrames, &reverb,
                 freezer_mem_l, freezer_mem_r, kFreezerFrames);
 
     LedSetup();
-    ui.Init(&engine, &hw);
+    ui.Init(&engine, &hw, &scene_store);
 
     osc.Init(hw.seed.AudioSampleRate());
     osc.SetAmp(.2f);
