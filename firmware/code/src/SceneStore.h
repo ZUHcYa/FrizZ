@@ -1,6 +1,6 @@
 /** @file SceneStore.h
- *  @brief The FX scenes (FxScenes.h) and their file on the SD card, frizz_scenes.txt at the
- *  root. Read once at boot; written only when the play page saves, copies or deletes one,
+ *  @brief The FX scenes (FxScenes.h) and their file on the SD card, frizz_scenes.txt in the
+ *  current directory: /FRIZZ if the card has it, otherwise the root (chompi_main.cpp). Read once at boot; written only when the play page saves, copies or deletes one,
  *  never on a recall, so a performance doesn't touch the card.
  *
  *  The write runs in MainLoop (Process), not in the button handler: the audio callback runs

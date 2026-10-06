@@ -214,6 +214,11 @@ int main(void)
     fsi.Init(FatFSInterface::Config::MEDIA_SD);
     System::Delay(100);
     const bool card_ok = f_mount(&fsi.GetSDFileSystem(), fsi.GetSDPath(), 1) == FR_OK;
+    // FRIZZ's files live in /FRIZZ when the card has that folder, so it can share a card
+    // with other firmwares (the launcher at github.com/sfaber02/CHOMPI gives each its own
+    // folder), and in the root on a card without it. Every path FRIZZ opens is relative
+    if(card_ok)
+        f_chdir("/FRIZZ");
     scene_store.Init(card_ok);
 
     engine.Init(hw.seed.AudioSampleRate(), loop_mem, &midi_clock,
