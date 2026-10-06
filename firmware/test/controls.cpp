@@ -131,11 +131,11 @@ static void TestKnobs()
 
     // coarse, a spacing grid: the folder's drive in .2 steps
     fx.KeyPressed(FX_FOLDER, true, false);
-    fx.KnobTurned(0, 3.f, false); // .5 -> .53, off the grid
+    fx.KnobTurned(0, 3.f, false); // 0 -> .03, off the grid
     fx.KnobTurned(0, 1.f, true);
-    Check(Near(fx.Param(FX_FOLDER, 0), .6f), "coarse: off the grid, snaps to the next point up");
+    Check(Near(fx.Param(FX_FOLDER, 0), .2f), "coarse: off the grid, snaps to the next point up");
     fx.KnobTurned(0, 1.f, true);
-    Check(Near(fx.Param(FX_FOLDER, 0), .8f), "coarse: on a point, moves a whole step");
+    Check(Near(fx.Param(FX_FOLDER, 0), .4f), "coarse: on a point, moves a whole step");
     fx.KnobTurned(0, 10.f, true);
     Check(Near(fx.Param(FX_FOLDER, 0), 1.f), "coarse: stops at the top");
     fx.KnobTurned(0, -1.f, true);
@@ -143,8 +143,10 @@ static void TestKnobs()
 
     // coarse, a list of points: the shifter's intervals
     fx.KeyPressed(FX_SHIFTER, true, false);
-    fx.KnobTurned(0, 1.f, true); // +7 -> +12
-    Check(Near(fx.Param(FX_SHIFTER, 0), 1.f), "coarse points: +7 up to +12");
+    fx.KnobTurned(0, 1.f, true); // 0 -> +5
+    Check(Near(fx.Param(FX_SHIFTER, 0), 17.f / 24.f), "coarse points: 0 up to +5");
+    fx.KnobTurned(0, 2.f, true); // +5 -> +7 -> +12
+    Check(Near(fx.Param(FX_SHIFTER, 0), 1.f), "coarse points: two more up is +12");
     fx.KnobTurned(0, 1.f, true);
     Check(Near(fx.Param(FX_SHIFTER, 0), 1.f), "coarse points: nothing above +12");
     fx.KnobTurned(0, -3.f, true); // +12 -> +7 -> +5 -> 0

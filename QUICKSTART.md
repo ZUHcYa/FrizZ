@@ -64,17 +64,22 @@ The white keys between the slicer and the delay do nothing.
   setting has them, 10% otherwise.
 - **SHIFT + press a knob:** reset that setting.
 
+Every effect starts silent or nearly so: turn its knob 1 (on the delay and reverb, knob 4,
+the level) to bring it in.
+
 Delay and reverb tails keep ringing after you let go. The other effects stop the moment you
 release the key. Settings reset when you switch off, unless you save them as a scene.
 
 Things to try first:
 
-- **Freezer (1st key)** on a beat: it grabs 1/8 from the moment you press and repeats it while
-  you hold the key. Turn knob 3 for a roll that speeds up.
-- **Shifter (2nd key):** a fifth up by default. Knob 1 sets the interval.
+- **Freezer (1st key)** on a beat: SHIFT + turn knob 1 down five clicks to 1/8. It grabs that
+  much from the moment you press and repeats it while you hold the key. Turn knob 3 for a
+  roll that speeds up.
+- **Shifter (2nd key):** SHIFT + turn knob 1 up two clicks for a fifth.
 - **Resonator (7th key)** with the crusher or the shifter latched: the ringing goes through them on
   every pass.
-- **Delay + reverb (the last two keys):** tap them to throw echoes and tails onto single notes.
+- **Delay + reverb (the last two keys):** turn up their knob 4, then tap them to throw echoes and
+  tails onto single notes.
 
 With MIDI clock, the freezer, slicer, filter LFO and delay follow the tempo. Without it they run
 at the last tempo received, or 120 BPM.
