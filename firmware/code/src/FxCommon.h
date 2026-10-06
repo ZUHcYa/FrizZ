@@ -215,4 +215,62 @@ struct StereoRing
     size_t pos;
 };
 
+/** A level guard: what comes out of an effect is held to at most headroom over what went in,
+ *  so feedback, resonance, XOR or coarse bits can't blast. It only turns down, and glides
+ *  back to unity once inactive. No lookahead, so no latency: a sudden jump gets through for
+ *  the first 1-2ms, which the safety limiter (limiter.h) keeps below full scale. Its followers
+ *  are on the power, linked stereo, both alike so their ratio is the gain the effect adds.
+ *  The randomizer's gates (FxChain.h, +3dB) and the crusher (0dB) use one. */
+struct LevelGuard
+{
+    static constexpr float kEnvFloor = 1e-7f; // -70dB: a buzz or ring on silence is held down too
+
+    void Init(float sample_rate, float headroom)
+    {
+        headroom_ = headroom;
+        att_ = Coeff(.001f, sample_rate);
+        rel_ = Coeff(.1f, sample_rate);
+        down_ = Coeff(.002f, sample_rate);
+        up_ = Coeff(.06f, sample_rate);
+        env_in_ = env_out_ = 0.f;
+        gain_ = 1.f;
+    }
+
+    /** in: what went into the effect; l, r: what came out, turned down in place. Inactive,
+     *  it glides back to unity, and once there leaves the signal alone, bit for bit */
+    void Process(float in_l, float in_r, float* l, float* r, bool active = true)
+    {
+        Follow(&env_in_, in_l * in_l + in_r * in_r);
+        Follow(&env_out_, *l * *l + *r * *r);
+        if (!active && gain_ == 1.f)
+            return;
+        float target = 1.f;
+        if (active)
+            target = fminf(1.f, headroom_ * sqrtf((env_in_ + kEnvFloor) / (env_out_ + kEnvFloor)));
+        gain_ += (target < gain_ ? down_ : up_) * (target - gain_);
+        if (!active && gain_ > 1.f - 1e-3f)
+            gain_ = 1.f;
+        *l *= gain_;
+        *r *= gain_;
+    }
+
+    inline float Gain() const { return gain_; }
+
+private:
+    static float Coeff(float seconds, float sample_rate)
+    {
+        return 1.f - expf(-1.f / (seconds * sample_rate));
+    }
+    inline void Follow(float* env, float power) const
+    {
+        *env += (power > *env ? att_ : rel_) * (power - *env);
+    }
+
+    float headroom_;  // the most the output may be over the input, as a gain
+    float att_, rel_; // the followers: attack, release
+    float down_, up_; // the gain: turning down, coming back
+    float env_in_, env_out_;
+    float gain_;
+};
+
 } // namespace chompi

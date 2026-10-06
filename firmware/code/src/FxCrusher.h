@@ -16,7 +16,9 @@ namespace chompi
 /** TEMPO's sample-rate reducer, plus bit-depth reduction, a tone control, and two extras
  *  from Kastle's crusher: XOR, which flips fixed bits of every 16-bit sample for a digital
  *  buzz, and a dive on every key press, the rate dropping up to 10x over 0.1s and
- *  recovering over 0.4s. Fully wet while on.
+ *  recovering over 0.4s. Fully wet while on. The XOR's flips and the coarsest steps are a
+ *  fixed size whatever the level, so a quiet signal would come out far louder than it went
+ *  in: a LevelGuard (FxCommon.h) holds the output to the input's level.
  *  Params: 0 rate, 1 bits, 2 tone, 3 XOR (0 = off). */
 class Crusher : public FxBase
 {
@@ -42,6 +44,7 @@ public:
         dive_decay_coeff_ = expf(-6.9078f / (.4f * sample_rate)); // to -60dB in 0.4s
 
         lp_l_ = lp_r_ = 0.f;
+        guard_.Init(sample_rate, 1.f);
         gate_.Init();
 
         for (size_t i = 0; i < kNumFxParams; i++)
@@ -90,8 +93,13 @@ public:
         lp_l_ += tone_coeff * (wl - lp_l_);
         lp_r_ += tone_coeff * (wr - lp_r_);
 
-        *l += gate * (lp_l_ - *l);
-        *r += gate * (lp_r_ - *r);
+        // never louder than what came in: the XOR's buzz and the coarsest bits are a fixed
+        // size whatever the level, so on a quiet signal they'd be far over it
+        float outl = lp_l_, outr = lp_r_;
+        guard_.Process(*l, *r, &outl, &outr);
+
+        *l += gate * (outl - *l);
+        *r += gate * (outr - *r);
     }
 
     /** The parameters land at once, no slew: the randomizer's gates (FxRandomizer.h) */
@@ -162,6 +170,7 @@ private:
     float inv_step_; // and its inverse, for the audio callback
     int16_t xor_ = 0;
     daisysp::DcBlock xor_dc_l_, xor_dc_r_;
+    LevelGuard guard_; // the output held to the input's level
     PressEnvelope dive_;
     float dive_attack_inc_, dive_decay_coeff_;
 };

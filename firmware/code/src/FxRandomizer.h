@@ -11,7 +11,8 @@
  *  The pool is every insert but the freezer, and the resonator; not the sends (FxChain's
  *  kRandomPool). An effect whose key is held or latched isn't picked: it keeps its knobs. Nor is one whose last random
  *  gate has only just closed (kCoolMs), so it's silent again when its knobs jump. FxChain
- *  hands the effects over and gives the user's knobs back afterwards.
+ *  hands the effects over and gives the user's knobs back afterwards, and its LevelGuard
+ *  (FxCommon.h) keeps a gate from getting more than 3dB louder than what goes into the inserts.
  *
  *  This is the engine's side, run in the audio callback; no hardware, so test/randomizer.cpp
  *  runs it on the host.

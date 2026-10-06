@@ -104,7 +104,14 @@ effects, never a send or the freezer, never one whose key is on and never one th
 before had, still fading out. Then `FxChain.h` around it: a gate's effects are the randomizer's, a key coming
 on takes its effect back at the next block, and once a closed gate's effects have faded out
 they're the user's again. Turned on again mid-bar, it fires at once on a gate's 16th, and a
-gate that was waiting out the shift when it went off doesn't fire later. It doesn't check that the effects' knobs land at once
+gate that was waiting out the shift when it went off doesn't fire later. Its level guard
+(`LevelGuard`): untouched bit for bit while the randomizer has nothing, an output 12 dB over its
+input held to +3 dB, a quieter one never turned up, back to exactly unity after the gate; and
+through the chain, a -12 dBFS sine under the densest pattern for 32 bars never comes out more
+than 3 dB (+1 dB for the attack) over its input in any 16th (it prints the loudest; about
++19 dB without the guard). The crusher's own guard: with XOR at full, a sine at
+-40 dBFS comes out no louder than it went in (+22 dB without the guard), and one at -6 dBFS
+no louder but still there. It doesn't check that the effects' knobs land at once
 (`SnapParams`), nor what a gate sounds like.
 
 ## Play page, looper and tempo checks

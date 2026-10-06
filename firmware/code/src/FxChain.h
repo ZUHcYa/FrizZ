@@ -28,7 +28,11 @@
  *  The randomizer (FxRandomizer.h) plays the effects in kRandomPool from outside the chain:
  *  while one of its gates has an effect, that effect is the randomizer's (owned_), on and
  *  with random knobs; the UI's SetOn and SetParam are kept and land once it's the user's
- *  again, after the gate has faded out. Pressing its key takes it back at once.
+ *  again, after the gate has faded out. Pressing its key takes it back at once. Meanwhile
+ *  a LevelGuard holds the inserts (after the freezer, up to the tape stop) to at most 3dB over
+ *  what went into them; the sends come after it, so they only hear the held sound and the
+ *  whole chain can't jump by more than that per gate. Since the chain is serial, the user's
+ *  own inserts playing during a gate are turned down with it.
  */
 #pragma once
 #include "EnvFollower.h"
@@ -80,6 +84,9 @@ static_assert(sizeof(kFxNames) / sizeof(kFxNames[0]) == kNumFx, "one per FxId");
 // for the next 16th to start recording, and a gate is over by then: it wouldn't be heard
 static const uint16_t kRandomPool = static_cast<uint16_t>(
     ((1u << kNumFx) - 1) & ~((1u << FX_FREEZER) | (1u << FX_DELAY) | (1u << FX_REVERB)));
+
+// The most a random gate may make the inserts louder than what goes into them: +3dB
+static const float kRandomHeadroom = 1.4125f;
 
 // How long a scene recall's fast slew lasts, 50ms at 48kHz: 10 of its time constants
 // (FxCommon.h), well past where it has settled
@@ -133,6 +140,7 @@ public:
         }
         fast_slew_left_ = 0;
         randomizer_.Init(sample_rate, kRandomPool);
+        level_.Init(sample_rate, kRandomHeadroom);
         user_on_ = owned_ = claimed_ = 0;
     }
 
@@ -204,6 +212,7 @@ public:
 
         freezer_.Process(l, r);
         Meter(FX_FREEZER, *l + *r);
+        const float in_l = *l, in_r = *r; // the randomizer's level guard's reference
         // the resonator's loop wraps everything from here to the flanger
         resonator_.Feed(l, r);
         Meter(FX_RESONATOR, resonator_.Return());
@@ -224,6 +233,7 @@ public:
         Meter(FX_WARBLE, *l + *r);
         tapestop_.Process(l, r);
         Meter(FX_TAPESTOP, *l + *r);
+        level_.Process(in_l, in_r, l, r, owned_ != 0);
 
         // sends: the delay from the inserts' output, the reverb from that plus the delay's
         // return, so the echoes are reverberated. Both returns are added on top.
@@ -308,6 +318,7 @@ private:
     EnvFollower meter_[kNumFx];
     uint32_t fast_slew_left_; // samples of FastSlew to go
     Randomizer randomizer_;
+    LevelGuard level_; // holds the inserts to +3dB while the randomizer has any
     float user_params_[kNumFx][kNumFxParams]; // what the UI and the morph set last
     volatile uint16_t user_on_;               // bit fx: its key is on
     volatile uint16_t owned_;                 // bit fx: the randomizer has it

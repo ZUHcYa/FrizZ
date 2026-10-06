@@ -51,7 +51,9 @@ drive the VU LEDs.
   resonator's comb loops from after the flanger back to after the freezer.
   Each effect is a punch-in key, and the keys run in this order left to right. The randomizer
   (`FxRandomizer.h`, last white key) is no effect of its own: on a one-bar gate pattern it
-  switches 1-5 of the inserts (not the freezer) on with random knobs (`FxChain::RandomBlock`).
+  switches 1-5 of the inserts (not the freezer) on with random knobs (`FxChain::RandomBlock`),
+  and a level guard (`LevelGuard`, between the tape stop and the delay) holds the inserts to
+  +3 dB over what went into them while it does.
 
 ## Unused effects in the vendored DaisySP
 

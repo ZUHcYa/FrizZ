@@ -298,6 +298,9 @@ Crusher details:
 - **XOR** flips fixed bits of each sample as 16-bit (Kastle's constants, up to 4000), a buzz
   that's loudest where the signal crosses zero. On its own XOR would turn silence into a
   constant offset, so what it adds is DC-blocked.
+- **Level:** the XOR's flips and the coarsest bits are a fixed size whatever the signal's
+  level, so on a quiet sound they'd come out far louder than it. The crusher's output is held
+  to its input's level instead: turned down within a couple of milliseconds, never up.
 
 Resonator details:
 - The loop holds a soft clipper, a lowpass (Tone) and a 50 Hz highpass, as on Kastle, so it
@@ -426,6 +429,10 @@ The patterns, `x` a gate, a bar in 16ths:
   starts to stop and spins back up. Random knobs can also land an effect on a neutral
   setting (the flanger's amount at 0, the filter at its centre), so a gate can sound like
   nothing happened.
+- **Level:** a gate is never more than 3 dB louder than what goes into the effects. A gate
+  that stacks feedback and resonance is turned down while it plays, then the level glides
+  back once it has faded out. Your own effects playing at the same time are turned down with
+  it, and the delay and reverb hear the turned-down sound.
 - **Not part of a scene:** a scene doesn't save, recall or morph its latch or knobs. The
   knobs are kept on the card with the compressor's, in `FRIZZ/frizz_master.txt`, 2 s after
   the last turn.

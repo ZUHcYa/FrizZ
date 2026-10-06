@@ -129,7 +129,7 @@ without a clock; `./tempo.sh` checks tap tempo, the FX's tempo locked to the loo
 its bar lines (`FxMorph.h`); `./comp.sh` checks the master compressor (`MasterComp.h`), the safety
 limiter's ceiling and the compressor's file format (`MasterSettings.h`); `./randomizer.sh` checks
 the randomizer's gates and picks (`FxRandomizer.h`) and `FxChain.h` handing effects to it and
-back. None
+back, and the level guards (`LevelGuard`) on the randomizer and the crusher. None
 covers the LEDs, `NormalPage.h`'s key routing, real MIDI or the hardware. See its README.
 
 ## SRAM is the binding constraint, especially on TAPE
