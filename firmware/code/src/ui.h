@@ -99,18 +99,6 @@ namespace chompi
         {
             toggle_state = hw_->GetToggleState();
 
-            if(test_page_.IsClosable() && test_page_.IsActive())
-            {
-                ui.ClosePage(test_page_);
-                normal_page_.ResetSmtLeds();
-            }
-
-            if(rainbow_page_.IsClosable() && rainbow_page_.IsActive())
-            {
-                ui.ClosePage(rainbow_page_);
-                normal_page_.ResetSmtLeds();
-            }
-
             for (int i = 0; i < static_cast<int>(Hardware::SwId::SR_LAST); i++)
             {
                 if (i == ENC_5_SW)
@@ -151,7 +139,25 @@ namespace chompi
             }
         }
 
-        void DoEvents() { ui.Process(); }
+        /** Closes the finished test or rainbow page, then dispatches the events and draws.
+         *  Runs in one context at a time (chompi_main.cpp), so the page stack is only
+         *  changed here; GenerateEvents only adds to the IRQ-safe event queue */
+        void DoEvents()
+        {
+            if(test_page_.IsClosable() && test_page_.IsActive())
+            {
+                ui.ClosePage(test_page_);
+                normal_page_.ResetSmtLeds();
+            }
+
+            if(rainbow_page_.IsClosable() && rainbow_page_.IsActive())
+            {
+                ui.ClosePage(rainbow_page_);
+                normal_page_.ResetSmtLeds();
+            }
+
+            ui.Process();
+        }
 
     inline void TestPowerCable(bool cable) { test_page_.SetPowerCable(cable); }
     inline void TestBMC(bool good) { test_page_.SetBMCGood(good); }
