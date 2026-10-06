@@ -275,7 +275,8 @@ no SHIFT needed:
 function key switches to that function.
 
 The slot flashes red instead of green when there's no SD card, or the card couldn't be
-written: the change works until power-off but isn't stored.
+written: the change works until power-off but isn't stored. The next save, copy or delete
+tries the card again.
 
 The scene keys show the slots: dark when empty, dimly white when saved, bright for the scene
 you recalled or saved last, and pulsing once you've turned a knob or changed a latch since.

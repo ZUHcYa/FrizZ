@@ -7,7 +7,8 @@
  *  the UI during boot. It goes to frizz_scenes.tmp first, which then replaces the old file,
  *  so a power cut mid-write leaves one or the other; reading falls back to the .tmp.
  *
- *  Without a card the scenes still work, in RAM only, and are gone at power-off.
+ *  Without a card the scenes still work, in RAM only, and are gone at power-off. A write that
+ *  fails is reported (GetSaveState) and the next save tries again.
  */
 #pragma once
 #include "daisy.h"
@@ -24,11 +25,19 @@ static const char kSceneTmpFile[] = "frizz_scenes.tmp";
 class SceneStore
 {
 public:
-    /** After f_mount, with whether it worked; before audio starts */
-    void Init(bool card_ok)
+    enum class SaveState
     {
-        card_ok_ = card_ok;
-        save_pending_ = false;
+        IDLE,    // nothing saved yet
+        PENDING, // requested, the next Process writes it
+        OK,      // the last save is on the card
+        FAILED,  // the last save isn't: no card, or the write failed
+    };
+
+    /** After f_mount, with whether it worked; before audio starts */
+    void Init(bool mounted)
+    {
+        mounted_ = mounted;
+        save_state_ = SaveState::IDLE;
         for (size_t s = 0; s < kNumScenes; s++)
             scenes[s].used = false;
 
@@ -38,24 +47,22 @@ public:
             for (size_t p = 0; p < kNumFxParams; p++)
                 defaults[fx][p] = kFxParams[fx].defaults[p];
 
-        if (card_ok_ && !Load(kSceneFile, defaults))
+        if (mounted_ && !Load(kSceneFile, defaults))
             Load(kSceneTmpFile, defaults);
     }
 
     /** From the play page after a change: the next Process writes the file */
-    inline void RequestSave() { save_pending_ = true; }
+    inline void RequestSave() { save_state_ = SaveState::PENDING; }
 
-    /** False without a card, or after a write failed: changes stay in RAM */
-    inline bool CardOk() const { return card_ok_; }
+    /** How the last requested save went, for the play page's confirmation */
+    inline SaveState GetSaveState() const { return save_state_; }
 
     /** From MainLoop */
     void Process()
     {
-        if (!save_pending_)
+        if (save_state_ != SaveState::PENDING)
             return;
-        save_pending_ = false;
-        if (card_ok_ && !Save())
-            card_ok_ = false;
+        save_state_ = mounted_ && Save() ? SaveState::OK : SaveState::FAILED;
     }
 
     FxScene scenes[kNumScenes];
@@ -97,8 +104,8 @@ private:
     FIL file_;
     // FatFs reads whole sectors straight into it by DMA, so on a cache line of its own
     alignas(32) char buf_[kSceneFileMax];
-    bool card_ok_;
-    volatile bool save_pending_;
+    bool mounted_;
+    volatile SaveState save_state_;
 };
 
 } // namespace chompi

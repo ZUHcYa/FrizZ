@@ -347,6 +347,14 @@ namespace chompi
             if (last_looper_state_ == Looper::State::RECORDING && looper_state == Looper::State::PLAYING)
                 SetMix(1.f);
             last_looper_state_ = looper_state;
+
+            // a scene confirmed: flash its slot once the card has been written, green if it was
+            if (scene_flash_waiting_ && scenes_->GetSaveState() != SceneStore::SaveState::PENDING)
+            {
+                scene_flash_waiting_ = false;
+                scene_flash_ok_ = scenes_->GetSaveState() == SceneStore::SaveState::OK;
+                scene_flash_time_ = now;
+            }
         }
 
         /** Detents turned. ui.h sends knob 1 and the transport 1x per detent and the other
@@ -441,10 +449,10 @@ namespace chompi
             const int slot = scene_ctl_.Confirm();
             if (slot == kNoScene)
                 return;
+            // the slot flashes once SceneStore::Process has written the card (Update)
             scenes_->RequestSave();
             scene_flash_ = slot;
-            scene_flash_time_ = System::GetNow();
-            scene_flash_ok_ = scenes_->CardOk();
+            scene_flash_waiting_ = true;
         }
 
         void SceneEmptyBlink(size_t slot)
@@ -472,7 +480,9 @@ namespace chompi
                 const int s = static_cast<int>(slot);
                 const float* color = white;
                 float level = 0.f;
-                if (s == scene_flash_ && now - scene_flash_time_ < 6 * kSceneFlashMs)
+                if (s == scene_flash_ && scene_flash_waiting_)
+                    level = 1.f; // writing the card
+                else if (s == scene_flash_ && now - scene_flash_time_ < 6 * kSceneFlashMs)
                 {
                     color = scene_flash_ok_ ? green : red;
                     level = ((now - scene_flash_time_) / kSceneFlashMs) % 2 == 0 ? 1.f : 0.f;
@@ -672,6 +682,7 @@ namespace chompi
         SceneControls<PassthroughEngine> scene_ctl_;
         int scene_flash_ = kNoScene;   // confirmed, flashing
         uint32_t scene_flash_time_ = 0;
+        bool scene_flash_waiting_ = false; // for the card to be written
         bool scene_flash_ok_ = false;  // saved to the card
         int scene_empty_ = kNoScene;   // empty, pressed
         uint32_t scene_empty_time_ = 0;
