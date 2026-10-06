@@ -6,7 +6,7 @@ Your first ten minutes with FRIZZ. Every detail is in the [manual](MANUAL.md).
 
 ```
 AUX in -> input gain -+-----------------+
-                      |                 +-> input/loop mix -> effects (white keys) -> output volume -> compressor -> out
+                      |                 +-> input/loop mix -> effects (white keys) -> compressor -> output volume -> out
                       +-> looper -------+
 ```
 
@@ -25,7 +25,6 @@ white while it acts as SHIFT.
 |---|---|
 | Turn VOLUME | Output volume. The LED is a level meter |
 | Press VOLUME, then turn | Input gain. The LED runs from blue to red |
-| Press again, then turn | Master compressor, off by default |
 | Press again | Back to output volume |
 | SHIFT + turn VOLUME | Input/loop mix: green = only the input, purple = only the loop |
 
@@ -49,9 +48,9 @@ A loop can be up to 2:45 long and is gone when you switch off.
 ## 3. Play the effects
 
 Twelve white keys hold effects, counted from the left, in the order the sound goes through them.
-The 9th white key, and the two between the tape stop and the delay, do nothing.
+The 9th and 12th white keys do nothing. The last one is the master compressor (below).
 
-| White key | 1st | 2nd | 3rd | 4th | 5th | 6th | 7th | 8th | 10th | 11th | 2nd-to-last | last |
+| White key | 1st | 2nd | 3rd | 4th | 5th | 6th | 7th | 8th | 10th | 11th | 13th | 14th |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Effect | Freezer | Shifter | Folder | Crusher | Filter | Flanger | Resonator | Slicer | Wow & flutter | Tape stop | Delay | Reverb |
 
@@ -70,6 +69,11 @@ The 9th white key, and the two between the tape stop and the delay, do nothing.
 
 Every effect starts silent or nearly so: turn its knob 1 (on the delay and reverb, knob 4,
 the level) to bring it in. The tape stop is the exception: it stops the tape on every press.
+
+**Master compressor:** press the last white key, and knobs 1-4 set the compressor on the
+master out: amount (off at first), ratio, speed and mix. Its key lights up as it compresses.
+It's always on, and FRIZZ remembers its settings when you switch off. Press an effect key to
+give the knobs back to the effect.
 
 Delay and reverb tails keep ringing after you let go. The other effects stop the moment you
 release the key, except the tape stop, which spins back up first. Settings reset when you switch off, unless you save them as a scene.

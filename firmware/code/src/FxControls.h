@@ -4,10 +4,14 @@
  *  stepped and coarse turns, and taking, recalling or morphing to a scene. NormalPage.h routes the keys and
  *  knobs here and draws the LEDs from it; test/controls.cpp runs it on the host.
  *
+ *  The master compressor (MasterComp.h) is edited here too: its key selects it for the knobs
+ *  (kCompSelected), which then turn as they do for an FX (kCompParams). It's always on and
+ *  not part of a scene, so its knobs leave the scene unedited.
+ *
  *  Engine is PassthroughEngine on the device, a fake on the host. It needs SetFxOn(fx, on),
- *  SetFxParam(fx, param, val), FastFxSlew() and the morph's StartFxMorph(plan),
- *  AddFxMorphBar(), LandFxMorph(), FreezeFxMorph(params, unswitched, was_on) and
- *  FxMorphing().
+ *  SetFxParam(fx, param, val), SetCompParam(param, val), FastFxSlew() and the morph's
+ *  StartFxMorph(plan), AddFxMorphBar(), LandFxMorph(), FreezeFxMorph(params, unswitched,
+ *  was_on) and FxMorphing().
  */
 #pragma once
 #include <math.h>
@@ -24,6 +28,8 @@ static const float kFxDetentsPerStep = 3.f;
 // The sends: their tails ring on after their keys go off, so a recall or morph doesn't change
 // an off send's settings in the engine until its key comes on again
 static const uint16_t kFxSends = (1u << FX_DELAY) | (1u << FX_REVERB);
+// Selected() while the knobs edit the master compressor
+static const size_t kCompSelected = kNumFx;
 
 template <class Engine>
 class FxControls
@@ -44,6 +50,12 @@ public:
             }
             engine_->SetFxOn(fx, false);
         }
+        for (size_t p = 0; p < kNumFxParams; p++)
+        {
+            comp_[p] = -1.f;
+            SetComp(p, kCompParams.defaults[p]);
+        }
+        comp_changed_ = false;
         ClearChunks();
         chunk_shift_ = false;
         selected_ = 0;
@@ -93,6 +105,17 @@ public:
         SendOn(fx);
     }
 
+    /** The master compressor's key going down: selects it for the knobs. It has no gate or
+     *  latch, so the release does nothing. With SHIFT, a select as an FX key's would be */
+    void CompKeyPressed(bool shift)
+    {
+        if (selected_ != kCompSelected)
+            ClearChunks();
+        selected_ = kCompSelected;
+        if (shift)
+            ShiftUsed();
+    }
+
     /** SHIFT going down: every FX key held will toggle its latch on release. True if one
      *  will, so SHIFT is a latch combo */
     bool ShiftPressed()
@@ -128,11 +151,11 @@ public:
     {
         if (shift)
             ShiftUsed();
-        const FxParams& fxp = kFxParams[selected_];
+        const FxParams& fxp = Knobs();
         if (knob >= fxp.num_params)
             return;
 
-        const float val = params_[selected_][knob];
+        const float val = Knob(knob);
 
         // fine and coarse turns count their detents separately
         if (shift != chunk_shift_)
@@ -148,7 +171,7 @@ public:
             while (chunk_[knob] >= 1.f || chunk_[knob] <= -1.f)
             {
                 const float dir = chunk_[knob] > 0.f ? 1.f : -1.f;
-                SetParam(selected_, knob, CoarseStep(fxp.coarse[knob], params_[selected_][knob], dir));
+                SetKnob(knob, CoarseStep(fxp.coarse[knob], Knob(knob), dir));
                 chunk_[knob] -= dir;
             }
             return;
@@ -157,7 +180,7 @@ public:
         const uint8_t steps = fxp.steps[knob];
         if (steps == 0)
         {
-            SetParam(selected_, knob, val + detents * kFxParamStep);
+            SetKnob(knob, val + detents * kFxParamStep);
             return;
         }
 
@@ -169,7 +192,7 @@ public:
             const float dir = chunk_[knob] > 0.f ? 1.f : -1.f;
             // snap to the step grid, so values set elsewhere can't drift off it
             const float idx = roundf(val / step) + dir;
-            SetParam(selected_, knob, idx * step);
+            SetKnob(knob, idx * step);
             chunk_[knob] = 0.f;
         }
     }
@@ -180,10 +203,10 @@ public:
     {
         if (shift)
             ShiftUsed();
-        if (!shift || knob >= kFxParams[selected_].num_params)
+        if (!shift || knob >= Knobs().num_params)
             return;
 
-        SetParam(selected_, knob, kFxParams[selected_].defaults[knob]);
+        SetKnob(knob, Knobs().defaults[knob]);
         chunk_[knob] = 0.f;
     }
 
@@ -395,9 +418,26 @@ public:
     }
 
     inline float Param(size_t fx, size_t param) const { return params_[fx][param]; }
+    inline float CompParam(size_t param) const { return comp_[param]; }
+    /** A compressor knob set, from the card; clamped and sent */
+    void SetComp(size_t param, float val)
+    {
+        val = fclamp(val, 0.f, 1.f);
+        if (val != comp_[param])
+            comp_changed_ = true;
+        comp_[param] = val;
+        engine_->SetCompParam(param, val);
+    }
+    /** True once after the compressor's knobs changed, so the play page can keep them */
+    bool TakeCompChanged()
+    {
+        const bool changed = comp_changed_;
+        comp_changed_ = false;
+        return changed;
+    }
     inline bool IsLatched(size_t fx) const { return latched_[fx]; }
     inline bool IsOn(size_t fx) const { return held_[fx] || latched_[fx]; }
-    /** The FX the knobs edit: the last one pressed */
+    /** The FX the knobs edit: the last one pressed, or kCompSelected */
     inline size_t Selected() const { return selected_; }
     /** Knobs or latches changed since the last Snapshot or Recall */
     inline bool Edited() const { return edited_; }
@@ -439,6 +479,23 @@ private:
             chunk_[knob] = 0.f;
     }
 
+    /** The selected FX's or the compressor's knobs */
+    inline const FxParams& Knobs() const
+    {
+        return selected_ == kCompSelected ? kCompParams : kFxParams[selected_];
+    }
+    inline float Knob(size_t knob) const
+    {
+        return selected_ == kCompSelected ? comp_[knob] : params_[selected_][knob];
+    }
+    void SetKnob(size_t knob, float val)
+    {
+        if (selected_ == kCompSelected)
+            SetComp(knob, val);
+        else
+            SetParam(selected_, knob, val);
+    }
+
     void SetParam(size_t fx, size_t param, float val)
     {
         val = fclamp(val, 0.f, 1.f);
@@ -462,6 +519,8 @@ private:
     bool latched_[kNumFx];
     OnRelease on_release_[kNumFx];
     size_t selected_ = 0;
+    float comp_[kNumFxParams];  // the master compressor's knobs
+    bool comp_changed_ = false; // since the last TakeCompChanged
     float chunk_[kNumFxParams]; // detents towards the next step or grid point
     bool chunk_shift_ = false;  // whether they were turned with SHIFT
     bool edited_ = false;

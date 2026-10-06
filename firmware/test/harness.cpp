@@ -8,8 +8,9 @@
 //    pressed and released every 0.5s instead, so it stops and spins up
 //  - the inserts together, then everything twice, then 3s of tails. Without the tape stop,
 //    which would silence them and the sends
-// Every parameter starts at 0.5. The input is a 110Hz saw, a gated 2kHz sine and a little
-// noise, all deterministic, as is the delay's rand() (seeded).
+// Every parameter starts at 0.5, the master compressor's amount at 0.3. The input is a 110Hz
+// saw, a gated 2kHz sine and a little noise, all deterministic, as is the delay's rand()
+// (seeded).
 //
 // Environment:
 //  NOFX=1    never switches an FX on (shows whether a segment exercises its FX)
@@ -91,7 +92,12 @@ int main(int argc, char** argv)
                 );
     engine.SetMainGain(.75f);
     engine.SetInputGain(.75f);
+    // the master compressor at work: its amount where the old one-knob compressor was
+#if __has_include("MasterComp.h")
+    engine.SetCompParam(chompi::MasterComp::kAmount, .3f);
+#else
     engine.SetFinalComp(.3f);
+#endif
     engine.SetMix(0.f);
     // the defaults NormalPage pushes don't matter here: every parameter is set below
     for (size_t i = 0; i < kNum; i++)

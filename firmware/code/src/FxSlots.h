@@ -1,7 +1,8 @@
 /** @file FxSlots.h
  *  @brief The punch-in FX keys: one entry per FxId (FxChain.h), in the same order, with the
- *  key, LED and colours the play page (NormalPage.h) gives each. Their knobs (defaults, steps,
- *  coarse grids) are in FxParams.h. The controls are described in MANUAL.md.
+ *  key, LED and colours the play page (NormalPage.h) gives each, and the master compressor's
+ *  key. Their knobs (defaults, steps, coarse grids) are in FxParams.h. The controls are
+ *  described in MANUAL.md.
  */
 #pragma once
 #include "FxChain.h"
@@ -40,9 +41,16 @@ static const FxSlot kFxSlots[] = {
     // KEY_9 is kept for the randomizer
     {Hardware::SwId::KEY_10, 15, teal, {teal, white, purple}, FxKind::INSERT},        // wow & flutter
     {Hardware::SwId::KEY_11, 14, amber, {amber, white, red}, FxKind::INSERT},         // tape stop
-    {Hardware::SwId::KEY_14, 11, green, {green, white, med_blue}, FxKind::SEND},      // delay
-    {Hardware::SwId::KEY_15, 10, blue, {med_blue, blue, purple}, FxKind::SEND},       // reverb
+    // KEY_12 is free
+    {Hardware::SwId::KEY_13, 12, green, {green, white, med_blue}, FxKind::SEND},      // delay
+    {Hardware::SwId::KEY_14, 11, blue, {med_blue, blue, purple}, FxKind::SEND},       // reverb
 };
 static_assert(sizeof(kFxSlots) / sizeof(kFxSlots[0]) == kNumFx, "one per FxId");
+
+// The master compressor's key (MasterComp.h), the last white key, after the reverb: white,
+// lighting up with its gain reduction. Its knob LEDs at 0 / .5 / 1
+static const Hardware::SwId kCompKey = Hardware::SwId::KEY_15;
+static const uint8_t kCompKeyLed = 10;
+static const float* const kCompKnobColors[3] = {med_blue, white, orange};
 
 } // namespace chompi

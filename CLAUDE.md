@@ -126,7 +126,8 @@ every interval; `./tape.sh` checks wow & flutter and the tape stop; `./scenes.sh
 page's FX and scene logic (`FxControls.h`, `SceneControls.h`); `./keys.sh` its CHOMPI, PLAY and
 LOOP keys (`PlayKeys.h`); `./looper.sh` checks the looper
 without a clock; `./tempo.sh` checks tap tempo, the FX's tempo locked to the loop and scene morphs landing on
-its bar lines (`FxMorph.h`). None
+its bar lines (`FxMorph.h`); `./comp.sh` checks the master compressor (`MasterComp.h`), the safety
+limiter's ceiling and the compressor's file format (`MasterSettings.h`). None
 covers the LEDs, `NormalPage.h`'s key routing, real MIDI or the hardware. See its README.
 
 ## SRAM is the binding constraint, especially on TAPE
@@ -170,9 +171,11 @@ committed by writing a temp file then renaming it.
 
 **FRIZZ is simpler:** it builds `FRIZZ.bin`, has no `SDCallback()`, `FileStreamingManager`,
 NoSDPage or MenuPage, and no MIDI out. It reads the card once at boot and writes it only from
-`MainLoop()` when an FX scene is saved, copied or deleted (`SceneStore.h`). Its files live in
+`MainLoop()` when an FX scene is saved, copied or deleted, or when the master compressor's
+knobs have rested 2 s (`SceneStore.h`, `MasterSettings.h`). Its files live in
 `/FRIZZ`, which `EnterFrizzDir()` creates at boot on a card without it. Its play page is
-`NormalPage.h`; its engine is `passthroughEngine.h` → `Looper.h` + `FxMorph.h` → `FxChain.h`.
+`NormalPage.h`; its engine is `passthroughEngine.h` → `Looper.h` + `FxMorph.h` → `FxChain.h` →
+`MasterComp.h` → output gain → `limiter.h`.
 
 Supporting layers, same names in all three firmwares (different contents):
 

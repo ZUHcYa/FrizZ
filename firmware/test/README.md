@@ -29,7 +29,9 @@ no FX switched on, to check that a segment actually exercises its effect; `STRES
 everything at once with the resonator's loop at its most extreme for the whole run.
 
 It drives the engine through `Init`, `SetFxOn`, `SetFxParam` and `GetFxLevel` with the
-`chompi::FX_*` names, so it builds against FRIZZ from `9da090e` on. If that interface changes,
+`chompi::FX_*` names, so it builds against FRIZZ from `9da090e` on, and sets the master
+compressor's amount to 0.3 (`SetCompParam`, or `SetFinalComp` before `MasterComp.h`; the two
+compressors differ, so a run across that change isn't bit-identical). If that interface changes,
 update `harness.cpp` along with it.
 
 ## Shifter pitch check
@@ -74,6 +76,20 @@ a knob's. The recall must land sooner and within 30 ms, without a larger step be
 and hand back to the knobs' slew afterwards. It doesn't touch the card (`SceneStore.h`) or the
 play page.
 
+## Master compressor check
+
+```bash
+./comp.sh
+```
+
+Runs `MasterComp.h` on its own: amount 0 and mix 0 are exact bypasses, the static curve at
+each end of the ratio and the amount (within 0.2 dB, the soft knee too), the attack and
+release slowing from fast to slow speed, and the linked stereo. Then the whole engine with
+everything up and a full-scale square starting from silence, so the outputs must stay within
+1.0 through the safety limiter. Last, the settings file (`MasterSettings.h`): it round-trips,
+grid points come back exactly, and foreign, unknown or partial files are read sensibly. It
+doesn't touch the card or the play page.
+
 ## Play page, looper and tempo checks
 
 ```bash
@@ -87,7 +103,7 @@ play page.
 engine that records what it's sent: holding and latching in either order, fine, stepped and
 coarse knob turns, SHIFT + press, and the scene save / copy / delete / recall flow, including
 that a recall sends only what changes, and what a scene morph does with each effect, its
-taps and stopping it. `keys.sh` runs the CHOMPI, PLAY and LOOP keys (`PlayKeys.h`) against a
+taps and stopping it; and the compressor's key and knobs, which a recall leaves alone. `keys.sh` runs the CHOMPI, PLAY and LOOP keys (`PlayKeys.h`) against a
 fake host: the confirm tap, SHIFT combos, the looper's combos and the erase hold, and that a
 release without its press does nothing. `looper.sh` runs `Looper.h` without MIDI clock: a free
 recording plays back frame for frame at its length, play / pause, erase, the speed ladder, and

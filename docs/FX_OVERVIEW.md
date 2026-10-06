@@ -46,8 +46,9 @@ drive the VU LEDs.
   saturation → pan.
 - **FRIZZ** (`FxChain.h`): AUX input → dry/wet mix with the looper → freezer → shifter →
   folder → crusher → filter → flanger → slicer → wow & flutter → tape stop → delay → reverb
-  (fed the delay's echoes too) → output compressor. The resonator's comb loops from after the
-  flanger back to after the freezer.
+  (fed the delay's echoes too) → master compressor (`MasterComp.h`: amount, ratio, speed, mix,
+  on its own key) → output gain → safety limiter (`limiter.h` at its lowest setting). The
+  resonator's comb loops from after the flanger back to after the freezer.
   Each effect is a punch-in key, and the keys run in this order left to right.
 
 ## Unused effects in the vendored DaisySP

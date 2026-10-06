@@ -15,6 +15,10 @@
  *  SHIFT, then an FX key, only selects it for the knobs, silently (FxControls.h), and the key
  *  flashes white. Knobs 1-4 edit the FX pressed or selected last.
  *
+ *  The master compressor's key (kCompKey) selects it for the knobs, and flashes white; it's
+ *  always on, so the key does nothing else. Its knobs go to the card (SceneStore's master
+ *  file) kMasterSaveDelayMs after the last turn, so a sweep is one write.
+ *
  *  Scenes: a recall sends only the parameters that change, within one audio block and at the
  *  fast slew (FxChain::FastSlew), so an FX the two scenes share runs on untouched. SHIFT +
  *  a scene key morphs to it instead (FxMorph.h), landing on a bar line; the engine times it.
@@ -44,7 +48,7 @@ namespace chompi
     static const float kDefaultInGain = .75f;
     static const float kDefaultMix = 0.f; // fully dry at power-on, nothing recorded yet
 
-    static const uint8_t kNumPages = 3;
+    static const uint8_t kNumPages = 2;
 
     // encoder IDs, by ui.h's encoder_map: 0-3 are knobs 1-4
     static const uint16_t kTransportEncoder = 4;
@@ -75,6 +79,8 @@ namespace chompi
     static const float kFxOffLevel = .15f;    // off: every FX key dimly in its colour
     static const float kFxMeterFloorDb = -30.f; // the meters' range, up to 0 dBFS
     static const float kFxWhiteMax = .8f;     // on: how far the loudest audio pushes to white
+    static const float kCompMeterDb = 12.f;   // the compressor key's full brightness, dB reduced
+    static const uint32_t kMasterSaveDelayMs = 2000;
 
     // FX scenes: the slots on KEY_16-20, the lower octave's dark keys, the blank one first;
     // SAVE / COPY / DELETE on TAPE's preset keys in TEMPO's colours. One language for all
@@ -118,17 +124,19 @@ namespace chompi
 
             out_gain_ = kDefaultOutGain;
             in_gain_ = kDefaultInGain;
-            final_comp_ = 0.f;
             mix_ = kDefaultMix;
             page_ = 0;
 
             // the engine only hears about a value when it changes, so push them all now
             engine_->SetMainGain(out_gain_);
             engine_->SetInputGain(in_gain_);
-            engine_->SetFinalComp(final_comp_);
             engine_->SetMix(mix_);
 
             fx_.Init(engine_);
+            // the compressor as it was left, from the card
+            for (size_t p = 0; p < kNumFxParams; p++)
+                fx_.SetComp(p, scenes_->master.comp[p]);
+            fx_.TakeCompChanged();
             scene_ctl_.Init(scenes_->scenes, &fx_);
             keys_.Init(this);
 
@@ -184,14 +192,8 @@ namespace chompi
                 g = out_gain_ * color_quad_xfade(.1f, green[1], yellow[1], pink[1], vu_sample);
                 b = out_gain_ * color_quad_xfade(.1f, green[2], yellow[2], pink[2], vu_sample);
             }
-            else if (page_ == 1)
-                Xfade(blue, red, in_gain_, &r, &g, &b);
             else
-            {
-                r = med_blue[0] * (final_comp_ * .9f + .1f);
-                g = med_blue[1] * (final_comp_ * .9f + .1f);
-                b = med_blue[2] * (final_comp_ * .9f + .1f);
-            }
+                Xfade(blue, red, in_gain_, &r, &g, &b);
             SetPthLedFloat(kVolumeLed, r, g, b);
 
             DrawLooperLeds(now);
@@ -231,6 +233,16 @@ namespace chompi
                 break;
             }
 
+            if (buttonID == static_cast<uint16_t>(kCompKey))
+            {
+                if (rising)
+                {
+                    keys_.FxKey();
+                    select_flash_.Start(System::GetNow(), kSelectFlashMs);
+                    fx_.CompKeyPressed(Shift());
+                }
+                return true;
+            }
             for (size_t fx = 0; fx < kNumFx; fx++)
             {
                 if (buttonID == static_cast<uint16_t>(kFxSlots[fx].key))
@@ -378,6 +390,20 @@ namespace chompi
                 scene_flash_ok_ = scenes_->GetSaveState() == SceneStore::SaveState::OK;
                 scene_flash_signal_.Start(now);
             }
+
+            // the compressor's knobs to the card, once they've been left alone a while
+            if (fx_.TakeCompChanged())
+            {
+                comp_unsaved_ = true;
+                comp_changed_at_ = now;
+            }
+            if (comp_unsaved_ && now - comp_changed_at_ > kMasterSaveDelayMs)
+            {
+                for (size_t p = 0; p < kNumFxParams; p++)
+                    scenes_->master.comp[p] = fx_.CompParam(p);
+                scenes_->RequestMasterSave();
+                comp_unsaved_ = false;
+            }
         }
 
         /** Detents turned. ui.h sends knob 1 and the transport 1x per detent and the other
@@ -398,15 +424,10 @@ namespace chompi
                 out_gain_ = fclamp(out_gain_ + inc, 0.f, 1.f);
                 engine_->SetMainGain(out_gain_);
             }
-            else if (page_ == 1)
+            else
             {
                 in_gain_ = fclamp(in_gain_ + inc, 0.f, 1.f);
                 engine_->SetInputGain(in_gain_);
-            }
-            else
-            {
-                final_comp_ = fclamp(final_comp_ + inc, 0.f, 1.f);
-                engine_->SetFinalComp(final_comp_);
             }
         }
 
@@ -529,13 +550,15 @@ namespace chompi
 
         void DrawFxLeds(uint32_t now)
         {
-            // knob LEDs: the selected FX's parameters in its colours
+            // knob LEDs: the selected FX's parameters in its colours, or the compressor's
             const size_t selected = fx_.Selected();
-            const float* const* colors = kFxSlots[selected].knob_colors;
+            const bool comp = selected == kCompSelected;
+            const float* const* colors = comp ? kCompKnobColors : kFxSlots[selected].knob_colors;
+            const FxParams& knobs = comp ? kCompParams : kFxParams[selected];
             for (size_t p = 0; p < kNumFxParams; p++)
             {
-                const float val = fx_.Param(selected, p);
-                if (p >= kFxParams[selected].num_params)
+                const float val = comp ? fx_.CompParam(p) : fx_.Param(selected, p);
+                if (p >= knobs.num_params)
                     SetPthLedFloat(kFxKnobLeds[p], 0.f, 0.f, 0.f);
                 else
                     SetPthLedFloat(kFxKnobLeds[p],
@@ -571,6 +594,13 @@ namespace chompi
                                level * (color[1] + white * (1.f - color[1])),
                                level * (color[2] + white * (1.f - color[2])));
             }
+
+            // the compressor's key: its gain reduction, from dim up to full; a select flashes
+            const float reduced = -engine_->GetCompReduction() / kCompMeterDb;
+            float level = kFxOffLevel + (1.f - kFxOffLevel) * fclamp(reduced, 0.f, 1.f);
+            if (comp && select_flash_.Active(now))
+                level = 1.f;
+            SmtLed(kCompKeyLed, white, level);
         }
 
         void DrawLooperLeds(uint32_t now)
@@ -699,7 +729,6 @@ namespace chompi
 
         float out_gain_;
         float in_gain_;
-        float final_comp_;
         float mix_;
         uint8_t page_;
 
@@ -709,6 +738,8 @@ namespace chompi
         LedSignal tap_flash_;
         LedSignal select_flash_; // on the selected FX's key
         float speed_chunk_ = 0.f;   // transport detents towards the next speed step
+        bool comp_unsaved_ = false;     // the compressor's knobs, not yet on the card
+        uint32_t comp_changed_at_ = 0;  // when they last changed
 
         FxControls<PassthroughEngine> fx_;
         SceneControls<PassthroughEngine> scene_ctl_;

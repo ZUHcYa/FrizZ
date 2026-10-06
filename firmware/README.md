@@ -115,11 +115,14 @@ erase a stuck Seed, but the generic Daisy bootloader it offers is not CHOMPI's.
 
 ```
 chompi_main.cpp        entry point: audio callback, main loop, boot sequence
-passthroughEngine.h    the engine: input gain, input/loop mix ("dry/wet" in the code), punch-in FX, output gain, master compressor
+passthroughEngine.h    the engine: input gain, input/loop mix ("dry/wet" in the code), punch-in FX, master compressor, output gain, safety limiter
 FxChain.h              the punch-in effects in their processing order, with a level meter each
-FxParams.h             each effect's knobs: how many, defaults, steps, coarse grids
-FxSlots.h              each effect's key, LED and colours
-FxControls.h           the FX keys and knobs: latches, fine / stepped / coarse turns, scene snapshot and recall
+FxParams.h             each effect's knobs: how many, defaults, steps, coarse grids; the compressor's too
+FxSlots.h              each effect's key, LED and colours; the compressor's key
+MasterComp.h           the master compressor: amount, ratio, speed, mix, stereo-linked
+MasterSettings.h       what's kept on the card outside the scenes (the compressor), and its file format
+FxControls.h           the FX keys and knobs: latches, fine / stepped / coarse turns, scene snapshot and recall;
+                       the compressor's knobs too
 SceneControls.h        the scene keys: recall, morph, and the save / copy / delete flow
 FxMorph.h              a scene morph: glides the effects to a scene, landing on a bar line
 PlayKeys.h             the CHOMPI, PLAY and LOOP keys: SHIFT, the confirm tap, the looper's combos
@@ -139,7 +142,7 @@ NormalPage.h           the play page: routes the controls (VOLUME, PLAY/LOOP, tr
 LedSignal.h            the play page's short LED signals: 3 red or white blinks, a flash
 ui.h                   page plumbing: events, page switching
 limiter.h, EnvFollower.h
-                       compressor and VU meter blocks
+                       the safety limiter and the VU meter
 hardware.h             the CHOMPI hardware: encoders, keys, switches, LEDs, battery
 encoder.h / .cpp       encoder driver
 temp_led_stuff.h       LED driver (ui_utils.h: LED flush/clear helpers)
@@ -151,9 +154,9 @@ chompi_sram.lds        linker script (the firmware runs from SRAM, placed there 
 ## Rules the code follows
 
 - **No file I/O and no blocking calls in the audio callback.** FRIZZ reads the SD card once at
-  boot (the FX scenes, after changing into `/FRIZZ`, which it creates on a new card) and writes
-  it only from `MainLoop`, when a scene is saved, copied or
-  deleted (`SceneStore.h`). The self-test writes to it too.
+  boot (the FX scenes and the compressor's settings, after changing into `/FRIZZ`, which it
+  creates on a new card) and writes it only from `MainLoop`, when a scene is saved, copied or
+  deleted, or 2 s after the compressor's knobs were last turned (`SceneStore.h`). The self-test writes to it too.
 - Large buffers (the loop, the delay, the freezer) live in SDRAM (`DSY_SDRAM_BSS`) and are
   cleared at boot.
 - `__attribute__((optimize("-O0")))` and similar per-function overrides are deliberate

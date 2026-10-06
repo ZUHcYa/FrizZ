@@ -36,7 +36,7 @@
 
 namespace chompi
 {
-/** Simple Peak Limiter, as the master compressor (ProcessComp)
+/** Simple Peak Limiter, as the safety limiter on each output (ProcessComp, passthroughEngine.h)
 
 This was extracted from pichenettes/stmlib.
 
@@ -64,7 +64,7 @@ class Limiter
         SLOPE(peak_, peak, 0.05f, 0.0002f);
         const float gain = (peak_ <= thresh ? 1.f : 1.f / (ratio * (1.f + (peak_ - thresh))) );
         SLOPE(gain_, gain, .001f, .005f);
-        return daisysp::SoftLimit(pre * gain_ * makeup);
+        return daisysp::SoftClip(pre * gain_ * makeup);
     }
 
 

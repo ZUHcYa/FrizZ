@@ -56,7 +56,7 @@ static void RecallJump(bool fast, float* max_step, float* settle_ms)
     engine.SetMainGain(1.f);
     engine.SetInputGain(1.f);
     engine.SetMix(0.f);
-    engine.SetFinalComp(0.f);
+    engine.SetCompParam(MasterComp::kAmount, 0.f);
     engine.SetFxParam(FX_FILTER, 0, .05f);
     engine.SetFxParam(FX_FILTER, 1, 0.f);
     engine.SetFxParam(FX_FILTER, 2, 0.f);

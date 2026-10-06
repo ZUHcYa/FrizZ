@@ -11,7 +11,8 @@ The stereo AUX input goes to the headphone and master outputs through a volume s
 from TAPE's Volume Engine, with a looper on the wet side of a dry/wet mix. The looper can
 record free-length loops or loops quantized to whole bars of an incoming MIDI clock. The
 white keys punch in effects on the mixed signal, and four dark keys save and recall their
-settings as scenes, next to one that clears them. The built-in microphone is not used.
+settings as scenes, next to one that clears them. A master compressor, set from the last
+white key, sits after the effects. The built-in microphone is not used.
 
 ## Mode switch: headphone feed
 
@@ -32,11 +33,11 @@ yours is up, the headphones now carry the dry input. SHIFT works in either posit
 |---|---|---|
 | Turn (page 1, default) | Output gain, headphone + master (default 75%), also the dry headphone feed | VU meter, scaled by gain |
 | Press, then turn (page 2) | Input gain, AUX (default 75%) | blue (0%) to red (100%) |
-| Press again, then turn (page 3) | Master compressor amount (default off) | dark to light blue |
 | SHIFT + turn | Input/loop mix: input only to looper only | green (input) to purple (loop) |
 | Press and hold 1.25 s | Battery check | white full / green / yellow / red |
 
-Every turn moves 1% per detent. Pressing again on page 3 returns to page 1. The mix starts
+Every turn moves 1% per detent. Pressing again on page 2 returns to page 1. (The master
+compressor used to be page 3; it has its own key now, see [Master compressor](#master-compressor).) The mix starts
 on the input only, jumps to the loop only when a recording finishes and back to the input only
 when the loop is erased. The punch-in FX come after this mix, so they act on the input as well
 as the loop.
@@ -116,7 +117,7 @@ at 50 BPM.
 ## Punch-in FX
 
 Effects sit on the white keys and act on the whole mix, after the input/loop mix and before the
-output gain and the master compressor. The looper records the input before the effects, so an effect is never
+master compressor and the output gain. The looper records the input before the effects, so an effect is never
 printed into a loop.
 
 The keys run in signal order, left to right:
@@ -127,8 +128,10 @@ freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> wow & 
   -> tape stop -> delay -> reverb
 ```
 
-The 9th white key, between the slicer and wow & flutter, does nothing yet. So do the two
-between the tape stop and the delay.
+The 9th white key, between the slicer and wow & flutter, does nothing yet. Nor does the 12th,
+between the tape stop and the delay. The last white key, after the reverb, is the
+[master compressor](#master-compressor)'s. (The delay and reverb used to sit one key further
+right.)
 
 - **Inserts** (freezer, shifter, folder, crusher, filter, flanger, slicer): replace the
   signal while on and stop the moment they're off. The freezer comes first, so it captures
@@ -196,8 +199,8 @@ SHIFT + press on a knob takes it back there.
 | 8th white | Slicer: Kastle 2 FX Wizard's rhythmic gate | Pattern, 8 steps of 16ths: `x.......`, `x...x...`, `..x...x.`, `x....x..`, `x..x..x.`, `x.x.x.x.`, `x.x.xx..`, `xxxxxxxx` (default `xxxxxxxx`) | Decay, 10 ms to 1 s (default 1 s) | Chance: each step flipped at random, up to 90% (default off) | Stereo: the left channel plays a pattern up the list, the right one down, 0-7 apart (default off) |
 | 10th white | Wow & flutter: TAPE's warble, plus flutter | Wow: TAPE's warble knob, how often the pitch drifts and how much of it you hear, together (default off) | Flutter: a fast, shallow wobble, up to 1.4% of pitch; real tape's 0.1-0.5% is the lower half (default off) | Tone, lowpass 200 Hz to open (default open) | Stereo: the right channel drifts on its own and wobbles out of step (default off) |
 | 11th white | Tape stop | Stop time: 1/16, 1/8, 1/4, 1/2, 1 bar, 2 bars (default 1/2) | Spin-up time on release: off, 1/16, 1/8, 1/4, 1/2, 1 bar (default 1/4) | Curve: linear to a brake, fast at first then dragging (default linear) | — |
-| 2nd-to-last white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 0) |
-| Last white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Diffusion (default 60%) | Tone, dark to open (default 60%) | Level (default 0) |
+| 13th white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 0) |
+| 14th white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Diffusion (default 60%) | Tone, dark to open (default 60%) | Level (default 0) |
 
 SHIFT + turn moves one point of a fixed grid per detent, always to the next point in the
 direction you turn, so a value set finely snaps onto the grid with the first coarse move:
@@ -349,6 +352,36 @@ Delay details:
 - LEDs: division green (short) through white to blue (long); random green (events) through
   white to blue (shimmer).
 
+## Master compressor
+
+A stereo compressor on the master out, after the effects and before VOLUME, so turning
+VOLUME doesn't change how hard it works. It's always on; at its default amount it's off.
+The last white key (the 15th, after the reverb) selects it for knobs 1-4, which then turn
+it the way they turn an effect: 1% per detent, SHIFT + turn coarse, SHIFT + press resets.
+Pressing an FX key gives the knobs back to that effect. The key does nothing else: it has no
+latch, and holding it doesn't switch anything. With SHIFT it's a select, as an FX key's is.
+
+| Knob | Function |
+|---|---|
+| 1 | Amount: the threshold, from 0 dB down to -30 dB, with makeup gain giving back half of what a loud signal loses (default 0, off) |
+| 2 | Ratio: 1.5:1, 2:1, 4:1, 8:1, 20:1 across the knob, which are also its coarse points (default 4:1) |
+| 3 | Speed: attack 0.5 ms to 30 ms and release 40 ms to 600 ms together, fast to slow (default attack 4 ms, release 150 ms) |
+| 4 | Mix: dry to fully compressed, for parallel compression (default fully compressed) |
+
+- **Linked:** one detector for both channels, so the stereo image doesn't shift. It has a
+  soft knee, 6 dB wide.
+- **Level:** 0 dB is the AUX input about 7 dB below full scale, with the input gain at its
+  default. At amount 0 the signal passes untouched.
+- **Safety limiter:** after VOLUME, every output has a fixed limiter: the old one-knob
+  compressor at its lowest setting, which was its default. It keeps the outputs within full
+  scale; it is what FRIZZ always had, so nothing changes until you turn the amount up.
+- **Kept:** the settings are saved to `FRIZZ/frizz_master.txt` on the card 2 s after the
+  last turn, and come back at power-on. They're not part of a scene. Without a card they
+  last until power-off.
+- LEDs: the key is white, dim, lighting up with the gain reduction, at full brightness from
+  12 dB; it flashes white when pressed. While selected, the knobs go light blue (0%) through
+  white to orange (100%).
+
 ## FX scenes
 
 A scene holds every effect's four knob values and whether it's latched. The five dark keys of
@@ -385,7 +418,8 @@ A recall is meant for performing, a build-up on one scene and the drop on the ne
 - **Delay and reverb tails ring out** after a scene unlatches them, as they were: a scene
   changes the settings of a delay or reverb that's off only when its key next comes on.
   Turning its knobs meanwhile still moves the tail.
-- The input/loop mix, the volumes, the compressor and the looper aren't part of a scene.
+- The input/loop mix, the volumes, the master compressor and the looper aren't part of a
+  scene. The compressor keeps its settings on the card on its own.
 
 Save, copy and delete work like TAPE's and TEMPO's preset keys, on the last three dark keys,
 no SHIFT needed:

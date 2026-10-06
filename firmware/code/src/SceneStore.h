@@ -1,7 +1,12 @@
 /** @file SceneStore.h
  *  @brief The FX scenes (FxScenes.h) and their file on the SD card, frizz_scenes.txt in the
- *  current directory, /FRIZZ (EnterFrizzDir), or the root if that can't be made. Read once at boot; written only when the play page saves, copies or deletes one,
- *  never on a recall, so a performance doesn't touch the card.
+ *  current directory, /FRIZZ (EnterFrizzDir), or the root if that can't be made. Read once at
+ *  boot; written only when the play page saves, copies or deletes one, never on a recall, so a
+ *  performance doesn't touch the card.
+ *
+ *  Next to it, frizz_master.txt holds the master compressor's knobs (MasterSettings.h): read
+ *  at boot, written when the play page asks, a while after they were last turned. It goes
+ *  through the same .tmp; one that can't be read is simply replaced, it holds little.
  *
  *  The write runs in MainLoop (Process), not in the button handler: the audio callback runs
  *  the UI during boot. It goes to frizz_scenes.tmp first, which then replaces the old file,
@@ -19,6 +24,7 @@
 #include "fatfs.h"
 #include "FxScenes.h"
 #include "FxParams.h"
+#include "MasterSettings.h"
 
 namespace chompi
 {
@@ -26,6 +32,8 @@ namespace chompi
 static const char kSceneFile[] = "frizz_scenes.txt";
 static const char kSceneTmpFile[] = "frizz_scenes.tmp";
 static const char kSceneBakFile[] = "frizz_scenes.bak";
+static const char kMasterFile[] = "frizz_master.txt";
+static const char kMasterTmpFile[] = "frizz_master.tmp";
 
 // FRIZZ's folder on the card, so it can share a card with other firmwares (the launcher at
 // github.com/sfaber02/CHOMPI gives each its own folder)
@@ -74,8 +82,10 @@ public:
         unreadable_ = false;
         for (size_t s = 0; s < kNumScenes; s++)
             Saved()[s].used = false;
+        master.Reset();
         if (!Mount())
             return;
+        LoadMaster();
 
         // for the effects a saved scene leaves out
         float defaults[kNumFx][kNumFxParams];
@@ -98,6 +108,8 @@ public:
 
     /** From the play page after a change: the next Process writes the file */
     inline void RequestSave() { save_state_ = SaveState::PENDING; }
+    /** From the play page, master changed: the next Process writes its file */
+    inline void RequestMasterSave() { master_pending_ = true; }
 
     /** How the last requested save went, for the play page's confirmation */
     inline SaveState GetSaveState() const { return save_state_; }
@@ -105,17 +117,28 @@ public:
     /** From MainLoop */
     void Process()
     {
-        if (save_state_ != SaveState::PENDING)
-            return;
-        // after a failure, or without a card at boot: mount again, the card may be back
-        if (!mounted_ || failed_)
-            Mount();
-        failed_ = !(mounted_ && Save());
-        save_state_ = failed_ ? SaveState::FAILED : SaveState::OK;
+        if (save_state_ == SaveState::PENDING)
+        {
+            // after a failure, or without a card at boot: mount again, the card may be back
+            if (!mounted_ || failed_)
+                Mount();
+            failed_ = !(mounted_ && Save());
+            save_state_ = failed_ ? SaveState::FAILED : SaveState::OK;
+        }
+        if (master_pending_)
+        {
+            master_pending_ = false;
+            if (!mounted_ || failed_)
+                Mount();
+            const size_t len = FormatMaster(master, buf_, kSceneFileMax);
+            failed_ = !(mounted_ && len && WriteText(kMasterFile, kMasterTmpFile, len));
+        }
     }
 
     /** The play page's slots; SceneControls fills the blank one (kBlankSlot) */
     FxScene scenes[kNumSlots];
+    /** What the play page keeps outside the scenes: read at boot, written on RequestMasterSave */
+    MasterSettings master;
 
 private:
     /** The slots the file holds, its scene 1 first */
@@ -136,7 +159,8 @@ private:
         return f_stat(name, &info) == FR_OK;
     }
 
-    bool Load(const char* name, const float (*defaults)[kNumFxParams])
+    /** The file's text into buf_, terminated */
+    bool ReadText(const char* name)
     {
         if (f_open(&file_, name, FA_READ) != FR_OK)
             return false;
@@ -146,7 +170,42 @@ private:
         if (res != FR_OK)
             return false;
         buf_[len] = '\0';
-        return ParseScenes(buf_, defaults, Saved());
+        return true;
+    }
+
+    /** buf_'s first len bytes to tmp, which then replaces name */
+    bool WriteText(const char* name, const char* tmp, size_t len)
+    {
+        if (f_open(&file_, tmp, FA_CREATE_ALWAYS | FA_WRITE) != FR_OK)
+            return false;
+        UINT written = 0;
+        const FRESULT res = f_write(&file_, buf_, len, &written);
+        if (f_close(&file_) != FR_OK || res != FR_OK || written != len)
+            return false;
+
+        // f_rename won't replace a file
+        const FRESULT del = f_unlink(name);
+        if (del != FR_OK && del != FR_NO_FILE)
+            return false;
+        return f_rename(tmp, name) == FR_OK;
+    }
+
+    bool Load(const char* name, const float (*defaults)[kNumFxParams])
+    {
+        return ReadText(name) && ParseScenes(buf_, defaults, Saved());
+    }
+
+    /** The master settings, or a .tmp a save cut short before its rename, which it finishes */
+    void LoadMaster()
+    {
+        if (ReadText(kMasterFile) && ParseMaster(buf_, master))
+            return;
+        if (ReadText(kMasterTmpFile) && ParseMaster(buf_, master))
+        {
+            const FRESULT del = f_unlink(kMasterFile);
+            if (del == FR_OK || del == FR_NO_FILE)
+                f_rename(kMasterTmpFile, kMasterFile);
+        }
     }
 
     bool Save()
@@ -166,18 +225,7 @@ private:
             unreadable_ = false;
         }
 
-        if (f_open(&file_, kSceneTmpFile, FA_CREATE_ALWAYS | FA_WRITE) != FR_OK)
-            return false;
-        UINT written = 0;
-        const FRESULT res = f_write(&file_, buf_, len, &written);
-        if (f_close(&file_) != FR_OK || res != FR_OK || written != len)
-            return false;
-
-        // f_rename won't replace a file
-        const FRESULT del = f_unlink(kSceneFile);
-        if (del != FR_OK && del != FR_NO_FILE)
-            return false;
-        return f_rename(kSceneTmpFile, kSceneFile) == FR_OK;
+        return WriteText(kSceneFile, kSceneTmpFile, len);
     }
 
     FATFS* fs_ = nullptr;
@@ -189,6 +237,7 @@ private:
     alignas(32) char buf_[kSceneFileMax];
     bool mounted_;
     volatile SaveState save_state_;
+    bool master_pending_ = false;
 };
 
 } // namespace chompi

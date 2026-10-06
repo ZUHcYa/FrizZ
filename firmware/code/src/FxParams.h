@@ -100,4 +100,11 @@ static const FxParams kFxParams[] = {
 };
 static_assert(sizeof(kFxParams) / sizeof(kFxParams[0]) == kNumFx, "one per FxId");
 
+// The master compressor's knobs (MasterComp.h), edited like an FX's from its own key, but
+// always on and not part of a scene: amount (off), ratio (4:1), speed (attack 4ms, release
+// 150ms), mix (fully compressed). Coarse ratio: its points 1.5, 2, 4, 8 and 20:1
+static const FxParams kCompParams = {
+    4, {0.f, .5f, .5f, 1.f}, {0, 0, 0, 0},
+    {kGrid10, {0.f, .25f, nullptr, 0}, kGrid10, kGrid10}, 0};
+
 } // namespace chompi

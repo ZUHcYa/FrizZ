@@ -26,6 +26,8 @@ struct FakeEngine
         param_calls++;
     }
     void FastFxSlew() { fast_slews++; }
+    float comp[kNumFxParams] = {};
+    void SetCompParam(size_t p, float v) { comp[p] = v; }
 
     // the morph: what it was started with, and its bar lines
     FxMorphPlan plan = {};
@@ -279,6 +281,66 @@ static void TestKnobs()
           "CoarseStep: a point moves to its neighbours");
     Check(Fx::CoarseStep(g, 0.f, -1.f) == 0.f && Fx::CoarseStep(g, 1.f, 1.f) == 1.f,
           "CoarseStep: nothing past 0 or 1");
+}
+
+static void TestComp()
+{
+    FakeEngine e;
+    Fx fx;
+    Fresh(e, fx);
+    bool defaults = true;
+    for (size_t p = 0; p < kNumFxParams; p++)
+        defaults = defaults && e.comp[p] == kCompParams.defaults[p] &&
+                   fx.CompParam(p) == kCompParams.defaults[p];
+    Check(defaults, "compressor: init on its defaults, also in the engine");
+    Check(!fx.TakeCompChanged(), "compressor: init isn't a change to keep");
+
+    // its key selects it; the knobs then edit it and leave the FX alone
+    fx.KeyPressed(FX_FILTER, true, false);
+    fx.KeyPressed(FX_FILTER, false, false);
+    const float filter = fx.Param(FX_FILTER, 0);
+    fx.CompKeyPressed(false);
+    Check(fx.Selected() == kCompSelected, "compressor key: the knobs edit it");
+    fx.KnobTurned(0, 10.f, false);
+    Check(Near(fx.CompParam(0), .1f) && Near(e.comp[0], .1f) && fx.Param(FX_FILTER, 0) == filter,
+          "compressor: a fine turn moves its knob, not the FX's");
+    Check(fx.TakeCompChanged() && !fx.TakeCompChanged(), "compressor: a turn is a change, once");
+    Check(!fx.Edited(), "compressor: not part of a scene, so the scene isn't edited");
+
+    // coarse: the ratio's grid points
+    fx.KnobTurned(1, 1.f, true);
+    Check(Near(fx.CompParam(1), .75f), "compressor: a coarse ratio turn goes to the next point");
+    fx.KnobPressed(1, true);
+    Check(fx.CompParam(1) == kCompParams.defaults[1], "compressor: SHIFT + knob press resets it");
+    fx.KnobTurned(3, 200.f, false);
+    Check(fx.CompParam(3) == 1.f, "compressor: knobs stop at 1");
+
+    // with SHIFT, a select as an FX key's: a key held doesn't latch
+    fx.KeyPressed(FX_CRUSHER, true, false);
+    fx.ShiftPressed();
+    fx.CompKeyPressed(true);
+    fx.KeyPressed(FX_CRUSHER, false, true);
+    Check(fx.Selected() == kCompSelected && !fx.IsLatched(FX_CRUSHER),
+          "key, SHIFT, the compressor key: it's selected, the key doesn't latch");
+
+    // an FX key takes the knobs back
+    fx.KeyPressed(FX_FILTER, true, false);
+    fx.KeyPressed(FX_FILTER, false, false);
+    fx.KnobTurned(0, 1.f, false);
+    Check(fx.Selected() == FX_FILTER && Near(fx.Param(FX_FILTER, 0), filter + .01f) &&
+              Near(fx.CompParam(0), .1f),
+          "an FX key: the knobs edit it again");
+
+    // a scene recall leaves it as it is
+    FxScene scene;
+    fx.Snapshot(scene);
+    scene.params[FX_FILTER][0] = .9f;
+    fx.Recall(scene);
+    Check(Near(fx.CompParam(0), .1f) && Near(e.comp[0], .1f), "a recall leaves the compressor alone");
+
+    // set from the card
+    fx.SetComp(0, 1.5f);
+    Check(fx.CompParam(0) == 1.f && e.comp[0] == 1.f, "SetComp: clamped and sent");
 }
 
 static void TestScenes()
@@ -590,6 +652,7 @@ int main()
     TestInit();
     TestKeys();
     TestKnobs();
+    TestComp();
     TestScenes();
     TestMorph();
     TestTails();

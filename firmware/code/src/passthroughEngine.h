@@ -1,7 +1,7 @@
 /** @file passthroughEngine.h
  *  @brief Audio engine: the stereo AUX input goes to both outputs through the Volume
- *  Engine: input gain -> input/loop mix -> punch-in FX (FxChain.h) -> output gain -> master
- *  compressor.
+ *  Engine: input gain -> input/loop mix -> punch-in FX (FxChain.h) -> master compressor
+ *  (MasterComp.h) -> output gain -> safety limiter.
  *
  *  In the code the mix is dry/wet: dry is the input on its own, wet is the looper's playback
  *  on its own. The looper records the dry signal (see Looper.h).
@@ -13,8 +13,9 @@
  *  clock or taps. A scene morph (FxMorph.h) sits between the UI and the FX and lands on that
  *  clock's bar lines.
  *
- *  The input level, output level and compressor stage are ported from TAPE's DSPEngine
- *  so the gains match the hardware the way TAPE tuned them.
+ *  The input level, output level and safety limiter are ported from TAPE's DSPEngine
+ *  so the gains match the hardware the way TAPE tuned them. The limiter is TAPE's master
+ *  compressor at its lowest setting, which is what FRIZZ's own knob for it started at.
  */
 #pragma once
 #include <atomic>
@@ -25,6 +26,7 @@
 #include "FxMorph.h"
 #include "limiter.h"
 #include "Looper.h"
+#include "MasterComp.h"
 #include "TempoClock.h"
 
 using namespace daisy;
@@ -33,6 +35,9 @@ using namespace daisysp;
 static constexpr float kLineOutGain = .3f;
 static constexpr float kHpGain = .2f;
 static constexpr float kLineInGain = 3.f;
+// the safety limiter's threshold and makeup (limiter.h)
+static constexpr float kLimThresh = .25f;
+static constexpr float kLimMakeup = .9f;
 
 class PassthroughEngine
 {
@@ -54,6 +59,7 @@ public:
                  freezer_mem_l, freezer_mem_r, freezer_frames,
                  tapestop_mem_l, tapestop_mem_r, tapestop_frames);
         morph_.Init(&fx_);
+        comp_.Init(sample_rate);
 
         dcblock_line_in_l_.Init(sample_rate);
         dcblock_line_in_r_.Init(sample_rate);
@@ -104,7 +110,6 @@ public:
         for (size_t i = 0; i < size; i++)
         {
             fonepole(mgain_, mgain_target_, .001f);
-            fonepole(final_lim_, final_lim_target_, .001f);
             // equal-power crossfade so the middle of the knob doesn't dip in level; the
             // cosf and sinf only while the knob slews, the mix usually sits still
             if (mix_ != mix_target_)
@@ -123,6 +128,7 @@ public:
             // punch-in FX, on the mix so they work on the input, the loop or both, and
             // before the output gain so they don't change with the VOLUME knob
             fx_.Process(&sigl, &sigr);
+            comp_.Process(&sigl, &sigr);
 
             // headphone and master gain
             out[0][i] = sigl * kHpGain * mgain_;
@@ -130,15 +136,11 @@ public:
             out[2][i] = sigl * kLineOutGain * mgain_;
             out[3][i] = sigr * kLineOutGain * mgain_;
 
-            // master compressor
-            const float thresh = 1.f / (10.f * final_lim_ + 4.f);
-            const float ratio = 1.f + final_lim_ * final_lim_ * 7.f;
-            const float makeup = .9f + final_lim_ * .6f;
-            const float pregain = 7.f * final_lim_ + 1.f;
-            out[0][i] = lim_hp_l_.ProcessComp(out[0][i], pregain, thresh, ratio, makeup);
-            out[1][i] = lim_hp_r_.ProcessComp(out[1][i], pregain, thresh, ratio, makeup);
-            out[2][i] = lim_line_l_.ProcessComp(out[2][i], pregain, thresh, ratio, makeup);
-            out[3][i] = lim_line_r_.ProcessComp(out[3][i], pregain, thresh, ratio, makeup);
+            // safety limiter: TAPE's master compressor at its lowest setting (limiter.h)
+            out[0][i] = lim_hp_l_.ProcessComp(out[0][i], 1.f, kLimThresh, 1.f, kLimMakeup);
+            out[1][i] = lim_hp_r_.ProcessComp(out[1][i], 1.f, kLimThresh, 1.f, kLimMakeup);
+            out[2][i] = lim_line_l_.ProcessComp(out[2][i], 1.f, kLimThresh, 1.f, kLimMakeup);
+            out[3][i] = lim_line_r_.ProcessComp(out[3][i], 1.f, kLimThresh, 1.f, kLimMakeup);
 
             output_env_follower.Process((out[0][i] + out[1][i]));
 
@@ -152,7 +154,10 @@ public:
 
     inline void SetMainGain(float gain) { mgain_target_ = gain; }
     inline void SetInputGain(float gain) { ingain_target_ = gain; }
-    inline void SetFinalComp(float comp) { final_lim_target_ = comp; }
+    /** The master compressor's knobs (MasterComp.h), 0..1 */
+    inline void SetCompParam(size_t param, float val) { comp_.SetParam(param, val); }
+    /** Its gain reduction now, in dB (<= 0) */
+    inline float GetCompReduction() const { return comp_.GetReduction(); }
     /** 0 = dry (input only), 1 = wet (looper/buffer only) */
     inline void SetMix(float mix) { mix_target_ = mix; }
     /** Headphones: false = mirror the master out, true = the dry input on its own */
@@ -231,10 +236,10 @@ private:
     chompi::TempoClock tempo_clock_;
     chompi::FxChain fx_;
     chompi::FxMorph morph_;
+    chompi::MasterComp comp_;
     // live values start at 0 and slew up to the targets the play page sets at boot
     float mgain_ = 0.f, mgain_target_ = 0.f;
     float ingain_ = 0.f, ingain_target_ = 0.f;
-    float final_lim_ = 0.f, final_lim_target_ = 0.f;
     float mix_ = 0.f, mix_target_ = 0.f;
     float dry_amt_ = 1.f, wet_amt_ = 0.f; // the crossfade at mix_
     float hp_dry_ = 0.f, hp_dry_target_ = 0.f;
