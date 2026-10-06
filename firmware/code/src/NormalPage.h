@@ -19,6 +19,10 @@
  *  always on, so the key does nothing else. Its knobs go to the card (SceneStore's master
  *  file) kMasterSaveDelayMs after the last turn, so a sweep is one write.
  *
+ *  The randomizer's key (kRandKey) is held, latched and selected as an FX key is; its knobs
+ *  go to the master file as the compressor's do. An effect a random gate has on lights as if
+ *  its key were on.
+ *
  *  Scenes: a recall sends only the parameters that change, within one audio block and at the
  *  fast slew (FxChain::FastSlew), so an FX the two scenes share runs on untouched. SHIFT +
  *  a scene key morphs to it instead (FxMorph.h), landing on a bar line; the engine times it.
@@ -80,6 +84,7 @@ namespace chompi
     static const float kFxMeterFloorDb = -30.f; // the meters' range, up to 0 dBFS
     static const float kFxWhiteMax = .8f;     // on: how far the loudest audio pushes to white
     static const float kCompMeterDb = 12.f;   // the compressor key's full brightness, dB reduced
+    static const float kRandOnLevel = .5f;    // the randomizer's key while on, between gates
     static const uint32_t kMasterSaveDelayMs = 2000;
 
     // FX scenes: the slots on KEY_16-20, the lower octave's dark keys, the blank one first;
@@ -137,6 +142,10 @@ namespace chompi
             for (size_t p = 0; p < kNumFxParams; p++)
                 fx_.SetComp(p, scenes_->master.comp[p]);
             fx_.TakeCompChanged();
+            // and the randomizer's knobs
+            for (size_t p = 0; p < kNumFxParams; p++)
+                fx_.SetRand(p, scenes_->master.rand[p]);
+            fx_.TakeRandChanged();
             scene_ctl_.Init(scenes_->scenes, &fx_);
             keys_.Init(this);
 
@@ -241,6 +250,17 @@ namespace chompi
                     select_flash_.Start(System::GetNow(), kSelectFlashMs);
                     fx_.CompKeyPressed(Shift());
                 }
+                return true;
+            }
+            if (buttonID == static_cast<uint16_t>(kRandKey))
+            {
+                if (rising)
+                {
+                    keys_.FxKey();
+                    if (Shift())
+                        select_flash_.Start(System::GetNow(), kSelectFlashMs);
+                }
+                fx_.KeyPressed(kRandSelected, rising, Shift());
                 return true;
             }
             for (size_t fx = 0; fx < kNumFx; fx++)
@@ -392,17 +412,22 @@ namespace chompi
             }
 
             // the compressor's knobs to the card, once they've been left alone a while
-            if (fx_.TakeCompChanged())
+            // and the randomizer's, into the same file
+            const bool comp_changed = fx_.TakeCompChanged();
+            if (fx_.TakeRandChanged() || comp_changed)
             {
-                comp_unsaved_ = true;
-                comp_changed_at_ = now;
+                master_unsaved_ = true;
+                master_changed_at_ = now;
             }
-            if (comp_unsaved_ && now - comp_changed_at_ > kMasterSaveDelayMs)
+            if (master_unsaved_ && now - master_changed_at_ > kMasterSaveDelayMs)
             {
                 for (size_t p = 0; p < kNumFxParams; p++)
+                {
                     scenes_->master.comp[p] = fx_.CompParam(p);
+                    scenes_->master.rand[p] = fx_.RandParam(p);
+                }
                 scenes_->RequestMasterSave();
-                comp_unsaved_ = false;
+                master_unsaved_ = false;
             }
         }
 
@@ -550,14 +575,20 @@ namespace chompi
 
         void DrawFxLeds(uint32_t now)
         {
-            // knob LEDs: the selected FX's parameters in its colours, or the compressor's
+            // knob LEDs: the selected FX's parameters in its colours, or the compressor's or
+            // the randomizer's
             const size_t selected = fx_.Selected();
             const bool comp = selected == kCompSelected;
-            const float* const* colors = comp ? kCompKnobColors : kFxSlots[selected].knob_colors;
-            const FxParams& knobs = comp ? kCompParams : kFxParams[selected];
+            const bool rand = selected == kRandSelected;
+            const float* const* colors = comp   ? kCompKnobColors
+                                         : rand ? kRandKnobColors
+                                                : kFxSlots[selected].knob_colors;
+            const FxParams& knobs = comp ? kCompParams : rand ? kRandParams : kFxParams[selected];
             for (size_t p = 0; p < kNumFxParams; p++)
             {
-                const float val = comp ? fx_.CompParam(p) : fx_.Param(selected, p);
+                const float val = comp   ? fx_.CompParam(p)
+                                  : rand ? fx_.RandParam(p)
+                                         : fx_.Param(selected, p);
                 if (p >= knobs.num_params)
                     SetPthLedFloat(kFxKnobLeds[p], 0.f, 0.f, 0.f);
                 else
@@ -575,7 +606,7 @@ namespace chompi
                 const float meter = fclamp(1.f - db / kFxMeterFloorDb, 0.f, 1.f);
                 float level = kFxOffLevel;
                 float white = 0.f;
-                if (fx_.IsOn(fx))
+                if (fx_.IsOn(fx) || engine_->GetFxRandomOn(fx))
                 {
                     level = 1.f;
                     // squared, so normal levels stay coloured and the peaks flash white
@@ -601,6 +632,27 @@ namespace chompi
             if (comp && select_flash_.Active(now))
                 level = 1.f;
             SmtLed(kCompKeyLed, white, level);
+
+            // the randomizer's key: dim white while on, a gate open in the colour of an effect
+            // it fired; a select flashes white
+            const float* rand_color = white;
+            float rand_level = kFxOffLevel;
+            if (fx_.IsOn(kRandSelected))
+            {
+                rand_level = kRandOnLevel;
+                const size_t pick = engine_->RandomizerPick();
+                if (engine_->GetFxRandomOn(pick))
+                {
+                    rand_color = kFxSlots[pick].key_color;
+                    rand_level = 1.f;
+                }
+            }
+            if (rand && select_flash_.Active(now))
+            {
+                rand_color = white;
+                rand_level = 1.f;
+            }
+            SmtLed(kRandKeyLed, rand_color, rand_level);
         }
 
         void DrawLooperLeds(uint32_t now)
@@ -738,8 +790,9 @@ namespace chompi
         LedSignal tap_flash_;
         LedSignal select_flash_; // on the selected FX's key
         float speed_chunk_ = 0.f;   // transport detents towards the next speed step
-        bool comp_unsaved_ = false;     // the compressor's knobs, not yet on the card
-        uint32_t comp_changed_at_ = 0;  // when they last changed
+        bool master_unsaved_ = false;     // the compressor's or randomizer's knobs, not yet
+                                          // on the card
+        uint32_t master_changed_at_ = 0;  // when they last changed
 
         FxControls<PassthroughEngine> fx_;
         SceneControls<PassthroughEngine> scene_ctl_;

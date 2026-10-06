@@ -107,4 +107,11 @@ static const FxParams kCompParams = {
     4, {0.f, .5f, .5f, 1.f}, {0, 0, 0, 0},
     {kGrid10, {0.f, .25f, nullptr, 0}, kGrid10, kGrid10}, 0};
 
+// The randomizer's knobs (FxRandomizer.h), edited like an FX's from its own key, not part of a
+// scene: pattern (quarters), pulse width (half a 16th), chance (every gate: it plays as soon
+// as its key goes down), shift (on the grid)
+static const FxParams kRandParams = {
+    4, {2.f / 16.f, .5f, 1.f, 0.f}, {Randomizer::kNumPatterns, 0, 0, 0},
+    {StepGrid(Randomizer::kNumPatterns), kGrid10, kGrid10, kGrid10}, 0};
+
 } // namespace chompi

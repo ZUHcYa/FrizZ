@@ -49,10 +49,7 @@ public:
 
         for (size_t i = 0; i < kNumFxParams; i++)
             SetParam(i, 0.f);
-        drive_.Snap();
-        shape_.Snap();
-        bias_.Snap();
-        tone_coeff_.Snap();
+        SnapParams();
     }
 
     void Process(float* l, float* r)
@@ -100,6 +97,15 @@ public:
 
         *l += gate * (wet[0] * match - *l);
         *r += gate * (wet[1] * match - *r);
+    }
+
+    /** The parameters land at once, no slew: the randomizer's gates (FxRandomizer.h) */
+    void SnapParams() override
+    {
+        drive_.Snap();
+        shape_.Snap();
+        bias_.Snap();
+        tone_coeff_.Snap();
     }
 
     void SetParam(size_t param, float val) override

@@ -8,6 +8,8 @@ box and looper for whatever you plug into its AUX input.
 - **Twelve punch-in effects on the white keys:** freezer, pitch shifter, wavefolder, bitcrusher,
   DJ filter, flanger, resonator, slicer, wow & flutter, tape stop, tempo-synced delay and reverb. Hold a key to play an effect,
   or SHIFT + key to latch it. Knobs 1-4 shape the last effect you touched.
+- **A randomizer on the last white key:** it plays the effects on a one-bar gate pattern,
+  1 to 5 at a time with random settings, while your own settings stay as they are.
 - **Four FX scenes on the dark keys:** save every effect's settings and latches, recall them
   at once for a drop, copy and delete them. Kept on the SD card. A fifth key clears every
   effect at once.

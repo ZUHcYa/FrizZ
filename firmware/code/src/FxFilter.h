@@ -44,8 +44,7 @@ public:
 
         for (size_t i = 0; i < kNumFxParams; i++)
             SetParam(i, 0.f);
-        cutoff_.Snap();
-        depth_.Snap();
+        SnapParams();
     }
 
     /** Once per block: the tempo, plus one call per clock pulse in this block, with the
@@ -91,6 +90,13 @@ public:
 
         *l += gate * (fl - *l);
         *r += gate * (fr - *r);
+    }
+
+    /** The parameters land at once, no slew: the randomizer's gates (FxRandomizer.h) */
+    void SnapParams() override
+    {
+        cutoff_.Snap();
+        depth_.Snap();
     }
 
     void SetParam(size_t param, float val) override

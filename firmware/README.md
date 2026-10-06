@@ -81,6 +81,8 @@ cd firmware/test
 ./keys.sh         # the CHOMPI, PLAY and LOOP keys: confirm tap, SHIFT and looper combos (PlayKeys.h)
 ./looper.sh       # the looper records, plays back, pauses, erases and steps its speed
 ./tempo.sh        # tap tempo, a loop's beats, the FX's tempo locked to the loop, scene morphs
+./comp.sh         # the master compressor, the safety limiter's ceiling, the master settings file
+./randomizer.sh   # the randomizer's patterns, gates and picks, and FxChain handing effects over
 ```
 
 They don't cover the LEDs, the routing of keys in `NormalPage.h`, MIDI clock or the hardware. See [`test/README.md`](test/README.md).

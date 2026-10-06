@@ -45,10 +45,7 @@ public:
 
         for (size_t i = 0; i < kNumFxParams; i++)
             SetParam(i, 0.f);
-        for (size_t c = 0; c < 2; c++)
-            delay_[c].Snap();
-        feedback_.Snap();
-        lp_coeff_.Snap();
+        SnapParams();
     }
 
     /** After the freezer: adds the loop's return, scaling the input down as Kastle does */
@@ -82,6 +79,15 @@ public:
 
     /** What the loop added in the last Feed, for the key LED */
     inline float Return() const { return ret_[0] + ret_[1]; }
+
+    /** The parameters land at once, no slew: the randomizer's gates (FxRandomizer.h) */
+    void SnapParams() override
+    {
+        for (size_t c = 0; c < 2; c++)
+            delay_[c].Snap();
+        feedback_.Snap();
+        lp_coeff_.Snap();
+    }
 
     void SetParam(size_t param, float val) override
     {

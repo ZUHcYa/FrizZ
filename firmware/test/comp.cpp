@@ -231,6 +231,20 @@ static void TestFile()
     Check(ParseMaster("FRIZZ master 1\n", b) && b.comp[0] == kCompParams.defaults[0],
           "file: an empty one, every default");
     Check(FormatMaster(a, buf, 20) == 0, "file: one that doesn't fit isn't written");
+
+    // the randomizer's knobs, on a line of their own
+    a.Reset();
+    a.rand[0] = 15.f / 16.f;
+    a.rand[3] = .3f;
+    FormatMaster(a, buf, sizeof(buf));
+    same = ParseMaster(buf, b);
+    for (size_t p = 0; p < kNumFxParams; p++)
+        same = same && fabsf(a.rand[p] - b.rand[p]) < 1e-6f && fabsf(a.comp[p] - b.comp[p]) < 1e-6f;
+    Check(same, "file: the randomizer's knobs round-trip");
+    Check(ParseMaster("FRIZZ master 1\ncompressor 500000 500000 500000 500000\n", b) &&
+              b.comp[0] == .5f && b.rand[0] == kRandParams.defaults[0] &&
+              b.rand[2] == kRandParams.defaults[2],
+          "file: one from before the randomizer, its knobs on their defaults");
 }
 
 int main()

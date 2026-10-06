@@ -45,10 +45,7 @@ public:
 
         for (size_t i = 0; i < kNumFxParams; i++)
             SetParam(i, 0.f);
-        depth_.Snap();
-        mix_.Snap();
-        feedback_.Snap();
-        stereo_mix_.Snap();
+        SnapParams();
     }
 
     void Process(float* l, float* r)
@@ -89,6 +86,15 @@ public:
             *io[c] += gate * (out - *io[c]);
         }
         ring_.Advance();
+    }
+
+    /** The parameters land at once, no slew: the randomizer's gates (FxRandomizer.h) */
+    void SnapParams() override
+    {
+        depth_.Snap();
+        mix_.Snap();
+        feedback_.Snap();
+        stereo_mix_.Snap();
     }
 
     void SetParam(size_t param, float val) override
