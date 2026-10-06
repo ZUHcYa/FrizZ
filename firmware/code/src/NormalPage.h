@@ -4,8 +4,8 @@
  *  SceneStore.h), with their LEDs. The logic is in FxControls.h and SceneControls.h; this
  *  routes the hardware to it and draws. MANUAL.md describes every control; what's here is what the manual doesn't say.
  *
- *  SHIFT is the CHOMPI key held, in either position of the mode switch. The switch does nothing
- *  in play mode; its state is still tracked (switch_state) for later use.
+ *  SHIFT is the CHOMPI key held, in either position of the mode switch. The switch picks the
+ *  headphone feed: down mirrors the master out, up is the dry input (passthroughEngine.h).
  *
  *  Looper keys: LOOP acts on press so recording starts and stops exactly then. PLAY acts on
  *  release, and only if LOOP wasn't pressed during the hold, so the PLAY + LOOP combos (the
@@ -323,7 +323,12 @@ namespace chompi
             return true;
         }
 
-        void SetSwitchState(bool state) { switch_state = state; }
+        // called every audio block (ui.h)
+        void SetSwitchState(bool state)
+        {
+            switch_state = state;
+            engine_->SetHeadphoneDry(!state);
+        }
 
         inline void SetInitIgnore(bool ignore) { init_ignore = ignore; }
 
@@ -672,7 +677,7 @@ namespace chompi
         float mix_;
         uint8_t page_;
 
-        bool switch_state = false; // true with the mode switch DOWN; unused in play mode for now
+        bool switch_state = false; // true with the mode switch DOWN
         bool chompi_key_pressed = false;
 
         bool play_pressed_ = false;

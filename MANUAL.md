@@ -13,11 +13,24 @@ record free-length loops or loops quantized to whole bars of an incoming MIDI cl
 white keys punch in effects on the mixed signal, and four dark keys save and recall their
 settings as scenes. The built-in microphone is not used.
 
+## Mode switch: headphone feed
+
+| Switch | Headphones |
+|---|---|
+| Down | The same signal as the master out |
+| Up | The AUX input on its own, after input gain and VOLUME: no loop, no effects, no mix, no compressor |
+
+The master out always carries the full signal. With the switch up you hear the loop and the
+effects only on the master out, so use it when the master goes to a PA, mixer or recorder and
+the headphones are your monitor; with headphones alone, keep it down. Flipping the switch
+fades between the two, without a click. Before this, the switch did nothing in play mode: if
+yours is up, the headphones now carry the dry input. SHIFT works in either position.
+
 ## VOLUME knob
 
 | Control | Function | LED |
 |---|---|---|
-| Turn (page 1, default) | Output gain, headphone + master (default 75%) | VU meter, scaled by gain |
+| Turn (page 1, default) | Output gain, headphone + master (default 75%), also the dry headphone feed | VU meter, scaled by gain |
 | Press, then turn (page 2) | Input gain, AUX (default 75%) | blue (0%) to red (100%) |
 | Press again, then turn (page 3) | Master compressor amount (default off) | dark to light blue |
 | SHIFT + turn | Input/loop mix: input only to looper only | green (input) to purple (loop) |

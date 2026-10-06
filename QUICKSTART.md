@@ -13,7 +13,8 @@ AUX in -> input gain -+-----------------+
 The looper records the input **before** the effects, so you can play effects over a loop and
 nothing gets printed into it. The effects come **after** the mix, so they act on everything you
 hear, the live input as well as the loop. The mix knob balances input against loop; there's no
-dry path around the effects.
+dry path around the effects on the master out. The headphones follow the mode switch: down,
+the same as the master out; up, only the dry input (no loop, no effects).
 
 **SHIFT** means holding the CHOMPI key (with the mode switch in either position). The key lights
 white while it acts as SHIFT.

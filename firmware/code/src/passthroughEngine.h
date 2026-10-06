@@ -6,6 +6,9 @@
  *  In the code the mix is dry/wet: dry is the input on its own, wet is the looper's playback
  *  on its own. The looper records the dry signal (see Looper.h).
  *
+ *  The headphones mirror the master out, or with SetHeadphoneDry() carry the input on its
+ *  own: after the input gain and VOLUME, but no loop, no FX, no MIX and no compressor.
+ *
  *  The input level, output level and compressor stage are ported from TAPE's DSPEngine
  *  so the gains match the hardware the way TAPE tuned them.
  */
@@ -110,6 +113,12 @@ public:
             out[3][i] = lim_line_r_.ProcessComp(out[3][i], pregain, thresh, ratio, makeup);
 
             output_env_follower.Process((out[0][i] + out[1][i]));
+
+            // headphone feed, after the VU meter so it keeps metering the master's signal;
+            // crossfaded so switching doesn't click
+            fonepole(hp_dry_, hp_dry_target_, .001f);
+            out[0][i] += (dryl[i] * kHpGain * mgain_ - out[0][i]) * hp_dry_;
+            out[1][i] += (dryr[i] * kHpGain * mgain_ - out[1][i]) * hp_dry_;
         }
     }
 
@@ -118,6 +127,8 @@ public:
     inline void SetFinalComp(float comp) { final_lim_target_ = comp; }
     /** 0 = dry (input only), 1 = wet (looper/buffer only) */
     inline void SetMix(float mix) { mix_target_ = mix; }
+    /** Headphones: false = mirror the master out, true = the dry input on its own */
+    inline void SetHeadphoneDry(bool dry) { hp_dry_target_ = dry ? 1.f : 0.f; }
 
     /** Punch-in FX, by FxId (FxChain.h) */
     inline void SetFxOn(size_t fx, bool on) { fx_.SetOn(fx, on); }
@@ -142,4 +153,5 @@ private:
     float ingain_ = 0.f, ingain_target_ = 0.f;
     float final_lim_ = 0.f, final_lim_target_ = 0.f;
     float mix_ = 0.f, mix_target_ = 0.f;
+    float hp_dry_ = 0.f, hp_dry_target_ = 0.f;
 };
