@@ -103,11 +103,18 @@ public:
         {
             fonepole(mgain_, mgain_target_, .001f);
             fonepole(final_lim_, final_lim_target_, .001f);
-            fonepole(mix_, mix_target_, .001f);
-
-            // equal-power crossfade so the middle of the knob doesn't dip in level
-            const float dry_amt = cosf(mix_ * HALFPI_F);
-            const float wet_amt = sinf(mix_ * HALFPI_F);
+            // equal-power crossfade so the middle of the knob doesn't dip in level; the
+            // cosf and sinf only while the knob slews, the mix usually sits still
+            if (mix_ != mix_target_)
+            {
+                fonepole(mix_, mix_target_, .001f);
+                if (fabsf(mix_ - mix_target_) < 1e-5f)
+                    mix_ = mix_target_;
+                dry_amt_ = cosf(mix_ * HALFPI_F);
+                wet_amt_ = sinf(mix_ * HALFPI_F);
+            }
+            const float dry_amt = dry_amt_;
+            const float wet_amt = wet_amt_;
             float sigl = dryl[i] * dry_amt + wetl[i] * wet_amt;
             float sigr = dryr[i] * dry_amt + wetr[i] * wet_amt;
 
@@ -227,5 +234,6 @@ private:
     float ingain_ = 0.f, ingain_target_ = 0.f;
     float final_lim_ = 0.f, final_lim_target_ = 0.f;
     float mix_ = 0.f, mix_target_ = 0.f;
+    float dry_amt_ = 1.f, wet_amt_ = 0.f; // the crossfade at mix_
     float hp_dry_ = 0.f, hp_dry_target_ = 0.f;
 };

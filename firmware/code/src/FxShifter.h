@@ -72,15 +72,17 @@ public:
             env_.Press();
         env_.Process(env_attack_inc_, env_decay_coeff_);
 
-        // the speed per channel; recomputed every sample while swooping, otherwise when a
-        // knob changed it (SetParam), so only the audio callback writes it
+        // the speed per channel; recomputed every kSwoopUpdate samples while swooping (2
+        // powf: every sample was ~6% of the CPU for the swoop's 1.3s), and once when it ends;
+        // otherwise when a knob changed it (SetParam), so only the audio callback writes it
         const float swoop = env_.value * swoop_;
-        if (swoop > .0001f || swooping_)
+        const bool swoop_on = swoop > .0001f;
+        if ((swoop_on && swoop_tick_++ % kSwoopUpdate == 0) || (swooping_ && !swoop_on))
         {
             const float dir = semitones_ > 0 ? 1.f : (semitones_ < 0 ? -1.f : 0.f);
             ratios_changed_ = false;
             UpdateRatios(semitones_ + dir * swoop * kSwoopSemitones);
-            swooping_ = swoop > .0001f;
+            swooping_ = swoop_on;
         }
         else if (ratios_changed_)
         {
@@ -233,6 +235,8 @@ private:
     int semitones_ = 0;
     float swoop_ = 0.f;
     bool swooping_ = false;
+    uint32_t swoop_tick_ = 0;
+    static const uint32_t kSwoopUpdate = 8; // samples between the swoop's speed updates
     float stereo_semitones_ = 0.f;
     Smoothed dry_;
     Smoothed feedback_;
