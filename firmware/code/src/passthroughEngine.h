@@ -44,13 +44,15 @@ public:
     void Init(float sample_rate, int16_t* loop_mem, chompi::MidiClock* midi_clock,
               float* delay_mem, size_t delay_frames,
               daisysp::Reverb* reverb,
-              float* freezer_mem_l, float* freezer_mem_r, size_t freezer_frames)
+              float* freezer_mem_l, float* freezer_mem_r, size_t freezer_frames,
+              float* tapestop_mem_l, float* tapestop_mem_r, size_t tapestop_frames)
     {
         sample_rate_ = sample_rate;
         looper.Init(loop_mem, midi_clock);
         tempo_clock_.Init(sample_rate, midi_clock);
         fx_.Init(sample_rate, delay_mem, delay_frames, reverb,
-                 freezer_mem_l, freezer_mem_r, freezer_frames);
+                 freezer_mem_l, freezer_mem_r, freezer_frames,
+                 tapestop_mem_l, tapestop_mem_r, tapestop_frames);
         morph_.Init(&fx_);
 
         dcblock_line_in_l_.Init(sample_rate);

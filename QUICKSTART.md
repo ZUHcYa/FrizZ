@@ -48,12 +48,12 @@ A loop can be up to 2:45 long and is gone when you switch off.
 
 ## 3. Play the effects
 
-Ten white keys hold effects, counted from the left, in the order the sound goes through them.
-The white keys between the slicer and the delay do nothing.
+Twelve white keys hold effects, counted from the left, in the order the sound goes through them.
+The 9th white key, and the two between the tape stop and the delay, do nothing.
 
-| White key | 1st | 2nd | 3rd | 4th | 5th | 6th | 7th | 8th | 2nd-to-last | last |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Effect | Freezer | Shifter | Folder | Crusher | Filter | Flanger | Resonator | Slicer | Delay | Reverb |
+| White key | 1st | 2nd | 3rd | 4th | 5th | 6th | 7th | 8th | 10th | 11th | 2nd-to-last | last |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Effect | Freezer | Shifter | Folder | Crusher | Filter | Flanger | Resonator | Slicer | Wow & flutter | Tape stop | Delay | Reverb |
 
 - **Hold a key:** the effect is on while you hold it.
 - **Hold a key, then SHIFT:** latch the effect on. Do it again, or just tap the key, to turn
@@ -69,10 +69,10 @@ The white keys between the slicer and the delay do nothing.
 - **SHIFT + press a knob:** reset that setting.
 
 Every effect starts silent or nearly so: turn its knob 1 (on the delay and reverb, knob 4,
-the level) to bring it in.
+the level) to bring it in. The tape stop is the exception: it stops the tape on every press.
 
 Delay and reverb tails keep ringing after you let go. The other effects stop the moment you
-release the key. Settings reset when you switch off, unless you save them as a scene.
+release the key, except the tape stop, which spins back up first. Settings reset when you switch off, unless you save them as a scene.
 
 Things to try first:
 
@@ -85,8 +85,10 @@ Things to try first:
   every pass.
 - **Delay + reverb (the last two keys):** turn up their knob 4, then tap them to throw echoes and
   tails onto single notes.
+- **Tape stop (11th key)** with the delay or reverb latched: hold it on a beat and the music
+  winds down over half a bar while the tails ring on. Let go and it spins back up.
 
-The freezer, slicer, filter LFO and delay follow a tempo: the loop's while there is one, so
+The freezer, slicer, filter LFO, tape stop and delay follow a tempo: the loop's while there is one, so
 they lock to it; otherwise MIDI clock, or the last tempo (120 BPM at power-on). Hold SHIFT
 and tap LOOP three times or more to tap a tempo, or to tell FRIZZ how many beats a loop has.
 See [Tempo](MANUAL.md#tempo).

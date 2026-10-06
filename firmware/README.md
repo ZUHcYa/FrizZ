@@ -75,6 +75,7 @@ cd firmware/test
 ./all.sh          # all of the below, one line each
 ./check.sh        # engine at HEAD vs the working tree: a refactor must print "bit-identical"
 ./pitch.sh        # the shifter lands on every interval from -12 to +12 semitones
+./tape.sh         # wow & flutter's depth, the tape stop's stops and spin-ups back to the input
 ./scenes.sh       # the FX scene file round-trips, and the recall's fast slew ends
 ./controls.sh     # the play page's FX keys, knobs and scene flow (FxControls.h, SceneControls.h)
 ./keys.sh         # the CHOMPI, PLAY and LOOP keys: confirm tap, SHIFT and looper combos (PlayKeys.h)

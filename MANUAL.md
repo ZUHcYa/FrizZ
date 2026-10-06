@@ -78,7 +78,7 @@ paused). The transport LEDs show speed and direction.
 
 ## Tempo
 
-The effects that follow a tempo (the delay, the filter LFO, the freezer and the slicer) take
+The effects that follow a tempo (the delay, the filter LFO, the freezer, the slicer and the tape stop) take
 it from one of three places, the first that applies:
 
 1. **The loop, while there is one**, with or without MIDI clock. Beat 1 is the loop's start,
@@ -122,16 +122,23 @@ printed into a loop.
 The keys run in signal order, left to right:
 
 ```
-freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> delay -> reverb
+freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> wow & flutter
            |<------------------- resonator loop ------------------->|
+  -> tape stop -> delay -> reverb
 ```
+
+The 9th white key, between the slicer and wow & flutter, does nothing yet. So do the two
+between the tape stop and the delay.
 
 - **Inserts** (freezer, shifter, folder, crusher, filter, flanger, slicer): replace the
   signal while on and stop the moment they're off. The freezer comes first, so it captures
   the clean sound and everything after it works on the repeats. The folder folds the clean
   signal and the crusher grinds the folds; the filter sweeps both, and the flanger sweeps
-  what they made. The slicer is the last insert, so it chops everything,
-  including the resonator's ringing.
+  what they made. The slicer chops everything, including the resonator's ringing.
+- **Tape** (wow & flutter, tape stop): the last two inserts, so they bend everything before
+  them, the resonator's ringing too. They come before the sends: a tape stop slows the music
+  to a halt while the echoes and the reverb ring on. The tape stop doesn't end the moment
+  it's off: it spins back up first.
 - **Resonator** (7th white key): a comb feedback loop. While on, it taps the signal after the
   flanger and feeds it back in after the freezer, so it rings through the shifter, folder,
   crusher, filter and flanger whenever they're on.
@@ -146,7 +153,7 @@ freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> delay 
 | Hold an FX key, then SHIFT | Latch on / off; a latched effect stays on after release. The key goes down first, then SHIFT. The latch is settled when you let go of the key: holding an FX key and using SHIFT for something else (a coarse turn, tap tempo, the mix, selecting another effect) doesn't latch it. Hold several FX keys, then SHIFT, to latch them all |
 | SHIFT, then an FX key | **Select:** the knobs now edit that effect, without hearing it. It stays off (or latched, if it was), and letting go of the key does nothing, also after letting go of SHIFT first. The key flashes white. (Before, SHIFT first latched too: now only the key first does) |
 | FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
-| Knobs 1-4 | The parameters of the most recently pressed or selected FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo) move one step per 3 detents |
+| Knobs 1-4 | The parameters of the most recently pressed or selected FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo, tape stop and spin-up times) move one step per 3 detents |
 | SHIFT + knobs 1-4 | Coarse: jumps to the next point of the parameter's grid per detent (see below) |
 | SHIFT + press knobs 1-4 | Resets that parameter to its default |
 | Press knobs 1-4 | Nothing yet (kept free for a second parameter page) |
@@ -164,16 +171,17 @@ looking it up:
 
 | Knob | Role | Where an effect has none |
 |---|---|---|
-| 1 | The main control: length, pitch, drive, rate, cutoff, pattern, division, decay | — |
-| 2 | Feedback (the filter's resonance) | its second main control: shape, bits, decay, diffusion |
-| 3 | Tone or colour: tone, roll, swoop, amount, LFO depth, chance, random | — |
+| 1 | The main control: length, pitch, drive, rate, cutoff, pattern, wow, stop time, division, decay | — |
+| 2 | Feedback (the filter's resonance) | its second main control: shape, bits, decay, flutter, spin-up time, diffusion |
+| 3 | Tone or colour: tone, roll, swoop, amount, LFO depth, chance, curve, random | — |
 | 4 | Stereo, or level on the delay and reverb | its odd one out: symmetry, XOR, LFO division |
 
 Every effect starts silent or nearly so: the knob that brings it in (shifter shift, folder
-drive, crusher rate and bits, filter cutoff, flanger amount, resonator feedback, delay and
-reverb level) starts at off, the others at a setting that sounds good, so one turn brings the
-effect in. Two can't be silent: the freezer starts at 1 bar, so a shorter press only hears
-the live signal, and the slicer at every step on with the longest decay, a slight pump.
+drive, crusher rate and bits, filter cutoff, flanger amount, resonator feedback, wow and
+flutter, delay and reverb level) starts at off, the others at a setting that sounds good, so
+one turn brings the effect in. Three can't be silent: the freezer starts at 1 bar, so a
+shorter press only hears the live signal; the slicer at every step on with the longest
+decay, a slight pump; and the tape stop stops on every press, over 1/2 bar.
 SHIFT + press on a knob takes it back there.
 
 | Key | Effect | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
@@ -186,6 +194,8 @@ SHIFT + press on a knob takes it back there.
 | 6th white | Flanger: Kastle 2 FX Wizard's | Rate, 0.02 Hz to 50 Hz (default 0.55 Hz) | Feedback, up to 85% (default 50%) | Amount: sweep depth and mix together, the top is pure vibrato (default 0, dry) | Stereo: the right LFO runs free and detuned (default off) |
 | 7th white | Resonator: the comb Kastle 2 FX Wizard runs around every mode | Pitch, 22 Hz to 880 Hz (default 110 Hz) | Feedback, up to 98% (default 0, off) | Tone: the loop's lowpass, 1 kHz to 15 kHz (default 6.6 kHz) | Stereo: the right channel up to 12 semitones higher (default off) |
 | 8th white | Slicer: Kastle 2 FX Wizard's rhythmic gate | Pattern, 8 steps of 16ths: `x.......`, `x...x...`, `..x...x.`, `x....x..`, `x..x..x.`, `x.x.x.x.`, `x.x.xx..`, `xxxxxxxx` (default `xxxxxxxx`) | Decay, 10 ms to 1 s (default 1 s) | Chance: each step flipped at random, up to 90% (default off) | Stereo: the left channel plays a pattern up the list, the right one down, 0-7 apart (default off) |
+| 10th white | Wow & flutter: TAPE's warble, plus flutter | Wow: TAPE's warble knob, how often the pitch drifts and how much of it you hear, together (default off) | Flutter: a fast, shallow wobble, up to 1.4% of pitch; real tape's 0.1-0.5% is the lower half (default off) | Tone, lowpass 200 Hz to open (default open) | Stereo: the right channel drifts on its own and wobbles out of step (default off) |
+| 11th white | Tape stop | Stop time: 1/16, 1/8, 1/4, 1/2, 1 bar, 2 bars (default 1/2) | Spin-up time on release: off, 1/16, 1/8, 1/4, 1/2, 1 bar (default 1/4) | Curve: linear to a brake, fast at first then dragging (default linear) | — |
 | 2nd-to-last white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 0) |
 | Last white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Diffusion (default 60%) | Tone, dark to open (default 60%) | Level (default 0) |
 
@@ -202,7 +212,8 @@ direction you turn, so a value set finely snaps onto the grid with the first coa
 | Folder drive | Doublings: 1x, 2x, 4x, 8x, 16x, 32x |
 | Folder and crusher tone | Octaves down from open: 20 kHz, 10 kHz, 5 kHz … 312 Hz |
 | Resonator tone | Octaves down from 15 kHz: 7.5 kHz, 3.75 kHz, 1.9 kHz |
-| Stepped parameters (freezer length and roll, filter LFO and delay divisions, slicer pattern and stereo) | One step per detent instead of per 3 |
+| Wow & flutter tone | Octaves down from open, as the folder's and crusher's |
+| Stepped parameters (freezer length and roll, filter LFO and delay divisions, slicer pattern and stereo, tape stop and spin-up times) | One step per detent instead of per 3 |
 | Everything else, filter cutoff included | 10% steps |
 
 Filter details:
@@ -296,6 +307,36 @@ Resonator details:
   and stronger.
 - LEDs: the key is lime; the knobs go orange through white to light blue.
 
+Wow & flutter details:
+- **Wow** is TAPE's warble, from its SHIFT menu: a short delay (2-20 ms) that now and then
+  heads for a new length at a random speed, so the pitch drifts like a worn tape's. The knob
+  sets both how often (0.1 to 30 times a second) and the mix: around the middle the drifting
+  copy blends with the dry sound into a chorus, at the top you hear only the drift.
+- **Flutter** is two fast wobbles, at 7.3 Hz and 11.7 Hz, like a capstan's and a pinch
+  roller's. It brings the effect in over the first quarter of its knob, so it works without
+  the wow.
+- **Tone** darkens what comes off the tape, not the dry sound.
+- LEDs: the key is teal; the knobs go teal through white to purple.
+
+Tape stop details:
+- **Press:** the tape slows to a standstill over the stop time and the pitch falls with it.
+  Below 5% of speed the level fades too, as on a real machine, and while you hold the key it
+  stays stopped and silent.
+- **Release:** the tape spins back up from the live signal over the spin-up time, then
+  crossfades (15 ms) back to the live signal once it's at speed. A spin-up has to start from
+  live: a tape slower than real time falls behind, so it can't catch up by itself. With the
+  spin-up off, it goes straight back.
+- **Release halfway down** spins up from that speed. **Press while it spins up** and it
+  slows again from there.
+- **Curve:** linear slows the tape evenly. Turned up, it brakes: fast at first, then a long
+  drag at the bottom. The spin-up mirrors it, a motor's quick start and slow settle.
+- The times follow the [tempo](#tempo), taken when the stop or spin-up starts, so a stop
+  pressed on a beat lands on a beat.
+- It comes before the delay and reverb, so their tails ring on while the tape stops. A
+  latched tape stop, or a scene that latches one, keeps the whole mix silent, and the sends
+  get nothing new, until it's unlatched.
+- LEDs: the key is amber; the knobs go amber through white to red.
+
 Delay details:
 - **Tempo:** the [tempo](#tempo), rounded to whole BPM. Limited to 50-300 BPM so 2 bars fit
   the 10 s buffer.
@@ -338,7 +379,7 @@ A recall is meant for performing, a build-up on one scene and the drop on the ne
   Stepped values (freezer length, slicer pattern, delay division …) switch at once.
 - **An effect a recall turns on starts as if you'd pressed its key:** the freezer grabs fresh
   audio, the shifter swoops, the crusher dives, the flanger's sweep restarts, the slicer
-  attacks.
+  attacks, the tape stops.
 - **An effect latched in both scenes keeps running** without restarting. A freeze held
   through the drop stays frozen.
 - **Delay and reverb tails ring out** after a scene unlatches them, as they were: a scene

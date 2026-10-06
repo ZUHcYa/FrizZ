@@ -46,6 +46,12 @@ static const size_t kFreezerFrames = 240000;
 float DSY_SDRAM_BSS freezer_mem_l[kFreezerFrames];
 float DSY_SDRAM_BSS freezer_mem_r[kFreezerFrames];
 
+// the tape stop's buffers (FxTapeStop.h), a power of 2 per channel: its longest lag, a 2 bar
+// stop at the slowest tempo on the steepest brake, 7.2s, fits in 2^19 frames (10.9s)
+static const size_t kTapeStopFrames = 1u << 19;
+float DSY_SDRAM_BSS tapestop_mem_l[kTapeStopFrames];
+float DSY_SDRAM_BSS tapestop_mem_r[kTapeStopFrames];
+
 // the reverb carries its 64KB buffer, in the fast DTCMRAM like WAVE's. Not zeroed at startup:
 // Reverb::Init clears it
 #define DSY_DTCMRAM_BSS __attribute__((section(".dtcmram_bss")))
@@ -225,7 +231,8 @@ int main(void)
 
     engine.Init(hw.seed.AudioSampleRate(), loop_mem, &midi_clock,
                 delay_mem, kDelayFrames, &reverb,
-                freezer_mem_l, freezer_mem_r, kFreezerFrames);
+                freezer_mem_l, freezer_mem_r, kFreezerFrames,
+                tapestop_mem_l, tapestop_mem_r, kTapeStopFrames);
 
     LedSetup();
     ui.Init(&engine, &hw, &scene_store);

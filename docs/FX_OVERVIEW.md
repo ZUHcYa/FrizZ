@@ -45,8 +45,9 @@ drive the VU LEDs.
   shared filter LFO and pitch LFO; voices summed → delay → reverb → output compressor →
   saturation → pan.
 - **FRIZZ** (`FxChain.h`): AUX input → dry/wet mix with the looper → freezer → shifter →
-  folder → crusher → filter → flanger → slicer → delay → reverb (fed the delay's echoes too) → output
-  compressor. The resonator's comb loops from after the flanger back to after the freezer.
+  folder → crusher → filter → flanger → slicer → wow & flutter → tape stop → delay → reverb
+  (fed the delay's echoes too) → output compressor. The resonator's comb loops from after the
+  flanger back to after the freezer.
   Each effect is a punch-in key, and the keys run in this order left to right.
 
 ## Unused effects in the vendored DaisySP
@@ -79,5 +80,7 @@ their keys' order left to right (see the FRIZZ chain above). Their controls are 
 | 6th white | Flanger (insert) | Bastl Instruments' Kastle 2 FX Wizard flanger (MIT) |
 | 7th white | Resonator (comb loop from after the flanger back to after the freezer) | the feedback comb Bastl Instruments' Kastle 2 FX Wizard runs around every mode (MIT) |
 | 8th white | Slicer (insert) | Bastl Instruments' Kastle 2 FX Wizard slicer (MIT) |
+| 10th white | Wow & flutter (insert) | TAPE's `Warble.h` as knob 1, plus FRIZZ's own flutter, tone and stereo |
+| 11th white | Tape stop (insert) | FRIZZ's own: a varispeed read head on an SDRAM buffer, tempo-synced stop and spin-up |
 | 2nd-to-last white | Delay (send) | TEMPO's `granularDelay.h`, clocked by FRIZZ's `TempoClock.h` from MIDI clock |
 | Last white | Reverb (send, also fed the delay's echoes) | TEMPO's `reverb.h` + `fx_engine.h` |

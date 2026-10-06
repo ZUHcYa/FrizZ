@@ -9,9 +9,10 @@
  *  without one of these puts its odd parameter there.
  *
  *  The defaults leave every effect silent or nearly so: the knob that brings it in (shift,
- *  drive, rate and bits, cutoff, amount, feedback, level) starts neutral, the others where
- *  they sound good, so one turn brings the effect in. The freezer and slicer can't be
- *  neutral: they start at their most transparent setting.
+ *  drive, rate and bits, cutoff, amount, feedback, wow and flutter, level) starts neutral, the
+ *  others where they sound good, so one turn brings the effect in. The freezer and slicer
+ *  can't be neutral: they start at their most transparent setting. Nor can the tape stop:
+ *  every press stops the tape.
  */
 #pragma once
 #include "FxChain.h"
@@ -84,6 +85,12 @@ static const FxParams kFxParams[] = {
     // slicer: pattern (xxxxxxxx), decay (1s: a slight pump), chance (off), stereo (off)
     {4, {1.f, 1.f, 0.f, 0.f}, {Slicer::kNumPatterns, 0, 0, Slicer::kNumPatterns},
      {StepGrid(Slicer::kNumPatterns), kGrid10, kGrid10, StepGrid(Slicer::kNumPatterns)}, 0},
+    // wow & flutter: wow (off), flutter (off), tone (open), stereo (off)
+    {4, {0.f, 0.f, 1.f, 0.f}, {0, 0, 0, 0},
+     {kGrid10, kGrid10, kGridTone, kGrid10}, 0x3},
+    // tape stop: stop (1/2 bar), spin-up (1/4 bar), curve (linear). Three knobs
+    {3, {.6f, .6f, 0.f, 0.f}, {TapeStop::kNumStops, TapeStop::kNumStarts, 0, 0},
+     {StepGrid(TapeStop::kNumStops), StepGrid(TapeStop::kNumStarts), kGrid10, kGrid10}, 0},
     // delay: division (1/4), feedback, random (off), level (off)
     {4, {.25f, .4f, .5f, 0.f}, {DelaySend::kNumDivisions, 0, 0, 0},
      {StepGrid(DelaySend::kNumDivisions), kGrid10, kGrid10, kGrid10}, 0x8},

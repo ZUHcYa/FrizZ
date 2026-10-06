@@ -2,9 +2,12 @@
 // PassthroughEngine on the host and writes every output sample and FX meter to a file, so two
 // versions of the engine can be compared (see README.md). Built and run by run.sh.
 //
-// The script, one segment of 3s per FX plus four (14 with the folder) at 48kHz in 24-sample blocks:
-//  - each FX on its own, on for 2.5s with a random knob turned every 0.25s
-//  - the inserts together, then everything twice, then 3s of tails
+// The script, one segment of 3s per FX plus four (14 with the folder, 16 with wow & flutter and
+// the tape stop) at 48kHz in 24-sample blocks:
+//  - each FX on its own, on for 2.5s with a random knob turned every 0.25s; the tape stop
+//    pressed and released every 0.5s instead, so it stops and spins up
+//  - the inserts together, then everything twice, then 3s of tails. Without the tape stop,
+//    which would silence them and the sends
 // Every parameter starts at 0.5. The input is a 110Hz saw, a gated 2kHz sine and a little
 // noise, all deterministic, as is the delay's rand() (seeded).
 //
@@ -14,8 +17,8 @@
 //            filter's resonance and the flanger's and shifter's feedback at the top
 //
 // Output, per block: 4 x 24 floats (headphone L/R, master L/R), then the FX meters in the
-// order of kAll below: 9, or 10 from the folder on (compare.py tells them apart by the
-// file's size).
+// order of kAll below: 9, 10 from the folder on, 12 from wow & flutter and the tape stop on
+// (compare.py tells them apart by the file's size).
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -32,6 +35,11 @@ static const size_t kFreezerFrames = 240000;
 static float freezer_mem_l[kFreezerFrames];
 static float freezer_mem_r[kFreezerFrames];
 static daisysp::Reverb reverb;
+#if __has_include("FxTapeStop.h")
+static const size_t kTapeStopFrames = 1u << 19;
+static float tapestop_mem_l[kTapeStopFrames];
+static float tapestop_mem_r[kTapeStopFrames];
+#endif
 static chompi::MidiClock midi_clock;
 static PassthroughEngine engine;
 
@@ -50,9 +58,23 @@ static const size_t kAll[] = {chompi::FX_FILTER,  chompi::FX_CRUSHER, chompi::FX
 #if __has_include("FxFolder.h")
                               chompi::FX_FOLDER,
 #endif
+#if __has_include("FxTapeStop.h")
+                              chompi::FX_WARBLE,  chompi::FX_TAPESTOP,
+#endif
                               chompi::FX_DELAY,   chompi::FX_REVERB};
 static const size_t kNum = sizeof(kAll) / sizeof(kAll[0]);
 static const size_t kNumInserts = kNum - 2;
+
+// Left out of the combined segments and STRESS: a stopped tape would silence them
+static bool Combined(size_t fx)
+{
+#if __has_include("FxTapeStop.h")
+    return fx != chompi::FX_TAPESTOP;
+#else
+    (void)fx;
+    return true;
+#endif
+}
 
 int main(int argc, char** argv)
 {
@@ -62,7 +84,11 @@ int main(int argc, char** argv)
     srand(1);
 
     engine.Init(kSr, loop_mem, &midi_clock, delay_mem, kDelayFrames, &reverb,
-                freezer_mem_l, freezer_mem_r, kFreezerFrames);
+                freezer_mem_l, freezer_mem_r, kFreezerFrames
+#if __has_include("FxTapeStop.h")
+                , tapestop_mem_l, tapestop_mem_r, kTapeStopFrames
+#endif
+                );
     engine.SetMainGain(.75f);
     engine.SetInputGain(.75f);
     engine.SetFinalComp(.3f);
@@ -77,7 +103,7 @@ int main(int argc, char** argv)
         // resonator at full feedback with the filter's resonance and the flanger's and
         // shifter's feedback at the top, all inside its loop, plus everything else on
         for (size_t i = 0; i < kNum; i++)
-            engine.SetFxOn(kAll[i], true);
+            engine.SetFxOn(kAll[i], Combined(kAll[i]));
         engine.SetFxParam(chompi::FX_RESONATOR, 1, 1.f);
         engine.SetFxParam(chompi::FX_RESONATOR, 2, 1.f);
         engine.SetFxParam(chompi::FX_FILTER, 0, .2f);
@@ -106,11 +132,11 @@ int main(int argc, char** argv)
         const size_t s = b / seg, t = b % seg;
         bool on[kNum] = {};
         if (s < kNum)
-            on[s] = t < seg * 5 / 6;
+            on[s] = Combined(kAll[s]) ? t < seg * 5 / 6 : (t * 6 / seg) % 2 == 0;
         else if (s < kNum + 1)
-            for (size_t i = 0; i < kNumInserts; i++) on[i] = t < seg * 5 / 6;
+            for (size_t i = 0; i < kNumInserts; i++) on[i] = Combined(kAll[i]) && t < seg * 5 / 6;
         else if (s < kNum + 3)
-            for (size_t i = 0; i < kNum; i++) on[i] = true;
+            for (size_t i = 0; i < kNum; i++) on[i] = Combined(kAll[i]);
 
         static bool was_on[kNum] = {};
         for (size_t i = 0; i < kNum; i++)

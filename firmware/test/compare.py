@@ -5,14 +5,15 @@ import math, struct, sys
 
 BLOCK = 24
 SEG = int(3 * 48000 / BLOCK)   # blocks per 3s segment
-# the FX in harness.cpp's kAll order; the folder from when FRIZZ has it
+# the FX in harness.cpp's kAll order; the folder, wow & flutter and the tape stop from when
+# FRIZZ has them
 FX = ["filter", "crusher", "freezer", "slicer", "flanger", "shifter", "resonator"]
 SENDS = ["delay", "reverb"]
 
 def layout(n_floats):
     """The harness's meter count from a run's size (one segment per FX, plus 4), and the
     segment names"""
-    for meters, fx in ((9, FX), (10, FX + ["folder"])):
+    for meters, fx in ((9, FX), (10, FX + ["folder"]), (12, FX + ["folder", "warble", "tapestop"])):
         if n_floats == (meters + 4) * SEG * (4 * BLOCK + meters):
             return 4 * BLOCK + meters, fx + SENDS + ["all inserts", "everything", "everything 2", "tails"]
     sys.exit(f"unexpected run size: {n_floats} floats")

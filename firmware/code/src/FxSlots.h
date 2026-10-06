@@ -37,6 +37,9 @@ static const FxSlot kFxSlots[] = {
     {Hardware::SwId::KEY_6, 19, med_blue, {med_blue, white, purple}, FxKind::INSERT}, // flanger
     {Hardware::SwId::KEY_7, 18, lime, {orange, white, med_blue}, FxKind::LOOP},       // resonator
     {Hardware::SwId::KEY_8, 17, yellow, {yellow, white, green}, FxKind::INSERT},      // slicer
+    // KEY_9 is kept for the randomizer
+    {Hardware::SwId::KEY_10, 15, teal, {teal, white, purple}, FxKind::INSERT},        // wow & flutter
+    {Hardware::SwId::KEY_11, 14, amber, {amber, white, red}, FxKind::INSERT},         // tape stop
     {Hardware::SwId::KEY_14, 11, green, {green, white, med_blue}, FxKind::SEND},      // delay
     {Hardware::SwId::KEY_15, 10, blue, {med_blue, blue, purple}, FxKind::SEND},       // reverb
 };

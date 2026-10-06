@@ -4,16 +4,19 @@
  *  before the output gain and master compressor (passthroughEngine.h). FxSlots.h says which
  *  key and LEDs go with each effect, FxParams.h its knobs.
  *
- *  The order follows a pedalboard's: source, pitch, dirt, filter, modulation, gate, space.
- *  The keys follow it too, left to right:
- *   freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> delay -> reverb
+ *  The order follows a pedalboard's: source, pitch, dirt, filter, modulation, gate, tape,
+ *  space. The keys follow it too, left to right:
+ *   freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> wow & flutter
  *              |<------------------- resonator loop ------------------->|
+ *     -> tape stop -> delay -> reverb
  *  The freezer comes first so it captures the clean sound and everything after it works on
  *  the repeats. The folder comes before the crusher, so it folds the clean signal and the
  *  crusher grinds the folds. The filter sweeps the dirt, and the flanger the harmonics it
  *  made. The slicer is the last insert, the final gate: it chops everything including the
- *  resonator's ringing, and the sends get the chopped sound. The delay's echoes feed the
- *  reverb as well as the output.
+ *  resonator's ringing, and the sends get the chopped sound. Wow & flutter and the tape stop
+ *  come after it, so they bend everything before them; the sends after them, so a tape stop
+ *  leaves the echoes and the reverb ringing. The delay's echoes feed the reverb as well as the
+ *  output.
  *
  *  Three kinds:
  *   - insert: replaces the signal while its key is on; only the wet amount is faded.
@@ -34,6 +37,8 @@
 #include "FxReverb.h"
 #include "FxShifter.h"
 #include "FxSlicer.h"
+#include "FxTapeStop.h"
+#include "FxWarble.h"
 
 namespace chompi
 {
@@ -49,6 +54,8 @@ enum FxId
     FX_FLANGER,
     FX_RESONATOR,
     FX_SLICER,
+    FX_WARBLE,
+    FX_TAPESTOP,
     FX_DELAY,
     FX_REVERB,
     kNumFx,
@@ -58,7 +65,8 @@ enum FxId
  *  and a new order */
 static const char* const kFxNames[] = {
     "freezer", "shifter", "folder", "crusher", "filter",
-    "flanger", "resonator", "slicer", "delay", "reverb",
+    "flanger", "resonator", "slicer", "warble", "tapestop",
+    "delay", "reverb",
 };
 static_assert(sizeof(kFxNames) / sizeof(kFxNames[0]) == kNumFx, "one per FxId");
 
@@ -72,12 +80,13 @@ static const float kFxMeterScale = .1f;
 class FxChain
 {
 public:
-    /** The delay's, the reverb's and the freezer's buffers are statics in chompi_main.cpp:
-     *  SDRAM for the delay and freezer, DTCMRAM for the reverb */
+    /** The delay's, the reverb's, the freezer's and the tape stop's buffers are statics in
+     *  chompi_main.cpp: SDRAM for the delay, freezer and tape stop, DTCMRAM for the reverb */
     void Init(float sample_rate,
               float* delay_mem, size_t delay_frames,
               daisysp::Reverb* reverb,
-              float* freezer_mem_l, float* freezer_mem_r, size_t freezer_frames)
+              float* freezer_mem_l, float* freezer_mem_r, size_t freezer_frames,
+              float* tapestop_mem_l, float* tapestop_mem_r, size_t tapestop_frames)
     {
         filter_.Init(sample_rate);
         crusher_.Init(sample_rate);
@@ -89,6 +98,8 @@ public:
         flanger_.Init(sample_rate);
         shifter_.Init(sample_rate);
         resonator_.Init(sample_rate);
+        warble_.Init(sample_rate);
+        tapestop_.Init(sample_rate, tapestop_mem_l, tapestop_mem_r, tapestop_frames);
 
         fx_[FX_FILTER] = &filter_;
         fx_[FX_CRUSHER] = &crusher_;
@@ -98,6 +109,8 @@ public:
         fx_[FX_FLANGER] = &flanger_;
         fx_[FX_SHIFTER] = &shifter_;
         fx_[FX_RESONATOR] = &resonator_;
+        fx_[FX_WARBLE] = &warble_;
+        fx_[FX_TAPESTOP] = &tapestop_;
         fx_[FX_DELAY] = &delay_;
         fx_[FX_REVERB] = &reverb_;
 
@@ -113,6 +126,7 @@ public:
         delay_.SetTempo(bpm);
         filter_.SetTempo(bpm);
         freezer_.SetTempo(bpm);
+        tapestop_.SetTempo(bpm);
     }
     /** reverse: the position counts down, a loop playing backwards (TempoClock.h) */
     void ClockPulse(uint32_t pos, bool reverse = false)
@@ -148,6 +162,10 @@ public:
         resonator_.Tap(*l, *r);
         slicer_.Process(l, r);
         Meter(FX_SLICER, *l + *r);
+        warble_.Process(l, r);
+        Meter(FX_WARBLE, *l + *r);
+        tapestop_.Process(l, r);
+        Meter(FX_TAPESTOP, *l + *r);
 
         // sends: the delay from the inserts' output, the reverb from that plus the delay's
         // return, so the echoes are reverberated. Both returns are added on top.
@@ -182,6 +200,8 @@ private:
     Flanger flanger_;
     Shifter shifter_;
     Resonator resonator_;
+    Warble warble_;
+    TapeStop tapestop_;
     DelaySend delay_;
     ReverbSend reverb_;
     FxBase* fx_[kNumFx];

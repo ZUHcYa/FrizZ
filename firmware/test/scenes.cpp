@@ -37,6 +37,9 @@ static float delay_mem[kDelayFrames * 2];
 static const size_t kFreezerFrames = 240000;
 static float freezer_mem_l[kFreezerFrames];
 static float freezer_mem_r[kFreezerFrames];
+static const size_t kTapeStopFrames = 1u << 19;
+static float tapestop_mem_l[kTapeStopFrames];
+static float tapestop_mem_r[kTapeStopFrames];
 static daisysp::Reverb reverb;
 static MidiClock midi_clock;
 static PassthroughEngine engine;
@@ -48,7 +51,8 @@ static PassthroughEngine engine;
 static void RecallJump(bool fast, float* max_step, float* settle_ms)
 {
     engine.Init(kSr, loop_mem, &midi_clock, delay_mem, kDelayFrames, &reverb,
-                freezer_mem_l, freezer_mem_r, kFreezerFrames);
+                freezer_mem_l, freezer_mem_r, kFreezerFrames,
+                tapestop_mem_l, tapestop_mem_r, kTapeStopFrames);
     engine.SetMainGain(1.f);
     engine.SetInputGain(1.f);
     engine.SetMix(0.f);
@@ -133,7 +137,7 @@ int main()
     for (size_t fx = 0; fx < kNumFx; fx++)
         for (size_t p = 0; p < kNumFxParams; p++)
         {
-            scenes[0].params[fx][p] = (fx * kNumFxParams + p) / 39.f;
+            scenes[0].params[fx][p] = (fx * kNumFxParams + p) / static_cast<float>(kNumFx * kNumFxParams - 1);
             float drift = 0.f;
             for (size_t i = 0; i < fx * 7 + p; i++)
                 drift += .01f;

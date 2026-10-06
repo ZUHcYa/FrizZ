@@ -44,6 +44,21 @@ cents off or its level wobbles by more than 2 dB. The engine harness can't tell 
 that's out of tune from one that isn't; this can. Takes about 12 s. (A plain two-tap shifter
 is up to 80 cents off and wobbles up to 10 dB; Kastle's single-tap one fails 48 of the 50.)
 
+## Tape FX check
+
+```bash
+./tape.sh
+```
+
+Runs a sine through wow & flutter (`FxWarble.h`) and the tape stop (`FxTapeStop.h`). Wow &
+flutter on its defaults and the tape stop while off must pass the input bit for bit. The
+flutter's pitch wobble, measured cycle by cycle, must stay within its bound (the depth
+times the wobbles' rates) and reach at least 30% of it. TAPE's wow at the top must stay
+finite and move the pitch. A stop must be silent once its time is up, on a linear curve and
+a brake, also 2 bars at 50 BPM. Every spin-up, or none, must end on the input bit for bit,
+also after releasing mid-stop and pressing mid-spin-up, with no step between samples larger
+than a crossfade's.
+
 ## Scene file check
 
 ```bash
