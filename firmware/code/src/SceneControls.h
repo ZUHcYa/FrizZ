@@ -1,7 +1,7 @@
 /** @file SceneControls.h
  *  @brief What the play page does with the FX scene keys, without the hardware: recalling a
  *  slot, and TAPE's and TEMPO's SAVE / COPY / DELETE flow (pick the mode, the slot(s), then
- *  confirm). NormalPage.h routes the keys here, writes the card (SceneStore.h) and draws the
+ *  confirm). Like a mode key, a slot tapped again is deselected. NormalPage.h routes the keys here, writes the card (SceneStore.h) and draws the
  *  LEDs; test/controls.cpp runs it on the host.
  */
 #pragma once
@@ -27,7 +27,7 @@ public:
     /** What pressing a slot did */
     enum class Slot
     {
-        SELECTED, // picked for the mode, or nothing to do
+        SELECTED, // picked for the mode or deselected, or nothing to do
         RECALL,   // recall it: Recall(slot), with the audio interrupt blocked on the device
         EMPTY,    // an empty slot where a saved one is needed
     };
@@ -56,7 +56,7 @@ public:
         case SceneMode::NONE:
             return used ? Slot::RECALL : Slot::EMPTY;
         case SceneMode::SAVE:
-            sel_ = s;
+            sel_ = s == sel_ ? kNoScene : s;
             break;
         case SceneMode::COPY:
             // the source first, then the destination
@@ -67,12 +67,14 @@ public:
                 src_ = s;
             }
             else if (s != src_)
-                sel_ = s;
+                sel_ = s == sel_ ? kNoScene : s;
+            else if (sel_ == kNoScene)
+                src_ = kNoScene; // back to picking the source
             break;
         case SceneMode::DELETE:
             if (!used)
                 return Slot::EMPTY;
-            sel_ = s;
+            sel_ = s == sel_ ? kNoScene : s;
             break;
         }
         return Slot::SELECTED;
@@ -83,6 +85,25 @@ public:
     {
         fx_->Recall(scenes_[slot]);
         active_ = static_cast<int>(slot);
+    }
+
+    /** Whether pressing the slot would pick it in the current mode: SAVE any slot, DELETE and
+     *  COPY's source a saved one, COPY's destination any but the source. False without a mode */
+    bool Valid(size_t slot) const
+    {
+        const bool used = scenes_[slot].used;
+        switch (mode_)
+        {
+        case SceneMode::SAVE:
+            return true;
+        case SceneMode::COPY:
+            return src_ == kNoScene ? used : static_cast<int>(slot) != src_;
+        case SceneMode::DELETE:
+            return used;
+        case SceneMode::NONE:
+            break;
+        }
+        return false;
     }
 
     /** True while the CHOMPI key would confirm: a mode with its slot picked */

@@ -296,21 +296,24 @@ no SHIFT needed:
 
 1. **Tap the function's key.** It lights up fully; the scene keys now select slots instead of
    recalling them. The effects and knobs keep working.
+   The scene keys you can tap light dimly in the function's colour, the others go dark:
+   every slot for save, the saved ones for delete and for copy's source.
 2. **Tap the slot.** It blinks in the function's colour. For copy, tap the source first
-   (it stays lit), then the destination. Copy and delete need a saved slot.
-3. **Press the CHOMPI key**, which blinks red once there's something to confirm. The slot
-   flashes green and the function ends.
+   (it stays lit), then the destination. Tapping a picked slot again unpicks it.
+3. **Press the CHOMPI key**, which blinks in the function's colour once there's something to
+   confirm. The slot flashes white and the function ends.
 
 **To get out without doing anything, tap the function's key again.** Tapping a different
 function key switches to that function.
 
-The slot flashes red instead of green when there's no SD card, or the card couldn't be
-written: the change works until power-off but isn't stored. The next save, copy or delete
-tries the card again.
+All three speak the same colours: the function's colour shows what will happen, white that
+it's done, red that it was refused (a dark slot tapped) or not stored. The slot flashes red
+instead of white when there's no SD card, or the card couldn't be written: the change works
+until power-off but isn't stored. The next save, copy or delete tries the card again.
 
-The scene keys show the slots: dark when empty, dimly white when saved, bright for the scene
-you recalled or saved last, and pulsing once you've turned a knob or changed a latch since.
-The save, copy and delete keys are dimly lit in their colour.
+Outside a function, the scene keys show the slots: dark when empty, dimly white when saved,
+bright for the scene you recalled or saved last, and pulsing once you've turned a knob or
+changed a latch since. The save, copy and delete keys are dimly lit in their colour.
 
 The scenes live in `FRIZZ/frizz_scenes.txt` on the card, one line per effect, keyed by its
 name. FRIZZ creates the folder on its first start (moving the file from the card root, where

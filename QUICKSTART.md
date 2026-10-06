@@ -93,6 +93,9 @@ The first four dark keys from the left hold scenes: every effect's settings and 
 - **Copy and delete:** the same steps with the green and red dark keys. Tap the
   function's key again to back out.
 
+While you save, copy or delete, the scene keys you can tap light in the function's colour,
+and the CHOMPI key blinks in it when there's something to confirm. White means done.
+
 Scenes are stored on the SD card. See the [manual](MANUAL.md#fx-scenes) for the details.
 
 ## Where next

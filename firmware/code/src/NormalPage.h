@@ -71,7 +71,9 @@ namespace chompi
     static const float kFxWhiteMax = .8f;     // on: how far the loudest audio pushes to white
 
     // FX scenes: the slots on KEY_16-19, and SAVE / COPY / DELETE on TAPE's preset keys in
-    // TEMPO's colours
+    // TEMPO's colours. One language for all three: the mode's colour shows what will happen
+    // (the slots it can act on, the pick, the CHOMPI key that confirms), white that it's
+    // done, red that it was refused or isn't on the card
     static const Hardware::SwId kSceneKeys[kNumScenes] = {
         Hardware::SwId::KEY_16,
         Hardware::SwId::KEY_17,
@@ -91,7 +93,7 @@ namespace chompi
         {SceneMode::COPY, Hardware::SwId::KEY_24, 8, green},
         {SceneMode::DELETE, Hardware::SwId::KEY_23, 7, red},
     };
-    static const uint32_t kSceneBlinkMs = 250;      // a selected slot, the armed CHOMPI key
+    static const uint32_t kSceneBlinkMs = 250;      // a picked slot, the armed CHOMPI key
     static const uint32_t kSceneFlashMs = 100;      // the confirmation: 3 fast blinks
     static const uint32_t kSceneEmptyBlinkMs = 300; // an empty slot pressed
     static const uint32_t kScenePulseMs = 1000;     // the active scene, edited
@@ -197,12 +199,15 @@ namespace chompi
             DrawFxLeds();
             DrawSceneLeds(now);
 
-            // CHOMPI key: blinking red while it would confirm a scene action, otherwise
-            // white while it is acting as SHIFT
+            // CHOMPI key: blinking in the mode's colour while it would confirm a scene action,
+            // otherwise white while it is acting as SHIFT
             if (scene_ctl_.Armed())
             {
-                r = (now / kSceneBlinkMs) % 2 == 0 ? 1.f : 0.f;
-                g = b = 0.f;
+                const float* color = SceneModeColor();
+                const float level = (now / kSceneBlinkMs) % 2 == 0 ? 1.f : 0.f;
+                r = level * color[0];
+                g = level * color[1];
+                b = level * color[2];
             }
             else
                 r = g = b = Shift() ? 1.f : 0.f;
@@ -358,7 +363,7 @@ namespace chompi
             }
             last_looper_state_ = looper_state;
 
-            // a scene confirmed: flash its slot once the card has been written, green if it was
+            // a scene confirmed: flash its slot once the card has been written, white if it was
             if (scene_flash_waiting_ && scenes_->GetSaveState() != SceneStore::SaveState::PENDING)
             {
                 scene_flash_waiting_ = false;
@@ -471,16 +476,24 @@ namespace chompi
             scene_empty_time_ = System::GetNow();
         }
 
+        /** The current scene mode's colour, white without one */
+        const float* SceneModeColor() const
+        {
+            for (const SceneModeKey& key : kSceneModeKeys)
+            {
+                if (scene_ctl_.Mode() == key.mode)
+                    return key.color;
+            }
+            return white;
+        }
+
         void DrawSceneLeds(uint32_t now)
         {
             const SceneMode mode = scene_ctl_.Mode();
-            const float* mode_color = white;
+            const float* mode_color = SceneModeColor();
             for (const SceneModeKey& key : kSceneModeKeys)
             {
-                const bool on = mode == key.mode;
-                if (on)
-                    mode_color = key.color;
-                const float level = on ? 1.f : kFxOffLevel;
+                const float level = mode == key.mode ? 1.f : kFxOffLevel;
                 SetSmtLedFloat(key.led, level * key.color[0], level * key.color[1], level * key.color[2]);
             }
 
@@ -494,7 +507,7 @@ namespace chompi
                     level = 1.f; // writing the card
                 else if (s == scene_flash_ && now - scene_flash_time_ < 6 * kSceneFlashMs)
                 {
-                    color = scene_flash_ok_ ? green : red;
+                    color = scene_flash_ok_ ? white : red;
                     level = ((now - scene_flash_time_) / kSceneFlashMs) % 2 == 0 ? 1.f : 0.f;
                 }
                 else if (s == scene_empty_ && now - scene_empty_time_ < kSceneEmptyBlinkMs)
@@ -502,15 +515,17 @@ namespace chompi
                     color = red;
                     level = 1.f;
                 }
-                else if (mode != SceneMode::NONE && s == scene_ctl_.Source())
+                else if (mode != SceneMode::NONE)
                 {
+                    // in a mode: the source lit, the pick blinking, the slots it can act on
+                    // dim, all in the mode's colour; the rest dark
                     color = mode_color;
-                    level = 1.f;
-                }
-                else if (mode != SceneMode::NONE && s == scene_ctl_.Selected())
-                {
-                    color = mode_color;
-                    level = blink_on ? 1.f : 0.f;
+                    if (s == scene_ctl_.Source())
+                        level = 1.f;
+                    else if (s == scene_ctl_.Selected())
+                        level = blink_on ? 1.f : 0.f;
+                    else if (scene_ctl_.Valid(slot))
+                        level = kFxOffLevel;
                 }
                 else if (s == scene_ctl_.Active())
                 {

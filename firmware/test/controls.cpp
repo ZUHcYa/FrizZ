@@ -200,8 +200,12 @@ static void TestScenes()
     const float cutoff = fx.Param(FX_FILTER, 0);
     sc.ModePressed(SceneMode::SAVE);
     Check(!sc.Armed(), "save: not armed before a slot");
+    Check(sc.Valid(0) && sc.Valid(3), "save: every slot valid, empty ones too");
     sc.SlotPressed(1);
     Check(sc.Armed() && sc.Selected() == 1, "save: armed on its slot");
+    sc.SlotPressed(1);
+    Check(!sc.Armed() && sc.Mode() == SceneMode::SAVE, "save: the slot again deselects it");
+    sc.SlotPressed(1);
     Check(sc.Confirm() == 1, "save: confirm changes slot 2");
     Check(store[1].used && (store[1].latched >> FX_FILTER & 1) && store[1].params[FX_FILTER][0] == cutoff,
           "save: the slot holds the latch and the knob");
@@ -227,11 +231,17 @@ static void TestScenes()
 
     // copy 2 to 3, then over the active one
     sc.ModePressed(SceneMode::COPY);
+    Check(sc.Valid(1) && !sc.Valid(2), "copy: only saved slots valid as the source");
     Check(sc.SlotPressed(2) == Scenes::Slot::EMPTY, "copy: an empty source refused");
     sc.SlotPressed(1);
     Check(sc.Source() == 1 && !sc.Armed(), "copy: the source, not armed yet");
+    Check(!sc.Valid(1) && sc.Valid(2), "copy: any slot but the source valid as the destination");
     sc.SlotPressed(1);
-    Check(!sc.Armed(), "copy: the source again isn't a destination");
+    Check(!sc.Armed() && sc.Source() == kNoScene, "copy: the source again deselects it");
+    sc.SlotPressed(1);
+    sc.SlotPressed(2);
+    sc.SlotPressed(2);
+    Check(!sc.Armed() && sc.Source() == 1, "copy: the destination again deselects it, the source stays");
     sc.SlotPressed(2);
     Check(sc.Confirm() == 2 && store[2].used && store[2].params[FX_FILTER][0] == cutoff, "copy: 2 to 3");
     Check(!sc.Edited(), "copy elsewhere: still not edited");
@@ -256,6 +266,10 @@ static void TestScenes()
     // delete the active one
     sc.ModePressed(SceneMode::SAVE);
     sc.ModePressed(SceneMode::DELETE);
+    Check(sc.Valid(1) && !sc.Valid(3), "delete: only saved slots valid");
+    sc.SlotPressed(1);
+    sc.SlotPressed(1);
+    Check(!sc.Armed(), "delete: the slot again deselects it");
     sc.SlotPressed(1);
     Check(sc.Confirm() == 1 && !store[1].used && sc.Active() == kNoScene, "delete the active scene");
     sc.ModePressed(SceneMode::DELETE);
