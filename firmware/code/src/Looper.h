@@ -10,6 +10,8 @@
  *  Commands go through a single slot that the audio callback empties once per block, so:
  *   - post at most one command per UI event; a second one in the same block replaces the first
  *   - GetState() only reflects a command from the next audio block on
+ *  Speed steps (StepSpeed, ResetSpeed) are counted up separately and all applied at the next
+ *  block, so GetSpeed() also follows a block later.
  *
  *  Loop point: when a recording closes at length L, the input keeps being written for
  *  kXfadeFrames more frames (the post-roll). Reading position p < kXfadeFrames crossfades
@@ -85,39 +87,15 @@ public:
     void Erase() { command_.store(Command::ERASE); }
 
     /** One step along the 5ths-and-octaves ladder. dir > 0 turns right (faster forward /
-     *  slower reverse), dir < 0 turns left. Past 1/16x the direction flips at the same speed. */
-    void StepSpeed(int dir)
-    {
-        if (dir == 0)
-            return;
+     *  slower reverse), dir < 0 turns left. Past 1/16x the direction flips at the same speed.
+     *  Taken up at the next audio block, like the commands */
+    void StepSpeed(int dir) { speed_steps_.fetch_add(dir > 0 ? 1 : (dir < 0 ? -1 : 0)); }
 
-        // turning right means faster when forward, slower when in reverse
-        const bool faster = (dir > 0) != reverse_;
-        int semis = semis_;
-
-        if (faster)
-            semis += (Mod12(semis) == 7) ? 5 : 7;
-        else
-            semis -= (Mod12(semis) == 7) ? 7 : 5;
-
-        if (semis > kSpeedMaxSemis)
-            return; // already at 2x
-        if (semis < kSpeedMinSemis)
-        {
-            reverse_ = !reverse_; // through the slowest step: flip, same speed
-            semis = semis_;
-        }
-
-        semis_ = semis;
-        speed_target_ = (reverse_ ? -1.f : 1.f) * powf(2.f, semis_ / 12.f);
-    }
-
-    /** Back to 1x forward */
+    /** Back to 1x forward, at the next audio block; steps posted before it are dropped */
     void ResetSpeed()
     {
-        semis_ = 0;
-        reverse_ = false;
-        speed_target_ = 1.f;
+        speed_steps_.store(0);
+        speed_reset_.store(true);
     }
 
     /** Transport turns while paused, in encoder detents */
@@ -150,6 +128,7 @@ public:
     void Process(const float* in_l, const float* in_r, float* out_l, float* out_r, size_t size)
     {
         HandleCommand();
+        HandleSpeed();
 
         if (state_ == State::RECORDING)
             TrackRecordingClock();
@@ -232,6 +211,50 @@ private:
         TOGGLE_PLAY,
         ERASE,
     };
+
+    /** One step of the ladder, see StepSpeed */
+    void ApplyStep(int dir)
+    {
+        // turning right means faster when forward, slower when in reverse
+        const bool faster = (dir > 0) != reverse_;
+        int semis = semis_;
+
+        if (faster)
+            semis += (Mod12(semis) == 7) ? 5 : 7;
+        else
+            semis -= (Mod12(semis) == 7) ? 7 : 5;
+
+        if (semis > kSpeedMaxSemis)
+            return; // already at 2x
+        if (semis < kSpeedMinSemis)
+        {
+            reverse_ = !reverse_; // through the slowest step: flip, same speed
+            semis = semis_;
+        }
+
+        semis_ = semis;
+        speed_target_ = (reverse_ ? -1.f : 1.f) * powf(2.f, semis_ / 12.f);
+    }
+
+    /** Back to 1x forward */
+    void ApplyResetSpeed()
+    {
+        semis_ = 0;
+        reverse_ = false;
+        speed_target_ = 1.f;
+    }
+
+    /** The speed steps and resets posted since the last block */
+    void HandleSpeed()
+    {
+        if (speed_reset_.exchange(false))
+            ApplyResetSpeed();
+        int steps = speed_steps_.exchange(0);
+        for (; steps > 0; steps--)
+            ApplyStep(1);
+        for (; steps < 0; steps++)
+            ApplyStep(-1);
+    }
 
     void HandleCommand()
     {
@@ -401,7 +424,9 @@ private:
         target_length_ = 0;
         fade_ = 0.f;
 
-        ResetSpeed();
+        ApplyResetSpeed();
+        speed_steps_.store(0);
+        speed_reset_.store(false);
         speed_ = 1.f;
         scrub_ = scrub_target_ = 0.f;
         scrub_turns_.store(0);
@@ -509,7 +534,9 @@ private:
     size_t target_length_; // quantized: where the recording will close, 0 if not yet known
     float fade_;
 
-    // speed, see StepSpeed(). Set from the UI, read by the audio.
+    // speed, see StepSpeed(). The UI posts steps and resets, the audio applies them
+    std::atomic<int> speed_steps_{0};
+    std::atomic<bool> speed_reset_{false};
     int semis_ = 0;
     bool reverse_ = false;
     volatile float speed_target_ = 1.f;

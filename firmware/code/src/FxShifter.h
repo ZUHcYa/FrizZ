@@ -85,13 +85,20 @@ public:
         else
             env_ *= env_decay_coeff_;
 
-        // the speed per channel; recomputed every sample only while swooping
+        // the speed per channel; recomputed every sample while swooping, otherwise when a
+        // knob changed it (SetParam), so only the audio callback writes it
         const float swoop = env_ * swoop_;
         if (swoop > .0001f || swooping_)
         {
             const float dir = semitones_ > 0 ? 1.f : (semitones_ < 0 ? -1.f : 0.f);
+            ratios_changed_ = false;
             UpdateRatios(semitones_ + dir * swoop * kSwoopSemitones);
             swooping_ = swoop > .0001f;
+        }
+        else if (ratios_changed_)
+        {
+            ratios_changed_ = false;
+            UpdateRatios(static_cast<float>(semitones_));
         }
 
         float* const io[2] = {l, r};
@@ -150,7 +157,7 @@ public:
         default:
             break;
         }
-        UpdateRatios(static_cast<float>(semitones_));
+        ratios_changed_ = true;
     }
 
 private:
@@ -236,6 +243,7 @@ private:
     float window_[2];   // through the taps' lives, 0..1; tap 0 starts over at 0, tap 1 at .5
     float delay_[2][2]; // per channel, per tap, frames behind the last write
     float ratio_[2] = {1.f, 1.f};
+    volatile bool ratios_changed_ = false; // set by SetParam, picked up by Process
     int semitones_ = 0;
     float swoop_ = 0.f;
     bool swooping_ = false;

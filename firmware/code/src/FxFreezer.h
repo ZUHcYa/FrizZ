@@ -54,6 +54,7 @@ public:
 
         for (size_t i = 0; i < kNumFxParams; i++)
             SetParam(i, 0.f);
+        ApplyParams();
     }
 
     /** Once per block: the tempo, plus one call per clock pulse in this block, with the
@@ -74,6 +75,7 @@ public:
 
     void Process(float* l, float* r)
     {
+        ApplyParams();
         const float gate = gate_.Process();
 
         // back to idle once the release has faded out
@@ -185,12 +187,13 @@ public:
             roll_stage_ = kFreezerRollStages[StepIndex(val, kNumRolls)];
             // turned off: back to the full length, and a roll turned on again starts over
             if (roll_stage_ == 0)
-                repeats_ = halvings_ = 0;
+                roll_reset_ = true;
             break;
         default:
             break;
         }
-        UpdateLengths();
+        // the lengths and the roll belong to the audio callback, which picks this up
+        params_changed_ = true;
     }
 
 private:
@@ -204,6 +207,20 @@ private:
     static const size_t kRollShortest = 64; // the roll stops halving at 1/64 bar
     static const size_t kMaxStereoFrames = 2180; // 45ms
     static const size_t kXfadeFrames = 240;      // 5ms, like the looper's
+
+    /** In the audio callback: what SetParam changed */
+    void ApplyParams()
+    {
+        if (!params_changed_)
+            return;
+        params_changed_ = false;
+        if (roll_reset_)
+        {
+            roll_reset_ = false;
+            repeats_ = halvings_ = 0;
+        }
+        UpdateLengths();
+    }
 
     void Restart()
     {
@@ -259,6 +276,8 @@ private:
     size_t length_idx_ = 0;
     size_t stereo_ = 0;
     uint8_t roll_stage_ = 0;
+    volatile bool params_changed_ = false; // set by SetParam, for ApplyParams
+    volatile bool roll_reset_ = false;     // the roll was turned off
     float fb_in_ = 0.f, fb_keep_ = 1.f;
 };
 

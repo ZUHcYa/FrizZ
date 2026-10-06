@@ -115,27 +115,50 @@ static void TestPauseAndErase()
     Check(looper.GetState() == Looper::State::EMPTY, "play on an empty looper: nothing");
 }
 
+/** A speed step or reset, picked up by the next block */
+static void Step(int dir)
+{
+    looper.StepSpeed(dir);
+    Block();
+}
+
 static void TestSpeed()
 {
     looper.ResetSpeed();
+    Block();
     Check(looper.GetSpeed() == 1.f, "speed: 1x");
-    looper.StepSpeed(1);
+    Step(1);
     Check(fabsf(looper.GetSpeed() - powf(2.f, 7.f / 12.f)) < 1e-5f, "up a fifth");
-    looper.StepSpeed(1);
+    Step(1);
     Check(fabsf(looper.GetSpeed() - 2.f) < 1e-5f, "up to 2x");
-    looper.StepSpeed(1);
+    Step(1);
     Check(fabsf(looper.GetSpeed() - 2.f) < 1e-5f, "no further than 2x");
 
     looper.ResetSpeed();
+    Block();
     for (int i = 0; i < 8; i++)
-        looper.StepSpeed(-1);
+        Step(-1);
     Check(fabsf(looper.GetSpeed() - 1.f / 16.f) < 1e-6f, "8 steps down: 1/16x");
-    looper.StepSpeed(-1);
+    Step(-1);
     Check(fabsf(looper.GetSpeed() + 1.f / 16.f) < 1e-6f, "past 1/16x: reverse at the same speed");
-    looper.StepSpeed(-1);
+    Step(-1);
     Check(looper.GetSpeed() < -1.f / 16.f, "further left: faster in reverse");
     looper.ResetSpeed();
+    Block();
     Check(looper.GetSpeed() == 1.f, "reset: 1x forward");
+
+    // several steps within one block all count, a reset drops the ones before it
+    looper.StepSpeed(1);
+    looper.StepSpeed(1);
+    Block();
+    Check(fabsf(looper.GetSpeed() - 2.f) < 1e-5f, "two steps in one block: both");
+    looper.StepSpeed(-1);
+    looper.ResetSpeed();
+    looper.StepSpeed(1);
+    Block();
+    Check(fabsf(looper.GetSpeed() - powf(2.f, 7.f / 12.f)) < 1e-5f, "step, reset, step in one block: one step from 1x");
+    looper.ResetSpeed();
+    Block();
 }
 
 int main()
