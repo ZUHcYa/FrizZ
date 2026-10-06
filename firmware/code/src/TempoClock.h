@@ -215,6 +215,35 @@ public:
         return pulse_count_;
     }
 
+    /** The pulses from the last one to the next bar line, for a scene morph (FxMorph.h): a
+     *  multiple of kPulsesPerBar, or a loop's wrap. An estimate: the transport may change
+     *  direction, pause or resume on the way */
+    uint32_t PulsesToBarLine() const
+    {
+        if (!HasLoop())
+            return kPulsesPerBar - pulse_count_ % kPulsesPerBar;
+        if (!paused_ && dir_ < 0)
+            return loop_idx_ % kPulsesPerBar + 1; // the next pulse crosses loop_idx_
+        const uint32_t idx = paused_ ? free_idx_ : loop_idx_;
+        const uint32_t to_bar = kPulsesPerBar - idx % kPulsesPerBar;
+        const uint32_t to_wrap = loop_pulses_ - idx;
+        return to_bar < to_wrap ? to_bar : to_wrap;
+    }
+    /** The pulses between two bar lines: a bar, or a loop shorter than one */
+    inline uint32_t PulsesPerBarLine() const
+    {
+        return HasLoop() && loop_pulses_ < kPulsesPerBar ? loop_pulses_ : kPulsesPerBar;
+    }
+    /** Whether a position Pulse() returned is on a bar line: every loop wrap is one too */
+    static inline bool IsBarLine(uint32_t pos) { return pos % kPulsesPerBar == 0; }
+    /** The time between two pulses at the FX's tempo, in samples */
+    inline float PulseSamples() const
+    {
+        return 60.f * sample_rate_ / (static_cast<float>(tempo_) * kPulsesPerBeat);
+    }
+    /** The position the last Pulse() returned */
+    inline uint32_t Position() const { return pulse_count_; }
+
     /** The FX's tempo, whole BPM */
     inline int GetTempo() const { return tempo_; }
     /** Whether the pulses count down: a loop playing in reverse */

@@ -1,6 +1,6 @@
 /** @file SceneControls.h
  *  @brief What the play page does with the FX scene keys, without the hardware: recalling a
- *  slot, and TAPE's and TEMPO's SAVE / COPY / DELETE flow (pick the mode, the slot(s), then
+ *  slot or morphing to it (SHIFT, FxMorph.h), and TAPE's and TEMPO's SAVE / COPY / DELETE flow (pick the mode, the slot(s), then
  *  confirm). Like a mode key, a slot tapped again is deselected. NormalPage.h routes the
  *  keys here, writes the card (SceneStore.h) and draws the LEDs; test/controls.cpp runs it on
  *  the host.
@@ -31,9 +31,12 @@ public:
     /** What pressing a slot did */
     enum class Slot
     {
-        SELECTED, // picked for the mode or deselected, or nothing to do
-        RECALL,   // recall it: Recall(slot), with the audio interrupt blocked on the device
-        REFUSED,  // a slot the mode can't act on: empty where a saved one is needed, or blank
+        SELECTED,   // picked for the mode or deselected, or nothing to do
+        RECALL,     // recall it: Recall(slot), with the audio interrupt blocked on the device
+        MORPH,      // morph to it: Morph(slot), likewise
+        MORPH_MORE, // the slot being morphed to: MorphMore(), likewise
+        REFUSED,    // a slot the mode can't act on: empty where a saved one is needed, or
+                    // blank; or SHIFT + another slot than the one being morphed to
     };
 
     void Init(FxScene* scenes, FxControls<Engine>* fx)
@@ -49,7 +52,7 @@ public:
                 blank.params[f][p] = kFxParams[f].defaults[p];
 
         mode_ = SceneMode::NONE;
-        sel_ = src_ = active_ = kNoScene;
+        sel_ = src_ = active_ = morph_ = kNoScene;
     }
 
     /** A mode key: the same one again cancels, another switches over */
@@ -59,11 +62,19 @@ public:
         sel_ = src_ = kNoScene;
     }
 
-    Slot SlotPressed(size_t slot)
+    /** shift: SHIFT held, a morph rather than a recall; while one runs, only to the slot it
+     *  runs to. In a mode, SHIFT makes no difference */
+    Slot SlotPressed(size_t slot, bool shift = false)
     {
         const int s = static_cast<int>(slot);
         if (mode_ == SceneMode::NONE)
-            return scenes_[slot].used ? Slot::RECALL : Slot::REFUSED;
+        {
+            if (shift && fx_->Morphing())
+                return s == morph_ ? Slot::MORPH_MORE : Slot::REFUSED;
+            if (!scenes_[slot].used)
+                return Slot::REFUSED;
+            return shift ? Slot::MORPH : Slot::RECALL;
+        }
 
         // COPY's source again: back to picking the source, once no destination is picked
         if (mode_ == SceneMode::COPY && s == src_)
@@ -88,6 +99,23 @@ public:
         fx_->Recall(scenes_[slot]);
         active_ = static_cast<int>(slot);
     }
+
+    /** Morphs to a used slot, which becomes the active scene now */
+    void Morph(size_t slot)
+    {
+        fx_->Morph(scenes_[slot]);
+        active_ = morph_ = static_cast<int>(slot);
+    }
+
+    /** One bar line more for the running morph; false if it can't */
+    inline bool MorphMore() { return fx_->MorphMore(); }
+
+    /** Stops the morph where it is (SHIFT + PLAY): its scene stays active, edited. False if
+     *  none runs */
+    inline bool FreezeMorph() { return fx_->FreezeMorph(); }
+
+    /** The slot a morph runs to, kNoScene if none runs */
+    inline int Morphing() const { return fx_->Morphing() ? morph_ : kNoScene; }
 
     /** Whether pressing the slot would pick it in the current mode: SAVE any slot but the
      *  blank one, DELETE a saved one, COPY's source a saved one or the blank one, COPY's
@@ -165,6 +193,7 @@ private:
     int sel_ = kNoScene;
     int src_ = kNoScene;
     int active_ = kNoScene;
+    int morph_ = kNoScene; // the slot the last morph ran to
 };
 
 } // namespace chompi

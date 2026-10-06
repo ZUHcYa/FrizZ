@@ -1,5 +1,5 @@
 #!/bin/bash
-# tempo.sh: checks the working tree's FX tempo on the host (tempo.cpp): tap tempo (TapTempo.h), a loop's beats and the tempo clock locked to it (TempoClock.h), a quantized loop's beats (Looper.h), with a faked MIDI clock. Exits 0 when it passes.
+# tempo.sh: checks the working tree's FX tempo on the host (tempo.cpp): tap tempo (TapTempo.h), a loop's beats and the tempo clock locked to it (TempoClock.h), a quantized loop's beats (Looper.h), with a faked MIDI clock, and a scene morph landing on its bar lines (FxMorph.h). Exits 0 when it passes.
 set -e
 T=$(cd "$(dirname "$0")" && pwd)
 REPO=$(git -C "$T" rev-parse --show-toplevel)

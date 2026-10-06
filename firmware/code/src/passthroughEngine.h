@@ -10,7 +10,8 @@
  *  own: after the input gain and VOLUME, but no loop, no FX, no MIX and no compressor.
  *
  *  The FX's tempo (TempoClock.h) comes from the loop while there is one, otherwise from MIDI
- *  clock or taps.
+ *  clock or taps. A scene morph (FxMorph.h) sits between the UI and the FX and lands on that
+ *  clock's bar lines.
  *
  *  The input level, output level and compressor stage are ported from TAPE's DSPEngine
  *  so the gains match the hardware the way TAPE tuned them.
@@ -21,6 +22,7 @@
 #include "daisysp.h"
 #include "EnvFollower.h"
 #include "FxChain.h"
+#include "FxMorph.h"
 #include "limiter.h"
 #include "Looper.h"
 #include "TempoClock.h"
@@ -49,6 +51,7 @@ public:
         tempo_clock_.Init(sample_rate, midi_clock);
         fx_.Init(sample_rate, delay_mem, delay_frozen_mem, delay_frames, reverb,
                  freezer_mem_l, freezer_mem_r, freezer_frames);
+        morph_.Init(&fx_);
 
         dcblock_line_in_l_.Init(sample_rate);
         dcblock_line_in_r_.Init(sample_rate);
@@ -89,7 +92,12 @@ public:
             looper.GetState() == chompi::Looper::State::PAUSED);
         fx_.SetTempo(tempo_clock_.GetTempo());
         for (uint32_t p = 0; p < pulses; p++)
-            fx_.ClockPulse(tempo_clock_.Pulse(), tempo_clock_.Reverse());
+        {
+            const uint32_t pos = tempo_clock_.Pulse();
+            fx_.ClockPulse(pos, tempo_clock_.Reverse());
+            morph_.Pulse(chompi::TempoClock::IsBarLine(pos));
+        }
+        morph_.Process(size, tempo_clock_.PulseSamples());
 
         for (size_t i = 0; i < size; i++)
         {
@@ -141,11 +149,36 @@ public:
     /** Headphones: false = mirror the master out, true = the dry input on its own */
     inline void SetHeadphoneDry(bool dry) { hp_dry_target_ = dry ? 1.f : 0.f; }
 
-    /** Punch-in FX, by FxId (FxChain.h) */
-    inline void SetFxOn(size_t fx, bool on) { fx_.SetOn(fx, on); }
-    inline void SetFxParam(size_t fx, size_t param, float val) { fx_.SetParam(fx, param, val); }
+    /** Punch-in FX, by FxId (FxChain.h). While a morph runs, they go to it (FxMorph.h) */
+    inline void SetFxOn(size_t fx, bool on)
+    {
+        if (!morph_.SetOn(fx, on))
+            fx_.SetOn(fx, on);
+    }
+    inline void SetFxParam(size_t fx, size_t param, float val)
+    {
+        if (!morph_.SetParam(fx, param, val))
+            fx_.SetParam(fx, param, val);
+    }
     /** Before a scene recall's SetFxParams: they land at the recall's slew (FxCommon.h) */
     inline void FastFxSlew() { fx_.FastSlew(); }
+    /** A scene morph (FxMorph.h) to the next bar line of the FX's clock, one more per
+     *  AddFxMorphBar; LandFxMorph ends it at once. All with the audio interrupt blocked */
+    void StartFxMorph(const chompi::FxMorphPlan& plan)
+    {
+        morph_.Start(plan, tempo_clock_.PulsesToBarLine());
+    }
+    bool AddFxMorphBar() { return morph_.AddBar(tempo_clock_.PulsesPerBarLine()); }
+    void LandFxMorph() { morph_.Land(); }
+    /** Stops the morph where it is (FxMorph::Freeze); with the audio interrupt blocked */
+    bool FreezeFxMorph(float params[chompi::kNumFx][chompi::kNumFxParams],
+                       uint16_t* unswitched, uint16_t* was_on)
+    {
+        return morph_.Freeze(params, unswitched, was_on);
+    }
+    inline bool FxMorphing() const { return morph_.Active(); }
+    /** The FX clock's position, 0..TempoClock's kPulsesPerCycle - 1, for blinking on its beats */
+    inline uint32_t FxClockPosition() const { return tempo_clock_.Position(); }
     /** 0..1, for the FX key LEDs: an insert's output, a send's return */
     inline float GetFxLevel(size_t fx) { return fx_.GetLevel(fx); }
 
@@ -188,6 +221,7 @@ private:
     chompi::EnvFollower output_env_follower;
     chompi::TempoClock tempo_clock_;
     chompi::FxChain fx_;
+    chompi::FxMorph morph_;
     // live values start at 0 and slew up to the targets the play page sets at boot
     float mgain_ = 0.f, mgain_target_ = 0.f;
     float ingain_ = 0.f, ingain_target_ = 0.f;

@@ -33,6 +33,45 @@ struct FakeEngine
         param_calls++;
     }
     void FastFxSlew() { fast_slews++; }
+
+    // the morph: what it was started with, and its bar lines
+    FxMorphPlan plan = {};
+    bool morphing = false;
+    uint32_t bars = 0;
+    int landings = 0;
+    void StartFxMorph(const FxMorphPlan& p)
+    {
+        plan = p;
+        morphing = true;
+        bars = 1;
+    }
+    bool AddFxMorphBar()
+    {
+        if (!morphing || bars >= kMaxMorphBars)
+            return false;
+        bars++;
+        return true;
+    }
+    void LandFxMorph()
+    {
+        if (morphing)
+            landings++;
+        morphing = false;
+    }
+    bool FxMorphing() const { return morphing; }
+    // a freeze reports the plan's start values, as if it hadn't moved yet
+    bool FreezeFxMorph(float live[kNumFx][kNumFxParams], uint16_t* unswitched, uint16_t* was_on)
+    {
+        if (!morphing)
+            return false;
+        for (size_t f = 0; f < kNumFx; f++)
+            for (size_t p = 0; p < kNumFxParams; p++)
+                live[f][p] = plan.start[f][p];
+        *unswitched = plan.deferred;
+        *was_on = plan.deferred & plan.was_on;
+        morphing = false;
+        return true;
+    }
 };
 
 using Fx = FxControls<FakeEngine>;
@@ -312,12 +351,107 @@ static void TestScenes()
           "blank: copied into a slot as a starting point");
 }
 
+static void TestMorph()
+{
+    FakeEngine e;
+    Fx fx;
+    Fresh(e, fx);
+    FxScene store[kNumSlots] = {};
+    Scenes sc;
+    sc.Init(store, &fx);
+
+    // scene 2: filter, delay and freezer on; scene 3: filter, reverb and slicer on
+    for (size_t s = 1; s <= 2; s++)
+    {
+        store[s] = store[kBlankSlot];
+        store[s].latched = static_cast<uint16_t>(1u << FX_FILTER);
+    }
+    store[1].latched |= (1u << FX_DELAY) | (1u << FX_FREEZER);
+    store[1].params[FX_FILTER][0] = .2f;
+    store[1].params[FX_DELAY][3] = .6f;
+    store[2].latched |= (1u << FX_REVERB) | (1u << FX_SLICER);
+    store[2].params[FX_FILTER][0] = .8f;
+    store[2].params[FX_FILTER][3] = 0.f;  // stepped: the LFO division
+    store[2].params[FX_REVERB][3] = .5f;
+    store[2].params[FX_REVERB][0] = .9f;  // decay, not an amount knob
+    store[2].params[FX_FLANGER][0] = .3f; // off in both
+    store[2].latched |= 1u << FX_FOLDER;  // on, its tone closed: everything fades
+    store[2].params[FX_FOLDER][2] = .3f;
+    store[1].params[FX_FOLDER][2] = .6f;  // what it had while off
+
+    Check(sc.SlotPressed(3, true) == Scenes::Slot::REFUSED, "morph to an empty slot: refused");
+    sc.ModePressed(SceneMode::SAVE);
+    Check(sc.SlotPressed(3, true) == Scenes::Slot::SELECTED && sc.Selected() == 3,
+          "SHIFT + scene in a mode: picks, no morph");
+    sc.ModePressed(SceneMode::SAVE);
+
+    sc.Recall(1);
+    fx.KeyPressed(FX_CRUSHER, true, false); // held through the morph
+    Check(sc.SlotPressed(2, true) == Scenes::Slot::MORPH, "SHIFT + a saved scene: morph");
+    sc.Morph(2);
+    const FxMorphPlan& plan = e.plan;
+    Check(e.morphing && sc.Morphing() == 2 && sc.Active() == 2 && !sc.Edited(),
+          "morph: running, its scene active and not edited");
+    Check(fx.Param(FX_FILTER, 0) == .8f && fx.IsLatched(FX_REVERB) && !fx.IsLatched(FX_DELAY),
+          "morph: the controls show the scene at once");
+    Check(plan.how[FX_FILTER][0] == MorphParam::GLIDE && plan.start[FX_FILTER][0] == .2f
+              && plan.target[FX_FILTER][0] == .8f,
+          "on in both: a continuous knob glides from where it is");
+    Check(plan.how[FX_FILTER][3] == MorphParam::HOLD && plan.target[FX_FILTER][3] == 0.f,
+          "on in both: a stepped one switches at the landing");
+    Check(plan.how[FX_DELAY][3] == MorphParam::FADE_OUT && plan.how[FX_DELAY][0] == MorphParam::HOLD
+              && (plan.deferred >> FX_DELAY & 1) && !(plan.wake >> FX_DELAY & 1),
+          "turned off: its level fades out, the key goes off at the landing");
+    Check(plan.how[FX_REVERB][3] == MorphParam::GLIDE && plan.start[FX_REVERB][3] == 0.f
+              && plan.how[FX_REVERB][0] == MorphParam::HOLD && plan.start[FX_REVERB][0] == .9f
+              && (plan.deferred >> FX_REVERB & 1) && (plan.wake >> FX_REVERB & 1),
+          "turned on: its level fades in from silent, the rest jumps now");
+    Check((plan.deferred >> FX_FREEZER & 1) && (plan.deferred >> FX_SLICER & 1)
+              && !(plan.wake >> FX_FREEZER & 1) && !(plan.wake >> FX_SLICER & 1)
+              && plan.how[FX_SLICER][1] == MorphParam::HOLD,
+          "no amount knob: switched at the landing");
+    Check(plan.start[FX_FLANGER][0] == .3f && plan.how[FX_FLANGER][0] == MorphParam::HOLD,
+          "off in both: jumps now");
+    Check(plan.how[FX_FOLDER][2] == MorphParam::GLIDE && plan.start[FX_FOLDER][2] == 1.f
+              && e.params[FX_FOLDER][2] == 1.f,
+          "turned on, a folder: its tone too fades in from neutral, sent before the start");
+    Check(!(plan.deferred >> FX_CRUSHER & 1) && e.on[FX_CRUSHER], "a held key stays on");
+
+    // more taps on the same key, not on another
+    Check(sc.SlotPressed(2, true) == Scenes::Slot::MORPH_MORE && sc.MorphMore() && e.bars == 2,
+          "SHIFT + the same key: a bar more");
+    while (sc.MorphMore())
+        ;
+    Check(e.bars == kMaxMorphBars, "... up to 8");
+    Check(sc.SlotPressed(1, true) == Scenes::Slot::REFUSED, "SHIFT + another key meanwhile: refused");
+    fx.KeyPressed(FX_CRUSHER, false, false);
+
+    // SHIFT + PLAY: stopped where it is, which is neither scene
+    Check(sc.FreezeMorph() && !e.morphing && sc.Morphing() == kNoScene, "stopped: it ends");
+    Check(sc.Active() == 2 && sc.Edited(), "stopped: its scene active, edited");
+    Check(fx.Param(FX_FILTER, 0) == .2f && fx.Param(FX_REVERB, 3) == 0.f,
+          "stopped: the knobs show where it got to");
+    Check(fx.IsLatched(FX_DELAY) && e.on[FX_DELAY] && !fx.IsLatched(FX_REVERB) && !e.on[FX_REVERB]
+              && fx.IsLatched(FX_FILTER),
+          "stopped: keys it hadn't switched as they were");
+    Check(!sc.FreezeMorph(), "stopped: nothing to stop any more");
+
+    // again, then a plain press: the morph lands, then the recall
+    sc.Recall(1);
+    sc.Morph(2);
+    Check(sc.SlotPressed(1) == Scenes::Slot::RECALL, "a plain key meanwhile: a recall");
+    sc.Recall(1);
+    Check(!e.morphing && e.landings == 1 && sc.Morphing() == kNoScene && sc.Active() == 1,
+          "... which ends the morph first");
+}
+
 int main()
 {
     TestInit();
     TestKeys();
     TestKnobs();
     TestScenes();
+    TestMorph();
     if (failures)
         printf("%d failed\n", failures);
     else

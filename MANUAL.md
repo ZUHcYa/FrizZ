@@ -51,6 +51,7 @@ as the loop.
 | Loop exists | PLAY | Play / pause |
 | Loop exists | hold PLAY + LOOP 2 s | Erase |
 | Any | SHIFT + LOOP | Tap tempo (see [Tempo](#tempo)); never records, stops or erases |
+| Any, while a scene morphs | SHIFT + PLAY | Stops the morph where it is (see [Morphing to a scene](#morphing-to-a-scene)); doesn't play or pause |
 
 - **Quantized:** recording starts on the press, which counts as bar 1 (4/4). Ending it records
   to the end of the bar in progress, so the loop is always a whole number of bars. It closes
@@ -319,6 +320,9 @@ save again.
 | Scene key of the active scene | Back to the scene as saved, dropping your changes |
 | Scene key of an empty slot | Nothing (the key blinks red) |
 | Blank scene key | Every effect off, every knob back on its default |
+| SHIFT + scene key | **Morph** to the scene, landing at the end of the current bar (see below) |
+| SHIFT + the same scene key again, while it morphs | One bar longer, up to 8 |
+| SHIFT + PLAY, while it morphs | Stop the morph where it is |
 
 A recall is meant for performing, a build-up on one scene and the drop on the next:
 
@@ -368,6 +372,47 @@ The scenes live in `FRIZZ/frizz_scenes.txt` on the card, one line per effect, ke
 name. FRIZZ creates the folder on its first start (moving the file from the card root, where
 older versions kept it); after that the card is written only when you save, copy or delete,
 never on a recall. Saving takes a moment in which the LEDs may pause.
+
+### Morphing to a scene
+
+SHIFT + a scene key glides from where you are (the scene you're in, with whatever you've
+changed since) to that scene, and lands exactly on the next bar line: tap once and it lands
+at the end of this bar; keep holding SHIFT and tap the same key again and it lands a bar
+later, and so on, up to 8. A press in the last moment of a bar still lands on that bar's end.
+The glide stretches to the new end without a jump.
+
+- **An effect on in both scenes:** its knobs glide from their value to the scene's. Stepped
+  ones (delay division, slicer pattern, shifter shift, freezer length, filter LFO division …)
+  switch on the bar line.
+- **An effect the scene turns on fades in:** it comes on at once with the knob that brings it
+  in at off, and that knob glides up to the scene's value. Its other knobs take the scene's
+  values at once. The folder, crusher and filter colour the sound with their other knobs
+  too, so all of theirs (but the filter's LFO division) start on their defaults and glide.
+- **An effect the scene turns off fades out:** the same knobs glide back to their defaults,
+  and on the bar line the effect goes off and its knobs take the scene's values.
+- **The freezer, shifter and slicer** have no knob to fade with: one the scene turns on or off
+  switches on the bar line, so the freezer grabs, the shifter swoops and the slicer attacks on
+  the downbeat.
+- **SHIFT + the blank scene** fades every effect out onto the bar line.
+
+The bar lines are the effects' (see [Tempo](#tempo)): the loop's bars, counted from its start,
+with the loop's end always one too, so a 2-beat loop morphs to its end; without a loop, the
+bars of MIDI clock or the tapped tempo, counted from when the clock locked, the last tap or
+power-on. A loop playing backwards or paused keeps counting bars.
+
+While it morphs:
+- The scene key blinks on the beat; the scene is the active one once it lands.
+- The knobs and keys already show the scene. Turning a knob changes where that parameter
+  lands. The FX keys work as usual, except on an effect waiting to switch on or off (fading
+  in, fading out, or waiting for the bar line): there they decide whether it's on once
+  that's done.
+- A plain scene key ends the morph and recalls that scene at once (the morph's own key
+  jumps straight to the end).
+- SHIFT + another scene key, or an empty one, blinks red and changes nothing.
+- **SHIFT + PLAY stops it where it is:** every knob stays at the value the glide got to, and
+  an effect still waiting to switch stays as it was, so one fading out stays on. The scene
+  key pulses as edited, since the sound is now between two scenes: save it to keep it.
+  Without a morph, SHIFT + PLAY plays and pauses like PLAY.
 
 ## MIDI clock
 

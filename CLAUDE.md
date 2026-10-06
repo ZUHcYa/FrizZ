@@ -123,7 +123,8 @@ scripted 39 s of key presses and knob turns through it. `./check.sh` compares HE
 working tree; a refactor must come out `bit-identical`. `./pitch.sh` checks the shifter lands on
 every interval; `./scenes.sh` checks the FX scene file format; `./controls.sh` checks the play
 page's FX and scene logic (`FxControls.h`, `SceneControls.h`); `./looper.sh` checks the looper
-without a clock; `./tempo.sh` checks tap tempo and the FX's tempo locked to the loop. None
+without a clock; `./tempo.sh` checks tap tempo, the FX's tempo locked to the loop and scene morphs landing on
+its bar lines (`FxMorph.h`). None
 covers the LEDs, `NormalPage.h`'s key routing, real MIDI or the hardware. See its README.
 
 ## SRAM is the binding constraint, especially on TAPE
@@ -169,7 +170,7 @@ committed by writing a temp file then renaming it.
 NoSDPage or MenuPage, and no MIDI out. It reads the card once at boot and writes it only from
 `MainLoop()` when an FX scene is saved, copied or deleted (`SceneStore.h`). Its files live in
 `/FRIZZ`, which `EnterFrizzDir()` creates at boot on a card without it. Its play page is
-`NormalPage.h`; its engine is `passthroughEngine.h` → `Looper.h` + `FxChain.h`.
+`NormalPage.h`; its engine is `passthroughEngine.h` → `Looper.h` + `FxMorph.h` → `FxChain.h`.
 
 Supporting layers, same names in all three firmwares (different contents):
 

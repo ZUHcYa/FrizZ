@@ -69,13 +69,16 @@ play page. Needs `run.sh` to have built DaisySP once.
 `controls.sh` runs the play page's logic (`FxControls.h`, `SceneControls.h`) against a fake
 engine that records what it's sent: holding and latching in either order, fine, stepped and
 coarse knob turns, SHIFT + press, and the scene save / copy / delete / recall flow, including
-that a recall sends only what changes. `looper.sh` runs `Looper.h` without MIDI clock: a free
+that a recall sends only what changes, and what a scene morph does with each effect, its
+taps and stopping it. `looper.sh` runs `Looper.h` without MIDI clock: a free
 recording plays back frame for frame at its length, play / pause, erase, the speed ladder, and
 the refused quantized record. `tempo.sh` checks the FX's tempo: tap tempo (`TapTempo.h`), how
 a loop's beats are fitted or guessed, the tempo clock locked to a loop (`TempoClock.h`: beat 1
 on the loop's start, counting down in reverse, standing still when paused, the tempo times the
 speed, a tap refitting the beats, the loop overriding MIDI clock) and the beats of a loop
-recorded quantized to a faked clock. None covers the LEDs or `NormalPage.h`'s routing of the
+recorded quantized to a faked clock; then the bar lines (free, on 2-, 4- and 6-beat loops, in
+reverse) and a scene morph (`FxMorph.h`) on them: landing on the bar line, one per tap, the
+glide, fades in and out, stopping it halfway. None covers the LEDs or `NormalPage.h`'s routing of the
 keys. All need `run.sh` to have built DaisySP once.
 
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample

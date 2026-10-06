@@ -16,8 +16,10 @@
  *  toggles every FX key already held (ShiftPressed). Knobs 1-4 edit the FX pressed last.
  *
  *  Scenes: a recall sends only the parameters that change, within one audio block and at the
- *  fast slew (FxChain::FastSlew), so an FX the two scenes share runs on untouched. The card
- *  is written from MainLoop (SceneStore::Process), never here.
+ *  fast slew (FxChain::FastSlew), so an FX the two scenes share runs on untouched. SHIFT +
+ *  a scene key morphs to it instead (FxMorph.h), landing on a bar line; the engine times it.
+ *  SHIFT + PLAY stops a morph where it is; without one, PLAY works as ever.
+ *  The card is written from MainLoop (SceneStore::Process), never here.
  */
 #pragma once
 
@@ -264,6 +266,14 @@ namespace chompi
                 if (rising)
                 {
                     play_combo_ = false;
+                    // SHIFT + PLAY during a scene morph: stops it there, and only that
+                    if (Shift() && scene_ctl_.Morphing() != kNoScene)
+                    {
+                        ScopedIrqBlocker irq;
+                        scene_ctl_.FreezeMorph();
+                        play_combo_ = true;
+                        break;
+                    }
                     // LOOP held first, then PLAY: same erase combo
                     if (loop_pressed_ && LoopExists())
                     {
@@ -300,7 +310,7 @@ namespace chompi
                 for (size_t s = 0; s < kNumSlots; s++)
                 {
                     if (rising && buttonID == static_cast<uint16_t>(kSceneKeys[s]))
-                        ScenePressed(s);
+                        ScenePressed(s, Shift());
                 }
                 for (const SceneModeKey& key : kSceneModeKeys)
                 {
@@ -469,15 +479,32 @@ namespace chompi
             engine_->SetMix(mix_);
         }
 
-        void ScenePressed(size_t slot)
+        void ScenePressed(size_t slot, bool shift)
         {
-            switch (scene_ctl_.SlotPressed(slot))
+            switch (scene_ctl_.SlotPressed(slot, shift))
             {
             case SceneControls<PassthroughEngine>::Slot::RECALL:
             {
                 // the whole scene within one audio block
                 ScopedIrqBlocker irq;
                 scene_ctl_.Recall(slot);
+                break;
+            }
+            case SceneControls<PassthroughEngine>::Slot::MORPH:
+            {
+                ScopedIrqBlocker irq;
+                scene_ctl_.Morph(slot);
+                break;
+            }
+            case SceneControls<PassthroughEngine>::Slot::MORPH_MORE:
+            {
+                bool added;
+                {
+                    ScopedIrqBlocker irq;
+                    added = scene_ctl_.MorphMore();
+                }
+                if (!added)
+                    SceneRefusedBlink(slot);
                 break;
             }
             case SceneControls<PassthroughEngine>::Slot::REFUSED:
@@ -555,6 +582,12 @@ namespace chompi
                         level = blink_on ? 1.f : 0.f;
                     else if (scene_ctl_.Valid(slot))
                         level = kFxOffLevel;
+                }
+                else if (s == scene_ctl_.Morphing())
+                {
+                    // morphing to it: blinking on the FX clock's beats
+                    const uint32_t pos = engine_->FxClockPosition();
+                    level = pos % kPulsesPerBeat < kPulsesPerBeat / 2 ? 1.f : 0.f;
                 }
                 else if (s == scene_ctl_.Active())
                 {

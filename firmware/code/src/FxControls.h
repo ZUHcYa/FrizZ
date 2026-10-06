@@ -1,14 +1,17 @@
 /** @file FxControls.h
  *  @brief What the play page does with the punch-in FX keys and knobs 1-4, without the
  *  hardware: the parameters, which keys are held and latched, which FX the knobs edit, fine,
- *  stepped and coarse turns, and taking or recalling a scene. NormalPage.h routes the keys and
+ *  stepped and coarse turns, and taking, recalling or morphing to a scene. NormalPage.h routes the keys and
  *  knobs here and draws the LEDs from it; test/controls.cpp runs it on the host.
  *
  *  Engine is PassthroughEngine on the device, a fake on the host. It needs SetFxOn(fx, on),
- *  SetFxParam(fx, param, val) and FastFxSlew().
+ *  SetFxParam(fx, param, val), FastFxSlew() and the morph's StartFxMorph(plan),
+ *  AddFxMorphBar(), LandFxMorph(), FreezeFxMorph(params, unswitched, was_on) and
+ *  FxMorphing().
  */
 #pragma once
 #include <math.h>
+#include "FxMorph.h"
 #include "FxParams.h"
 #include "FxScenes.h"
 
@@ -158,6 +161,7 @@ public:
      *  device, call it with the audio interrupt blocked, so it lands within one block */
     void Recall(const FxScene& scene)
     {
+        engine_->LandFxMorph();
         engine_->FastFxSlew();
         for (size_t fx = 0; fx < kNumFx; fx++)
         {
@@ -171,6 +175,105 @@ public:
         }
         ClearChunks();
         edited_ = false;
+    }
+
+    /** Glides to scene, landing on the FX clock's next bar line (FxMorph.h). The controls
+     *  show the scene at once: knobs turned and keys pressed meanwhile change where it lands.
+     *  Per FX, from what it is now to what the scene makes it (held keys stay on):
+     *   - off in both: the parameters jump now, unheard;
+     *   - on in both: continuous parameters glide, stepped ones switch at the landing;
+     *   - one it turns on: its fade knobs (FxParams::fade) start at their neutral defaults
+     *     and glide to the scene, the rest jump now; the key comes on as soon as they've got
+     *     there;
+     *   - one it turns off: its fade knobs glide to their defaults, the key goes off and the
+     *     rest switch at the landing;
+     *   - an FX without fade knobs it turns on or off: all at the landing.
+     *  Only what changes is sent, as in a recall
+     *  On the device, call it with the audio interrupt blocked */
+    void Morph(const FxScene& scene)
+    {
+        engine_->LandFxMorph();
+        FxMorphPlan plan;
+        plan.deferred = plan.wake = plan.was_on = 0;
+        for (size_t fx = 0; fx < kNumFx; fx++)
+        {
+            const FxParams& fxp = kFxParams[fx];
+            const bool was = IsOn(fx);
+            const bool will = held_[fx] || ((scene.latched >> fx) & 1);
+            const uint16_t bit = static_cast<uint16_t>(1u << fx);
+            if (was)
+                plan.was_on |= bit;
+            if (was != will)
+            {
+                plan.deferred |= bit;
+                if (will && fxp.fade)
+                    plan.wake |= bit;
+            }
+            for (size_t p = 0; p < kNumFxParams; p++)
+            {
+                const float to = scene.params[fx][p];
+                const bool fade = (fxp.fade >> p) & 1;
+                float from = params_[fx][p];
+                MorphParam how = MorphParam::HOLD;
+                if (!was && !will)
+                    from = to;
+                else if (was && will)
+                    how = fxp.steps[p] == 0 ? MorphParam::GLIDE : MorphParam::HOLD;
+                else if (fxp.fade && will)
+                {
+                    from = fade ? fxp.defaults[p] : to;
+                    how = fade ? MorphParam::GLIDE : MorphParam::HOLD;
+                }
+                else if (fxp.fade && fade)
+                    how = MorphParam::FADE_OUT;
+                plan.start[fx][p] = from;
+                plan.target[fx][p] = to;
+                plan.how[fx][p] = how;
+                // the morph starts from what the engine has
+                if (from != params_[fx][p])
+                    engine_->SetFxParam(fx, p, from);
+            }
+        }
+        engine_->StartFxMorph(plan);
+
+        for (size_t fx = 0; fx < kNumFx; fx++)
+        {
+            latched_[fx] = (scene.latched >> fx) & 1;
+            for (size_t p = 0; p < kNumFxParams; p++)
+                params_[fx][p] = scene.params[fx][p];
+            engine_->SetFxOn(fx, IsOn(fx));
+        }
+        ClearChunks();
+        edited_ = false;
+    }
+
+    /** One bar line more for the morph, up to kMaxMorphBars. False if there's none running or
+     *  it's at the most. On the device, call it with the audio interrupt blocked */
+    inline bool MorphMore() { return engine_->AddFxMorphBar(); }
+    inline bool Morphing() const { return engine_->FxMorphing(); }
+
+    /** Stops the morph where it is: the knobs take the values it got to, and an FX it hadn't
+     *  switched yet is latched as it still is. Edited, since that's neither scene. False if
+     *  none runs. On the device, call it with the audio interrupt blocked */
+    bool FreezeMorph()
+    {
+        float live[kNumFx][kNumFxParams];
+        uint16_t unswitched, was_on;
+        if (!engine_->FreezeFxMorph(live, &unswitched, &was_on))
+            return false;
+        for (size_t fx = 0; fx < kNumFx; fx++)
+        {
+            for (size_t p = 0; p < kNumFxParams; p++)
+                params_[fx][p] = live[fx][p];
+            if ((unswitched >> fx) & 1)
+            {
+                latched_[fx] = (was_on >> fx) & 1;
+                engine_->SetFxOn(fx, IsOn(fx)); // a key held meanwhile stays on
+            }
+        }
+        ClearChunks();
+        edited_ = true;
+        return true;
     }
 
     /** The grid's next point from val in the direction dir, or val if there is none in

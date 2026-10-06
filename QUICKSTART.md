@@ -95,6 +95,9 @@ over. The other four are yours.
 - **Save:** tap the last dark key (blue), tap a scene key, press CHOMPI to confirm.
 - **Recall:** press a scene key. Try a build-up on one scene and the drop on the next, then
   the first key to turn every effect off.
+- **Morph:** hold CHOMPI and press a scene key: the effects glide there and land at the end
+  of the bar. Keep holding CHOMPI and tap the key again for one bar more per tap, or press
+  PLAY to stop the morph where it is.
 - **Copy and delete:** the same steps with the green and red dark keys. Tap the
   function's key again to back out.
 
