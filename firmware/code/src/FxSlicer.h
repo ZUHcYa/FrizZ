@@ -122,7 +122,7 @@ public:
         switch (param)
         {
         case PATTERN:
-            pattern_ = static_cast<size_t>(val * (kNumPatterns - 1) + .5f);
+            pattern_ = StepIndex(val, kNumPatterns);
             break;
         case DECAY:
         {
@@ -135,7 +135,7 @@ public:
             chance_ = val * .9f; // Kastle's maximum
             break;
         case STEREO:
-            stereo_ = static_cast<size_t>(val * (kNumPatterns - 1) + .5f);
+            stereo_ = StepIndex(val, kNumPatterns);
             break;
         default:
             break;

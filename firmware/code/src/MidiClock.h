@@ -74,7 +74,6 @@ public:
 
     /** True while a source is locked, i.e. a tick arrived within the timeout */
     inline bool HasClock() const { return source_ != Source::NONE; }
-    inline Source GetSource() const { return source_; }
 
     /** Running count of ticks from the locked source. Only differences are meaningful:
      *  the looper snapshots it at the record press and counts from there. */

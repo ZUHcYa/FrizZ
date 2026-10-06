@@ -38,7 +38,7 @@ namespace chompi
             daisy::UiCanvasDescriptor ledDisplayDescriptor;
             ledDisplayDescriptor.id_ = canvasLedDisplay;
             ledDisplayDescriptor.handle_ = nullptr;
-            ledDisplayDescriptor.updateRateMs_ = 16; /**< 30Hz */
+            ledDisplayDescriptor.updateRateMs_ = 16; /**< ~60Hz */
             ledDisplayDescriptor.clearFunction_ = ClearLeds;
             ledDisplayDescriptor.flushFunction_ = FlushLeds;
 

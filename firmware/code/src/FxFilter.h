@@ -100,7 +100,7 @@ public:
             depth_.target = val;
             break;
         case LFO_DIVISION:
-            lfo_div_pulses_ = kLfoDivisionPulses[static_cast<size_t>(val * (kNumLfoDivisions - 1) + .5f)];
+            lfo_div_pulses_ = kLfoDivisionPulses[StepIndex(val, kNumLfoDivisions)];
             break;
         default:
             break;

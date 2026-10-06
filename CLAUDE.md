@@ -163,6 +163,11 @@ The rule this enforces: **no file I/O and no blocking call from the audio ISR.**
 as `FileRequest`s to a queue; large writes are chunked across many `SDCallback()` ticks and
 committed by writing a temp file then renaming it.
 
+**FRIZZ is simpler:** it builds `FRIZZ.bin`, has no `SDCallback()`, `FileStreamingManager`,
+NoSDPage or MenuPage, and no MIDI out. It reads the card once at boot and writes it only from
+`MainLoop()` when an FX scene is saved, copied or deleted (`SceneStore.h`). Its play page is
+`NormalPage.h`; its engine is `passthroughEngine.h` → `Looper.h` + `FxChain.h`.
+
 Supporting layers, same names in all three firmwares (different contents):
 
 - `hardware.h` — the board: 28 keys and 6 encoder switches read through a CD4021 shift-register

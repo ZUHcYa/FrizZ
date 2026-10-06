@@ -641,33 +641,6 @@ class granularDelay {
         alt_control_ = fabsf(val - .5f) * 2.f;
     }
 
-    bool isFrozen() { return lock_buffer_; }
-
-    /** How far the frozen loop has played through its division, 0..1 */
-    float getFrozenPosition() {
-        return fclamp(static_cast<float>(frozen_sample_counter_) / delay_samples_, 0.f, 1.f);
-    }
-
-    void setAltControl(float val) {
-        alt_control_ = val;
-    }
-
-    void toggleBufferLock() {
-        if (delay_on_) {
-            bufferToggleXfade.startFade(chompi::Crossfade::CrossfadeType::THROUGH_ZERO);
-        }
-        if (lock_buffer_ && delay_mute_option_) {
-            setMute();
-        }
-    }
-
-    void setBufferLock(bool t) {
-        lock_buffer_ = t;
-        if (!t && delay_mute_option_) {
-            setMute();
-        }
-    }
-
     void setMute() {
         mute_ = true;
         mute_end_ = delay_samples_;

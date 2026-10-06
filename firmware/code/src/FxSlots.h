@@ -1,7 +1,7 @@
 /** @file FxSlots.h
  *  @brief The punch-in FX keys: one entry per FxId (FxChain.h), in the same order, with
  *  everything the play page (NormalPage.h) needs for each. The controls are described in
- *  the FRIZZ README.
+ *  MANUAL.md.
  */
 #pragma once
 #include "FxChain.h"

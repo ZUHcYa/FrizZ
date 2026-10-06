@@ -62,7 +62,8 @@ static const char* const kFxNames[] = {
 };
 static_assert(sizeof(kFxNames) / sizeof(kFxNames[0]) == kNumFx, "one per FxId");
 
-// How long a scene recall's fast slew lasts, ~50ms at 48kHz: 10 of its time constants
+// How long a scene recall's fast slew lasts, 50ms at 48kHz: 10 of its time constants
+// (FxCommon.h), well past where it has settled
 static const uint32_t kFxRecallSlewSamples = 2400;
 
 // Into the meters' EnvFollowers, which add 5x: full brightness at about 1 (L+R)/2

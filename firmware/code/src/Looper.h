@@ -126,7 +126,6 @@ public:
     // ===== state, readable from the UI =====
 
     inline State GetState() const { return state_; }
-    inline bool IsQuantized() const { return quantized_; }
     /** True once a quantized recording has been told to stop and is finishing its bar */
     inline bool IsClosing() const { return closing_; }
     inline bool CanRecordQuantized() const

@@ -1,75 +1,21 @@
 /** @file NormalPage.h
- *  @brief The main play-mode UiPage (see ui.h).
- *
- *  VOLUME knob (encoder 6), following TAPE's Volume Engine:
- *   - page 1 (default): output gain for headphone and master out, LED is a VU meter
- *   - page 2 (press):   input gain for the AUX input, LED blue (0%) to red (100%)
- *   - page 3 (press):   master compressor amount, LED dark to light blue
- *   - SHIFT + turn:     dry/wet mix, LED green (dry, input only) to purple (wet, looper only)
- *   - press and hold:   battery level check after 1.25s
- *
- *  Pressing again on page 3 goes back to page 1.
+ *  @brief The main play-mode UiPage (see ui.h): VOLUME, the looper's keys and transport, the
+ *  punch-in FX keys and knobs (FxSlots.h) and the FX scenes (FxScenes.h, SceneStore.h), with
+ *  their LEDs. MANUAL.md describes every control; what's here is what the manual doesn't say.
  *
  *  SHIFT is the CHOMPI key held, in either position of the mode switch. The switch does nothing
- *  in play mode for now; its state is still tracked (switch_state) for later use.
+ *  in play mode; its state is still tracked (switch_state) for later use.
  *
- *  Looper keys (LOOPER.md 1.2), PLAY = KEY_27, LOOP = KEY_28:
- *   - empty:          LOOP records unquantized, hold PLAY + press LOOP records quantized
- *                     (refused without MIDI clock)
- *   - recording:      LOOP ends the recording (quantized: at the end of the bar)
- *   - loop exists:    PLAY toggles play / pause, LOOP does nothing,
- *                     hold PLAY + LOOP for 2s erases (either key first)
- *  Transport knob (encoder 5, LOOPER.md 1.5), once a loop exists:
- *   - turn while playing: speed in 5ths and octaves, 4 detents per step, reverse past 1/16x
- *   - turn while paused:  scrub
- *   - press:              back to 1x forward
- *   - SHIFT + turn:       nothing
+ *  Looper keys: LOOP acts on press so recording starts and stops exactly then. PLAY acts on
+ *  release, and only if LOOP wasn't pressed during the hold, so the PLAY + LOOP combos (the
+ *  quantized record, the erase) never also toggle play.
  *
- *  LOOP acts on press so recording starts and stops exactly then. PLAY acts on release, and
- *  only if LOOP wasn't pressed during the hold, so the PLAY + LOOP combos never also toggle.
+ *  FX keys: SHIFT toggles the latch whichever goes down first, so SHIFT going down also
+ *  toggles every FX key already held (ShiftPressed). Knobs 1-4 edit the FX pressed last.
  *
- *  The mix jumps to fully wet when a recording closes and back to fully dry on erase.
- *
- *  Looper LEDs (LOOPER.md 1.6): LOOP red while recording, blinking while a quantized recording
- *  finishes its bar, 3 fast red blinks when quantized recording is refused. While a loop
- *  plays, PLAY and LOOP crossfade in white to show the position, dimmed when paused. The
- *  transport LEDs show the speed in TAPE's colours, or the scrub speed while paused.
- *
- *  Punch-in FX (FxChain.h) on the white keys, which key is which in FxSlots.h:
- *   - hold the key:          the effect is on while held
- *   - SHIFT + key:           toggles the latch, the effect stays on after release; either
- *                            may go down first
- *   - key on a latched FX:   clears the latch, the effect stays on until the key is released
- *   - knobs 1-4 (enc 0-3):   the parameters of the most recently pressed FX key, 1% per
- *                            detent; stepped parameters move one step per
- *                            kFxDetentsPerStep detents; knobs past the FX's num_params do
- *                            nothing
- *   - SHIFT + knobs 1-4:     coarse, one point of the parameter's grid (FxSlots.h) per
- *                            detent: notes, octaves, intervals or steps where they mean
- *                            something, 10% otherwise
- *   - SHIFT + press 1-4:     resets that parameter to its default
- *   - press knobs 1-4:       nothing (reserved for a second parameter page)
- *  FX key LEDs: off, dimly lit in the FX's colour; on, at full brightness, the audio coming
- *  out of it (FxChain's meters, in dB) pushing the colour towards white. Sends follow their
- *  returns, so after release their keys glow with the tail, fading from full to off. The knob LEDs show the parameter values in the FX's colours,
- *  unused knobs dark.
- *
- *  FX scenes (FxScenes.h, kept on the card by SceneStore.h): every FX's parameters and latch,
- *  in four slots on the first four dark keys (KEY_16-19). A scene is what was last saved:
- *   - scene key:             recalls it at once (FxChain::FastSlew); the latches become
- *                            the scene's, FX keys held stay on. Again on the active scene:
- *                            back to how it was saved. An empty slot blinks red
- *  SAVE, COPY and DELETE are TAPE's and TEMPO's preset keys and flow, on the last three dark
- *  keys (KEY_25, 24, 23):
- *   - tap one:               that mode, its key lit; tap it again to cancel, another to
- *                            switch. Scene keys now select instead of recalling
- *   - scene key(s):          the slot, blinking in the mode's colour; for COPY the source
- *                            first (steady), then the destination
- *   - CHOMPI key:            blinks red once a slot is selected; pressing it confirms, the
- *                            slot flashes green (red: no card, kept in RAM only) and the
- *                            mode ends
- *  Scene LEDs: empty off, saved dim white, the active scene bright, pulsing once a knob or a
- *  latch has changed since it was recalled or saved.
+ *  Scenes: a recall sends only the parameters that change, within one audio block and at the
+ *  fast slew (FxChain::FastSlew), so an FX the two scenes share runs on untouched. The card
+ *  is written from MainLoop (SceneStore::Process), never here.
  */
 #pragma once
 
@@ -90,6 +36,10 @@ namespace chompi
     static const float kDefaultMix = 0.f; // fully dry at power-on, nothing recorded yet
 
     static const uint8_t kNumPages = 3;
+
+    // encoder IDs, by ui.h's encoder_map: 0-3 are knobs 1-4
+    static const uint16_t kTransportEncoder = 4;
+    static const uint16_t kVolumeEncoder = 5;
 
     static const uint8_t kVolumeLed = 9;
     static const uint8_t kChompiKeyLed = 0;
@@ -119,7 +69,8 @@ namespace chompi
     static const float kFxMeterFloorDb = -30.f; // the meters' range, up to 0 dBFS
     static const float kFxWhiteMax = .8f;     // on: how far the loudest audio pushes to white
 
-    // FX scenes: the slots, and SAVE / COPY / DELETE on TAPE's preset keys in TEMPO's colours
+    // FX scenes: the slots on KEY_16-19, and SAVE / COPY / DELETE on TAPE's preset keys in
+    // TEMPO's colours
     static const Hardware::SwId kSceneKeys[kNumScenes] = {
         Hardware::SwId::KEY_16,
         Hardware::SwId::KEY_17,
@@ -388,23 +339,33 @@ namespace chompi
             if (init_ignore)
                 return false;
 
-            if (encoderID == 4)
-            {
+            const float detents = Detents(encoderID, turns);
+            if (encoderID == kTransportEncoder)
                 TransportTurned(turns);
-                return true;
-            }
-
-            if (encoderID < kNumFxParams)
-            {
-                FxKnobTurned(encoderID, turns);
-                return true;
-            }
-
-            if (encoderID != 5)
+            else if (encoderID < kNumFxParams)
+                FxKnobTurned(encoderID, detents);
+            else if (encoderID == kVolumeEncoder)
+                VolumeTurned(detents);
+            else
                 return false;
+            return true;
+        }
 
-            // ui.h sends the VOLUME knob 3x per detent
-            const float inc = turns / 3.f * kVolumeStep;
+        void SetSwitchState(bool state) { switch_state = state; }
+
+        inline void SetInitIgnore(bool ignore) { init_ignore = ignore; }
+
+    private:
+        /** Detents turned. ui.h sends knob 1 and the transport 1x per detent and the other
+         *  knobs 3x (TestPage relies on that), so this undoes it */
+        static float Detents(uint16_t encoder, int16_t turns)
+        {
+            return encoder == 0 || encoder == kTransportEncoder ? turns : turns / 3.f;
+        }
+
+        void VolumeTurned(float detents)
+        {
+            const float inc = detents * kVolumeStep;
 
             if (Shift())
                 SetMix(mix_ + inc);
@@ -423,19 +384,8 @@ namespace chompi
                 final_comp_ = fclamp(final_comp_ + inc, 0.f, 1.f);
                 engine_->SetFinalComp(final_comp_);
             }
-
-            return true;
         }
 
-        /** System::GetNow() of the last refused quantized record, 0 if none (for the LEDs) */
-        inline uint32_t GetRecordRefusedTime() const { return record_refused_; }
-
-        inline bool getSwitchState() { return switch_state; }
-        void SetSwitchState(bool state) { switch_state = state; }
-
-        inline void SetInitIgnore(bool ignore) { init_ignore = ignore; }
-
-    private:
         void LoopPressed()
         {
             if (play_pressed_)
@@ -504,13 +454,11 @@ namespace chompi
             }
         }
 
-        void FxKnobTurned(uint16_t knob, int16_t turns)
+        void FxKnobTurned(uint16_t knob, float detents)
         {
             if (knob >= kFxSlots[fx_selected_].num_params)
                 return;
 
-            // knob 1 gets 1x per detent from ui.h, the others 3x
-            const float detents = knob == 0 ? turns : turns / 3.f;
             float& val = fx_params_[fx_selected_][knob];
 
             if (Shift())
@@ -945,8 +893,8 @@ namespace chompi
         int scene_empty_ = kNoScene;   // empty, pressed
         uint32_t scene_empty_time_ = 0;
 
-        bool batt_display;
-        uint32_t batt_hold;
+        bool batt_display = false; // VOLUME held
+        uint32_t batt_hold = 0;     // when VOLUME was last pressed or released
     };
 
 } // namespace chompi

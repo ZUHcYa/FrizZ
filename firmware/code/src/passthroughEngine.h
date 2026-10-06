@@ -1,10 +1,10 @@
 /** @file passthroughEngine.h
  *  @brief Audio engine: the stereo AUX input goes to both outputs through the Volume
- *  Engine: input gain -> dry/wet mix -> punch-in FX (FxChain.h) -> output gain -> master
+ *  Engine: input gain -> input/loop mix -> punch-in FX (FxChain.h) -> output gain -> master
  *  compressor.
  *
- *  Dry is the input on its own, wet is the looper's playback on its own. The looper
- *  records the dry signal (see Looper.h).
+ *  In the code the mix is dry/wet: dry is the input on its own, wet is the looper's playback
+ *  on its own. The looper records the dry signal (see Looper.h).
  *
  *  The input level, output level and compressor stage are ported from TAPE's DSPEngine
  *  so the gains match the hardware the way TAPE tuned them.
@@ -122,7 +122,7 @@ public:
     /** Punch-in FX, by FxId (FxChain.h) */
     inline void SetFxOn(size_t fx, bool on) { fx_.SetOn(fx, on); }
     inline void SetFxParam(size_t fx, size_t param, float val) { fx_.SetParam(fx, param, val); }
-    /** Before a scene recall's SetFxParams: they land within ~5ms instead of ~20ms */
+    /** Before a scene recall's SetFxParams: they land at the recall's slew (FxCommon.h) */
     inline void FastFxSlew() { fx_.FastSlew(); }
     /** 0..1, for the FX key LEDs: an insert's output, a send's return */
     inline float GetFxLevel(size_t fx) { return fx_.GetLevel(fx); }
@@ -137,8 +137,9 @@ private:
     chompi::EnvFollower output_env_follower;
     chompi::TempoClock tempo_clock_;
     chompi::FxChain fx_;
-    float mgain_, mgain_target_;
-    float ingain_, ingain_target_;
-    float final_lim_, final_lim_target_;
-    float mix_, mix_target_;
+    // live values start at 0 and slew up to the targets the play page sets at boot
+    float mgain_ = 0.f, mgain_target_ = 0.f;
+    float ingain_ = 0.f, ingain_target_ = 0.f;
+    float final_lim_ = 0.f, final_lim_target_ = 0.f;
+    float mix_ = 0.f, mix_target_ = 0.f;
 };

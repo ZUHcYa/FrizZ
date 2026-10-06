@@ -13,12 +13,14 @@ namespace chompi
 // Parameters per effect, one per knob
 static const size_t kNumFxParams = 4;
 
-// The punch-in fade: fonepole's coefficient, ~5ms at 48kHz
+// fonepole coefficients at 48kHz. A coefficient c has a time constant of 1 / (48000 c) and
+// settles (to under 1%) in about 5 of them.
+// The punch-in fade: a time constant of ~5ms, settled in ~25ms
 static const float kFxGateCoeff = .004f;
-// The knobs' slew, ~20ms at 48kHz
+// The knobs' slew: a time constant of ~21ms, settled in ~100ms
 static const float kFxParamCoeff = .001f;
-// The slew for a moment after a scene recall (FxChain::FastSlew), ~5ms like the punch-in fade,
-// so a scene change is a cut rather than a sweep
+// The slew for a moment after a scene recall (FxChain::FastSlew), the punch-in fade's, so a
+// scene change is a cut rather than a sweep
 static const float kFxRecallCoeff = kFxGateCoeff;
 
 /** The slew every Smoothed uses: kFxParamCoeff, or kFxRecallCoeff right after a scene recall.
@@ -111,6 +113,12 @@ public:
 protected:
     FxGate gate_;
 };
+
+/** A stepped parameter's step, 0..steps - 1, from its knob value 0..1 */
+inline size_t StepIndex(float val, size_t steps)
+{
+    return static_cast<size_t>(val * static_cast<float>(steps - 1) + .5f);
+}
 
 /** Kastle's curve_map: linear between (xs[i], ys[i]) points, clamped at both ends */
 inline float CurveMap(float x, const float* xs, const float* ys, size_t n)

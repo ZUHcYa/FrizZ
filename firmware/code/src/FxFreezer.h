@@ -161,7 +161,7 @@ public:
         switch (param)
         {
         case LENGTH:
-            length_idx_ = static_cast<size_t>(val * (kNumLengths - 1) + .5f);
+            length_idx_ = StepIndex(val, kNumLengths);
             break;
         case FEEDBACK:
             // Kastle's maps: input in 0 / .3 / .8 and the loop kept 1 / 1 / .9 at 0 / .75 / 1
@@ -182,7 +182,7 @@ public:
             stereo_ = static_cast<size_t>(val * kMaxStereoFrames);
             break;
         case ROLL:
-            roll_stage_ = kFreezerRollStages[static_cast<size_t>(val * (kNumRolls - 1) + .5f)];
+            roll_stage_ = kFreezerRollStages[StepIndex(val, kNumRolls)];
             // turned off: back to the full length, and a roll turned on again starts over
             if (roll_stage_ == 0)
                 repeats_ = halvings_ = 0;

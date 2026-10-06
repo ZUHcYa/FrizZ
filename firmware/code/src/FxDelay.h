@@ -62,7 +62,7 @@ public:
         switch (param)
         {
         case DIVISION:
-            delay_.setDivision(static_cast<size_t>(val * (kNumDivisions - 1) + .5f));
+            delay_.setDivision(StepIndex(val, kNumDivisions));
             break;
         case FEEDBACK:
             delay_.setFeedback(val);

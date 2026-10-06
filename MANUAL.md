@@ -260,9 +260,9 @@ no SHIFT needed:
 
 | Key | Colour | Function |
 |---|---|---|
-| Last dark key (A#) | blue | **Save** the current effect settings into a slot |
-| 2nd-to-last dark key (G#) | green | **Copy** one slot into another, without changing the sound |
-| 3rd-to-last dark key (F#) | red | **Delete** a slot |
+| Last dark key (A# of the upper octave) | blue | **Save** the current effect settings into a slot |
+| 2nd-to-last dark key (upper G#) | green | **Copy** one slot into another, without changing the sound |
+| 3rd-to-last dark key (upper F#) | red | **Delete** a slot |
 
 1. **Tap the function's key.** It lights up fully; the scene keys now select slots instead of
    recalling them. The effects and knobs keep working.

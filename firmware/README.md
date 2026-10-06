@@ -15,7 +15,7 @@ code/libs/                vendored libDaisy and DaisySP (patched, MIT; never swa
 code/Chompi_Bootloader/   source of the v6.2 bootloader that loads FRIZZ
 code/bms_test/            standalone battery-management bring-up example
 bin/                      the v6.2 bootloader binary and its install script
-test/                     host-side engine harness and shifter pitch check
+test/                     host-side checks: engine harness, shifter pitch, scene file
 ```
 
 Design notes live in [`../docs/`](../docs/): the looper spec (`LOOPER.md`) and an overview of

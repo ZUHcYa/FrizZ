@@ -135,7 +135,7 @@ public:
         switch (param)
         {
         case SHIFT:
-            semitones_ = static_cast<int>(val * (kNumShifts - 1) + .5f) - (kNumShifts - 1) / 2;
+            semitones_ = static_cast<int>(StepIndex(val, kNumShifts)) - (kNumShifts - 1) / 2;
             dry_.target = semitones_ == 0 ? 1.f : 0.f;
             break;
         case SWOOP:
