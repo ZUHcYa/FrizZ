@@ -415,17 +415,17 @@ The patterns, `x` a gate, a bar in 16ths:
 | 8 | `..x. ..x. ..xx ..x.` | 17 | `xxxx x.x. x.xx x.x.` |
 | 9 | `x... x..x .xx. x...` | | |
 
-- **What it plays:** every effect but the delay and reverb: the inserts, the resonator, wow &
-  flutter and the tape stop. An effect whose key you're holding or have latched isn't
+- **What it plays:** every effect but the freezer, the delay and the reverb: the other
+  inserts, the resonator, wow & flutter and the tape stop. (The freezer waits for the next
+  16th to start recording, and a gate is over by then, so it would never be heard.) An effect whose key you're holding or have latched isn't
   picked, and keeps your knobs. Nor is one the last gate had, while it's still fading out.
 - **Your knobs stay yours:** the random values only last for the gate. Once the effect has
   faded out, it's back on your settings. Pressing the key of an effect a gate has takes it
   over at once, gliding to your knobs.
 - **Every gate is a press:** the shifter swoops, the flanger and slicer restart, the tape
-  starts to stop and spins back up. The freezer, picked, does nothing you'd hear: it waits for
-  the next 16th to start recording, and a gate is over by then. Random knobs can also land an
-  effect on a neutral setting (the flanger's amount at 0, the filter at its centre), so a gate
-  can sound like nothing happened.
+  starts to stop and spins back up. Random knobs can also land an effect on a neutral
+  setting (the flanger's amount at 0, the filter at its centre), so a gate can sound like
+  nothing happened.
 - **Not part of a scene:** a scene doesn't save, recall or morph its latch or knobs. The
   knobs are kept on the card with the compressor's, in `FRIZZ/frizz_master.txt`, 2 s after
   the last turn.

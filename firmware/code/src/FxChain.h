@@ -76,9 +76,10 @@ static const char* const kFxNames[] = {
 };
 static_assert(sizeof(kFxNames) / sizeof(kFxNames[0]) == kNumFx, "one per FxId");
 
-// What the randomizer plays: every effect but the sends
-static const uint16_t kRandomPool =
-    static_cast<uint16_t>(((1u << kNumFx) - 1) & ~((1u << FX_DELAY) | (1u << FX_REVERB)));
+// What the randomizer plays: every effect but the sends and the freezer. The freezer waits
+// for the next 16th to start recording, and a gate is over by then: it wouldn't be heard
+static const uint16_t kRandomPool = static_cast<uint16_t>(
+    ((1u << kNumFx) - 1) & ~((1u << FX_FREEZER) | (1u << FX_DELAY) | (1u << FX_REVERB)));
 
 // How long a scene recall's fast slew lasts, 50ms at 48kHz: 10 of its time constants
 // (FxCommon.h), well past where it has settled

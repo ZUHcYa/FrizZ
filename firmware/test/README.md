@@ -100,8 +100,8 @@ doesn't touch the card or the play page.
 Runs `FxRandomizer.h` on a 120 BPM clock: every pattern fires exactly its gates at chance 1,
 none at chance 0 and about half at .5; the pulse width sets the gate's length (20 ms at
 least), the shift delays every gate alike. Over 40 bars of 16ths, each gate picks 1-5
-effects, never a send, never one whose key is on and never one the gate before had, still
-fading out. Then `FxChain.h` around it: a gate's effects are the randomizer's, a key coming
+effects, never a send or the freezer, never one whose key is on and never one the gate
+before had, still fading out. Then `FxChain.h` around it: a gate's effects are the randomizer's, a key coming
 on takes its effect back at the next block, and once a closed gate's effects have faded out
 they're the user's again. Turned on again mid-bar, it fires at once on a gate's 16th, and a
 gate that was waiting out the shift when it went off doesn't fire later. It doesn't check that the effects' knobs land at once

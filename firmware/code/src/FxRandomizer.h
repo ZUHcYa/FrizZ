@@ -8,8 +8,8 @@
  *  16th, at least kMinGateMs), chance (each gate's), shift (every gate later by up to half a
  *  16th). Not part of the scenes: its knobs are kept with the compressor's (MasterSettings.h).
  *
- *  The pool is every insert and the resonator, not the sends (FxChain's kRandomPool). An effect whose
- *  key is held or latched isn't picked: it keeps its knobs. Nor is one whose last random
+ *  The pool is every insert but the freezer, and the resonator; not the sends (FxChain's
+ *  kRandomPool). An effect whose key is held or latched isn't picked: it keeps its knobs. Nor is one whose last random
  *  gate has only just closed (kCoolMs), so it's silent again when its knobs jump. FxChain
  *  hands the effects over and gives the user's knobs back afterwards.
  *

@@ -190,7 +190,7 @@ static void TestPicks()
     printf("      gates of 1-5 effects: %d %d %d %d %d\n", sizes[1], sizes[2], sizes[3], sizes[4],
            sizes[5]);
     Check(count && sizes[1] && sizes[5], "picks: 1 to 5 effects a gate, all of them happen");
-    Check(pool, "picks: never a send");
+    Check(pool, "picks: never a send, never the freezer");
     Check(manual, "picks: never an effect whose key is on");
     Check(fresh && touching > 100, "picks: never one the last gate had, still fading out");
     Check(values, "picks: every knob 0..1");
