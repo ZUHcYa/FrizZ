@@ -7,6 +7,7 @@
 #include "check.h"
 #include <vector>
 #include "FxMorph.h"
+#include "granularDelay.h"
 #include "Looper.h"
 #include "TapTempo.h"
 #include "TempoClock.h"
@@ -212,6 +213,21 @@ static void TestQuantizedBeats()
     block();
     Check(looper.GetState() == chompi::Looper::State::PLAYING && looper.GetBeats() == 0,
           "unquantized: no beats known");
+
+    // stopped within its first beat just as the clock locks again (no period yet): kept, at
+    // its length, instead of closing on a bar of length 0 and coming out empty
+    looper.Erase();
+    for (int i = 0; i < 2000; i++)
+        block();
+    looper.StartRecording(true);
+    for (int i = 0; i < 200; i++) // 4800 samples, under a beat
+        block();
+    midi.tick_period = 0.f;
+    looper.StopRecording();
+    block();
+    Check(looper.GetState() == chompi::Looper::State::PLAYING && looper.GetLength() > 4000,
+          "quantized, stopped as the clock locks again: the recording is kept");
+    midi.tick_period = period;
 }
 
 /** Bar lines: the pulses Pulse() returns that IsBarLine, against PulsesToBarLine's estimate */
@@ -485,6 +501,31 @@ static void TestMorph()
     Check(!morph.Freeze(live, &unswitched, &was_on), "stopped: nothing to stop any more");
 }
 
+/** The delay's reverse events at the slowest tempo: the longest divisions have no room */
+static void TestDelayReverse()
+{
+    static const size_t kFrames = 480000; // the device's 10s
+    static float mem[kFrames * 2];
+    static granularDelay delay;
+    delay.Init(mem, kFrames);
+    auto settle = [&](int bpm, size_t div) {
+        delay.SetTempo(bpm);
+        delay.setDivision(div);
+        float l, r;
+        for (int i = 0; i < 48000; i++)
+        {
+            delay.write(0.f, 0.f);
+            delay.read(&l, &r);
+        }
+    };
+    settle(120, 8);
+    Check(delay.ReverseFits(), "delay: 2 bars at 120 BPM, room for a reverse");
+    settle(50, 8);
+    Check(!delay.ReverseFits(), "delay: 2 bars at 50 BPM, no room: a retrigger instead");
+    settle(50, 7);
+    Check(delay.ReverseFits(), "delay: 1 bar at 50 BPM, room again");
+}
+
 int main()
 {
     TestTaps();
@@ -494,5 +535,6 @@ int main()
     TestQuantizedBeats();
     TestBarLines();
     TestMorph();
+    TestDelayReverse();
     return Finish();
 }

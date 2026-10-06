@@ -294,8 +294,12 @@ private:
             if (state_ != State::RECORDING || closing_)
                 break;
 
-            if (!quantized_)
+            if (!quantized_ || TickPeriod() <= 0.f)
+            {
+                // unquantized, or a clock that just locked again and has no period yet: as
+                // when the clock goes away, it closes now rather than on a bar of length 0
                 CloseLoop(write_pos_);
+            }
             else
             {
                 // record to the end of the bar in progress. A press exactly on a bar line

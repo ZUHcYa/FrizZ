@@ -394,6 +394,9 @@ class granularDelay {
                 float pan = 0.f;
                 if (!shimmer_) {
                     event_type_[1] = static_cast<delayEvent>(rand() % 4);
+                    if (event_type_[1] == delayVoice::REVERSE && !ReverseFits()) {
+                        event_type_[1] = delayVoice::RETRIG;
+                    }
                 }
                 else {
                     event_type_[1] = delayVoice::PITCH_UP;
@@ -423,6 +426,15 @@ class granularDelay {
 
         cur_sig_l_ = *out_l * delay_feedback_amt_;
         cur_sig_r_ = *out_r * delay_feedback_amt_;
+    }
+
+    /** Whether a reverse event fits the buffer. Its read head runs away from the write head
+     *  at 2 samples a sample, for up to an 8th note plus its fades; at a slow tempo on a long
+     *  division it would lap the write head and jump into what was just written */
+    bool ReverseFits() const {
+        const float edge = 60.f * 48000.f / (static_cast<float>(tempo_) * 2.f);
+        const float run = edge + 2.f * static_cast<float>(kMaxEventCrossfadeSamps);
+        return delay_samples_ + 2.f * run + 2.f < static_cast<float>(buffer_size_);
     }
 
     float randomPan() {
