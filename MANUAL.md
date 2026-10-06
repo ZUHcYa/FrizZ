@@ -87,7 +87,9 @@ freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> delay 
 | SHIFT + FX key | Latch on / off; a latched effect stays on after release. Either may go down first: SHIFT then the key, or the key then SHIFT |
 | FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
 | Knobs 1-4 | The parameters of the most recently pressed FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo) move one step per 3 detents |
-| Press knobs 1-4 | Resets that parameter to its default |
+| SHIFT + knobs 1-4 | Coarse: jumps to the next point of the parameter's grid per detent (see below) |
+| SHIFT + press knobs 1-4 | Resets that parameter to its default |
+| Press knobs 1-4 | Nothing yet (kept free for a second parameter page) |
 
 The FX keys are dimly lit in their effect's colour while off and at full brightness while
 on, where the audio coming out of the effect pushes the colour towards white, from -30 dBFS
@@ -108,6 +110,22 @@ reset at power-off.
 | 8th white | Slicer: Kastle 2 FX Wizard's rhythmic gate | Pattern, 8 steps of 16ths: `x.......`, `x...x...`, `..x...x.`, `x....x..`, `x..x..x.`, `x.x.x.x.`, `x.x.xx..`, `xxxxxxxx` (default `x..x..x.`) | Decay, 10 ms to 1 s (default 100 ms) | Chance: each step flipped at random, up to 90% (default off) | Stereo: the left channel plays a pattern up the list, the right one down, 0-7 apart (default off) |
 | 2nd-to-last white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 70%) |
 | Last white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Tone, dark to open (default 60%) | Diffusion (default 60%) | Level (default 70%) |
+
+SHIFT + turn moves one point of a fixed grid per detent, always to the next point in the
+direction you turn, so a value set finely snaps onto the grid with the first coarse move:
+
+| Parameter | Coarse grid |
+|---|---|
+| Resonator pitch | The notes at A440 (110 Hz is A2), F#0 to A5 |
+| Shifter shift | -12, -7, -5, 0, +5, +7, +12 semitones (octaves, fifths, fourths) |
+| Shifter stereo | Quarter semitones |
+| Crusher rate | 48 kHz divided by 4, 8, 16, 32, 64: 12 kHz, 6 kHz, 3 kHz, 1.5 kHz, 750 Hz |
+| Crusher bits | Whole bits |
+| Folder drive | Doublings: 1x, 2x, 4x, 8x, 16x, 32x |
+| Folder and crusher tone | Octaves down from open: 20 kHz, 10 kHz, 5 kHz … 312 Hz |
+| Resonator tone | Octaves down from 15 kHz: 7.5 kHz, 3.75 kHz, 1.9 kHz |
+| Stepped parameters (freezer length and roll, filter LFO and delay divisions, slicer pattern and stereo) | One step per detent instead of per 3 |
+| Everything else, filter cutoff included | 10% steps |
 
 Filter details:
 - **LFO:** a triangle on the cutoff, like WAVE's filter LFO but synced to the same tempo as

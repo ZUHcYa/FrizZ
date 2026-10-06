@@ -57,7 +57,9 @@ The white keys between the slicer and the delay do nothing.
 - **SHIFT + key** (either first): latch the effect on. Do it again to turn it off.
 - **Knobs 1-4:** shape the effect whose key you pressed last. Their LEDs show the settings;
   a dark knob does nothing for that effect.
-- **Press a knob:** reset that setting.
+- **SHIFT + turn a knob:** jump in big steps: notes, octaves or musical intervals where the
+  setting has them, 10% otherwise.
+- **SHIFT + press a knob:** reset that setting.
 
 Delay and reverb tails keep ringing after you let go. The other effects stop the moment you
 release the key. Settings reset when you switch off.

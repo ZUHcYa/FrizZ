@@ -44,8 +44,11 @@
  *                            detent; stepped parameters move one step per
  *                            kFxDetentsPerStep detents; knobs past the FX's num_params do
  *                            nothing
- *   - press knobs 1-4:       resets that parameter to its default
- *   - SHIFT + knobs 1-4:     nothing, turned or pressed (reserved for a second parameter page)
+ *   - SHIFT + knobs 1-4:     coarse, one point of the parameter's grid (FxSlots.h) per
+ *                            detent: notes, octaves, intervals or steps where they mean
+ *                            something, 10% otherwise
+ *   - SHIFT + press 1-4:     resets that parameter to its default
+ *   - press knobs 1-4:       nothing (reserved for a second parameter page)
  *  FX key LEDs: off, dimly lit in the FX's colour; on, at full brightness, the audio coming
  *  out of it (FxChain's meters, in dB) pushing the colour towards white. Sends follow their
  *  returns, so after release their keys glow with the tail, fading from full to off. The knob LEDs show the parameter values in the FX's colours,
@@ -427,12 +430,25 @@ namespace chompi
 
         void FxKnobTurned(uint16_t knob, int16_t turns)
         {
-            if (Shift() || knob >= kFxSlots[fx_selected_].num_params)
+            if (knob >= kFxSlots[fx_selected_].num_params)
                 return;
 
             // knob 1 gets 1x per detent from ui.h, the others 3x
             const float detents = knob == 0 ? turns : turns / 3.f;
             float& val = fx_params_[fx_selected_][knob];
+
+            if (Shift())
+            {
+                // coarse: one grid point per detent
+                fx_step_chunk_[knob] += detents;
+                while (fx_step_chunk_[knob] >= 1.f || fx_step_chunk_[knob] <= -1.f)
+                {
+                    const float dir = fx_step_chunk_[knob] > 0.f ? 1.f : -1.f;
+                    SetFxParam(fx_selected_, knob, CoarseStep(kFxSlots[fx_selected_].coarse[knob], val, dir));
+                    fx_step_chunk_[knob] -= dir;
+                }
+                return;
+            }
 
             const uint8_t steps = kFxSlots[fx_selected_].steps[knob];
             if (steps == 0)
@@ -454,9 +470,40 @@ namespace chompi
             }
         }
 
+        /** The grid's next point from val in the direction dir, or val if there is none in
+         *  0-1. A value within a hair of a point (1% of the spacing) counts as on it, so it
+         *  moves a whole step */
+        static float CoarseStep(const FxGrid& grid, float val, float dir)
+        {
+            if (grid.points)
+            {
+                const float eps = .001f;
+                if (dir > 0.f)
+                {
+                    for (size_t i = 0; i < grid.num_points; i++)
+                        if (grid.points[i] > val + eps)
+                            return grid.points[i];
+                }
+                else
+                {
+                    for (size_t i = grid.num_points; i-- > 0;)
+                        if (grid.points[i] < val - eps)
+                            return grid.points[i];
+                }
+                return val;
+            }
+
+            const float eps = grid.spacing * .01f;
+            const float pos = (val - grid.origin) / grid.spacing;
+            const float k = dir > 0.f ? floorf(pos + .01f) + 1.f : ceilf(pos - .01f) - 1.f;
+            const float next = grid.origin + k * grid.spacing;
+            return next < -eps || next > 1.f + eps ? val : next;
+        }
+
         void FxKnobPressed(size_t knob)
         {
-            if (Shift() || knob >= kFxSlots[fx_selected_].num_params)
+            // a plain press is kept free for a second parameter page
+            if (!Shift() || knob >= kFxSlots[fx_selected_].num_params)
                 return;
 
             SetFxParam(fx_selected_, knob, kFxSlots[fx_selected_].defaults[knob]);
@@ -635,7 +682,7 @@ namespace chompi
         bool fx_held_[kNumFx] = {};
         bool fx_latched_[kNumFx] = {};
         size_t fx_selected_ = 0;    // the FX the knobs edit: the last one pressed
-        float fx_step_chunk_[kNumFxParams] = {}; // detents towards the next step, stepped params
+        float fx_step_chunk_[kNumFxParams] = {}; // detents towards the next step or grid point
 
         bool batt_display;
         uint32_t batt_hold;
