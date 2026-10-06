@@ -38,13 +38,9 @@ public:
     void Init(float sample_rate)
     {
         sample_rate_ = sample_rate;
+        ring_.Clear();
         for (size_t c = 0; c < 2; c++)
-        {
-            for (size_t i = 0; i < kBufSize; i++)
-                buf_[c][i] = 0.f;
             phase_[c] = 0.f;
-        }
-        write_pos_ = 0;
         gate_.Init();
 
         for (size_t i = 0; i < kNumFxParams; i++)
@@ -86,13 +82,13 @@ public:
         for (size_t c = 0; c < 2; c++)
         {
             const float delay = fclamp(kCentreFrames * (1.f + lfo[c] * depth), 1.f, kBufSize - 2.f);
-            const float wet = ReadFrac(buf_[c], kBufMask, write_pos_ - 1, delay);
-            buf_[c][write_pos_] = SoftClip(*io[c] + wet * feedback);
+            const float wet = ring_.Read(c, delay);
+            ring_.Write(c, SoftClip(*io[c] + wet * feedback));
 
             const float out = *io[c] + mix * (wet - *io[c]);
             *io[c] += gate * (out - *io[c]);
         }
-        write_pos_ = (write_pos_ + 1) & kBufMask;
+        ring_.Advance();
     }
 
     void SetParam(size_t param, float val) override
@@ -127,12 +123,10 @@ public:
 
 private:
     static const size_t kBufSize = 2048; // 2 x the deepest sweep, 1114 frames
-    static const size_t kBufMask = kBufSize - 1;
     static constexpr float kCentreFrames = 557.f; // Kastle's 511 at 44kHz, 11.6ms
 
     float sample_rate_;
-    float buf_[2][kBufSize];
-    size_t write_pos_;
+    StereoRing<kBufSize> ring_;
     float phase_[2];
     float inc_[2] = {0.f, 0.f};
     float rate_ = 0.f, stereo_ = 0.f;

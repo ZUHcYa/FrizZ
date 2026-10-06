@@ -143,4 +143,73 @@ inline float ReadFrac(const float* buf, size_t mask, size_t write_pos, float del
     return a + (b - a) * frac;
 }
 
+/** A one-pole lowpass's coefficient (fonepole) for a cutoff of freq Hz */
+inline float OnePoleCoeff(float freq, float sample_rate)
+{
+    return 1.f - expf(-TWOPI_F * freq / sample_rate);
+}
+
+/** The folder's and crusher's tone knob: a lowpass from 200Hz to 20kHz, fully open at the top */
+inline float ToneCoeff(float val, float sample_rate)
+{
+    return val >= 1.f ? 1.f : OnePoleCoeff(200.f * powf(100.f, val), sample_rate);
+}
+
+/** The envelope a press starts (the crusher's dive, the shifter's swoop, the slicer's steps):
+ *  a linear attack up to 1, then an exponential decay */
+struct PressEnvelope
+{
+    float value = 0.f;
+    bool attacking = false;
+
+    void Reset()
+    {
+        value = 0.f;
+        attacking = false;
+    }
+    inline void Press() { attacking = true; }
+    /** Once per sample */
+    float Process(float attack_inc, float decay_coeff)
+    {
+        if (attacking)
+        {
+            value += attack_inc;
+            if (value >= 1.f)
+            {
+                value = 1.f;
+                attacking = false;
+            }
+        }
+        else
+            value *= decay_coeff;
+        return value;
+    }
+};
+
+/** A stereo delay line of N frames (a power of 2): write one frame a sample, read behind it */
+template <size_t N>
+struct StereoRing
+{
+    static_assert((N & (N - 1)) == 0, "a power of 2");
+    static const size_t kMask = N - 1;
+
+    void Clear()
+    {
+        for (size_t c = 0; c < 2; c++)
+            for (size_t i = 0; i < N; i++)
+                buf[c][i] = 0.f;
+        pos = 0;
+    }
+    /** delay frames behind the last frame written, interpolated */
+    inline float Read(size_t c, float delay) const { return ReadFrac(buf[c], kMask, pos - 1, delay); }
+    /** This sample's frame, one channel at a time; Advance once both are written */
+    inline void Write(size_t c, float x) { buf[c][pos] = x; }
+    inline void Advance() { pos = (pos + 1) & kMask; }
+    /** The index of the last frame written, for reads of their own (& kMask) */
+    inline size_t Last() const { return pos - 1; }
+
+    float buf[2][N];
+    size_t pos;
+};
+
 } // namespace chompi

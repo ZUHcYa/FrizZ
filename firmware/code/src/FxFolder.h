@@ -106,13 +106,7 @@ public:
             break;
         case TONE:
             // lowpass from 200Hz to 20kHz, fully open at the top, as the crusher's
-            if (val >= 1.f)
-                tone_coeff_.target = 1.f;
-            else
-            {
-                const float freq = 200.f * powf(100.f, val);
-                tone_coeff_.target = 1.f - expf(-TWOPI_F * freq / sample_rate_);
-            }
+            tone_coeff_.target = ToneCoeff(val, sample_rate_);
             break;
         default:
             break;

@@ -50,8 +50,8 @@ public:
         sample_rate_ = sample_rate;
         attack_inc_ = 1.f / (.01f * sample_rate);
         gate_.Init();
-        env_[0] = env_[1] = 0.f;
-        attacking_[0] = attacking_[1] = false;
+        env_[0].Reset();
+        env_[1].Reset();
         pattern_pos_ = 0;
         step_ = false;
         rng_ = 0x2545F491u;
@@ -73,7 +73,10 @@ public:
         const float gate = gate_.Process();
 
         if (gate_.TakePress())
-            attacking_[0] = attacking_[1] = true;
+        {
+            env_[0].Press();
+            env_[1].Press();
+        }
 
         if (step_)
         {
@@ -94,26 +97,15 @@ public:
                 // bits from the other end)
                 const bool hit = (kSlicerPatterns[pattern[c]] >> (kNumSteps - 1 - step)) & 1;
                 if (hit != flip)
-                    attacking_[c] = true;
+                    env_[c].Press();
             }
         }
 
         float* const io[2] = {l, r};
         for (size_t c = 0; c < 2; c++)
         {
-            if (attacking_[c])
-            {
-                env_[c] += attack_inc_;
-                if (env_[c] >= 1.f)
-                {
-                    env_[c] = 1.f;
-                    attacking_[c] = false;
-                }
-            }
-            else
-                env_[c] *= decay_coeff_;
-
-            *io[c] += gate * (*io[c] * env_[c] - *io[c]);
+            const float env = env_[c].Process(attack_inc_, decay_coeff_);
+            *io[c] += gate * (*io[c] * env - *io[c]);
         }
     }
 
@@ -147,8 +139,7 @@ private:
 
     float sample_rate_;
     float attack_inc_;
-    float env_[2];
-    bool attacking_[2];
+    PressEnvelope env_[2];
     uint32_t pattern_pos_; // pulses into the pattern, kNumSteps 16ths
     volatile bool step_;
     uint32_t rng_;

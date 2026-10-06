@@ -43,18 +43,15 @@ public:
 
     void Init(float sample_rate)
     {
+        ring_.Clear();
         for (size_t c = 0; c < 2; c++)
         {
-            for (size_t i = 0; i < kBufSize; i++)
-                buf_[c][i] = 0.f;
             window_[c] = 0.f;
             delay_[c][0] = kGuard + static_cast<float>(kSearch);
             delay_[c][1] = kGuard + static_cast<float>(kSearch) + .5f * kWindowFrames;
         }
-        write_pos_ = 0;
         gate_.Init();
-        env_ = 0.f;
-        env_attacking_ = false;
+        env_.Reset();
         env_attack_inc_ = 1.f / (.1f * sample_rate);
         env_decay_coeff_ = expf(-6.9078f / sample_rate); // 1s to -60dB
 
@@ -72,22 +69,12 @@ public:
         const float feedback = feedback_.Process();
 
         if (gate_.TakePress())
-            env_attacking_ = true;
-        if (env_attacking_)
-        {
-            env_ += env_attack_inc_;
-            if (env_ >= 1.f)
-            {
-                env_ = 1.f;
-                env_attacking_ = false;
-            }
-        }
-        else
-            env_ *= env_decay_coeff_;
+            env_.Press();
+        env_.Process(env_attack_inc_, env_decay_coeff_);
 
         // the speed per channel; recomputed every sample while swooping, otherwise when a
         // knob changed it (SetParam), so only the audio callback writes it
-        const float swoop = env_ * swoop_;
+        const float swoop = env_.value * swoop_;
         if (swoop > .0001f || swooping_)
         {
             const float dir = semitones_ > 0 ? 1.f : (semitones_ < 0 ? -1.f : 0.f);
@@ -125,16 +112,16 @@ public:
 
             // triangles: tap 0 peaks mid-window and is silent at the wrap, tap 1 the reverse
             const float w0 = 1.f - fabsf(2.f * w - 1.f);
-            const float a = ReadFrac(buf_[c], kBufMask, write_pos_ - 1, d[0]);
-            const float b = ReadFrac(buf_[c], kBufMask, write_pos_ - 1, d[1]);
+            const float a = ring_.Read(c, d[0]);
+            const float b = ring_.Read(c, d[1]);
             const float wet = a * w0 + b * (1.f - w0);
 
-            buf_[c][write_pos_] = SoftClip(*io[c] + wet * feedback);
+            ring_.Write(c, SoftClip(*io[c] + wet * feedback));
 
             const float out = wet + dry * (*io[c] - wet);
             *io[c] += gate * (out - *io[c]);
         }
-        write_pos_ = (write_pos_ + 1) & kBufMask;
+        ring_.Advance();
     }
 
     void SetParam(size_t param, float val) override
@@ -180,8 +167,8 @@ private:
      *  samples best match the other tap's, by normalised correlation */
     float Splice(size_t c, float other, float ratio, bool up) const
     {
-        const float* const b = buf_[c];
-        const size_t last = write_pos_ - 1;
+        const float* const b = ring_.buf[c];
+        const size_t last = ring_.Last();
         const float nominal = (up ? kWindowFrames : 0.f) + kGuard + kSearch;
 
         // k samples on, both taps will have moved k * ratio through the input: the other
@@ -238,8 +225,7 @@ private:
         ratio_[1] = powf(2.f, (semitones + stereo_semitones_) / 12.f);
     }
 
-    float buf_[2][kBufSize];
-    size_t write_pos_;
+    StereoRing<kBufSize> ring_;
     float window_[2];   // through the taps' lives, 0..1; tap 0 starts over at 0, tap 1 at .5
     float delay_[2][2]; // per channel, per tap, frames behind the last write
     float ratio_[2] = {1.f, 1.f};
@@ -250,8 +236,8 @@ private:
     float stereo_semitones_ = 0.f;
     Smoothed dry_;
     Smoothed feedback_;
-    float env_, env_attack_inc_, env_decay_coeff_;
-    bool env_attacking_;
+    PressEnvelope env_;
+    float env_attack_inc_, env_decay_coeff_;
 };
 
 } // namespace chompi

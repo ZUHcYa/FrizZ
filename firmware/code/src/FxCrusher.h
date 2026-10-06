@@ -37,8 +37,7 @@ public:
         srr_r_.Init();
         xor_dc_l_.Init(sample_rate);
         xor_dc_r_.Init(sample_rate);
-        dive_ = 0.f;
-        dive_attacking_ = false;
+        dive_.Reset();
         dive_attack_inc_ = 1.f / (.1f * sample_rate);
         dive_decay_coeff_ = expf(-6.9078f / (.4f * sample_rate)); // to -60dB in 0.4s
 
@@ -58,21 +57,11 @@ public:
         const float tone_coeff = tone_coeff_.Process();
 
         if (gate_.TakePress())
-            dive_attacking_ = true;
-        if (dive_attacking_)
-        {
-            dive_ += dive_attack_inc_;
-            if (dive_ >= 1.f)
-            {
-                dive_ = 1.f;
-                dive_attacking_ = false;
-            }
-        }
-        else
-            dive_ *= dive_decay_coeff_;
+            dive_.Press();
+        const float dive = dive_.Process(dive_attack_inc_, dive_decay_coeff_);
 
         // Kastle: the rate divided by the dive envelope times 10, at least 1
-        const float rate = rate_knob / fmaxf(1.f, dive_ * 10.f);
+        const float rate = rate_knob / fmaxf(1.f, dive * 10.f);
         srr_l_.SetFreq(rate);
         srr_r_.SetFreq(rate);
 
@@ -128,13 +117,7 @@ public:
         case TONE:
         {
             // lowpass from 200Hz to 20kHz, fully open at the top
-            if (val >= 1.f)
-                tone_coeff_.target = 1.f;
-            else
-            {
-                const float freq = 200.f * powf(100.f, val);
-                tone_coeff_.target = 1.f - expf(-TWOPI_F * freq / sample_rate_);
-            }
+            tone_coeff_.target = ToneCoeff(val, sample_rate_);
             break;
         }
 
@@ -171,8 +154,8 @@ private:
     float step_; // quantizer step, 2^(1 - bits)
     int16_t xor_ = 0;
     daisysp::DcBlock xor_dc_l_, xor_dc_r_;
-    float dive_, dive_attack_inc_, dive_decay_coeff_;
-    bool dive_attacking_;
+    PressEnvelope dive_;
+    float dive_attack_inc_, dive_decay_coeff_;
 };
 
 } // namespace chompi

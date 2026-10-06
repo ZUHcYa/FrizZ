@@ -34,15 +34,13 @@ public:
     void Init(float sample_rate)
     {
         sample_rate_ = sample_rate;
+        ring_.Clear();
         for (size_t c = 0; c < 2; c++)
         {
-            for (size_t i = 0; i < kBufSize; i++)
-                buf_[c][i] = 0.f;
             lp_[c] = 0.f;
             hp_[c].Init(sample_rate);
             ret_[c] = 0.f;
         }
-        write_pos_ = 0;
         gate_.Init();
 
         for (size_t i = 0; i < kNumFxParams; i++)
@@ -65,7 +63,7 @@ public:
         for (size_t c = 0; c < 2; c++)
         {
             const float delay = delay_[c].Process();
-            ret_[c] = fb * ReadFrac(buf_[c], kBufMask, write_pos_ - 1, delay - 1.f);
+            ret_[c] = fb * ring_.Read(c, delay - 1.f);
             *io[c] = *io[c] * (1.f - .5f * fb) + ret_[c];
         }
     }
@@ -77,9 +75,9 @@ public:
         for (size_t c = 0; c < 2; c++)
         {
             lp_[c] += lp_coeff_.value * (SoftClip(in[c]) - lp_[c]);
-            buf_[c][write_pos_] = hp_[c].Process(lp_[c]);
+            ring_.Write(c, hp_[c].Process(lp_[c]));
         }
-        write_pos_ = (write_pos_ + 1) & kBufMask;
+        ring_.Advance();
     }
 
     /** What the loop added in the last Feed, for the key LED */
@@ -99,7 +97,7 @@ public:
         {
             // the loop's lowpass, 1kHz to Kastle's 15kHz
             const float freq = 1000.f * powf(15.f, val);
-            lp_coeff_.target = 1.f - expf(-TWOPI_F * freq / sample_rate_);
+            lp_coeff_.target = OnePoleCoeff(freq, sample_rate_);
             break;
         }
         case STEREO:
@@ -114,7 +112,6 @@ public:
 
 private:
     static const size_t kBufSize = 4096; // > 48kHz / 22Hz
-    static const size_t kBufMask = kBufSize - 1;
     static constexpr float kLowestHz = 22.f;   // Kastle's 2000 samples at 44kHz
     static constexpr float kHighestHz = 880.f; // Kastle stops at 440Hz
 
@@ -123,7 +120,7 @@ private:
     {
         void Init(float sample_rate)
         {
-            coeff = 1.f - expf(-TWOPI_F * 50.f / sample_rate);
+            coeff = OnePoleCoeff(50.f, sample_rate);
             lp = 0.f;
         }
         float Process(float x)
@@ -135,8 +132,7 @@ private:
     };
 
     float sample_rate_;
-    float buf_[2][kBufSize];
-    size_t write_pos_;
+    StereoRing<kBufSize> ring_;
     float lp_[2];
     Highpass hp_[2];
     float ret_[2];
