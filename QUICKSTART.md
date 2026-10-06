@@ -55,11 +55,14 @@ The white keys between the slicer and the delay do nothing.
 | Effect | Freezer | Shifter | Folder | Crusher | Filter | Flanger | Resonator | Slicer | Delay | Reverb |
 
 - **Hold a key:** the effect is on while you hold it.
-- **SHIFT + key** (either first): latch the effect on. Do it again to turn it off.
-- **Knobs 1-4:** shape the effect whose key you pressed last. Their LEDs show the settings;
-  a dark knob does nothing for that effect. The knobs follow one pattern: 1 is the main
-  control, 2 the feedback, 3 the tone or colour, 4 the stereo width or level (where an effect
-  has no such setting, it puts another one there).
+- **Hold a key, then SHIFT:** latch the effect on. Do it again, or just tap the key, to turn
+  it off.
+- **SHIFT, then a key:** pick the effect for the knobs without hearing it, to set it up
+  before you punch it in. The key flashes white.
+- **Knobs 1-4:** shape the effect whose key you pressed or picked last. Their LEDs show the
+  settings; a dark knob does nothing for that effect. The knobs follow one pattern: 1 is the
+  main control, 2 the feedback, 3 the tone or colour, 4 the stereo width or level (where an
+  effect has no such setting, it puts another one there).
 - **SHIFT + turn a knob:** jump in big steps: notes, octaves or musical intervals where the
   setting has them, 10% otherwise.
 - **SHIFT + press a knob:** reset that setting.
@@ -72,10 +75,11 @@ release the key. Settings reset when you switch off, unless you save them as a s
 
 Things to try first:
 
-- **Freezer (1st key)** on a beat: SHIFT + turn knob 1 down five clicks to 1/8. It grabs that
-  much from the moment you press and repeats it while you hold the key. Turn knob 3 for a
-  roll that speeds up.
-- **Shifter (2nd key):** SHIFT + turn knob 1 up two clicks for a fifth.
+- **Freezer (1st key)** on a beat: hold SHIFT, tap the key, and turn knob 1 down five clicks
+  to 1/8. It grabs that much from the moment you press and repeats it while you hold the
+  key. Turn knob 3 for a roll that speeds up.
+- **Shifter (2nd key):** hold SHIFT, tap the key, turn knob 1 up two clicks for a fifth, then
+  hold the key to hear it.
 - **Resonator (7th key)** with the crusher or the shifter latched: the ringing goes through them on
   every pass.
 - **Delay + reverb (the last two keys):** turn up their knob 4, then tap them to throw echoes and

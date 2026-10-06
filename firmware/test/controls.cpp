@@ -94,6 +94,14 @@ static void TestInit()
     Check(e.param_calls == static_cast<int>(kNumFx * kNumFxParams), "init: every parameter sent once");
 }
 
+// the latch: the key held, then SHIFT going down, then the key's release
+static void Latch(Fx& fx, size_t f)
+{
+    fx.KeyPressed(f, true, false);
+    fx.ShiftPressed();
+    fx.KeyPressed(f, false, true);
+}
+
 static void TestKeys()
 {
     FakeEngine e;
@@ -105,30 +113,53 @@ static void TestKeys()
     fx.KeyPressed(FX_CRUSHER, false, false);
     Check(!e.on[FX_CRUSHER], "release: off");
 
-    // SHIFT first, then the key
-    fx.KeyPressed(FX_FILTER, true, true);
-    fx.KeyPressed(FX_FILTER, false, true);
-    Check(e.on[FX_FILTER] && fx.IsLatched(FX_FILTER), "SHIFT + key: latched, stays on after release");
-
-    // a plain press clears the latch, on release; it stays on while held
-    fx.KeyPressed(FX_FILTER, true, false);
-    Check(e.on[FX_FILTER], "key on a latched FX: on while held");
-    fx.KeyPressed(FX_FILTER, false, false);
-    Check(!e.on[FX_FILTER] && !fx.IsLatched(FX_FILTER), "... unlatched and off on release");
-
     // the key first, then SHIFT
     fx.KeyPressed(FX_DELAY, true, false);
-    fx.ShiftPressed();
+    Check(fx.ShiftPressed(), "key, then SHIFT: a latch combo");
     fx.KeyPressed(FX_DELAY, false, true);
-    Check(e.on[FX_DELAY] && fx.IsLatched(FX_DELAY), "key, then SHIFT: latched");
+    Check(e.on[FX_DELAY] && fx.IsLatched(FX_DELAY), "key, then SHIFT: latched, stays on after release");
 
-    // SHIFT + key again unlatches
+    // a plain press clears the latch, on release; it stays on while held
+    fx.KeyPressed(FX_DELAY, true, false);
+    Check(e.on[FX_DELAY], "key on a latched FX: on while held");
+    fx.KeyPressed(FX_DELAY, false, false);
+    Check(!e.on[FX_DELAY] && !fx.IsLatched(FX_DELAY), "... unlatched and off on release");
+
+    // key, then SHIFT again unlatches
+    Latch(fx, FX_DELAY);
+    Latch(fx, FX_DELAY);
+    Check(!e.on[FX_DELAY] && !fx.IsLatched(FX_DELAY), "key, then SHIFT on a latched FX: unlatched");
+
+    // SHIFT first, then the key: a select, silent
+    fx.KeyPressed(FX_FILTER, true, true);
+    Check(fx.Selected() == FX_FILTER && !e.on[FX_FILTER], "SHIFT + key: the knobs edit it, it stays off");
+    fx.KeyPressed(FX_FILTER, false, true);
+    Check(!e.on[FX_FILTER] && !fx.IsLatched(FX_FILTER), "... and its release does nothing");
+    Latch(fx, FX_DELAY);
+    fx.KeyPressed(FX_FILTER, true, false);
+    fx.KeyPressed(FX_FILTER, false, false);
     fx.KeyPressed(FX_DELAY, true, true);
     fx.KeyPressed(FX_DELAY, false, true);
-    Check(!e.on[FX_DELAY] && !fx.IsLatched(FX_DELAY), "SHIFT + key on a latched FX: unlatched");
+    Check(fx.Selected() == FX_DELAY && e.on[FX_DELAY] && fx.IsLatched(FX_DELAY),
+          "SHIFT + key on a latched FX: selected, still latched");
+    Latch(fx, FX_DELAY);
+
+    // SHIFT first, then the key and a coarse turn: edits it, silently
+    fx.KeyPressed(FX_FOLDER, true, true);
+    fx.KnobTurned(0, 1.f, true);
+    fx.KeyPressed(FX_FOLDER, false, true);
+    Check(fx.Param(FX_FOLDER, 0) != kFxParams[FX_FOLDER].defaults[0] && !e.on[FX_FOLDER] &&
+              !fx.IsLatched(FX_FOLDER),
+          "SHIFT + key, then a coarse turn: edited, still off");
+
+    // SHIFT let go before the key, then SHIFT again: the key was a select, it stays silent
+    fx.KeyPressed(FX_FOLDER, true, true);
+    Check(!fx.ShiftPressed(), "a key held from a select: no latch combo");
+    fx.KeyPressed(FX_FOLDER, false, true);
+    Check(!e.on[FX_FOLDER] && !fx.IsLatched(FX_FOLDER), "... and no latch on its release");
 
     // SHIFT going down with no FX key held changes nothing
-    fx.ShiftPressed();
+    Check(!fx.ShiftPressed(), "SHIFT alone: no latch combo");
     bool none = true;
     for (size_t f = 0; f < kNumFx; f++)
         none = none && !fx.IsLatched(f);
@@ -146,13 +177,25 @@ static void TestKeys()
     fx.KeyPressed(FX_FILTER, false, true);
     Check(!fx.IsLatched(FX_FILTER), "key, SHIFT used for another combo: not latched");
 
-    // SHIFT first, then the key and a coarse turn: that's the latch combo, it latches
-    fx.KeyPressed(FX_FILTER, true, true);
-    fx.KnobTurned(0, 1.f, true);
+    // one key held, then SHIFT, then another key: that's a select, the first doesn't latch
+    fx.KeyPressed(FX_FILTER, true, false);
+    fx.ShiftPressed();
+    fx.KeyPressed(FX_CRUSHER, true, true);
+    fx.KeyPressed(FX_CRUSHER, false, true);
     fx.KeyPressed(FX_FILTER, false, true);
-    Check(fx.IsLatched(FX_FILTER), "SHIFT + key, then a coarse turn: still latched");
-    fx.KeyPressed(FX_FILTER, true, true);
+    Check(fx.Selected() == FX_CRUSHER && !fx.IsLatched(FX_FILTER) && !fx.IsLatched(FX_CRUSHER) &&
+              !e.on[FX_FILTER] && !e.on[FX_CRUSHER],
+          "key, SHIFT, another key: that one selected, neither latched");
+
+    // two keys held, then SHIFT: both latch
+    fx.KeyPressed(FX_FILTER, true, false);
+    fx.KeyPressed(FX_CRUSHER, true, false);
+    fx.ShiftPressed();
     fx.KeyPressed(FX_FILTER, false, true);
+    fx.KeyPressed(FX_CRUSHER, false, true);
+    Check(fx.IsLatched(FX_FILTER) && fx.IsLatched(FX_CRUSHER), "two keys, then SHIFT: both latched");
+    Latch(fx, FX_FILTER);
+    Latch(fx, FX_CRUSHER);
 
     // a release without its press (held through boot) does nothing
     fx.KeyPressed(FX_SLICER, false, false);
@@ -250,8 +293,7 @@ static void TestScenes()
     Check(sc.SlotPressed(1) == Scenes::Slot::REFUSED, "recall an empty slot: refused");
 
     // save the filter latched, its cutoff turned
-    fx.KeyPressed(FX_FILTER, true, true);
-    fx.KeyPressed(FX_FILTER, false, true);
+    Latch(fx, FX_FILTER);
     fx.KnobTurned(0, 10.f, false);
     const float cutoff = fx.Param(FX_FILTER, 0);
     sc.ModePressed(SceneMode::SAVE);
@@ -340,8 +382,7 @@ static void TestScenes()
         for (size_t p = 0; p < kNumFxParams; p++)
             blank = blank && store[kBlankSlot].params[f][p] == kFxParams[f].defaults[p];
     Check(blank, "blank: filled by Init, all off and on the defaults");
-    fx.KeyPressed(FX_DELAY, true, true);
-    fx.KeyPressed(FX_DELAY, false, true);
+    Latch(fx, FX_DELAY);
     fx.KnobTurned(3, 10.f, false);
     Check(sc.SlotPressed(kBlankSlot) == Scenes::Slot::RECALL, "blank: recalled");
     sc.Recall(kBlankSlot);
@@ -525,12 +566,13 @@ static void TestTails()
     // a latch changed during a morph survives stopping it
     sc.Recall(1);
     sc.Morph(kBlankSlot); // the delay fading out
-    fx.KeyPressed(FX_DELAY, true, true);
-    fx.KeyPressed(FX_DELAY, false, true); // latched again meanwhile
+    Latch(fx, FX_DELAY); // latched again meanwhile
     sc.FreezeMorph();
     Check(fx.IsLatched(FX_DELAY) && e.on[FX_DELAY], "stopped: a latch changed meanwhile stays");
     sc.Recall(1);
     sc.Morph(kBlankSlot);
+    fx.KeyPressed(FX_DELAY, true, true); // a select doesn't touch it
+    fx.KeyPressed(FX_DELAY, false, true);
     sc.FreezeMorph();
     Check(fx.IsLatched(FX_DELAY) && e.on[FX_DELAY], "stopped untouched: it stays as it was, on");
 

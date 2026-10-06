@@ -11,8 +11,9 @@
  *  mode, the looper's combos, tap tempo (TapTempo.h). This page is its Host. Every other key
  *  or knob used tells it (Used, FxKey), so SHIFT + it is a combo rather than a confirm.
  *
- *  FX keys: SHIFT toggles the latch whichever goes down first; it's decided on the key's
- *  release (FxControls.h). Knobs 1-4 edit the FX pressed last.
+ *  FX keys: an FX key held, then SHIFT, toggles the latch, decided on the key's release;
+ *  SHIFT, then an FX key, only selects it for the knobs, silently (FxControls.h), and the key
+ *  flashes white. Knobs 1-4 edit the FX pressed or selected last.
  *
  *  Scenes: a recall sends only the parameters that change, within one audio block and at the
  *  fast slew (FxChain::FastSlew), so an FX the two scenes share runs on untouched. SHIFT +
@@ -58,6 +59,7 @@ namespace chompi
     static const float kPausedDim = .3f;
     static const uint32_t kClosingBlinkMs = 150;
     static const uint32_t kTapFlashMs = 80;      // LOOP flashes white on a tempo tap
+    static const uint32_t kSelectFlashMs = 80;   // an FX key flashes white on a select
     static const float kSpeedStepPerTurn = .25f; // 4 transport detents per speed step
 
     static const uint8_t kFxKnobLeds[kNumFxParams] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
@@ -193,7 +195,7 @@ namespace chompi
             SetPthLedFloat(kVolumeLed, r, g, b);
 
             DrawLooperLeds(now);
-            DrawFxLeds();
+            DrawFxLeds(now);
             DrawSceneLeds(now);
 
             // CHOMPI key: blinking in the mode's colour while a tap would confirm a scene
@@ -234,7 +236,11 @@ namespace chompi
                 if (buttonID == static_cast<uint16_t>(kFxSlots[fx].key))
                 {
                     if (rising)
+                    {
                         keys_.FxKey();
+                        if (Shift())
+                            select_flash_.Start(System::GetNow(), kSelectFlashMs);
+                    }
                     fx_.KeyPressed(fx, rising, Shift());
                     return true;
                 }
@@ -317,7 +323,7 @@ namespace chompi
         // PlayKeys' Host
         friend class PlayKeys<NormalPage>;
         inline bool SceneArmed() const { return scene_ctl_.Armed(); }
-        inline void ShiftPressed() { fx_.ShiftPressed(); }
+        inline bool ShiftPressed() { return fx_.ShiftPressed(); }
         inline void ShiftUsed() { fx_.ShiftUsed(); }
         bool FreezeMorph()
         {
@@ -512,7 +518,7 @@ namespace chompi
             }
         }
 
-        void DrawFxLeds()
+        void DrawFxLeds(uint32_t now)
         {
             // knob LEDs: the selected FX's parameters in its colours
             const size_t selected = fx_.Selected();
@@ -548,6 +554,9 @@ namespace chompi
                     // a send's tail ringing out, from full down to off, in even steps to the eye
                     level = kFxOffLevel * powf(1.f / kFxOffLevel, meter);
                 }
+                // a select (SHIFT + the key): a white flash
+                if (fx == selected && select_flash_.Active(now))
+                    level = white = 1.f;
                 SetSmtLedFloat(kFxSlots[fx].key_led,
                                level * (color[0] + white * (1.f - color[0])),
                                level * (color[1] + white * (1.f - color[1])),
@@ -682,6 +691,7 @@ namespace chompi
         LedSignal loop_refused_; // a refused quantized record or tap
         TapTempo tap_tempo_;
         LedSignal tap_flash_;
+        LedSignal select_flash_; // on the selected FX's key
         float speed_chunk_ = 0.f;   // transport detents towards the next speed step
 
         FxControls<PassthroughEngine> fx_;

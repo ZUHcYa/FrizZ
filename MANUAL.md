@@ -137,9 +137,10 @@ freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> delay 
 | Control | Function |
 |---|---|
 | Hold an FX key | Effect on while held |
-| SHIFT + FX key | Latch on / off; a latched effect stays on after release. Either may go down first: SHIFT then the key, or the key then SHIFT. The latch is settled when you let go of the key: holding an FX key and using SHIFT for something else (a coarse turn, tap tempo, the mix) doesn't latch it |
+| Hold an FX key, then SHIFT | Latch on / off; a latched effect stays on after release. The key goes down first, then SHIFT. The latch is settled when you let go of the key: holding an FX key and using SHIFT for something else (a coarse turn, tap tempo, the mix, selecting another effect) doesn't latch it. Hold several FX keys, then SHIFT, to latch them all |
+| SHIFT, then an FX key | **Select:** the knobs now edit that effect, without hearing it. It stays off (or latched, if it was), and letting go of the key does nothing, also after letting go of SHIFT first. The key flashes white. (Before, SHIFT first latched too: now only the key first does) |
 | FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
-| Knobs 1-4 | The parameters of the most recently pressed FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo) move one step per 3 detents |
+| Knobs 1-4 | The parameters of the most recently pressed or selected FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo) move one step per 3 detents |
 | SHIFT + knobs 1-4 | Coarse: jumps to the next point of the parameter's grid per detent (see below) |
 | SHIFT + press knobs 1-4 | Resets that parameter to its default |
 | Press knobs 1-4 | Nothing yet (kept free for a second parameter page) |
@@ -147,9 +148,10 @@ freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> delay 
 The FX keys are dimly lit in their effect's colour while off and at full brightness while
 on, where the audio coming out of the effect pushes the colour towards white, from -30 dBFS
 up, the peaks most. The delay and reverb keys follow their returns, so after release they
-glow with the tail, fading from full back to dim. The knob LEDs show the parameter values
-in the effect's colours; a knob the effect doesn't use is dark and does nothing. Values
-reset at power-off unless they're saved in a [scene](#fx-scenes).
+glow with the tail, fading from full back to dim. A selected key flashes white. The knob
+LEDs show the parameter values in the effect's colours; a knob the effect doesn't use is
+dark and does nothing. Values reset at power-off unless they're saved in a
+[scene](#fx-scenes).
 
 The knobs do the same kind of job on every effect, so you can find a setting without
 looking it up:
@@ -358,7 +360,8 @@ no SHIFT needed:
 3. **Tap the CHOMPI key**, which blinks in the function's colour once there's something to
    confirm. It confirms when you let go; the slot flashes white and the function ends.
    Holding CHOMPI and using another key or knob is SHIFT as ever and doesn't confirm, so
-   you can still latch an effect or turn a knob coarsely before you save.
+   you can still latch or select an effect or turn a knob coarsely before you save. CHOMPI
+   pressed while you hold an FX key latches it and doesn't confirm either.
 
 **To get out without doing anything, tap the function's key again.** Tapping a different
 function key switches to that function.
@@ -415,7 +418,7 @@ While it morphs:
 - The knobs and keys already show the scene. Turning a knob changes where that parameter
   lands. The FX keys work as usual, except on an effect waiting to switch on or off (fading
   in, fading out, or waiting for the bar line): there they decide whether it's on once
-  that's done.
+  that's done. A select (SHIFT, then the key) decides nothing.
 - A plain scene key ends the morph and recalls that scene at once (the morph's own key
   jumps straight to the end).
 - SHIFT + another scene key, or an empty one, blinks red and changes nothing.

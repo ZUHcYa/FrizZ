@@ -4,9 +4,10 @@
  *
  *  CHOMPI held is SHIFT. In a scene mode with a slot picked (SceneArmed), a tap of it
  *  confirms: on its release, and only if nothing else was pressed or turned while it was
- *  held, so holding it still works as SHIFT there. SHIFT + an FX key latches (FxControls.h);
- *  SHIFT + anything else is that combo, and a latch the SHIFT press had queued for a held FX
- *  key is dropped (ShiftUsed).
+ *  held, so holding it still works as SHIFT there. An FX key held, then SHIFT, latches it, and
+ *  SHIFT, then an FX key, selects it (FxControls.h): both are SHIFT combos, so the release
+ *  doesn't confirm. SHIFT + anything else is that combo, and a latch the SHIFT press had
+ *  queued for a held FX key is dropped (ShiftUsed).
  *
  *  LOOP acts on press, so recording starts and stops exactly then. PLAY acts on release, and
  *  only if nothing combined with it during the hold, so the PLAY + LOOP combos (the quantized
@@ -15,8 +16,8 @@
  *  (a key held through the boot animation) does nothing.
  *
  *  Host is NormalPage on the device, a fake on the host. It needs: SceneArmed(),
- *  ConfirmScene(), ShiftPressed() and ShiftUsed() (FxControls'), FreezeMorph() (true if one was
- *  stopped), Tap(), Refused() (LOOP can't do it), Now() in ms, and the looper's
+ *  ConfirmScene(), ShiftPressed() (true if it queued a latch) and ShiftUsed() (FxControls'),
+ *  FreezeMorph() (true if one was stopped), Tap(), Refused() (LOOP can't do it), Now() in ms, and the looper's
  *  LooperState(), CanRecordQuantized(), StartRecording(quantized), StopRecording(),
  *  TogglePlay().
  */
@@ -42,8 +43,7 @@ public:
         if (down)
         {
             chompi_down_ = true;
-            combo_ = false;
-            host_->ShiftPressed();
+            combo_ = host_->ShiftPressed(); // an FX key held: a latch, not a confirm
             return;
         }
         if (!chompi_down_)
@@ -66,7 +66,7 @@ public:
         host_->ShiftUsed();
     }
 
-    /** An FX key going down: with CHOMPI held, a latch, so CHOMPI won't confirm */
+    /** An FX key going down: with CHOMPI held, a select, so CHOMPI won't confirm */
     void FxKey()
     {
         if (chompi_down_)

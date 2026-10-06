@@ -53,8 +53,10 @@ public:
 
     /** An FX key going down or up. Down selects it for the knobs. The effect is on for as long
      *  as the key is held; the latch is decided on the release, which is inaudible: SHIFT
-     *  during the hold toggles it (ShiftPressed, so either order works), a plain press clears
-     *  it. A release without its press (held through boot) does nothing */
+     *  going down during the hold toggles it (ShiftPressed), a plain press clears it. With
+     *  SHIFT already down, the press only selects it: it stays off, its latch stays, and the
+     *  release does nothing, also once SHIFT is let go first. A release without its press
+     *  (held through boot) does nothing */
     void KeyPressed(size_t fx, bool down, bool shift)
     {
         if (down)
@@ -63,7 +65,12 @@ public:
             if (fx != selected_)
                 ClearChunks();
             selected_ = fx;
-            on_release_[fx] = shift ? OnRelease::TOGGLE_PRESSED : OnRelease::CLEAR;
+            if (shift)
+            {
+                ShiftUsed(); // a select: no latch for the keys held
+                return;
+            }
+            on_release_[fx] = OnRelease::CLEAR;
         }
         else
         {
@@ -72,7 +79,7 @@ public:
             bool latched = latched_[fx];
             if (on_release_[fx] == OnRelease::CLEAR)
                 latched = false;
-            else if (on_release_[fx] != OnRelease::KEEP)
+            else if (on_release_[fx] == OnRelease::TOGGLE)
                 latched = !latched;
             if (latched != latched_[fx])
             {
@@ -86,25 +93,30 @@ public:
         SendOn(fx);
     }
 
-    /** SHIFT going down: every FX key held will toggle its latch on release, as if SHIFT had
-     *  been down first */
-    void ShiftPressed()
+    /** SHIFT going down: every FX key held will toggle its latch on release. True if one
+     *  will, so SHIFT is a latch combo */
+    bool ShiftPressed()
     {
+        bool latch = false;
         for (size_t fx = 0; fx < kNumFx; fx++)
         {
             if (held_[fx] && on_release_[fx] == OnRelease::CLEAR)
-                on_release_[fx] = OnRelease::TOGGLE_ADDED;
+            {
+                on_release_[fx] = OnRelease::TOGGLE;
+                latch = true;
+            }
         }
+        return latch;
     }
 
     /** SHIFT was used for something else while FX keys were held (a coarse turn, tap tempo, a
-     *  scene...), or the CHOMPI key turned out to be a confirm: the latches go back to what
-     *  the presses alone would do */
+     *  scene, a select...), or the CHOMPI key turned out to be a confirm: the latches go back
+     *  to what the presses alone would do */
     void ShiftUsed()
     {
         for (size_t fx = 0; fx < kNumFx; fx++)
         {
-            if (held_[fx] && on_release_[fx] == OnRelease::TOGGLE_ADDED)
+            if (held_[fx] && on_release_[fx] == OnRelease::TOGGLE)
                 on_release_[fx] = OnRelease::CLEAR;
         }
     }
@@ -439,10 +451,9 @@ private:
     /** What a held key's release does to its latch */
     enum class OnRelease : uint8_t
     {
-        KEEP,           // nothing: a scene decided it meanwhile
-        CLEAR,          // a plain press
-        TOGGLE_PRESSED, // SHIFT was down at the press
-        TOGGLE_ADDED,   // SHIFT went down during the hold; undone by ShiftUsed
+        KEEP,   // nothing: a scene decided it meanwhile
+        CLEAR,  // a plain press
+        TOGGLE, // SHIFT went down during the hold; undone by ShiftUsed
     };
 
     Engine* engine_ = nullptr;

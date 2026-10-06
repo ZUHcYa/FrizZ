@@ -1,7 +1,8 @@
 /** @file LedSignal.h
  *  @brief The play page's short LED signals, in one language: 3 fast blinks, red for refused
- *  or not stored and white for done, and a short flash (a tempo tap). A signal ends by itself
- *  once its time is up, so it can't come back when the millisecond counter wraps.
+ *  or not stored and white for done, and a short flash (a tempo tap, an FX select). A signal
+ *  ends by itself once its time is up, so it can't come back when the millisecond counter
+ *  wraps.
  */
 #pragma once
 #include <stdint.h>

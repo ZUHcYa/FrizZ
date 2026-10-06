@@ -10,6 +10,7 @@ struct FakeHost
 {
     bool armed = false;
     bool morphing = false;
+    bool fx_held = false; // an FX key held, so SHIFT going down queues a latch
     bool can_quantize = true;
     Looper::State state = Looper::State::EMPTY;
     uint32_t now = 0;
@@ -22,7 +23,11 @@ struct FakeHost
         confirms++;
         armed = false;
     }
-    void ShiftPressed() { shift_presses++; }
+    bool ShiftPressed()
+    {
+        shift_presses++;
+        return fx_held;
+    }
     void ShiftUsed() { shift_uses++; }
     bool FreezeMorph()
     {
@@ -87,7 +92,14 @@ static void TestChompi()
     k.Chompi(true);
     k.FxKey();
     k.Chompi(false);
-    Check(h.confirms == 1, "armed, held + an FX key (a latch): no confirm");
+    Check(h.confirms == 1, "armed, held + an FX key (a select): no confirm");
+
+    h.fx_held = true;
+    k.Chompi(true);
+    Check(k.ShiftCombo(), "armed, an FX key held, then CHOMPI (a latch): a SHIFT combo");
+    k.Chompi(false);
+    Check(h.confirms == 1 && h.armed, "... no confirm, still armed");
+    h.fx_held = false;
 
     k.Chompi(false);
     Check(h.confirms == 1, "a CHOMPI release without its press: nothing");
