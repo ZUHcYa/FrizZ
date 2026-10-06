@@ -1,7 +1,8 @@
 /** @file NormalPage.h
  *  @brief The main play-mode UiPage (see ui.h): VOLUME, the looper's keys and transport, the
- *  punch-in FX keys and knobs (FxSlots.h) and the FX scenes (FxScenes.h, SceneStore.h), with
- *  their LEDs. MANUAL.md describes every control; what's here is what the manual doesn't say.
+ *  punch-in FX keys and knobs (FxControls.h, FxSlots.h) and the FX scenes (SceneControls.h,
+ *  SceneStore.h), with their LEDs. The logic is in FxControls.h and SceneControls.h; this
+ *  routes the hardware to it and draws. MANUAL.md describes every control; what's here is what the manual doesn't say.
  *
  *  SHIFT is the CHOMPI key held, in either position of the mode switch. The switch does nothing
  *  in play mode; its state is still tracked (switch_state) for later use.

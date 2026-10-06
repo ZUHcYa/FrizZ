@@ -2,7 +2,7 @@
  *  @brief The punch-in effects in their processing order, with a level meter each for the
  *  key LEDs. The engine runs the chain on the summed signal, after the dry/wet mix and
  *  before the output gain and master compressor (passthroughEngine.h). FxSlots.h says which
- *  key, LED and knobs go with each effect.
+ *  key and LEDs go with each effect, FxParams.h its knobs.
  *
  *  The order follows a pedalboard's: source, pitch, dirt, filter, modulation, gate, space.
  *  The keys follow it too, left to right:
