@@ -19,8 +19,10 @@
  */
 #pragma once
 
+#include "FxControls.h"
 #include "FxSlots.h"
 #include "hardware.h"
+#include "SceneControls.h"
 #include "SceneStore.h"
 #include "LedColors.h"
 #include "passthroughEngine.h"
@@ -54,8 +56,6 @@ namespace chompi
     static const float kSpeedStepPerTurn = .25f; // 4 transport detents per speed step
 
     static const uint8_t kFxKnobLeds[kNumFxParams] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
-    static const float kFxParamStep = .01f;      // per detent, continuous parameters
-    static const float kFxDetentsPerStep = 3.f;  // per step, stepped parameters
     // Knob 1-4 press switches, by ui.h's encoder_map
     static const Hardware::SwId kFxKnobSwitches[kNumFxParams] = {
         Hardware::SwId::ENC_4_SW,
@@ -78,13 +78,6 @@ namespace chompi
         Hardware::SwId::KEY_19,
     };
     static const uint8_t kSceneLeds[kNumScenes] = {0, 1, 2, 3};
-    enum class SceneMode
-    {
-        NONE,
-        SAVE,
-        COPY,
-        DELETE,
-    };
     struct SceneModeKey
     {
         SceneMode mode;
@@ -97,7 +90,6 @@ namespace chompi
         {SceneMode::COPY, Hardware::SwId::KEY_24, 8, green},
         {SceneMode::DELETE, Hardware::SwId::KEY_23, 7, red},
     };
-    static const int kNoScene = -1;
     static const uint32_t kSceneBlinkMs = 250;      // a selected slot, the armed CHOMPI key
     static const uint32_t kSceneFlashMs = 100;      // the confirmation: 3 fast blinks
     static const uint32_t kSceneEmptyBlinkMs = 300; // an empty slot pressed
@@ -127,12 +119,8 @@ namespace chompi
             engine_->SetFinalComp(final_comp_);
             engine_->SetMix(mix_);
 
-            for (size_t fx = 0; fx < kNumFx; fx++)
-            {
-                for (size_t p = 0; p < kNumFxParams; p++)
-                    SetFxParam(fx, p, kFxSlots[fx].defaults[p]);
-                engine_->SetFxOn(fx, false);
-            }
+            fx_.Init(engine_);
+            scene_ctl_.Init(scenes_->scenes, &fx_);
 
             ResetSmtLeds();
             for (int i = 0; i < kNumPthLeds; i++)
@@ -149,11 +137,8 @@ namespace chompi
 
         void Draw(const daisy::UiCanvasDescriptor &canvasDescriptor) override
         {
-            uint32_t now = System::GetNow();
-
-            // ignore the first 1500 ms of inputs. Hack to stop random button presses on boot for now.
-            if (init_ignore && now - init_time > 1500)
-                init_ignore = false;
+            const uint32_t now = System::GetNow();
+            Update(now);
 
             // the boot / rainbow animations leave the other knob LEDs lit, and nothing
             // clears the canvas, so blank them all every frame
@@ -207,27 +192,13 @@ namespace chompi
             }
             SetPthLedFloat(kVolumeLed, r, g, b);
 
-            // hold PLAY + LOOP to erase
-            if (erase_armed_ && now - erase_hold_ >= kEraseHoldMs)
-            {
-                engine_->looper.Erase();
-                SetMix(0.f); // the input fades in while the loop fades out
-                erase_armed_ = false;
-            }
-
-            // jump to fully wet when a recording closes into playback
-            const Looper::State looper_state = engine_->looper.GetState();
-            if (last_looper_state_ == Looper::State::RECORDING && looper_state == Looper::State::PLAYING)
-                SetMix(1.f);
-            last_looper_state_ = looper_state;
-
             DrawLooperLeds(now);
             DrawFxLeds();
             DrawSceneLeds(now);
 
             // CHOMPI key: blinking red while it would confirm a scene action, otherwise
             // white while it is acting as SHIFT
-            if (SceneArmed())
+            if (scene_ctl_.Armed())
             {
                 r = (now / kSceneBlinkMs) % 2 == 0 ? 1.f : 0.f;
                 g = b = 0.f;
@@ -262,10 +233,10 @@ namespace chompi
 
             case static_cast<uint16_t>(Hardware::SwId::KEY_26):
                 chompi_key_pressed = rising;
-                if (rising && SceneArmed())
+                if (rising && scene_ctl_.Armed())
                     ConfirmScene();
                 else if (rising)
-                    ShiftPressed();
+                    fx_.ShiftPressed();
                 break;
 
             // transport press: back to 1x forward
@@ -314,17 +285,17 @@ namespace chompi
                 for (const SceneModeKey& key : kSceneModeKeys)
                 {
                     if (rising && buttonID == static_cast<uint16_t>(key.key))
-                        SceneModePressed(key.mode);
+                        scene_ctl_.ModePressed(key.mode);
                 }
                 for (size_t fx = 0; fx < kNumFx; fx++)
                 {
                     if (buttonID == static_cast<uint16_t>(kFxSlots[fx].key))
-                        FxKeyPressed(fx, rising);
+                        fx_.KeyPressed(fx, rising, Shift());
                 }
                 for (size_t knob = 0; knob < kNumFxParams; knob++)
                 {
                     if (rising && buttonID == static_cast<uint16_t>(kFxKnobSwitches[knob]))
-                        FxKnobPressed(knob);
+                        fx_.KnobPressed(knob, Shift());
                 }
                 break;
             }
@@ -343,7 +314,7 @@ namespace chompi
             if (encoderID == kTransportEncoder)
                 TransportTurned(turns);
             else if (encoderID < kNumFxParams)
-                FxKnobTurned(encoderID, detents);
+                fx_.KnobTurned(encoderID, detents, Shift());
             else if (encoderID == kVolumeEncoder)
                 VolumeTurned(detents);
             else
@@ -356,6 +327,28 @@ namespace chompi
         inline void SetInitIgnore(bool ignore) { init_ignore = ignore; }
 
     private:
+        /** Once per frame, before drawing: what follows from time and the looper's state */
+        void Update(uint32_t now)
+        {
+            // ignore the first 1500 ms of inputs. Hack to stop random button presses on boot for now.
+            if (init_ignore && now - init_time > 1500)
+                init_ignore = false;
+
+            // hold PLAY + LOOP to erase
+            if (erase_armed_ && now - erase_hold_ >= kEraseHoldMs)
+            {
+                engine_->looper.Erase();
+                SetMix(0.f); // the input fades in while the loop fades out
+                erase_armed_ = false;
+            }
+
+            // jump to fully wet when a recording closes into playback
+            const Looper::State looper_state = engine_->looper.GetState();
+            if (last_looper_state_ == Looper::State::RECORDING && looper_state == Looper::State::PLAYING)
+                SetMix(1.f);
+            last_looper_state_ = looper_state;
+        }
+
         /** Detents turned. ui.h sends knob 1 and the transport 1x per detent and the other
          *  knobs 3x (TestPage relies on that), so this undoes it */
         static float Detents(uint16_t encoder, int16_t turns)
@@ -424,237 +417,34 @@ namespace chompi
             engine_->SetMix(mix_);
         }
 
-        void FxKeyPressed(size_t fx, bool rising)
-        {
-            if (rising)
-            {
-                fx_selected_ = fx;
-                // SHIFT toggles the latch, a plain press clears it; either way the effect
-                // is on for as long as the key is held
-                const bool latched = Shift() ? !fx_latched_[fx] : false;
-                if (latched != fx_latched_[fx])
-                    scene_edited_ = true;
-                fx_latched_[fx] = latched;
-            }
-            fx_held_[fx] = rising;
-            engine_->SetFxOn(fx, fx_held_[fx] || fx_latched_[fx]);
-        }
-
-        // SHIFT going down toggles the latch of every FX key already held, so the combo
-        // works in either order
-        void ShiftPressed()
-        {
-            for (size_t fx = 0; fx < kNumFx; fx++)
-            {
-                if (!fx_held_[fx])
-                    continue;
-                fx_latched_[fx] = !fx_latched_[fx];
-                scene_edited_ = true;
-                engine_->SetFxOn(fx, true);
-            }
-        }
-
-        void FxKnobTurned(uint16_t knob, float detents)
-        {
-            if (knob >= kFxSlots[fx_selected_].num_params)
-                return;
-
-            float& val = fx_params_[fx_selected_][knob];
-
-            if (Shift())
-            {
-                // coarse: one grid point per detent
-                fx_step_chunk_[knob] += detents;
-                while (fx_step_chunk_[knob] >= 1.f || fx_step_chunk_[knob] <= -1.f)
-                {
-                    const float dir = fx_step_chunk_[knob] > 0.f ? 1.f : -1.f;
-                    SetFxParam(fx_selected_, knob, CoarseStep(kFxSlots[fx_selected_].coarse[knob], val, dir));
-                    fx_step_chunk_[knob] -= dir;
-                }
-                return;
-            }
-
-            const uint8_t steps = kFxSlots[fx_selected_].steps[knob];
-            if (steps == 0)
-            {
-                SetFxParam(fx_selected_, knob, val + detents * kFxParamStep);
-                return;
-            }
-
-            // stepped: every kFxDetentsPerStep detents moves one step
-            fx_step_chunk_[knob] += detents;
-            if (fx_step_chunk_[knob] >= kFxDetentsPerStep || fx_step_chunk_[knob] <= -kFxDetentsPerStep)
-            {
-                const float step = 1.f / (steps - 1);
-                const float dir = fx_step_chunk_[knob] > 0.f ? 1.f : -1.f;
-                // snap to the step grid, so values set elsewhere can't drift off it
-                const float idx = roundf(val / step) + dir;
-                SetFxParam(fx_selected_, knob, idx * step);
-                fx_step_chunk_[knob] = 0.f;
-            }
-        }
-
-        /** The grid's next point from val in the direction dir, or val if there is none in
-         *  0-1. A value within a hair of a point (1% of the spacing) counts as on it, so it
-         *  moves a whole step */
-        static float CoarseStep(const FxGrid& grid, float val, float dir)
-        {
-            if (grid.points)
-            {
-                const float eps = .001f;
-                if (dir > 0.f)
-                {
-                    for (size_t i = 0; i < grid.num_points; i++)
-                        if (grid.points[i] > val + eps)
-                            return grid.points[i];
-                }
-                else
-                {
-                    for (size_t i = grid.num_points; i-- > 0;)
-                        if (grid.points[i] < val - eps)
-                            return grid.points[i];
-                }
-                return val;
-            }
-
-            const float eps = grid.spacing * .01f;
-            const float pos = (val - grid.origin) / grid.spacing;
-            const float k = dir > 0.f ? floorf(pos + .01f) + 1.f : ceilf(pos - .01f) - 1.f;
-            const float next = grid.origin + k * grid.spacing;
-            return next < -eps || next > 1.f + eps ? val : next;
-        }
-
-        void FxKnobPressed(size_t knob)
-        {
-            // a plain press is kept free for a second parameter page
-            if (!Shift() || knob >= kFxSlots[fx_selected_].num_params)
-                return;
-
-            SetFxParam(fx_selected_, knob, kFxSlots[fx_selected_].defaults[knob]);
-            fx_step_chunk_[knob] = 0.f;
-        }
-
-        void SetFxParam(size_t fx, size_t param, float val)
-        {
-            val = fclamp(val, 0.f, 1.f);
-            if (val != fx_params_[fx][param])
-                scene_edited_ = true;
-            fx_params_[fx][param] = val;
-            engine_->SetFxParam(fx, param, val);
-        }
-
         void ScenePressed(size_t slot)
         {
-            const bool used = scenes_->scenes[slot].used;
-            const int s = static_cast<int>(slot);
-            switch (scene_mode_)
+            switch (scene_ctl_.SlotPressed(slot))
             {
-            case SceneMode::NONE:
-                if (used)
-                    RecallScene(slot);
-                else
-                    SceneEmptyBlink(slot);
-                break;
-            case SceneMode::SAVE:
-                scene_sel_ = s;
-                break;
-            case SceneMode::COPY:
-                if (scene_src_ == kNoScene)
-                {
-                    if (used)
-                        scene_src_ = s;
-                    else
-                        SceneEmptyBlink(slot);
-                }
-                else if (s != scene_src_)
-                    scene_sel_ = s;
-                break;
-            case SceneMode::DELETE:
-                if (used)
-                    scene_sel_ = s;
-                else
-                    SceneEmptyBlink(slot);
+            case SceneControls<PassthroughEngine>::Slot::RECALL:
+            {
+                // the whole scene within one audio block
+                ScopedIrqBlocker irq;
+                scene_ctl_.Recall(slot);
                 break;
             }
-        }
-
-        // the same mode key again cancels, another switches over
-        void SceneModePressed(SceneMode mode)
-        {
-            scene_mode_ = scene_mode_ == mode ? SceneMode::NONE : mode;
-            scene_sel_ = scene_src_ = kNoScene;
-        }
-
-        inline bool SceneArmed() const
-        {
-            return scene_mode_ != SceneMode::NONE && scene_sel_ != kNoScene;
+            case SceneControls<PassthroughEngine>::Slot::EMPTY:
+                SceneEmptyBlink(slot);
+                break;
+            case SceneControls<PassthroughEngine>::Slot::SELECTED:
+                break;
+            }
         }
 
         void ConfirmScene()
         {
-            FxScene* scenes = scenes_->scenes;
-            FxScene& target = scenes[scene_sel_];
-            switch (scene_mode_)
-            {
-            case SceneMode::SAVE:
-                target.used = true;
-                target.latched = 0;
-                for (size_t fx = 0; fx < kNumFx; fx++)
-                {
-                    if (fx_latched_[fx])
-                        target.latched |= static_cast<uint16_t>(1u << fx);
-                    for (size_t p = 0; p < kNumFxParams; p++)
-                        target.params[fx][p] = fx_params_[fx][p];
-                }
-                active_scene_ = scene_sel_;
-                scene_edited_ = false;
-                break;
-            case SceneMode::COPY:
-                target = scenes[scene_src_];
-                // the sound stays, so it no longer matches the active scene
-                if (active_scene_ == scene_sel_)
-                    scene_edited_ = true;
-                break;
-            case SceneMode::DELETE:
-                target.used = false;
-                if (active_scene_ == scene_sel_)
-                    active_scene_ = kNoScene;
-                break;
-            case SceneMode::NONE:
+            const int slot = scene_ctl_.Confirm();
+            if (slot == kNoScene)
                 return;
-            }
-
             scenes_->RequestSave();
-            scene_flash_ = scene_sel_;
+            scene_flash_ = slot;
             scene_flash_time_ = System::GetNow();
             scene_flash_ok_ = scenes_->CardOk();
-            scene_mode_ = SceneMode::NONE;
-            scene_sel_ = scene_src_ = kNoScene;
-        }
-
-        void RecallScene(size_t slot)
-        {
-            const FxScene& scene = scenes_->scenes[slot];
-            {
-                // the whole scene within one audio block
-                ScopedIrqBlocker irq;
-                engine_->FastFxSlew();
-                for (size_t fx = 0; fx < kNumFx; fx++)
-                {
-                    // only what changes, so an effect the scenes share runs on untouched
-                    for (size_t p = 0; p < kNumFxParams; p++)
-                    {
-                        if (scene.params[fx][p] != fx_params_[fx][p])
-                            SetFxParam(fx, p, scene.params[fx][p]);
-                    }
-                    fx_latched_[fx] = (scene.latched >> fx) & 1;
-                    engine_->SetFxOn(fx, fx_held_[fx] || fx_latched_[fx]);
-                }
-            }
-            for (size_t knob = 0; knob < kNumFxParams; knob++)
-                fx_step_chunk_[knob] = 0.f;
-            active_scene_ = static_cast<int>(slot);
-            scene_edited_ = false;
         }
 
         void SceneEmptyBlink(size_t slot)
@@ -665,10 +455,11 @@ namespace chompi
 
         void DrawSceneLeds(uint32_t now)
         {
+            const SceneMode mode = scene_ctl_.Mode();
             const float* mode_color = white;
             for (const SceneModeKey& key : kSceneModeKeys)
             {
-                const bool on = scene_mode_ == key.mode;
+                const bool on = mode == key.mode;
                 if (on)
                     mode_color = key.color;
                 const float level = on ? 1.f : kFxOffLevel;
@@ -691,21 +482,21 @@ namespace chompi
                     color = red;
                     level = 1.f;
                 }
-                else if (scene_mode_ != SceneMode::NONE && s == scene_src_)
+                else if (mode != SceneMode::NONE && s == scene_ctl_.Source())
                 {
                     color = mode_color;
                     level = 1.f;
                 }
-                else if (scene_mode_ != SceneMode::NONE && s == scene_sel_)
+                else if (mode != SceneMode::NONE && s == scene_ctl_.Selected())
                 {
                     color = mode_color;
                     level = blink_on ? 1.f : 0.f;
                 }
-                else if (s == active_scene_)
+                else if (s == scene_ctl_.Active())
                 {
                     // edited: a slow pulse between the saved and the active brightness
                     const float phase = static_cast<float>(now % kScenePulseMs) / kScenePulseMs;
-                    level = scene_edited_ ? .6f + .4f * cosf(phase * TWOPI_F) : 1.f;
+                    level = scene_ctl_.Edited() ? .6f + .4f * cosf(phase * TWOPI_F) : 1.f;
                 }
                 else if (scenes_->scenes[slot].used)
                     level = kFxOffLevel;
@@ -716,11 +507,12 @@ namespace chompi
         void DrawFxLeds()
         {
             // knob LEDs: the selected FX's parameters in its colours
-            const float* const* colors = kFxSlots[fx_selected_].knob_colors;
+            const size_t selected = fx_.Selected();
+            const float* const* colors = kFxSlots[selected].knob_colors;
             for (size_t p = 0; p < kNumFxParams; p++)
             {
-                const float val = fx_params_[fx_selected_][p];
-                if (p >= kFxSlots[fx_selected_].num_params)
+                const float val = fx_.Param(selected, p);
+                if (p >= kFxParams[selected].num_params)
                     SetPthLedFloat(kFxKnobLeds[p], 0.f, 0.f, 0.f);
                 else
                     SetPthLedFloat(kFxKnobLeds[p],
@@ -737,7 +529,7 @@ namespace chompi
                 const float meter = fclamp(1.f - db / kFxMeterFloorDb, 0.f, 1.f);
                 float level = kFxOffLevel;
                 float white = 0.f;
-                if (fx_held_[fx] || fx_latched_[fx])
+                if (fx_.IsOn(fx))
                 {
                     level = 1.f;
                     // squared, so normal levels stay coloured and the peaks flash white
@@ -876,17 +668,8 @@ namespace chompi
         uint32_t record_refused_ = 0;
         float speed_chunk_ = 0.f;   // transport detents towards the next speed step
 
-        float fx_params_[kNumFx][kNumFxParams];
-        bool fx_held_[kNumFx] = {};
-        bool fx_latched_[kNumFx] = {};
-        size_t fx_selected_ = 0;    // the FX the knobs edit: the last one pressed
-        float fx_step_chunk_[kNumFxParams] = {}; // detents towards the next step or grid point
-
-        SceneMode scene_mode_ = SceneMode::NONE;
-        int scene_sel_ = kNoScene;     // the slot SAVE / COPY / DELETE acts on
-        int scene_src_ = kNoScene;     // COPY's source
-        int active_scene_ = kNoScene;  // the last one recalled or saved
-        bool scene_edited_ = false;    // knobs or latches changed since
+        FxControls<PassthroughEngine> fx_;
+        SceneControls<PassthroughEngine> scene_ctl_;
         int scene_flash_ = kNoScene;   // confirmed, flashing
         uint32_t scene_flash_time_ = 0;
         bool scene_flash_ok_ = false;  // saved to the card

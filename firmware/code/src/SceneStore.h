@@ -13,7 +13,7 @@
 #include "daisy.h"
 #include "fatfs.h"
 #include "FxScenes.h"
-#include "FxSlots.h"
+#include "FxParams.h"
 
 namespace chompi
 {
@@ -36,7 +36,7 @@ public:
         float defaults[kNumFx][kNumFxParams];
         for (size_t fx = 0; fx < kNumFx; fx++)
             for (size_t p = 0; p < kNumFxParams; p++)
-                defaults[fx][p] = kFxSlots[fx].defaults[p];
+                defaults[fx][p] = kFxParams[fx].defaults[p];
 
         if (card_ok_ && !Load(kSceneFile, defaults))
             Load(kSceneTmpFile, defaults);

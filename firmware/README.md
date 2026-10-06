@@ -15,7 +15,7 @@ code/libs/                vendored libDaisy and DaisySP (patched, MIT; never swa
 code/Chompi_Bootloader/   source of the v6.2 bootloader that loads FRIZZ
 code/bms_test/            standalone battery-management bring-up example
 bin/                      the v6.2 bootloader binary and its install script
-test/                     host-side checks: engine harness, shifter pitch, scene file
+test/                     host-side checks: engine, shifter pitch, scene file, play page, looper
 ```
 
 Design notes live in [`../docs/`](../docs/): the looper spec (`LOOPER.md`) and an overview of
@@ -75,10 +75,11 @@ cd firmware/test
 ./check.sh        # engine at HEAD vs the working tree: a refactor must print "bit-identical"
 ./pitch.sh        # the shifter lands on every interval from -12 to +12 semitones
 ./scenes.sh       # the FX scene file round-trips, and the recall's fast slew ends
+./controls.sh     # the play page's FX keys, knobs and scene flow (FxControls.h, SceneControls.h)
+./looper.sh       # the looper records, plays back, pauses, erases and steps its speed
 ```
 
-These checks cover the audio engine only. They don't cover the play page, the looper's
-recording, MIDI or the hardware. See [`test/README.md`](test/README.md).
+They don't cover the LEDs, the routing of keys in `NormalPage.h`, MIDI clock or the hardware. See [`test/README.md`](test/README.md).
 
 ## 4. Put it on the CHOMPI
 
@@ -112,7 +113,10 @@ erase a stuck Seed, but the generic Daisy bootloader it offers is not CHOMPI's.
 chompi_main.cpp        entry point: audio callback, main loop, boot sequence
 passthroughEngine.h    the engine: input gain, input/loop mix ("dry/wet" in the code), punch-in FX, output gain, master compressor
 FxChain.h              the punch-in effects in their processing order, with a level meter each
-FxSlots.h              which key, LED, colours, defaults and knob steps go with each effect
+FxParams.h             each effect's knobs: how many, defaults, steps, coarse grids
+FxSlots.h              each effect's key, LED and colours
+FxControls.h           the FX keys and knobs: latches, fine / stepped / coarse turns, scene snapshot and recall
+SceneControls.h        the scene keys: recall, and the save / copy / delete flow
 FxCommon.h             what the effects share: the key's fade, smoothed settings, the base class
 Fx*.h                  one effect each: Freezer, Shifter, Folder, Crusher, Filter, Flanger,
                        Resonator, Slicer, Delay, Reverb
@@ -124,7 +128,7 @@ reverb.h, fx_engine.h  TEMPO's reverb
 TempoClock.h           the tempo and the shared 12 PPQN pulse position for the clocked effects, from MIDI clock or internal
 Looper.h               the looper: recording, quantized end, playback, speed, scrub
 MidiClock.h            MIDI clock input over TRS and USB
-NormalPage.h           the controls (VOLUME, PLAY/LOOP, transport, FX keys and knobs) and their LEDs
+NormalPage.h           the play page: routes the controls (VOLUME, PLAY/LOOP, transport, FX and scene keys) and draws the LEDs
 ui.h                   page plumbing: events, page switching
 limiter.h, EnvFollower.h
                        compressor and VU meter blocks

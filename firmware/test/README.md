@@ -19,8 +19,8 @@ STRESS=1 ./run.sh work out.bin
 
 What it covers: the whole engine as the audio callback runs it, with the delay's random events
 seeded and MIDI clock absent (the tempo clock runs on its internal 120 BPM). What it doesn't:
-the play page (`NormalPage.h`, `FxSlots.h`: keys, LEDs, defaults), the looper's recording, MIDI
-clock, and anything about the hardware. Those still need the device.
+the play page and the looper's recording (see `controls.sh` and `looper.sh` below), MIDI
+clock, and anything about the hardware.
 
 The script (`harness.cpp`) is a segment of 3 s per FX plus four: each FX on its own with a random knob turned
 every 0.25 s, the inserts together, everything together, then the tails. `NOFX=1` runs it with
@@ -57,6 +57,21 @@ anything. Last, it runs a filter jump through the engine with a recall's fast sl
 a knob's. The recall must land sooner and within 30 ms, without a larger step between samples,
 and hand back to the knobs' slew afterwards. It doesn't touch the card (`SceneStore.h`) or the
 play page. Needs `run.sh` to have built DaisySP once.
+
+## Play page and looper checks
+
+```bash
+./controls.sh
+./looper.sh
+```
+
+`controls.sh` runs the play page's logic (`FxControls.h`, `SceneControls.h`) against a fake
+engine that records what it's sent: holding and latching in either order, fine, stepped and
+coarse knob turns, SHIFT + press, and the scene save / copy / delete / recall flow, including
+that a recall sends only what changes. `looper.sh` runs `Looper.h` without MIDI clock: a free
+recording plays back frame for frame at its length, play / pause, erase, the speed ladder, and
+the refused quantized record. Neither covers the LEDs or `NormalPage.h`'s routing of the keys,
+nor quantized recording with a clock. Both need `run.sh` to have built DaisySP once.
 
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample
 conversions) and `MidiClock.h` (no clock). DaisySP is compiled for the host once into `build/`,
