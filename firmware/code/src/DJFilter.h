@@ -48,15 +48,16 @@ class DjFilter
         daisysp::fonepole(lp_, lp_target_, slew_);
         daisysp::fonepole(hp_, hp_target_, slew_);
 
+        // the right channel's filters are the left's: their division (CalculateFeedback) once
         feedback_filt_llp_.SetFreq(lp_);
-        feedback_filt_rlp_.SetFreq(lp_);
+        feedback_filt_rlp_.CopySettings(feedback_filt_llp_);
 
         // FRIZZ: never let the highpass reach exactly 0. Without WAVE's slew, hp_ lands on 0
         // as the cutoff crosses the centre, the highpass state stops updating, and whatever
         // it held stays in the output as DC. 1e-3 is a ~8Hz highpass that drains it in ~20ms.
         const float hp = fmaxf(hp_, 1e-3f);
         feedback_filt_lhp_.SetFreq(hp);
-        feedback_filt_rhp_.SetFreq(hp);
+        feedback_filt_rhp_.CopySettings(feedback_filt_lhp_);
         // (WAVE raised the highpass's resonance above hp_ .8; hp_ tops out at .9^3 = .73)
 
         float filt_l = feedback_filt_llp_.Process(in_l);

@@ -101,13 +101,13 @@ public:
             break;
         }
         case STEREO:
-            stereo_ = val;
+            stereo_ratio_ = powf(2.f, val);
             break;
         default:
             break;
         }
         delay_[0].target = sample_rate_ / pitch_hz_;
-        delay_[1].target = sample_rate_ / (pitch_hz_ * powf(2.f, stereo_));
+        delay_[1].target = sample_rate_ / (pitch_hz_ * stereo_ratio_);
     }
 
 private:
@@ -140,7 +140,7 @@ private:
     Smoothed lp_coeff_; // set in Feed, used in Tap
     Smoothed delay_[2]; // frames, per channel
     float pitch_hz_ = kLowestHz;
-    float stereo_ = 0.f;
+    float stereo_ratio_ = 1.f; // 2 ^ the stereo knob: the right channel's pitch over the left's
 };
 
 } // namespace chompi

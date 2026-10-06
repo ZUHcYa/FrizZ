@@ -54,6 +54,14 @@ class BasicMMF
 
     inline void SetMode(Mode m) { mode_ = m; }
 
+    /** The other channel's frequency and resonance, without working them out again */
+    inline void CopySettings(const BasicMMF& other)
+    {
+        freq_ = other.freq_;
+        res_ = other.res_;
+        fb_amt_ = other.fb_amt_;
+    }
+
   private:
     Mode  mode_;
     float freq_, res_;

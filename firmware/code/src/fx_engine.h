@@ -362,7 +362,6 @@ class FxEngine
       private:
         float   accumulator_;
         float   previous_read_;
-        float   lfo_value_[2];
         T*      buffer_;
         int32_t write_ptr_;
 
@@ -399,15 +398,8 @@ class FxEngine
             lfo_phase_[1] += lfo_freq_[1];
             lfo_phase_[1]
                 = lfo_phase_[1] >= 1.f ? lfo_phase_[1] - 1.f : lfo_phase_[1];
-
-            c->lfo_value_[0] = cosf(TWOPI_F * lfo_phase_[0]);
-            c->lfo_value_[1] = cosf(TWOPI_F * lfo_phase_[1]);
         }
-        else
-        {
-            c->lfo_value_[0] = cosf(TWOPI_F * lfo_phase_[0]);
-            c->lfo_value_[1] = cosf(TWOPI_F * lfo_phase_[1]);
-        }
+        // FRIZZ: no lfo_value_ (2 cosf a sample nothing read): Interpolate computes its own
     }
 
   private:
