@@ -7,7 +7,7 @@
  *  The order follows a pedalboard's: source, pitch, dirt, filter, modulation, gate, tape,
  *  space. The keys follow it too, left to right:
  *   freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> wow & flutter
- *              |<------------------- resonator loop ------------------->|
+ *              |<-------------- resonator loop --------------->|
  *     -> tape stop -> delay -> reverb
  *  The freezer comes first so it captures the clean sound and everything after it works on
  *  the repeats. The folder comes before the crusher, so it folds the clean signal and the
