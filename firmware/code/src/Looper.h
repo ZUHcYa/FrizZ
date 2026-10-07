@@ -19,7 +19,7 @@
  *  from the post-roll (the natural continuation of the loop's tail) into the loop's head, so
  *  the jump from L-1 back to 0 doesn't click, in either direction.
  *
- *  Speed (step 4): the read head is a frame index plus a fraction, advanced by the speed each
+ *  Speed: the read head is a frame index plus a fraction, advanced by the speed each
  *  sample and read with 4-point Hermite interpolation. Speed moves in TAPE's ladder of 5ths and
  *  octaves (StepSpeed), glides to each new step like TAPE's default tape slew, and runs in
  *  reverse when negative. While paused, the transport knob scrubs instead (Scrub).

@@ -3,7 +3,7 @@
  *
  *  Changes from TEMPO:
  *   - no clockManager: the engine sets the tempo (SetTempo) and sends 12 PPQN pulses
- *     (setClockPulse) and 8th-note edges (setClockEdge), see TempoClock in passthroughEngine.h.
+ *     (ClockPulse) and 8th-note edges (setClockEdge), from TempoClock.h via FxDelay.h.
  *     TEMPO's edges came from its arpeggiator step instead.
  *   - TEMPO's bipolar main knob (division by distance from centre, random side / shimmer side,
  *     on/off dead zone) is split into setDivision and setRandom; the delay is always on and
@@ -24,7 +24,7 @@ constexpr float delayStereoOffsetLeft = 960.f;
 constexpr float delayStereoOffsetRight = 480.f;
 
 namespace chompi {
-    void getSample(float *buffer, float read_head, float *out_l, float *out_r, size_t buffer_size) {
+    inline void getSample(float *buffer, float read_head, float *out_l, float *out_r, size_t buffer_size) {
         float right_read_head = read_head - delayStereoOffsetRight;
         if (right_read_head < 0.f) {
             right_read_head += static_cast<float>(buffer_size);
@@ -65,7 +65,7 @@ namespace chompi {
         *out_r += (a_r + frac * (b_r - a_r));
     }
 
-    float fast_rsqrt(float x) {
+    inline float fast_rsqrt(float x) {
         union { float f; uint32_t i; } conv;
         conv.f = x;
         conv.i = 0x5f3759dfU - (conv.i >> 1);
@@ -75,7 +75,7 @@ namespace chompi {
         return y;
     }
 
-    float fast_sqrt(float x) {
+    inline float fast_sqrt(float x) {
         if (x <= 0.f) return 0.f;
         return x * fast_rsqrt(x); // sqrt(x) ≈ x * (1/sqrt(x))
     }

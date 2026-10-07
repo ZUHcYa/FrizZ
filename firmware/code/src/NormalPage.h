@@ -137,13 +137,13 @@ namespace chompi
             engine_->SetHeadphoneCue(hp_cue_);
 
             fx_.Init(engine_);
-            // the compressor as it was left, from the card
+            // the compressor's and the randomizer's knobs as they were left, from the card
             for (size_t p = 0; p < kNumFxParams; p++)
+            {
                 fx_.SetComp(p, scenes_->master.comp[p]);
-            fx_.TakeCompChanged();
-            // and the randomizer's knobs
-            for (size_t p = 0; p < kNumFxParams; p++)
                 fx_.SetRand(p, scenes_->master.rand[p]);
+            }
+            fx_.TakeCompChanged();
             fx_.TakeRandChanged();
             scene_ctl_.Init(scenes_->scenes, &fx_);
             keys_.Init(this);
@@ -211,7 +211,7 @@ namespace chompi
             // CHOMPI key: blinking in the mode's colour while a tap would confirm a scene
             // action, otherwise white while it is acting as SHIFT
             if (scene_ctl_.Armed() && !keys_.ShiftCombo())
-                PthLed(kChompiKeyLed, SceneModeColor(), (now / kSceneBlinkMs) % 2 == 0 ? 1.f : 0.f);
+                PthLed(kChompiKeyLed, SceneModeColor(), BlinkOn(now, kSceneBlinkMs) ? 1.f : 0.f);
             else
                 PthLed(kChompiKeyLed, white, Shift() ? 1.f : 0.f);
 
@@ -240,10 +240,10 @@ namespace chompi
 
             if (buttonID == static_cast<uint16_t>(kCompKey))
             {
+                // the compressor is always on: its key only selects, and always flashes
                 if (rising)
                 {
-                    keys_.FxKey();
-                    select_flash_.Start(System::GetNow(), kSelectFlashMs);
+                    FxKeyDown(true);
                     fx_.CompKeyPressed(Shift());
                 }
                 return true;
@@ -251,11 +251,7 @@ namespace chompi
             if (buttonID == static_cast<uint16_t>(kRandKey))
             {
                 if (rising)
-                {
-                    keys_.FxKey();
-                    if (Shift())
-                        select_flash_.Start(System::GetNow(), kSelectFlashMs);
-                }
+                    FxKeyDown(Shift());
                 fx_.KeyPressed(kRandSelected, rising, Shift());
                 return true;
             }
@@ -264,11 +260,7 @@ namespace chompi
                 if (buttonID == static_cast<uint16_t>(kFxSlots[fx].key))
                 {
                     if (rising)
-                    {
-                        keys_.FxKey();
-                        if (Shift())
-                            select_flash_.Start(System::GetNow(), kSelectFlashMs);
-                    }
+                        FxKeyDown(Shift());
                     fx_.KeyPressed(fx, rising, Shift());
                     return true;
                 }
@@ -286,11 +278,7 @@ namespace chompi
                 if(!rising && !Shift() && System::GetNow() - batt_hold < kBattHoldMs)
                     page_ = (page_ + 1) % kNumPages;
                 if (rising && Shift())
-                {
-                    const Looper::State state = engine_->looper.GetState();
-                    SetMix(state == Looper::State::PLAYING || state == Looper::State::PAUSED
-                               ? 1.f : 0.f);
-                }
+                    SetMix(LoopExists() ? 1.f : 0.f);
 
                 batt_hold = System::GetNow();
                 batt_display = rising;
@@ -365,6 +353,15 @@ namespace chompi
         inline void EraseAtEnd() { engine_->looper.EraseAtEnd(); }
         inline void CancelErase() { engine_->looper.CancelErase(); }
         inline bool ErasePending() const { return engine_->looper.IsErasePending(); }
+
+        /** An FX, compressor or randomizer key going down: tells PlayKeys, and flashes the
+         *  key white for a select */
+        void FxKeyDown(bool flash)
+        {
+            keys_.FxKey();
+            if (flash)
+                select_flash_.Start(System::GetNow(), kSelectFlashMs);
+        }
 
         /** Once per frame, before drawing: what follows from time and the looper's state */
         void Update(uint32_t now)
@@ -511,7 +508,7 @@ namespace chompi
             for (const SceneModeKey& key : kSceneModeKeys)
                 SmtLed(key.led, key.color, mode == key.mode ? 1.f : kFxOffLevel);
 
-            const bool blink_on = (now / kSceneBlinkMs) % 2 == 0;
+            const bool blink_on = BlinkOn(now, kSceneBlinkMs);
             for (size_t slot = 0; slot < kNumSlots; slot++)
             {
                 const int s = static_cast<int>(slot);
@@ -569,12 +566,10 @@ namespace chompi
             const float* const* colors = comp   ? kCompKnobColors
                                          : rand ? kRandKnobColors
                                                 : kFxSlots[selected].knob_colors;
-            const FxParams& knobs = comp ? kCompParams : rand ? kRandParams : kFxParams[selected];
+            const FxParams& knobs = fx_.Knobs();
             for (size_t p = 0; p < kNumFxParams; p++)
             {
-                const float val = comp   ? fx_.CompParam(p)
-                                  : rand ? fx_.RandParam(p)
-                                         : fx_.Param(selected, p);
+                const float val = fx_.Knob(p);
                 if (p >= knobs.num_params)
                     SetPthLedFloat(kFxKnobLeds[p], 0.f, 0.f, 0.f);
                 else
@@ -591,12 +586,12 @@ namespace chompi
                 const float db = 20.f * log10f(fmaxf(engine_->GetFxLevel(fx), 1e-6f));
                 const float meter = fclamp(1.f - db / kFxMeterFloorDb, 0.f, 1.f);
                 float level = kFxOffLevel;
-                float white = 0.f;
+                float whiten = 0.f; // how far towards white
                 if (fx_.IsOn(fx) || engine_->GetFxRandomOn(fx))
                 {
                     level = 1.f;
                     // squared, so normal levels stay coloured and the peaks flash white
-                    white = kFxWhiteMax * meter * meter;
+                    whiten = kFxWhiteMax * meter * meter;
                 }
                 else if (kFxSlots[fx].kind == FxKind::SEND)
                 {
@@ -605,11 +600,11 @@ namespace chompi
                 }
                 // a select (SHIFT + the key): a white flash
                 if (fx == selected && select_flash_.Active(now))
-                    level = white = 1.f;
+                    level = whiten = 1.f;
                 SetSmtLedFloat(kFxSlots[fx].key_led,
-                               level * (color[0] + white * (1.f - color[0])),
-                               level * (color[1] + white * (1.f - color[1])),
-                               level * (color[2] + white * (1.f - color[2])));
+                               level * (color[0] + whiten * (1.f - color[0])),
+                               level * (color[1] + whiten * (1.f - color[1])),
+                               level * (color[2] + whiten * (1.f - color[2])));
             }
 
             // the compressor's key: its gain reduction, from dim up to full; a select flashes
@@ -651,10 +646,10 @@ namespace chompi
 
             if (state == Looper::State::RECORDING)
             {
-                const bool on = !looper.IsClosing() || (now / kClosingBlinkMs) % 2 == 0;
+                const bool on = !looper.IsClosing() || BlinkOn(now, kClosingBlinkMs);
                 loop[0] = on ? 1.f : 0.f;
             }
-            else if (state == Looper::State::PLAYING || state == Looper::State::PAUSED)
+            else if (LoopExists())
             {
                 const float level = state == Looper::State::PLAYING ? 1.f : kPausedDim;
                 const float pos = looper.GetPosition();
@@ -663,7 +658,7 @@ namespace chompi
                 // an erase waiting for the loop's end: LOOP blinks red, as a closing record
                 if (looper.IsErasePending())
                 {
-                    loop[0] = (now / kClosingBlinkMs) % 2 == 0 ? 1.f : 0.f;
+                    loop[0] = BlinkOn(now, kClosingBlinkMs) ? 1.f : 0.f;
                     loop[1] = loop[2] = 0.f;
                 }
             }
@@ -734,7 +729,7 @@ namespace chompi
             }
         }
 
-        inline bool LoopExists()
+        inline bool LoopExists() const
         {
             const Looper::State state = engine_->looper.GetState();
             return state == Looper::State::PLAYING || state == Looper::State::PAUSED;

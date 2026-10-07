@@ -2,6 +2,7 @@
  *  @brief One-time rainbow LED intro animation UiPage at startup. Draws
  *  a rainbow on the UI.
  */
+#pragma once
 #include "hardware.h"
 #include "temp_led_stuff.h"
 

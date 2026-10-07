@@ -6,7 +6,6 @@
 
 using namespace chompi;
 
-/** TODO: replace Tone and ATone with something cheap with resonance*/
 class DjFilter
 {
   public:

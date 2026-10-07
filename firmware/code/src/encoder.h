@@ -1,6 +1,4 @@
 #pragma once
-#ifndef CHOMPI_ENCODER_H
-#define CHOMPI_ENCODER_H
 #include "daisy_core.h"
 #include "hid/switch.h"
 
@@ -19,13 +17,8 @@ class ChompiEncoder
     ChompiEncoder() {}
     ~ChompiEncoder() {}
 
-    /** Initializes the encoder with the specified hardware pins.
-     * Update rate is to be deprecated in a future release
-     */
-    void Init(dsy_gpio_pin a,
-              dsy_gpio_pin b,
-              dsy_gpio_pin click,
-              float        update_rate = 0.f);
+    /** Initializes the encoder with the specified hardware pins */
+    void Init(dsy_gpio_pin a, dsy_gpio_pin b, dsy_gpio_pin click);
     /** Called at update_rate to debounce and handle timing for the switch.
      * In order for events not to be missed, its important that the Edge/Pressed checks be made at the same rate as the debounce function is being called.
      */
@@ -46,17 +39,6 @@ class ChompiEncoder
     /** Returns true if the encoder was just released. */
     inline bool FallingEdge() const { return sw_.FallingEdge(); }
 
-    /** Returns true while the encoder is held down.*/
-    inline bool Pressed() const { return sw_.Pressed(); }
-
-    /** Returns the time in milliseconds that the encoder has been held down. */
-    inline float TimeHeldMs() const { return sw_.TimeHeldMs(); }
-
-    /** To be removed in breaking update
-     * \param update_rate Does nothing
-    */
-    inline void SetUpdateRate(float update_rate) {}
-
   private:
     uint32_t last_update_;
     bool     updated_;
@@ -66,4 +48,3 @@ class ChompiEncoder
     int32_t  inc_;
 };
 } // namespace chompi
-#endif

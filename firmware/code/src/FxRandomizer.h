@@ -8,7 +8,7 @@
  *  16th, at least kMinGateMs), chance (each gate's), shift (every gate later by up to half a
  *  16th). Not part of the scenes: its knobs are kept with the compressor's (MasterSettings.h).
  *
- *  The pool is every insert but the freezer, and the resonator; not the sends (FxChain's
+ *  The pool is every insert but the freezer, plus the resonator; not the sends (FxChain's
  *  kRandomPool). An effect whose key is held or latched isn't picked: it keeps its knobs. Nor is one whose last random
  *  gate has only just closed (kCoolMs), so it's silent again when its knobs jump. FxChain
  *  hands the effects over and gives the user's knobs back afterwards, and its LevelGuard
@@ -87,7 +87,6 @@ public:
 
     /** From the UI: the key held or latched. Taken in the next Block */
     inline void SetOn(bool on) { on_ = on; }
-    inline bool IsOn() const { return on_; }
     inline void SetParam(size_t param, float val)
     {
         if (param < kNumFxParams)

@@ -233,7 +233,7 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
             }
         }
 
-        /** in case ofbatt_level_checkt legacy cable sleep, shut off leds first */
+        /** Before sleeping on a legacy cable with a low battery: all LEDs off */
         void LedsOff()
         {
             for(size_t i = 0; i < kNumPthLeds; i++)

@@ -475,6 +475,24 @@ public:
     inline bool Edited() const { return edited_; }
     inline void MarkEdited() { edited_ = true; }
 
+    /** The selected FX's, the randomizer's or the compressor's knobs */
+    inline const FxParams& Knobs() const
+    {
+        if (selected_ == kCompSelected)
+            return kCompParams;
+        if (selected_ == kRandSelected)
+            return kRandParams;
+        return kFxParams[selected_];
+    }
+    inline float Knob(size_t knob) const
+    {
+        if (selected_ == kCompSelected)
+            return comp_[knob];
+        if (selected_ == kRandSelected)
+            return rand_[knob];
+        return params_[selected_][knob];
+    }
+
 private:
     static inline uint16_t Bit(size_t fx) { return static_cast<uint16_t>(1u << fx); }
     inline bool Stale(size_t fx) const { return (stale_ >> fx) & 1; }
@@ -516,23 +534,6 @@ private:
             chunk_[knob] = 0.f;
     }
 
-    /** The selected FX's, the randomizer's or the compressor's knobs */
-    inline const FxParams& Knobs() const
-    {
-        if (selected_ == kCompSelected)
-            return kCompParams;
-        if (selected_ == kRandSelected)
-            return kRandParams;
-        return kFxParams[selected_];
-    }
-    inline float Knob(size_t knob) const
-    {
-        if (selected_ == kCompSelected)
-            return comp_[knob];
-        if (selected_ == kRandSelected)
-            return rand_[knob];
-        return params_[selected_][knob];
-    }
     void SetKnob(size_t knob, float val)
     {
         if (selected_ == kCompSelected)

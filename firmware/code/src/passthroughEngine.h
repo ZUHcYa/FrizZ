@@ -82,7 +82,7 @@ public:
         for (size_t i = 0; i < size; i++)
         {
             // Every setting has a target and a live value; fonepole() slews the live
-            // value toward the target over ~1ms so knob turns don't zipper.
+            // value toward the target (a ~21ms time constant) so knob turns don't zipper.
             fonepole(ingain_, ingain_target_, .001f);
 
             dryl[i] = dcblock_line_in_l_.Process(in[2][i] * ingain_ * kLineInGain);
@@ -138,7 +138,8 @@ public:
             out[2][i] = sigl * kLineOutGain * mgain_;
             out[3][i] = sigr * kLineOutGain * mgain_;
 
-            // the VU meter shows the master's signal, whatever the headphones carry
+            // the VU meter shows the master's signal (at the headphones' level, before the
+            // limiter), whatever the headphones carry
             output_env_follower.Process(hpl + hpr);
 
             // headphone feed: the cue blends from the master's mirror to the input on its own,
@@ -185,8 +186,7 @@ public:
     inline void SetRandomizerParam(size_t param, float val) { fx_.SetRandomizerParam(param, val); }
     /** For the LEDs: a random gate has the effect on */
     inline bool GetFxRandomOn(size_t fx) const { return (fx_.RandomMask() >> fx) & 1; }
-    /** The gates the randomizer fired so far, and the first effect the last one picked */
-    inline uint32_t RandomizerFires() const { return fx_.RandomFires(); }
+    /** The first effect the randomizer's last gate picked */
     inline size_t RandomizerPick() const { return fx_.RandomPick(); }
     /** A scene morph (FxMorph.h) to the next bar line of the FX's clock, one more per
      *  AddFxMorphBar; LandFxMorph ends it at once. All with the audio interrupt blocked */

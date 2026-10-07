@@ -117,10 +117,24 @@ protected:
     FxGate gate_;
 };
 
-/** A stepped parameter's step, 0..steps - 1, from its knob value 0..1 */
+/** A stepped parameter's step, 0..steps - 1, from its knob value 0..1 (clamped, since the
+ *  step indexes a table) */
 inline size_t StepIndex(float val, size_t steps)
 {
+    val = val < 0.f ? 0.f : (val > 1.f ? 1.f : val);
     return static_cast<size_t>(val * static_cast<float>(steps - 1) + .5f);
+}
+
+/** A one-pole follower's coefficient for a time constant of seconds */
+inline float TimeCoeff(float seconds, float sample_rate)
+{
+    return 1.f - expf(-1.f / (seconds * sample_rate));
+}
+
+/** A per-sample decay that falls by 60dB in seconds */
+inline float Decay60dBCoeff(float seconds, float sample_rate)
+{
+    return expf(-6.9078f / (seconds * sample_rate));
 }
 
 /** Kastle's curve_map: linear between (xs[i], ys[i]) points, clamped at both ends */
@@ -228,10 +242,10 @@ struct LevelGuard
     void Init(float sample_rate, float headroom)
     {
         headroom_ = headroom;
-        att_ = Coeff(.001f, sample_rate);
-        rel_ = Coeff(.1f, sample_rate);
-        down_ = Coeff(.002f, sample_rate);
-        up_ = Coeff(.06f, sample_rate);
+        att_ = TimeCoeff(.001f, sample_rate);
+        rel_ = TimeCoeff(.1f, sample_rate);
+        down_ = TimeCoeff(.002f, sample_rate);
+        up_ = TimeCoeff(.06f, sample_rate);
         env_in_ = env_out_ = 0.f;
         gain_ = 1.f;
     }
@@ -257,10 +271,6 @@ struct LevelGuard
     inline float Gain() const { return gain_; }
 
 private:
-    static float Coeff(float seconds, float sample_rate)
-    {
-        return 1.f - expf(-1.f / (seconds * sample_rate));
-    }
     inline void Follow(float* env, float power) const
     {
         *env += (power > *env ? att_ : rel_) * (power - *env);

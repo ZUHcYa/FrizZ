@@ -41,7 +41,7 @@ public:
         xor_dc_r_.Init(sample_rate);
         dive_.Reset();
         dive_attack_inc_ = 1.f / (.1f * sample_rate);
-        dive_decay_coeff_ = expf(-6.9078f / (.4f * sample_rate)); // to -60dB in 0.4s
+        dive_decay_coeff_ = Decay60dBCoeff(.4f, sample_rate);
 
         lp_l_ = lp_r_ = 0.f;
         guard_.Init(sample_rate, 1.f);

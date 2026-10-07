@@ -120,7 +120,7 @@ public:
         {
             // Kastle: 1s down to 10ms; here short to long, the time to fall by 60dB
             const float time = .01f * powf(100.f, val);
-            decay_coeff_ = expf(-6.9078f / (time * sample_rate_));
+            decay_coeff_ = Decay60dBCoeff(time, sample_rate_);
             break;
         }
         case CHANCE:

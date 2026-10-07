@@ -1,7 +1,7 @@
 /** @file EnvFollower.h
- *  @brief A simple asymmetric peak/envelope follower used to drive the VU
- *  LED meter on the gain knob (see engine.getVUSample() Read from NormalPage's
- *  Draw()) Not used in the actual audio signal path, just a visual meter.
+ *  @brief A simple asymmetric peak/envelope follower for the meters: VOLUME's VU meter
+ *  (PassthroughEngine::GetVUSample, read by NormalPage) and the FX keys' levels. Not in the
+ *  audio path.
  */
 #pragma once
 #include "daisysp.h"
@@ -40,7 +40,6 @@ class EnvFollower
         { 
             float vu_sample = last_samp_;
             vu_sample *= 5.f;
-            vu_sample += 0.0f;
             vu_sample = vu_sample > 1.f ? 1.f : vu_sample;
 
             return vu_sample;

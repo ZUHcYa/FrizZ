@@ -12,10 +12,8 @@
 #include "hardware.h"
 #include "temp_led_stuff.h"
 #include "ui.h"
-#include "daisysp.h"
 #include "fatfs.h"
 #include "passthroughEngine.h"
-#include "MidiClock.h"
 #include "SceneStore.h"
 
 using namespace daisy;
@@ -36,7 +34,7 @@ SceneStore scene_store;
 
 int16_t DSY_SDRAM_BSS loop_mem[kLoopMemSize];
 
-// TEMPO's delay buffers: 10s of interleaved stereo float each, the live and the frozen one
+// TEMPO's delay buffer: 10s of interleaved stereo float
 static const size_t kDelayFrames = 480000;
 float DSY_SDRAM_BSS delay_mem[kDelayFrames * 2];
 
@@ -72,8 +70,8 @@ bool booting = true;
 bool rainbow_done = false;
 bool loading_screen = true;
 
-/** Clears the Daisy Seed's 64MB external SDRAM at boot. The loop and delay buffers live
- *  there, and unlike internal-RAM statics they aren't zeroed by the startup code */
+/** Clears the Daisy Seed's 64MB external SDRAM at boot. The loop's, delay's, freezer's and
+ *  tape stop's buffers live there, and unlike internal-RAM statics they aren't zeroed by the startup code */
 void ZeroSDRAM()
 {
     uint32_t *beg, *end;

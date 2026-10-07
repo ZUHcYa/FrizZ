@@ -53,7 +53,7 @@ public:
         gate_.Init();
         env_.Reset();
         env_attack_inc_ = 1.f / (.1f * sample_rate);
-        env_decay_coeff_ = expf(-6.9078f / sample_rate); // 1s to -60dB
+        env_decay_coeff_ = Decay60dBCoeff(1.f, sample_rate);
 
         SetParam(SHIFT, .5f);
         for (size_t i = 1; i < kNumFxParams; i++)
