@@ -1,5 +1,5 @@
 // keys.cpp: checks the play page's CHOMPI, PLAY and LOOP keys (PlayKeys.h) against a fake
-// host that records what they do. Exits 0 when everything passes. Run by keys.sh.
+// host that records what they do. Exits 0 when everything passes. Run by unit.sh keys.
 #include <cstdio>
 #include "check.h"
 #include "PlayKeys.h"

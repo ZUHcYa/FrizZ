@@ -1,7 +1,7 @@
 // tempo.cpp: checks the FX's tempo on the host: tap tempo (TapTempo.h), fitting and guessing a
 // loop's beats, the tempo clock locked to a loop (TempoClock.h) and a quantized loop's beats
 // (Looper.h), with a faked MIDI clock where it matters, and a scene morph landing on the
-// clock's bar lines (FxMorph.h). Exits 0 when everything passes. Run by tempo.sh.
+// clock's bar lines (FxMorph.h). Exits 0 when everything passes. Run by unit.sh tempo.
 #include <cmath>
 #include <cstdio>
 #include "check.h"

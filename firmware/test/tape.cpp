@@ -1,5 +1,5 @@
 // Tape FX check: wow & flutter (FxWarble.h) and the tape stop (FxTapeStop.h) on a 220Hz sine.
-// Built and run by tape.sh.
+// Built and run by unit.sh tape.
 //  - wow & flutter on its defaults, and the tape stop off, pass the input bit for bit
 //  - the flutter's pitch wobble (by zero crossings) stays within its 2 pi f A bound, real
 //    tape's at half the knob; TAPE's wow at the top stays finite and bounded

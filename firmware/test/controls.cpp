@@ -1,6 +1,6 @@
 // controls.cpp: checks the play page's FX and scene logic (FxControls.h, SceneControls.h)
 // against a fake engine that records what it's sent. Exits 0 when everything passes. Run by
-// controls.sh.
+// unit.sh controls.
 #include <cmath>
 #include <cstdio>
 #include "check.h"

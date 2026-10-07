@@ -1,8 +1,6 @@
 # Project Name
 TARGET = FRIZZ
 
-DEBUG=0
-# OPT=-O0
 OPT=-O3
 
 APP_TYPE=BOOT_SRAM

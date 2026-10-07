@@ -1,7 +1,7 @@
 // comp.cpp: checks the master compressor (MasterComp.h): off is an exact bypass, its static
 // curve, its speed, the linked stereo and the mix; the engine's safety limiter keeping the
 // outputs within 1.0; and the master settings' file format (MasterSettings.h). Exits 0 when
-// everything passes. Run by comp.sh.
+// everything passes. Run by unit.sh comp.
 #include <cmath>
 #include <cstdio>
 #include <cstring>

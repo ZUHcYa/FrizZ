@@ -18,12 +18,13 @@
 //            filter's resonance and the flanger's and shifter's feedback at the top
 //
 // Output, per block: 4 x 24 floats (headphone L/R, master L/R), then the FX meters in the
-// order of kAll below: 9, 10 from the folder on, 12 from wow & flutter and the tape stop on
-// (compare.py tells them apart by the file's size).
+// order of kAll below, and <out>.names with kAll's names, one per line. compare.py reads the
+// names; for older harnesses without them it tells the layouts apart by the file's size.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
+#include <string>
 #include "passthroughEngine.h"
 
 static const float kSr = 48000.f;
@@ -82,6 +83,14 @@ int main(int argc, char** argv)
     if (argc < 2)
         return 1;
     FILE* f = fopen(argv[1], "wb");
+#if __has_include("FxScenes.h")
+    // the segments' FX by name, for compare.py, so a new FX doesn't break the comparison
+    const std::string names_path = std::string(argv[1]) + ".names";
+    FILE* names = fopen(names_path.c_str(), "w");
+    for (size_t i = 0; i < kNum; i++)
+        fprintf(names, "%s\n", chompi::kFxNames[kAll[i]]);
+    fclose(names);
+#endif
     srand(1);
 
     engine.Init(kSr, loop_mem, &midi_clock, delay_mem, kDelayFrames, &reverb,
@@ -121,7 +130,7 @@ int main(int argc, char** argv)
         engine.SetFxParam(chompi::FX_REVERB, 0, 1.f);
         engine.SetFxParam(chompi::FX_REVERB, 3, 1.f);
     }
-    // per-fx solo segments of 3s, then 4s of all inserts, then 4s of everything, then tails
+    // per-fx solo segments of 3s, then 3s of all inserts, 6s of everything, then tails
     const size_t seg = static_cast<size_t>(3.f * kSr / kBlock);
     const size_t total = (kNum + 4) * seg;
     const size_t knob_every = static_cast<size_t>(.25f * kSr / kBlock);

@@ -12,9 +12,9 @@ the two have diverged, so treat WAVE as reference, not as a shared core.
 ```
 code/src/                 the firmware
 code/libs/                vendored libDaisy and DaisySP (patched, MIT; never swap in upstream)
-code/Chompi_Bootloader/   source of the v6.2 bootloader that loads FRIZZ
-code/bms_test/            standalone battery-management bring-up example
-bin/                      the v6.2 bootloader binary and its install script
+bin/                      FRIZZ.bin (the latest build), the v6.2 bootloader binary and its
+                          install script; the bootloader's source is in
+                          reference/firmware/chompi-wave/code/Chompi_Bootloader/
 test/                     host-side checks: engine, shifter pitch, scene file, play page, looper
 ```
 

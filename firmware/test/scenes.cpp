@@ -1,5 +1,5 @@
 // scenes.cpp: checks the FX scene file format (FxScenes.h) and, through the engine, the
-// recall's fast slew (FxChain::FastSlew). Exits 0 when everything passes. Run by scenes.sh.
+// recall's fast slew (FxChain::FastSlew). Exits 0 when everything passes. Run by unit.sh scenes.
 #include <cmath>
 #include <cstdio>
 #include "check.h"

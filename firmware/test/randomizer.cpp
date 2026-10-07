@@ -1,6 +1,6 @@
 // randomizer.cpp: checks the randomizer (FxRandomizer.h) on its clock: its patterns, chance,
 // pulse width and shift, which effects a gate picks, and how FxChain hands them over and gives
-// them back. Exits 0 when everything passes. Run by randomizer.sh.
+// them back. Exits 0 when everything passes. Run by unit.sh randomizer.
 #include <cmath>
 #include <cstdio>
 #include "check.h"
