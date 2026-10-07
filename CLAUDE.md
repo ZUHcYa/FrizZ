@@ -28,6 +28,15 @@ The panel artwork and CHOMPI logos are deliberately absent for copyright reasons
 name/marks are excluded from the MIT license (`TRADEMARKS.md`). Don't reintroduce branding into
 derived hardware files.
 
+## Git workflow: branches first, main only after testing
+
+Never commit development work to `main`. Start every change (feature, fix, refactor, docs) on
+its own branch off `main`, named for what it does (e.g. `loop-length`, `fix-crusher-level`),
+and commit and push there. Merge into `main` only after the user has tested the branch (on
+hardware where it touches the firmware) and said so; passing `firmware/test/` or a clean build
+is not that approval. If you find yourself on `main` with changes to make, create the branch
+before the first commit.
+
 ## Orientation: 12.8k files, ~140 of them are source
 
 Of 12,821 tracked files, 12,371 are vendored third-party code. Hand-written `.c/.cpp/.h/.lds`
