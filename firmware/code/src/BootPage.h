@@ -1,7 +1,9 @@
 /** @file BootPage.h
  *  @brief The boot page: a slow glow in random colours while FRIZZ starts up (kBootScreenMs,
- *  chompi_main.cpp).
+ *  chompi_main.cpp). It swallows every key and knob, so nothing pressed during boot reaches
+ *  the play page.
  */
+#pragma once
 #include "hardware.h"
 #include "temp_led_stuff.h"
 
@@ -11,7 +13,7 @@ namespace chompi
     {
     public:
 
-        void Init(Hardware*)
+        void Init()
         {
             RandomColors();
         }
@@ -58,14 +60,14 @@ namespace chompi
                              int16_t turns,
                              uint16_t stepsPerRevolution) override
         {
-            return false; // do nothing
+            return true; // swallowed
         }
 
         bool OnButton(uint16_t buttonID,
                 uint8_t numberOfPresses,
                 bool isRetriggering) override
         {
-            return false; // do nothing
+            return true; // swallowed
         }
 
     private:

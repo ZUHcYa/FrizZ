@@ -118,9 +118,6 @@ namespace chompi
     class NormalPage : public daisy::UiPage
     {
     public:
-        uint32_t init_time;
-        bool init_ignore = true;
-
         void Init(PassthroughEngine *engine, Hardware *hw, SceneStore *scenes)
         {
             hw_ = hw;
@@ -154,8 +151,6 @@ namespace chompi
             ResetSmtLeds();
             for (int i = 0; i < kNumPthLeds; i++)
                 SetPthLed(i, 0, 0, 0);
-
-            init_time = System::GetNow();
         }
 
         void ResetSmtLeds()
@@ -227,9 +222,6 @@ namespace chompi
                       uint8_t numberOfPresses,
                       bool isRetriggering) override
         {
-            if (init_ignore)
-                return false;
-
             const bool rising = numberOfPresses == 1;
             switch (buttonID)
             {
@@ -339,23 +331,17 @@ namespace chompi
                              int16_t turns,
                              uint16_t stepsPerRevolution) override
         {
-            if (init_ignore)
-                return false;
-
             keys_.Used();
-            const float detents = Detents(encoderID, turns);
             if (encoderID == kTransportEncoder)
                 TransportTurned(turns);
             else if (encoderID < kNumFxParams)
-                fx_.KnobTurned(encoderID, detents, Shift());
+                fx_.KnobTurned(encoderID, turns, Shift());
             else if (encoderID == kVolumeEncoder)
-                VolumeTurned(detents);
+                VolumeTurned(turns);
             else
                 return false;
             return true;
         }
-
-        inline void SetInitIgnore(bool ignore) { init_ignore = ignore; }
 
     private:
         // PlayKeys' Host
@@ -383,10 +369,6 @@ namespace chompi
         /** Once per frame, before drawing: what follows from time and the looper's state */
         void Update(uint32_t now)
         {
-            // ignore the first 1500 ms of inputs. Hack to stop random button presses on boot for now.
-            if (init_ignore && now - init_time > 1500)
-                init_ignore = false;
-
             // an erase starting, now or at the loop's end: the input fades in while the loop
             // fades out. A fade too short to be seen still ends in an empty looper.
             const Looper::State looper_state = engine_->looper.GetState();
@@ -435,13 +417,6 @@ namespace chompi
                 scenes_->RequestMasterSave();
                 master_unsaved_ = false;
             }
-        }
-
-        /** Detents turned. ui.h sends knob 1 and the transport 1x per detent and the other
-         *  knobs 3x (TestPage relies on that), so this undoes it */
-        static float Detents(uint16_t encoder, int16_t turns)
-        {
-            return encoder == 0 || encoder == kTransportEncoder ? turns : turns / 3.f;
         }
 
         void VolumeTurned(float detents)

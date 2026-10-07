@@ -571,8 +571,13 @@ Quantized recording, and the effects' tempo while there's no loop, follow MIDI c
 USB device, so USB clock comes from a computer or a host. Whichever source ticks first is
 used, until it has been silent for 0.5 s. Only clock is read; there's no MIDI out.
 
-## Hardware self-test
+## Power and battery
 
-Holding the VOLUME knob down at power-on enters the factory QC test that FRIZZ inherited from
-the stock firmware, instead of FRIZZ. You won't need it for normal use. To get back to FRIZZ,
-power off and on again.
+- **Low battery:** unplugged with the battery nearly empty, the knob, transport, CHOMPI, PLAY
+  and LOOP LEDs flash amber for 15 s, then the CHOMPI switches itself off. Plugging in power
+  during those 15 s stops it.
+  On a charger too weak to run it with a low battery, it goes dark until it has charged.
+- **Shipping mode:** hold CHOMPI, PLAY and LOOP while switching on: the battery is
+  disconnected until the CHOMPI is plugged into power again. Use it to store it for weeks.
+- **Hardware test:** FRIZZ has no self-test of its own. To check keys, knobs and LEDs, put the
+  stock TAPE or WAVE firmware on a card and hold VOLUME while switching on.
