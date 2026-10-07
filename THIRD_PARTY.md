@@ -58,6 +58,11 @@ In TEMPO and WAVE:
   compilation: the firmware builds against pristine upstream, but its MIDI output timing won't
   match the released firmware. Keep the vendored file.
 
+FRIZZ's copy (`firmware/code/libs/libDaisy/`) is WAVE's with one change: `src/usbd/usbd_desc.c`
+names the USB product "FrizZ". Its prebuilt `build/libdaisy.a` is WAVE's with only that
+object, `usbd_desc.o`, rebuilt from it (GCC 10.3, libDaisy's own flags, which reproduce
+WAVE's object exactly from WAVE's source).
+
 The bootloader's copy, `reference/firmware/chompi-bootloader-v6.4-beta/libs/libDaisy/`, is the same adaptation plus
 the changes that bootloader needs, listed in its `LIBDAISY_PATCH.md`.
 
