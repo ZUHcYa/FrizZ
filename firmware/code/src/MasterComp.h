@@ -63,7 +63,10 @@ public:
         if (moved)
             Update();
 
-        if (knobs_[kAmount].value == 0.f)
+        // off: a bypass, once a reduction left from before has released, so turning it off
+        // under a hot signal doesn't click
+        const bool off = knobs_[kAmount].value == 0.f;
+        if (off && reduction_ > -kOffDb)
         {
             reduction_ = 0.f;
             return;
@@ -73,7 +76,7 @@ public:
         // or release (less) towards it
         const float peak = fmaxf(fabsf(*l), fabsf(*r));
         float target = 0.f;
-        if (peak > knee_start_)
+        if (!off && peak > knee_start_)
         {
             const float over = 6.0206f * daisysp::fastlog2f(peak) - thresh_db_;
             const float slope = 1.f / ratio_ - 1.f;
@@ -94,6 +97,7 @@ public:
 
 private:
     static constexpr float kKneeDb = 6.f;
+    static constexpr float kOffDb = .01f; // a reduction this small is gone
     static constexpr float kMaxThreshDb = 30.f;
 
     /** The threshold, ratio, makeup and envelope times from the knobs */

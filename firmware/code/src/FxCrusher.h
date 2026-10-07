@@ -84,8 +84,9 @@ public:
         float wr = srr_r_.Process(xr);
 
         // bit-depth reduction: round to the nearest step
+        // one value from the UI, so it can't be read half-written
         const float step = step_;
-        const float inv_step = inv_step_;
+        const float inv_step = 1.f / step;
         wl = floorf(wl * inv_step + .5f) * step;
         wr = floorf(wr * inv_step + .5f) * step;
 
@@ -125,7 +126,6 @@ public:
             // 16 bits down to 2, continuous so the knob sweeps smoothly
             const float bits = 16.f - val * 14.f;
             step_ = powf(2.f, 1.f - bits);
-            inv_step_ = 1.f / step_;
             break;
         }
 
@@ -166,8 +166,7 @@ private:
     float lp_l_, lp_r_;
     Smoothed rate_;
     Smoothed tone_coeff_;
-    float step_;     // quantizer step, 2^(1 - bits)
-    float inv_step_; // and its inverse, for the audio callback
+    float step_; // quantizer step, 2^(1 - bits)
     int16_t xor_ = 0;
     daisysp::DcBlock xor_dc_l_, xor_dc_r_;
     LevelGuard guard_; // the output held to the input's level

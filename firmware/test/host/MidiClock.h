@@ -15,11 +15,13 @@ public:
     inline uint32_t GetLastTickTime() const { return last_tick_time; }
     inline float GetTickPeriod() const { return tick_period; }
     inline float GetBpm() const { return bpm; }
+    inline uint32_t GetLocks() const { return locks; }
 
     bool has_clock = false;
     uint32_t ticks = 0;
     uint32_t last_tick_time = 0;
     float tick_period = 0.f;
     float bpm = 0.f;
+    uint32_t locks = 0;
 };
 }

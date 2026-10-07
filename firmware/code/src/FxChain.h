@@ -35,6 +35,7 @@
  *  own inserts playing during a gate are turned down with it.
  */
 #pragma once
+#include <atomic>
 #include "EnvFollower.h"
 #include "FxCrusher.h"
 #include "FxDelay.h"
@@ -169,10 +170,9 @@ public:
     void RandomBlock(size_t size)
     {
         // keys pressed on an effect a gate had: the user's now
-        const uint16_t claimed = claimed_;
+        const uint16_t claimed = claimed_.exchange(0);
         if (claimed)
         {
-            claimed_ = 0;
             for (size_t fx = 0; fx < kNumFx; fx++)
                 if ((claimed >> fx) & 1 && Owned(fx))
                     GiveBack(fx, false);
@@ -250,11 +250,15 @@ public:
     void SetOn(size_t fx, bool on)
     {
         const uint16_t bit = Bit(fx);
-        user_on_ = static_cast<uint16_t>(on ? user_on_ | bit : user_on_ & ~bit);
+        // atomic: the UI's and the morph's (in the audio callback) may meet here
+        if (on)
+            user_on_.fetch_or(bit);
+        else
+            user_on_.fetch_and(static_cast<uint16_t>(~bit));
         if (!Owned(fx))
             fx_[fx]->SetOn(on);
         else if (on)
-            claimed_ |= bit;
+            claimed_.fetch_or(bit);
     }
     void SetParam(size_t fx, size_t param, float val)
     {
@@ -320,9 +324,9 @@ private:
     Randomizer randomizer_;
     LevelGuard level_; // holds the inserts to +3dB while the randomizer has any
     float user_params_[kNumFx][kNumFxParams]; // what the UI and the morph set last
-    volatile uint16_t user_on_;               // bit fx: its key is on
-    volatile uint16_t owned_;                 // bit fx: the randomizer has it
-    volatile uint16_t claimed_;               // bit fx: its key came on while owned
+    std::atomic<uint16_t> user_on_;           // bit fx: its key is on
+    volatile uint16_t owned_;                 // bit fx: the randomizer has it (audio only)
+    std::atomic<uint16_t> claimed_;           // bit fx: its key came on while owned
 };
 
 } // namespace chompi

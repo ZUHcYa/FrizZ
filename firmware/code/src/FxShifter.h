@@ -76,17 +76,19 @@ public:
         // otherwise when a knob changed it (SetParam), so only the audio callback writes it
         const float swoop = env_.value * swoop_;
         const bool swoop_on = swoop > .0001f;
+        const float dir = semitones_ > 0 ? 1.f : (semitones_ < 0 ? -1.f : 0.f);
         if ((swoop_on && swoop_tick_++ % kSwoopUpdate == 0) || (swooping_ && !swoop_on))
         {
-            const float dir = semitones_ > 0 ? 1.f : (semitones_ < 0 ? -1.f : 0.f);
             ratios_changed_ = false;
             UpdateRatios(semitones_ + dir * swoop * kSwoopSemitones);
             swooping_ = swoop_on;
         }
         else if (ratios_changed_)
         {
+            // a knob between two swoop updates keeps the swoop
             ratios_changed_ = false;
-            UpdateRatios(static_cast<float>(semitones_));
+            UpdateRatios(swooping_ ? semitones_ + dir * swoop * kSwoopSemitones
+                                   : static_cast<float>(semitones_));
         }
 
         float* const io[2] = {l, r};
