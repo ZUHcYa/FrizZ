@@ -13,11 +13,10 @@ AUX in -> input gain -+-----------------+
 The looper records the input **before** the effects, so you can play effects over a loop and
 nothing gets printed into it. The effects come **after** the mix, so they act on everything you
 hear, the live input as well as the loop. The mix knob balances input against loop; there's no
-dry path around the effects on the master out. The headphones follow the mode switch: down,
-the same as the master out; up, only the dry input (no loop, no effects).
+dry path around the effects on the master out. The headphones carry the same as the master
+out, or, from VOLUME's page 3, only the dry input (no loop, no effects).
 
-**SHIFT** means holding the CHOMPI key (with the mode switch in either position). The key lights
-white while it acts as SHIFT.
+**SHIFT** means holding the CHOMPI key. The key lights white while it acts as SHIFT.
 
 ## 1. Set your levels
 
@@ -25,8 +24,10 @@ white while it acts as SHIFT.
 |---|---|
 | Turn VOLUME | Output volume. The LED is a level meter |
 | Press VOLUME, then turn | Input gain. The LED runs from blue to red |
+| Press again, then turn | Headphones: white = the master out, green = only the dry input |
 | Press again | Back to output volume |
 | SHIFT + turn VOLUME | Input/loop mix: green = only the input, purple = only the loop |
+| SHIFT + press VOLUME | Mix back to the loop only (with a loop) or the input only (without) |
 
 ## 2. Record a loop
 

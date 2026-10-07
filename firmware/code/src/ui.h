@@ -105,8 +105,7 @@ namespace chompi
                     continue; // skip this one
                 else if(i == static_cast<int>(Hardware::SwId::SW_TOG))
                 {
-                    // this should be smoothed
-                    normal_page_.SetSwitchState(toggle_state);
+                    // only the test page uses the switch (its tone). This should be smoothed
                     test_page_.SetSwitchState(toggle_state);
                 }
                 else if (hw_->button_sr.FallingEdge(i))

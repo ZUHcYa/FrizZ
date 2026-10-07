@@ -2,8 +2,8 @@
 
 Every control in FRIZZ. For a first session, start with the [quick guide](QUICKSTART.md).
 
-**SHIFT** means holding the CHOMPI key, with the mode switch in either position. The CHOMPI key
-lights white while it acts as SHIFT.
+**SHIFT** means holding the CHOMPI key. The CHOMPI key lights white while it acts as SHIFT.
+The mode switch does nothing in play mode.
 
 ## Overview
 
@@ -15,33 +15,30 @@ settings as scenes, next to one that clears them. A master compressor, set from 
 second-to-last white key, sits after the effects, and the last white key plays the effects
 at random. The built-in microphone is not used.
 
-## Mode switch: headphone feed
-
-| Switch | Headphones |
-|---|---|
-| Down | The same signal as the master out |
-| Up | The AUX input on its own, after input gain and VOLUME: no loop, no effects, no mix, no compressor |
-
-The master out always carries the full signal. With the switch up you hear the loop and the
-effects only on the master out, so use it when the master goes to a PA, mixer or recorder and
-the headphones are your monitor; with headphones alone, keep it down. Flipping the switch
-fades between the two, without a click. Before this, the switch did nothing in play mode: if
-yours is up, the headphones now carry the dry input. SHIFT works in either position.
-
 ## VOLUME knob
 
 | Control | Function | LED |
 |---|---|---|
-| Turn (page 1, default) | Output gain, headphone + master (default 75%), also the dry headphone feed | VU meter, scaled by gain |
+| Turn (page 1, default) | Output gain, headphone + master (default 75%) | VU meter of the master, scaled by gain |
 | Press, then turn (page 2) | Input gain, AUX (default 75%) | blue (0%) to red (100%) |
+| Press twice, then turn (page 3) | Headphone feed: the master out to the AUX input on its own (default: the master out) | white (master) to green (input) |
 | SHIFT + turn | Input/loop mix: input only to looper only | green (input) to purple (loop) |
+| SHIFT + press | Resets the mix: the loop only while there is one, otherwise the input only | |
 | Press and hold 1.25 s | Battery check | white full / green / yellow / red |
 
-Every turn moves 1% per detent. Pressing again on page 2 returns to page 1. (The master
-compressor used to be page 3; it has its own key now, see [Master compressor](#master-compressor).) The mix starts
+Every turn moves 1% per detent. Pressing again on page 3 returns to page 1. The mix starts
 on the input only, jumps to the loop only when a recording finishes and back to the input only
-when the loop is erased. The punch-in FX come after this mix, so they act on the input as well
-as the loop.
+when the loop is erased; SHIFT + press puts it back there. The punch-in FX come after this mix,
+so they act on the input as well as the loop.
+
+**Headphone feed (page 3):** the master out always carries the full signal. Turned up, the
+headphones carry the AUX input on its own instead, after input gain and VOLUME: no loop, no
+effects, no mix, no compressor. Use it when the master goes to a PA, mixer or recorder and the
+headphones are your monitor; with headphones alone, leave it at the master. It's back on the
+master at every power-on.
+
+(Page 3 used to be the master compressor, which has its own key now, see
+[Master compressor](#master-compressor). The headphone feed used to be on the mode switch.)
 
 ## Looper
 

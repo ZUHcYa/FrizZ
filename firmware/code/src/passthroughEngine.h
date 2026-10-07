@@ -6,8 +6,9 @@
  *  In the code the mix is dry/wet: dry is the input on its own, wet is the looper's playback
  *  on its own. The looper records the dry signal (see Looper.h).
  *
- *  The headphones mirror the master out, or with SetHeadphoneDry() carry the input on its
- *  own: after the input gain and VOLUME, but no loop, no FX, no MIX and no compressor.
+ *  The headphones mirror the master out, or with SetHeadphoneCue() blend in the input on its
+ *  own: after the input gain and VOLUME, but no loop, no FX, no MIX and no compressor. The
+ *  headphones' safety limiter comes after that blend, so it guards the input too.
  *
  *  The FX's tempo (TempoClock.h) comes from the loop while there is one, otherwise from MIDI
  *  clock or taps. A scene morph (FxMorph.h) sits between the UI and the FX and lands on that
@@ -132,24 +133,25 @@ public:
             comp_.Process(&sigl, &sigr);
 
             // headphone and master gain
-            out[0][i] = sigl * kHpGain * mgain_;
-            out[1][i] = sigr * kHpGain * mgain_;
+            const float hpl = sigl * kHpGain * mgain_;
+            const float hpr = sigr * kHpGain * mgain_;
             out[2][i] = sigl * kLineOutGain * mgain_;
             out[3][i] = sigr * kLineOutGain * mgain_;
+
+            // the VU meter shows the master's signal, whatever the headphones carry
+            output_env_follower.Process(hpl + hpr);
+
+            // headphone feed: the cue blends from the master's mirror to the input on its own,
+            // slewed so a jump doesn't click
+            fonepole(hp_cue_, hp_cue_target_, .001f);
+            out[0][i] = hpl + (dryl[i] * kHpGain * mgain_ - hpl) * hp_cue_;
+            out[1][i] = hpr + (dryr[i] * kHpGain * mgain_ - hpr) * hp_cue_;
 
             // safety limiter: TAPE's master compressor at its lowest setting (limiter.h)
             out[0][i] = lim_hp_l_.ProcessComp(out[0][i], 1.f, kLimThresh, 1.f, kLimMakeup);
             out[1][i] = lim_hp_r_.ProcessComp(out[1][i], 1.f, kLimThresh, 1.f, kLimMakeup);
             out[2][i] = lim_line_l_.ProcessComp(out[2][i], 1.f, kLimThresh, 1.f, kLimMakeup);
             out[3][i] = lim_line_r_.ProcessComp(out[3][i], 1.f, kLimThresh, 1.f, kLimMakeup);
-
-            output_env_follower.Process((out[0][i] + out[1][i]));
-
-            // headphone feed, after the VU meter so it keeps metering the master's signal;
-            // crossfaded so switching doesn't click
-            fonepole(hp_dry_, hp_dry_target_, .001f);
-            out[0][i] += (dryl[i] * kHpGain * mgain_ - out[0][i]) * hp_dry_;
-            out[1][i] += (dryr[i] * kHpGain * mgain_ - out[1][i]) * hp_dry_;
         }
     }
 
@@ -161,8 +163,8 @@ public:
     inline float GetCompReduction() const { return comp_.GetReduction(); }
     /** 0 = dry (input only), 1 = wet (looper/buffer only) */
     inline void SetMix(float mix) { mix_target_ = mix; }
-    /** Headphones: false = mirror the master out, true = the dry input on its own */
-    inline void SetHeadphoneDry(bool dry) { hp_dry_target_ = dry ? 1.f : 0.f; }
+    /** Headphones: 0 = mirror the master out, 1 = the dry input on its own */
+    inline void SetHeadphoneCue(float cue) { hp_cue_target_ = cue; }
 
     /** Punch-in FX, by FxId (FxChain.h). While a morph runs, they go to it (FxMorph.h) */
     inline void SetFxOn(size_t fx, bool on)
@@ -252,5 +254,5 @@ private:
     float ingain_ = 0.f, ingain_target_ = 0.f;
     float mix_ = 0.f, mix_target_ = 0.f;
     float dry_amt_ = 1.f, wet_amt_ = 0.f; // the crossfade at mix_
-    float hp_dry_ = 0.f, hp_dry_target_ = 0.f;
+    float hp_cue_ = 0.f, hp_cue_target_ = 0.f;
 };

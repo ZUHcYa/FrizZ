@@ -4,8 +4,8 @@
  *  SceneStore.h), with their LEDs. The logic is in FxControls.h and SceneControls.h; this
  *  routes the hardware to it and draws. MANUAL.md describes every control; what's here is what the manual doesn't say.
  *
- *  SHIFT is the CHOMPI key held, in either position of the mode switch. The switch picks the
- *  headphone feed: down mirrors the master out, up is the dry input (passthroughEngine.h).
+ *  SHIFT is the CHOMPI key held. The mode switch isn't used in play mode: VOLUME's page 3
+ *  sets the headphone feed instead, from the master out to the dry input (passthroughEngine.h).
  *
  *  The CHOMPI, PLAY and LOOP keys' rules are in PlayKeys.h: SHIFT, the confirm tap in a scene
  *  mode, the looper's combos, tap tempo (TapTempo.h). This page is its Host. Every other key
@@ -52,7 +52,7 @@ namespace chompi
     static const float kDefaultInGain = .75f;
     static const float kDefaultMix = 0.f; // fully dry at power-on, nothing recorded yet
 
-    static const uint8_t kNumPages = 2;
+    static const uint8_t kNumPages = 3; // output gain, input gain, headphone cue
 
     // encoder IDs, by ui.h's encoder_map: 0-3 are knobs 1-4
     static const uint16_t kTransportEncoder = 4;
@@ -130,12 +130,14 @@ namespace chompi
             out_gain_ = kDefaultOutGain;
             in_gain_ = kDefaultInGain;
             mix_ = kDefaultMix;
+            hp_cue_ = 0.f; // the headphones mirror the master at power-on
             page_ = 0;
 
             // the engine only hears about a value when it changes, so push them all now
             engine_->SetMainGain(out_gain_);
             engine_->SetInputGain(in_gain_);
             engine_->SetMix(mix_);
+            engine_->SetHeadphoneCue(hp_cue_);
 
             fx_.Init(engine_);
             // the compressor as it was left, from the card
@@ -201,8 +203,10 @@ namespace chompi
                 g = out_gain_ * color_quad_xfade(.1f, green[1], yellow[1], pink[1], vu_sample);
                 b = out_gain_ * color_quad_xfade(.1f, green[2], yellow[2], pink[2], vu_sample);
             }
-            else
+            else if (page_ == 1)
                 Xfade(blue, red, in_gain_, &r, &g, &b);
+            else
+                Xfade(white, green, hp_cue_, &r, &g, &b);
             SetPthLedFloat(kVolumeLed, r, g, b);
 
             DrawLooperLeds(now);
@@ -282,11 +286,19 @@ namespace chompi
             if (rising)
                 keys_.Used();
 
-            // short press cycles the pages, hold to check battery level
+            // short press cycles the pages, hold to check battery level. SHIFT + press resets
+            // the mix, as SHIFT + press does on knobs 1-4, to where a recording or an erase
+            // leaves it: the loop only while there is one, otherwise the input only
             if (buttonID == static_cast<uint16_t>(Hardware::SwId::ENC_6_SW))
             {
                 if(!rising && !Shift() && System::GetNow() - batt_hold < kBattHoldMs)
                     page_ = (page_ + 1) % kNumPages;
+                if (rising && Shift())
+                {
+                    const Looper::State state = engine_->looper.GetState();
+                    SetMix(state == Looper::State::PLAYING || state == Looper::State::PAUSED
+                               ? 1.f : 0.f);
+                }
 
                 batt_hold = System::GetNow();
                 batt_display = rising;
@@ -341,12 +353,6 @@ namespace chompi
             else
                 return false;
             return true;
-        }
-
-        // called every audio block (ui.h)
-        void SetSwitchState(bool state)
-        {
-            engine_->SetHeadphoneDry(!state);
         }
 
         inline void SetInitIgnore(bool ignore) { init_ignore = ignore; }
@@ -449,10 +455,15 @@ namespace chompi
                 out_gain_ = fclamp(out_gain_ + inc, 0.f, 1.f);
                 engine_->SetMainGain(out_gain_);
             }
-            else
+            else if (page_ == 1)
             {
                 in_gain_ = fclamp(in_gain_ + inc, 0.f, 1.f);
                 engine_->SetInputGain(in_gain_);
+            }
+            else
+            {
+                hp_cue_ = fclamp(hp_cue_ + inc, 0.f, 1.f);
+                engine_->SetHeadphoneCue(hp_cue_);
             }
         }
 
@@ -782,6 +793,7 @@ namespace chompi
         float out_gain_;
         float in_gain_;
         float mix_;
+        float hp_cue_; // headphones: 0 = the master's mirror, 1 = the dry input
         uint8_t page_;
 
         PlayKeys<NormalPage> keys_;
