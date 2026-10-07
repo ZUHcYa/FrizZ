@@ -84,8 +84,10 @@ public:
             // value toward the target over ~1ms so knob turns don't zipper.
             fonepole(ingain_, ingain_target_, .001f);
 
+            // mono: a TS plug grounds the right channel, so the left (its tip) feeds both
+            const float in_r = mono_in_ ? in[2][i] : in[3][i];
             dryl[i] = dcblock_line_in_l_.Process(in[2][i] * ingain_ * kLineInGain);
-            dryr[i] = dcblock_line_in_r_.Process(in[3][i] * ingain_ * kLineInGain);
+            dryr[i] = dcblock_line_in_r_.Process(in_r * ingain_ * kLineInGain);
         }
 
         looper.Process(dryl, dryr, wetl, wetr, size);
@@ -163,6 +165,8 @@ public:
     inline void SetMix(float mix) { mix_target_ = mix; }
     /** Headphones: false = mirror the master out, true = the dry input on its own */
     inline void SetHeadphoneDry(bool dry) { hp_dry_target_ = dry ? 1.f : 0.f; }
+    /** AUX input: false = stereo, true = mono, the left channel to both sides */
+    inline void SetMonoInput(bool mono) { mono_in_ = mono; }
 
     /** Punch-in FX, by FxId (FxChain.h). While a morph runs, they go to it (FxMorph.h) */
     inline void SetFxOn(size_t fx, bool on)
@@ -247,6 +251,7 @@ private:
     chompi::FxChain fx_;
     chompi::FxMorph morph_;
     chompi::MasterComp comp_;
+    volatile bool mono_in_ = false;
     // live values start at 0 and slew up to the targets the play page sets at boot
     float mgain_ = 0.f, mgain_target_ = 0.f;
     float ingain_ = 0.f, ingain_target_ = 0.f;

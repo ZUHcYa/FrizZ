@@ -1,6 +1,6 @@
 /** @file MasterSettings.h
  *  @brief What the play page keeps on the card outside the scenes: the master compressor's
- *  knobs (MasterComp.h) and the randomizer's (FxRandomizer.h), and their text format
+ *  knobs (MasterComp.h), the randomizer's (FxRandomizer.h) and the mono input switch, and their text format
  *  (SceneStore.h writes it). No hardware here, so
  *  the format can be tested on the host.
  *
@@ -10,6 +10,7 @@
  *    FRIZZ master 1
  *    compressor 300000 500000 500000 1000000
  *    randomizer 125000 500000 1000000 0
+ *    mono 0
  *
  *  Reading, unknown lines are skipped and a setting the file leaves out keeps its default, so
  *  more settings can join later.
@@ -28,6 +29,7 @@ struct MasterSettings
 {
     float comp[kNumFxParams];
     float rand[kNumFxParams];
+    bool mono;  // the AUX input's left channel to both sides, for a mono (TS) cable
 
     /** Every setting on its default */
     void Reset()
@@ -37,6 +39,7 @@ struct MasterSettings
             comp[p] = kCompParams.defaults[p];
             rand[p] = kRandParams.defaults[p];
         }
+        mono = false;
     }
 };
 
@@ -64,6 +67,7 @@ inline size_t FormatMaster(const MasterSettings& settings, char* buf, size_t siz
             PutUint(buf, size, pos, static_cast<uint32_t>(val * kScale + .5f));
         }
     }
+    Put(buf, size, pos, settings.mono ? "\nmono 1" : "\nmono 0");
     Put(buf, size, pos, "\n");
     buf[pos] = '\0';
     return pos + 1 < size ? pos : 0;
@@ -93,6 +97,13 @@ inline bool ParseMaster(const char* text, MasterSettings& settings)
 
         size_t len;
         const char* word = Word(p, len);
+        if (word && Is(word, len, "mono"))
+        {
+            const char* num = Word(p, len);
+            if (num)
+                settings.mono = strtol(num, nullptr, 10) != 0;
+            continue;
+        }
         float* values = nullptr;
         if (word && Is(word, len, "compressor"))
             values = settings.comp;
