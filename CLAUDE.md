@@ -44,11 +44,11 @@ so the binary always matches its source. On a merge conflict over it, rebuild ra
 side. It reaches `main` with the merge, so `main` holds the last tested build; releases for
 users stay on GitHub's Releases page.
 
-## Orientation: 12.8k files, ~140 of them are source
+## Orientation: ~14.6k files, ~200 of them are source
 
-Of 12,821 tracked files, 12,371 are vendored third-party code. Hand-written `.c/.cpp/.h/.lds`
-source is 141 files; most of the rest is factory card audio (211 `.wav`), EAGLE/fabrication files,
-READMEs, and committed build artifacts. The source lives in exactly two kinds of place:
+Of about 14,600 tracked files, about 14,100 are vendored third-party code. Hand-written
+`.c/.cpp/.h/.lds` source is about 200 files; most of the rest is factory card audio (211
+`.wav`), EAGLE/fabrication files, READMEs, and committed build artifacts. The source lives in exactly two kinds of place:
 
 - `firmware/code/src/` — FRIZZ
 - `reference/firmware/{chompi-tape,chompi-tempo,chompi-wave}/code/src/` — ~30-40 files each
@@ -125,9 +125,10 @@ There is no CI, no test runner, and no Cursor/Copilot rules. The only clang-form
 vendored inside libDaisy/DaisySP's own `ci/`; it does not apply to `code/src/`. The things that
 look like tests aren't:
 
-- `code/bms_test/` — a standalone battery-management bring-up example, built separately.
-- `src/TestPage.h` — an on-device hardware self-test mode (entered by holding encoder 6's switch at
-  power-on).
+- `code/bms_test/` (stock firmwares only) — a standalone battery-management bring-up example,
+  built separately.
+- `src/TestPage.h` (stock firmwares only; FRIZZ removed it) — an on-device hardware self-test
+  mode (entered by holding encoder 6's switch at power-on).
 - `libs/libDaisy/tests/` — vendored.
 
 The only mechanical verification available off-device is: does it compile, does it fit in SRAM, and
@@ -135,18 +136,12 @@ for the bootloader, does the md5 match. Verify changes by building; real validat
 hardware.
 
 The exception is FRIZZ: `firmware/test/` compiles its audio engine on the host and runs a
-scripted 39 s of key presses and knob turns through it. `./all.sh` runs every check below.
-`./check.sh` compares HEAD with the
-working tree; a refactor must come out `bit-identical`. `./pitch.sh` checks the shifter lands on
-every interval; `./tape.sh` checks wow & flutter and the tape stop; `./scenes.sh` checks the FX scene file format; `./controls.sh` checks the play
-page's FX and scene logic (`FxControls.h`, `SceneControls.h`); `./keys.sh` its CHOMPI, PLAY and
-LOOP keys (`PlayKeys.h`); `./looper.sh` checks the looper
-without a clock; `./tempo.sh` checks tap tempo, the FX's tempo locked to the loop and scene morphs landing on
-its bar lines (`FxMorph.h`); `./comp.sh` checks the master compressor (`MasterComp.h`), the safety
-limiter's ceiling and the compressor's file format (`MasterSettings.h`); `./randomizer.sh` checks
-the randomizer's gates and picks (`FxRandomizer.h`) and `FxChain.h` handing effects to it and
-back, and the level guards (`LevelGuard`) on the randomizer and the crusher. None
-covers the LEDs, `NormalPage.h`'s key routing, real MIDI or the hardware. See its README.
+script of key presses and knob turns through it (3 s per effect plus four combined segments).
+`./all.sh` runs everything. `./check.sh` compares HEAD with the working tree; a refactor must
+come out `bit-identical`. `./unit.sh NAME` runs one unit check, `NAME.cpp`: `pitch`, `tape`,
+`scenes`, `controls`, `keys`, `looper`, `tempo`, `comp`, `randomizer`; a new check is just a new
+`.cpp`. What each covers is in `firmware/test/README.md`. None covers the LEDs, `NormalPage.h`'s
+key routing, real MIDI or the hardware.
 
 ## SRAM is the binding constraint, especially on TAPE
 

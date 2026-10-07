@@ -24,9 +24,12 @@ at random. The built-in microphone is not used.
 | Press twice, then turn (page 3) | Headphone feed: the master out to the AUX input on its own (default: the master out) | white (master) to green (input) |
 | SHIFT + turn | Input/loop mix: input only to looper only | green (input) to purple (loop) |
 | SHIFT + press | Resets the mix: the loop only while there is one, otherwise the input only | |
-| Press and hold 1.25 s | Battery check | white full / green / yellow / red |
+| Press and hold 1.25 s | Battery check | white: full, on the charger; green: above 3.3 V; yellow: below; red: below 3 V, about to switch off unless charging |
 
-Every turn moves 1% per detent. Pressing again on page 3 returns to page 1. The mix starts
+Every turn moves 1% per detent. Pressing again on page 3 returns to page 1. Picking a page
+blinks its number in white: once for page 1, twice for 2, three times for 3. Whether a press
+is SHIFT + press is decided when it goes down, so letting go of CHOMPI first doesn't also
+change the page. The mix starts
 on the input only, jumps to the loop only when a recording finishes and back to the input only
 when the loop is erased; SHIFT + press puts it back there. The punch-in FX come after this mix,
 so they act on the input as well as the loop.
@@ -69,15 +72,18 @@ Transport knob (the big purple one), once a loop exists:
 | Turn while playing | Speed in 5ths and octaves, 2× down to 1/16×, then reverse back up to −2× (4 detents per step) |
 | Turn while paused | Scrub |
 | Press | Back to 1× forward |
+| SHIFT + turn or press | Nothing |
 
 LEDs: LOOP is red while recording and blinks while a quantized recording finishes its bar or
 an erase waits for the loop's end.
 While a loop plays, PLAY and LOOP crossfade in white to show the position (dimmed when
-paused). The transport LEDs show speed and direction.
+paused). The transport LEDs show speed and direction while it plays, the scrub speed in white
+while it's paused, and nothing without a loop.
 
 ## Tempo
 
-The effects that follow a tempo (the delay, the filter LFO, the freezer, the slicer and the tape stop) take
+The effects that follow a tempo (the delay, the filter LFO, the freezer, the slicer, the tape stop
+and the randomizer's patterns) take
 it from one of three places, the first that applies:
 
 1. **The loop, while there is one**, with or without MIDI clock. Beat 1 is the loop's start,
@@ -157,7 +163,7 @@ the delay and reverb two, and the compressor on the last key.)
 | Knobs 1-4 | The parameters of the most recently pressed or selected FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo, tape stop and spin-up times) move one step per 3 detents |
 | SHIFT + knobs 1-4 | Coarse: jumps to the next point of the parameter's grid per detent (see below) |
 | SHIFT + press knobs 1-4 | Resets that parameter to its default |
-| Press knobs 1-4 | Nothing yet (kept free for a second parameter page) |
+| Press knobs 1-4 | Nothing yet (kept free for a second parameter page). Like the 13th white key and the two upper dark keys left of the scene functions, it doesn't cancel a SHIFT combo either |
 
 The FX keys are dimly lit in their effect's colour while off and at full brightness while
 on, where the audio coming out of the effect pushes the colour towards white, from -30 dBFS
@@ -483,7 +489,7 @@ no SHIFT needed:
 |---|---|---|
 | Last dark key (A# of the upper octave) | blue | **Save** the current effect settings into a slot |
 | 2nd-to-last dark key (upper G#) | green | **Copy** one slot into another, without changing the sound |
-| 3rd-to-last dark key (upper F#) | red | **Delete** a slot |
+| 3rd-to-last dark key (upper F#) | orange | **Delete** a slot |
 
 1. **Tap the function's key.** It lights up fully; the scene keys now select slots instead of
    recalling them. The effects and knobs keep working.
@@ -526,7 +532,12 @@ SHIFT + a scene key glides from where you are (the scene you're in, with whateve
 changed since) to that scene, and lands exactly on the next bar line: tap once and it lands
 at the end of this bar; keep holding SHIFT and tap the same key again and it lands a bar
 later, and so on, up to 8. A press in the last moment of a bar still lands on that bar's end.
-The glide stretches to the new end without a jump.
+
+The glide starts when you let go of SHIFT: while you hold it, the bar lines count but
+nothing moves, so every extra tap stretches the whole glide instead of what's left of it.
+Let go right after the tap for a glide over the whole bar; hold on and the glide gets
+shorter, still landing on the same bar line. If you're still holding SHIFT when it lands, it
+jumps there.
 
 - **An effect on in both scenes:** its knobs glide from their value to the scene's. Stepped
   ones (delay division, slicer pattern, shifter shift, freezer length, filter LFO division …)

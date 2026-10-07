@@ -7,14 +7,15 @@ box and looper for whatever you plug into its AUX input.
   Varispeed in fifths and octaves, reverse and scrub on the big transport knob.
 - **Twelve punch-in effects on the white keys:** freezer, pitch shifter, wavefolder, bitcrusher,
   DJ filter, flanger, resonator, slicer, wow & flutter, tape stop, tempo-synced delay and reverb. Hold a key to play an effect,
-  or SHIFT + key to latch it. Knobs 1-4 shape the last effect you touched.
+  hold it and press SHIFT to latch it. Knobs 1-4 shape the last effect you touched.
 - **A randomizer on the last white key:** it plays the effects on a one-bar gate pattern,
   1 to 5 at a time with random settings, while your own settings stay as they are.
 - **Four FX scenes on the dark keys:** save every effect's settings and latches, recall them
   at once for a drop, copy and delete them. Kept on the SD card. A fifth key clears every
   effect at once.
 - **An input/loop mix** between the live input and the loop, plus input gain, output gain and a
-  master compressor, all on the VOLUME knob.
+  headphone feed that can carry the dry input alone, all on the VOLUME knob.
+- **A master compressor** on its own key, and a safety limiter on every output.
 - **MIDI clock** over TRS or USB, for quantized loops and the tempo-synced effects.
 
 FRIZZ is installed from the SD card like any CHOMPI firmware. It doesn't touch the bootloader,

@@ -157,7 +157,7 @@ Notes for implementing this against `MidiClock.h`:
    - Record and play at 1×, with the loop-point crossfade (5 ms, using a post-roll recorded past
      the loop end, see `Looper.h`), quantized end, clock-loss and 2:45 handling.
    - Wire its output into `wetl`/`wetr` in `passthroughEngine.h`.
-3. **Keys.** *(done: `NormalPage.h`)* PLAY/LOOP state machine per 1.2, including the quantized
+3. **Keys.** *(done: `PlayKeys.h`, routed by `NormalPage.h`)* PLAY/LOOP state machine per 1.2, including the quantized
    end and the erase (`PlayKeys.h`). LOOP acts on press; PLAY acts on release and only if LOOP
    wasn't pressed during the hold. The erase mirrors the record: LOOP now, PLAY held + LOOP at
    the loop's end.
