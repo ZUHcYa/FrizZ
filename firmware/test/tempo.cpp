@@ -409,6 +409,36 @@ static void TestMorph()
     Check(fabsf(half - (.25f + .75f * 3.f / 7.f)) < .01f && chain.params[FX_FILTER][0] == 1.f,
           "morph: and glide over both bars");
 
+    // held (SHIFT still down): two taps, nothing moves until the release a quarter into the
+    // second bar, then the whole way over the rest; lands on the second bar line as before
+    while (clock.Position() != 0)
+        MorphBlock(clock, morph);
+    chain.params[FX_FILTER][0] = 0.f;
+    morph.Start(Plan(MorphParam::GLIDE, 0.f, 1.f), clock.PulsesToBarLine(), true);
+    Check(morph.Holding(), "held morph: holding");
+    for (int i = 0; i < 1000; i++)
+        MorphBlock(clock, morph);
+    Check(morph.AddBar(clock.PulsesPerBarLine()), "held morph: a second tap adds a bar");
+    lines = 0;
+    for (int i = 0; i < 4000; i++)
+        lines += MorphBlock(clock, morph);
+    Check(chain.params[FX_FILTER][0] == 0.f && morph.Active() && lines == 1,
+          "held morph: nothing moves while held, past a bar line");
+    morph.Release();
+    Check(!morph.Holding(), "held morph: released");
+    blocks = 5000;
+    while (morph.Active())
+    {
+        lines += MorphBlock(clock, morph);
+        blocks++;
+        if (blocks == 6500)
+            half = chain.params[FX_FILTER][0];
+    }
+    Check(lines == 2 && blocks > 7990 && blocks <= 8001, "held morph: lands on the second bar line");
+    // from 0 at the release (5000) to 1 at 8000: half way at 6500
+    Check(fabsf(half - .5f) < .01f && chain.params[FX_FILTER][0] == 1.f,
+          "held morph: glides the whole way after the release");
+
     // the most taps
     morph.Start(Plan(MorphParam::GLIDE, 0.f, 1.f), clock.PulsesToBarLine());
     int taps = 1;

@@ -110,6 +110,13 @@ public:
 
     /** How the last requested save went, for the play page's confirmation */
     inline SaveState GetSaveState() const { return save_state_; }
+    /** True once after a master save failed, so the play page can show it and try again */
+    bool TakeMasterFailed()
+    {
+        const bool failed = master_failed_;
+        master_failed_ = false;
+        return failed;
+    }
 
     /** From MainLoop */
     void Process()
@@ -126,6 +133,7 @@ public:
             Remount();
             const size_t len = FormatMaster(master, buf_, kMasterFileMax);
             failed_ = !(mounted_ && len && WriteText(kMasterFile, kMasterTmpFile, len));
+            master_failed_ = failed_;
         }
     }
 
@@ -243,6 +251,7 @@ private:
     bool mounted_;
     volatile SaveState save_state_;
     bool master_pending_ = false;
+    bool master_failed_ = false;
 };
 
 } // namespace chompi

@@ -189,11 +189,13 @@ public:
     /** The first effect the randomizer's last gate picked */
     inline size_t RandomizerPick() const { return fx_.RandomPick(); }
     /** A scene morph (FxMorph.h) to the next bar line of the FX's clock, one more per
-     *  AddFxMorphBar; LandFxMorph ends it at once. All with the audio interrupt blocked */
+     *  AddFxMorphBar; held until ReleaseFxMorph (SHIFT let go); LandFxMorph ends it at once.
+     *  All with the audio interrupt blocked */
     void StartFxMorph(const chompi::FxMorphPlan& plan)
     {
-        morph_.Start(plan, tempo_clock_.PulsesToBarLine());
+        morph_.Start(plan, tempo_clock_.PulsesToBarLine(), true);
     }
+    void ReleaseFxMorph() { morph_.Release(); }
     bool AddFxMorphBar() { return morph_.AddBar(tempo_clock_.PulsesPerBarLine()); }
     void LandFxMorph() { morph_.Land(); }
     /** Stops the morph where it is (FxMorph::Freeze); with the audio interrupt blocked */

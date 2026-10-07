@@ -86,12 +86,13 @@ namespace chompi
     static const float kCompMeterDb = 12.f;   // the compressor key's full brightness, dB reduced
     static const float kRandOnLevel = .5f;    // the randomizer's key while on, between gates
     static const uint32_t kMasterSaveDelayMs = 2000;
+    static const uint32_t kMasterSaveTries = 3; // a failed write is tried again, this often
 
     // FX scenes: the slots on KEY_16-20, the lower octave's dark keys, the blank one first;
     // SAVE / COPY / DELETE on TAPE's preset keys in TEMPO's colours. One language for all
     // three: the mode's colour shows what will happen (the slots it can act on, the pick, the
     // CHOMPI key that confirms), white that it's done, red that it was refused or isn't on
-    // the card
+    // the card. So no mode is red: DELETE is orange
     static const Hardware::SwId kSceneKeys[kNumSlots] = {
         Hardware::SwId::KEY_16,
         Hardware::SwId::KEY_17,
@@ -110,7 +111,7 @@ namespace chompi
     static const SceneModeKey kSceneModeKeys[] = {
         {SceneMode::SAVE, Hardware::SwId::KEY_25, 9, blue},
         {SceneMode::COPY, Hardware::SwId::KEY_24, 8, green},
-        {SceneMode::DELETE, Hardware::SwId::KEY_23, 7, red},
+        {SceneMode::DELETE, Hardware::SwId::KEY_23, 7, orange}, // red means refused
     };
     static const uint32_t kSceneBlinkMs = 250;      // a picked slot, the armed CHOMPI key
     static const uint32_t kScenePulseMs = 1000;     // the active scene, edited
@@ -190,6 +191,11 @@ namespace chompi
             }
             else if (Shift())
                 Xfade(green, purple, mix_, &r, &g, &b);
+            else if (page_flash_.Active(now))
+            {
+                // a page picked: blinks its number in white
+                r = g = b = page_flash_.BlinkLit(now) ? 1.f : 0.f;
+            }
             else if (page_ == 0)
             {
                 float vu_sample = engine_->GetVUSample();
@@ -227,6 +233,8 @@ namespace chompi
             {
             case static_cast<uint16_t>(Hardware::SwId::KEY_26):
                 keys_.Chompi(rising);
+                if (!rising)
+                    ReleaseMorph();
                 return true;
             case static_cast<uint16_t>(Hardware::SwId::KEY_27):
                 keys_.Play(rising);
@@ -266,32 +274,47 @@ namespace chompi
                 }
             }
 
-            // anything else used with CHOMPI held is a SHIFT combo
-            if (rising)
-                keys_.Used();
-
-            // short press cycles the pages, hold to check battery level. SHIFT + press resets
-            // the mix, as SHIFT + press does on knobs 1-4, to where a recording or an erase
-            // leaves it: the loop only while there is one, otherwise the input only
+            // VOLUME: a short press picks the next page, a hold checks the battery. SHIFT +
+            // press resets the mix, as SHIFT + press does on knobs 1-4, to where a recording
+            // or an erase leaves it: the loop only while there is one, otherwise the input
+            // only. Whether it was SHIFT + press is decided on the press, so letting go of
+            // CHOMPI first doesn't turn its release into a page change
             if (buttonID == static_cast<uint16_t>(Hardware::SwId::ENC_6_SW))
             {
-                if(!rising && !Shift() && System::GetNow() - batt_hold < kBattHoldMs)
-                    page_ = (page_ + 1) % kNumPages;
-                if (rising && Shift())
-                    SetMix(LoopExists() ? 1.f : 0.f);
-
-                batt_hold = System::GetNow();
-                batt_display = rising;
+                const uint32_t now = System::GetNow();
+                if (rising)
+                {
+                    keys_.Used();
+                    vol_shift_ = Shift();
+                    if (vol_shift_)
+                        SetMix(LoopExists() ? 1.f : 0.f);
+                    batt_hold = now;
+                    batt_display = !vol_shift_;
+                }
+                else
+                {
+                    if (!vol_shift_ && now - batt_hold < kBattHoldMs)
+                    {
+                        page_ = (page_ + 1) % kNumPages;
+                        page_flash_.Start(now, (page_ + 1) * 2 * kSignalBlinkMs);
+                    }
+                    batt_display = false;
+                }
                 return true;
             }
             if (!rising)
                 return true;
 
-            // transport press: back to 1x forward
+            // The keys and presses below act only on the way down. Only those that do
+            // something count as a SHIFT combo (keys_.Used): a key without a function doesn't
+            // cancel a confirm or a latch in the making.
+
+            // transport press: back to 1x forward; not with SHIFT, as SHIFT + turn does nothing
             if (buttonID == ENC_5_SW)
             {
-                if (LoopExists())
+                if (!Shift() && LoopExists())
                 {
+                    keys_.Used();
                     engine_->looper.ResetSpeed();
                     speed_chunk_ = 0.f;
                 }
@@ -300,17 +323,30 @@ namespace chompi
             for (size_t slot = 0; slot < kNumSlots; slot++)
             {
                 if (buttonID == static_cast<uint16_t>(kSceneKeys[slot]))
+                {
+                    keys_.Used();
                     ScenePressed(slot, Shift());
+                    return true;
+                }
             }
             for (const SceneModeKey& key : kSceneModeKeys)
             {
                 if (buttonID == static_cast<uint16_t>(key.key))
+                {
+                    keys_.Used();
                     scene_ctl_.ModePressed(key.mode);
+                    return true;
+                }
             }
             for (size_t knob = 0; knob < kNumFxParams; knob++)
             {
-                if (buttonID == static_cast<uint16_t>(kFxKnobSwitches[knob]))
-                    fx_.KnobPressed(knob, Shift());
+                // a knob press does something only with SHIFT: the reset
+                if (buttonID == static_cast<uint16_t>(kFxKnobSwitches[knob]) && Shift())
+                {
+                    keys_.Used();
+                    fx_.KnobPressed(knob, true);
+                    return true;
+                }
             }
             return true;
         }
@@ -341,6 +377,12 @@ namespace chompi
         {
             ScopedIrqBlocker irq;
             return scene_ctl_.FreezeMorph();
+        }
+        /** SHIFT let go: a morph started with it glides now (FxMorph::Release) */
+        void ReleaseMorph()
+        {
+            ScopedIrqBlocker irq;
+            engine_->ReleaseFxMorph();
         }
         inline void Refused() { loop_refused_.Start(System::GetNow()); }
         inline uint32_t Now() const { return System::GetNow(); }
@@ -403,6 +445,17 @@ namespace chompi
             {
                 master_unsaved_ = true;
                 master_changed_at_ = now;
+                master_tries_ = 0;
+            }
+            // a failed write: the compressor's key blinks red, and it's tried again a few times
+            if (scenes_->TakeMasterFailed())
+            {
+                master_refused_.Start(now);
+                if (++master_tries_ < kMasterSaveTries)
+                {
+                    master_unsaved_ = true;
+                    master_changed_at_ = now;
+                }
             }
             if (master_unsaved_ && now - master_changed_at_ > kMasterSaveDelayMs)
             {
@@ -612,7 +665,10 @@ namespace chompi
             float level = kFxOffLevel + (1.f - kFxOffLevel) * fclamp(reduced, 0.f, 1.f);
             if (comp && select_flash_.Active(now))
                 level = 1.f;
-            SmtLed(kCompKeyLed, white, level);
+            if (master_refused_.Active(now))
+                SmtLed(kCompKeyLed, red, master_refused_.BlinkLit(now) ? 1.f : 0.f);
+            else
+                SmtLed(kCompKeyLed, white, level);
 
             // the randomizer's key: dim white while on, a gate open in the colour of an effect
             // it fired; a select flashes white
@@ -775,6 +831,8 @@ namespace chompi
         bool master_unsaved_ = false;     // the compressor's or randomizer's knobs, not yet
                                           // on the card
         uint32_t master_changed_at_ = 0;  // when they last changed
+        uint32_t master_tries_ = 0;       // failed writes since
+        LedSignal master_refused_;        // a failed write, on the compressor's key
 
         FxControls<PassthroughEngine> fx_;
         SceneControls<PassthroughEngine> scene_ctl_;
@@ -785,8 +843,10 @@ namespace chompi
         int scene_refused_ = kNoScene; // refused, pressed
         LedSignal scene_refused_signal_;
 
-        bool batt_display = false; // VOLUME held
-        uint32_t batt_hold = 0;     // when VOLUME was last pressed or released
+        bool batt_display = false; // VOLUME held, without SHIFT
+        uint32_t batt_hold = 0;     // when VOLUME was last pressed
+        bool vol_shift_ = false;    // VOLUME's press was SHIFT + press
+        LedSignal page_flash_;      // a page picked: its number in blinks
     };
 
 } // namespace chompi

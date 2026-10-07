@@ -5,6 +5,10 @@
  *  runs it in the audio callback, between the UI and the FxChain, so the landing is exact to
  *  the clock pulse.
  *
+ *  Held (SHIFT still down after the tap, Start's hold): the bar lines count, and taps add
+ *  bars, but nothing moves until Release, so every tap stretches the whole glide rather than
+ *  what's left of it. Release glides from where the sound still is over the rest.
+ *
  *  The glide follows the clock: the pulses counted since the start, plus the time since the
  *  last one, over the pulses expected to the landing. The landing itself is the bar line's
  *  pulse, wherever the transport went, so a wrong estimate only bends the glide. Glided
@@ -62,10 +66,10 @@ public:
         land_ = false;
     }
 
-    /** Starts plan, landing on the next bar line, pulses_to_bar pulses away (an estimate).
-     *  The chain must have plan's start values already. Call with the audio interrupt
-     *  blocked */
-    void Start(const FxMorphPlan& plan, uint32_t pulses_to_bar)
+    /** Starts plan, landing on the next bar line, pulses_to_bar pulses away (an estimate);
+     *  held: waiting at the start until Release. The chain must have plan's start values
+     *  already. Call with the audio interrupt blocked */
+    void Start(const FxMorphPlan& plan, uint32_t pulses_to_bar, bool hold = false)
     {
         if (active_)
             Land();
@@ -84,8 +88,20 @@ public:
         since_pulse_ = 0.f;
         since_start_ = 0;
         land_ = false;
+        holding_ = hold;
         active_ = true;
     }
+
+    /** SHIFT let go: a held morph glides from here over what's left to its landing. Call
+     *  with the audio interrupt blocked */
+    void Release()
+    {
+        if (!active_ || !holding_)
+            return;
+        holding_ = false;
+        base_ = pos_;
+    }
+    inline bool Holding() const { return active_ && holding_; }
 
     /** One bar line more, up to kMaxMorphBars. The glide carries on from where it is, now
      *  over pulses_per_bar more pulses. False if it can't. Call with the audio interrupt
@@ -148,7 +164,7 @@ public:
         pos_ = static_cast<float>(pulses_) + frac;
         const float span = expected_ - base_;
         float t = span > 0.f ? (pos_ - base_) / span : 1.f;
-        t = t < 0.f ? 0.f : (t > 1.f ? 1.f : t);
+        t = holding_ || t < 0.f ? 0.f : (t > 1.f ? 1.f : t);
 
         chain_->FastSlew();
         for (size_t fx = 0; fx < kNumFx; fx++)
@@ -259,6 +275,7 @@ private:
     uint32_t since_start_;
     volatile bool land_;
     volatile bool active_;
+    volatile bool holding_ = false; // started held, not released yet
 };
 using FxMorph = FxMorphT<>;
 

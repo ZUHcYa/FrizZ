@@ -171,21 +171,26 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
             encoder_sr_cfg.dbc_size = 50; // we're not actually using this
             encoder_sr.Init(encoder_sr_cfg);
 
-            /** Digital LEDs */
-            /** TODO: cleanup stuff in temp_led_stuff.h and add here */
+            // the first level check a second after boot, not after the usual 30s
+            batt_level_checkt = System::GetNow() - kBattLevelCheckMs + 1000;
         }
 
         enum BatteryLevel {
             FULL, // on the charger, and hit the full state
             HIGH, // > 3V3, not fully charged
             MEDIUM, // < 3V3
-            LOW, // unused for now
-            LAST,
+            LOW, // < 3V, the lockout's threshold: shuts down soon unless it's charging
         };
 
+        static const uint32_t kBattLevelCheckMs = 30000;
         BatteryLevel batt_level = MEDIUM;
 
-        inline BatteryLevel GetBatteryLevel() { return batt_level; }
+        inline BatteryLevel GetBatteryLevel()
+        {
+            if (batt_level != BatteryLevel::FULL && batt_low_bounce == 0xff)
+                return BatteryLevel::LOW;
+            return batt_level;
+        }
 
         /** Debounce registers for noisy MP2722. It tends to fluctuate a bit on the
          *  thresholds between battery levels */
@@ -211,7 +216,7 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
             // its read is its own (level_read_), and the lockout doesn't read meanwhile, so the
             // 3V3 reading can't be overwritten before it's used, nor reach the lockout
             uint32_t now = System::GetNow();
-            if (batt_check_state == 0 && now - batt_level_checkt > 30000) { // Check every 30s
+            if (batt_check_state == 0 && now - batt_level_checkt > kBattLevelCheckMs) {
                 MpWrite(0x0c, 0B01011101); // set BATT_LOW to 3V3
                 batt_level_checkt = now;
                 batt_check_state = 1;
