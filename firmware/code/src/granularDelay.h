@@ -337,6 +337,7 @@ class granularDelay {
         setFeedback(.3f);
 
         clock_edge_ = false;
+        since_edge_ = 0;
         event_type_[0] = event_type_[1] = delayVoice::NONE;
         curIdx = 0;
         nextIdx = 1;
@@ -384,10 +385,22 @@ class granularDelay {
             myVoices[i].updateTempo(delay_samples_, write_head_);
         }
 
+        // An event runs to the next 8th-note edge. On a slowed-down loop the edges come much
+        // later than the tempo (clamped to 50 BPM) says, and a reverse or pitched head would
+        // run off the buffer: past an 8th at the tempo and its fade, the event ends as on an
+        // edge without one
+        bool cut_short = false;
+        if (++since_edge_ > EventSamples() && event_type_[1] != delayVoice::NONE && !clock_edge_) {
+            clock_edge_ = true;
+            cut_short = true;
+        }
+
         // every 8th note: maybe a random event, on the voice that isn't playing
         if (clock_edge_) {
+            since_edge_ = 0;
             event_type_[0] = event_type_[1];
-            bool random_event = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < (0.5f * alt_control_);
+            bool random_event = !cut_short
+                && static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < (0.5f * alt_control_);
             if (random_event) {
                 curIdx = nextIdx;
                 nextIdx = (curIdx + 1) % 2;
@@ -435,6 +448,12 @@ class granularDelay {
         const float edge = 60.f * 48000.f / (static_cast<float>(tempo_) * 2.f);
         const float run = edge + 2.f * static_cast<float>(kMaxEventCrossfadeSamps);
         return delay_samples_ + 2.f * run + 2.f < static_cast<float>(buffer_size_);
+    }
+
+    /** The longest an event runs: an 8th note at the tempo, plus a fade */
+    uint32_t EventSamples() const {
+        return static_cast<uint32_t>(60.f * 48000.f / (static_cast<float>(tempo_) * 2.f))
+               + kMaxEventCrossfadeSamps;
     }
 
     float randomPan() {
@@ -489,6 +508,7 @@ class granularDelay {
     size_t delay_div_position_;
 
     bool clock_edge_; // set by the clock pulses, in the audio callback too
+    uint32_t since_edge_; // samples since the last edge
     delayEvent event_type_[2];
     uint8_t curIdx, nextIdx;
 };
