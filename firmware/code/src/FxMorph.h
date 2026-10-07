@@ -143,7 +143,8 @@ public:
         }
 
         since_start_ += size;
-        if (deferred_ & plan_.wake && since_start_ >= kMorphWakeSamples)
+        // a held morph wakes its fade-ins on the release, when their glide starts
+        if (deferred_ & plan_.wake && !holding_ && since_start_ >= kMorphWakeSamples)
         {
             for (size_t fx = 0; fx < kNumFx; fx++)
             {

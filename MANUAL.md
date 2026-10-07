@@ -383,8 +383,9 @@ latch, and holding it doesn't switch anything. With SHIFT it's a select, as an F
   compressor at its lowest setting, which was its default. It keeps the outputs within full
   scale; it is what FRIZZ always had, so nothing changes until you turn the amount up.
 - **Kept:** the settings are saved to `FRIZZ/frizz_master.txt` on the card 2 s after the
-  last turn, and come back at power-on. They're not part of a scene. Without a card they
-  last until power-off.
+  last turn, and come back at power-on. They're not part of a scene. Without a card, or when
+  the card can't be written, the key blinks red 3 times instead, and FRIZZ tries again 2 s
+  later, up to 3 times; the settings then last until power-off.
 - LEDs: the key is white, dim, lighting up with the gain reduction, at full brightness from
   12 dB; it flashes white when pressed. While selected, the knobs go light blue (0%) through
   white to orange (100%).
@@ -542,8 +543,8 @@ jumps there.
 - **An effect on in both scenes:** its knobs glide from their value to the scene's. Stepped
   ones (delay division, slicer pattern, shifter shift, freezer length, filter LFO division …)
   switch on the bar line.
-- **An effect the scene turns on fades in:** it comes on at once with the knob that brings it
-  in at off, and that knob glides up to the scene's value. Its other knobs take the scene's
+- **An effect the scene turns on fades in:** it comes on when the glide starts with the knob
+  that brings it in at off, and that knob glides up to the scene's value. Its other knobs take the scene's
   values at once. The folder, crusher and filter colour the sound with their other knobs
   too, so all of theirs (but the filter's LFO division) start on their defaults and glide.
 - **An effect the scene turns off fades out:** the same knobs glide back to their defaults,
