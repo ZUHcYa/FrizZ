@@ -37,6 +37,13 @@ hardware where it touches the firmware) and said so; passing `firmware/test/` or
 is not that approval. If you find yourself on `main` with changes to make, create the branch
 before the first commit.
 
+The branch always carries a built firmware for the user to test: every commit that changes
+`firmware/code/` rebuilds with `make` in `firmware/code/src` (GCC 10.3, see below) and
+includes the fresh `build/FRIZZ.bin` copied to `firmware/bin/FRIZZ.bin`, in the same commit,
+so the binary always matches its source. On a merge conflict over it, rebuild rather than pick a
+side. It reaches `main` with the merge, so `main` holds the last tested build; releases for
+users stay on GitHub's Releases page.
+
 ## Orientation: 12.8k files, ~140 of them are source
 
 Of 12,821 tracked files, 12,371 are vendored third-party code. Hand-written `.c/.cpp/.h/.lds`
