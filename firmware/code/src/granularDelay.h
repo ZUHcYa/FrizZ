@@ -13,6 +13,7 @@
  */
 #pragma once
 #include "daisysp.h"
+#include "FxCommon.h"
 
 using namespace daisysp;
 
@@ -338,6 +339,7 @@ class granularDelay {
 
         clock_edge_ = false;
         since_edge_ = 0;
+        rng_.Seed(0x6C8E9CF5u);
         event_type_[0] = event_type_[1] = delayVoice::NONE;
         curIdx = 0;
         nextIdx = 1;
@@ -399,14 +401,13 @@ class granularDelay {
         if (clock_edge_) {
             since_edge_ = 0;
             event_type_[0] = event_type_[1];
-            bool random_event = !cut_short
-                && static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < (0.5f * alt_control_);
+            bool random_event = !cut_short && rng_.Uniform() < (0.5f * alt_control_);
             if (random_event) {
                 curIdx = nextIdx;
                 nextIdx = (curIdx + 1) % 2;
                 float pan = 0.f;
                 if (!shimmer_) {
-                    event_type_[1] = static_cast<delayEvent>(rand() % 4);
+                    event_type_[1] = static_cast<delayEvent>(rng_.Next() % 4);
                     if (event_type_[1] == delayVoice::REVERSE && !ReverseFits()) {
                         event_type_[1] = delayVoice::RETRIG;
                     }
@@ -458,7 +459,7 @@ class granularDelay {
 
     float randomPan() {
         float effective_range = 0.5f + (alt_control_ * 0.5f); // Range: [0.5, 1.0]
-        float r = ((rand() % 2001 - 1000) / 1000.f); // [-1.0, 1.0]
+        float r = static_cast<float>(static_cast<int>(rng_.Next() % 2001) - 1000) / 1000.f; // [-1.0, 1.0]
         return r * effective_range;
     }
 
@@ -509,6 +510,7 @@ class granularDelay {
 
     bool clock_edge_; // set by the clock pulses, in the audio callback too
     uint32_t since_edge_; // samples since the last edge
+    chompi::Rng rng_;     // its random events, not newlib's shared rand()
     delayEvent event_type_[2];
     uint8_t curIdx, nextIdx;
 };

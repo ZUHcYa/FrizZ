@@ -388,18 +388,9 @@ class FxEngine
 
         c->lfo_phase_ = lfo_phase_;
         c->lfo_freq_  = lfo_freq_;
-
-        if((write_ptr_ & 31) == 0)
-        {
-            lfo_phase_[0] += lfo_freq_[0];
-            lfo_phase_[0]
-                = lfo_phase_[0] >= 1.f ? lfo_phase_[0] - 1.f : lfo_phase_[0];
-
-            lfo_phase_[1] += lfo_freq_[1];
-            lfo_phase_[1]
-                = lfo_phase_[1] >= 1.f ? lfo_phase_[1] - 1.f : lfo_phase_[1];
-        }
-        // FRIZZ: no lfo_value_ (2 cosf a sample nothing read): Interpolate computes its own
+        // FRIZZ: no lfo_value_ (2 cosf a sample nothing read), and no advance every 32
+        // samples here: Interpolate advances the phases it reads itself, which made them run
+        // 1/32 fast
     }
 
   private:

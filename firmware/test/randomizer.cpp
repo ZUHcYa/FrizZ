@@ -213,7 +213,7 @@ static FxChain chain;
 static uint32_t chain_now = 0;
 static void ChainBlock()
 {
-    chain.SetTempo(120);
+    chain.SetTempo(120, 2000.f); // 120 BPM: 2000 samples a pulse
     for (uint32_t s = chain_now; s < chain_now + kBlock; s++)
         if (s % kPulse == 0)
             chain.ClockPulse(s / kPulse);
@@ -345,7 +345,7 @@ static void TestLevel()
     double in_sum = 0., out_sum = 0.;
     for (uint32_t s = 0; s < 32 * 16 * kSixteenth; s += kBlock)
     {
-        chain.SetTempo(120);
+        chain.SetTempo(120, 2000.f); // 120 BPM: 2000 samples a pulse
         for (uint32_t p = s; p < s + kBlock; p++)
             if (p % kPulse == 0)
                 chain.ClockPulse(p / kPulse);

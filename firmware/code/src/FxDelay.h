@@ -29,6 +29,7 @@ public:
         delay_.Init(buffer, buffer_frames);
         gate_.Init();
         level_.Reset(0.f);
+        feedback_.Reset(.3f); // granularDelay's own
     }
 
     /** Once per block: the tempo, plus one call per clock pulse in this block, with the
@@ -46,6 +47,14 @@ public:
     {
         const float gate = gate_.Process();
         const float level = level_.Process();
+        // the feedback slews like the other knobs, so turning it doesn't zipper the repeats
+        if (feedback_.value != feedback_.target)
+        {
+            feedback_.Process();
+            if (fabsf(feedback_.value - feedback_.target) < 1e-5f)
+                feedback_.Snap();
+            delay_.setFeedback(feedback_.value);
+        }
 
         float dl = 0.f, dr = 0.f;
         delay_.write(in_l * gate, in_r * gate);
@@ -63,7 +72,7 @@ public:
             delay_.setDivision(StepIndex(val, kNumDivisions));
             break;
         case FEEDBACK:
-            delay_.setFeedback(val);
+            feedback_.target = val;
             break;
         case RANDOM:
             delay_.setRandom(val);
@@ -79,6 +88,7 @@ public:
 private:
     granularDelay delay_;
     Smoothed level_;
+    Smoothed feedback_;
 };
 
 } // namespace chompi

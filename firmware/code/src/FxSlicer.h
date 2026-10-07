@@ -54,7 +54,7 @@ public:
         env_[1].Reset();
         pattern_pos_ = 0;
         step_ = false;
-        rng_ = 0x2545F491u;
+        rng_.Seed(0x2545F491u);
 
         for (size_t i = 0; i < kNumFxParams; i++)
             SetParam(i, 0.f);
@@ -82,10 +82,7 @@ public:
         {
             step_ = false;
             const uint32_t step = pattern_pos_ / kPulsesPer16th;
-            rng_ ^= rng_ << 13;
-            rng_ ^= rng_ >> 17;
-            rng_ ^= rng_ << 5;
-            const bool flip = static_cast<float>(rng_ >> 8) * (1.f / 16777216.f) < chance_;
+            const bool flip = rng_.Uniform() < chance_;
 
             const size_t pattern[2] = {
                 (pattern_ + stereo_) % kNumPatterns,
@@ -142,7 +139,7 @@ private:
     PressEnvelope env_[2];
     uint32_t pattern_pos_; // pulses into the pattern, kNumSteps 16ths
     volatile bool step_;
-    uint32_t rng_;
+    Rng rng_;
     size_t pattern_ = 0;
     size_t stereo_ = 0;
     float chance_ = 0.f;

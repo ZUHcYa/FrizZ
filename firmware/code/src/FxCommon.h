@@ -117,6 +117,23 @@ protected:
     FxGate gate_;
 };
 
+/** The effects' random numbers: a xorshift32, seeded per effect so every run is the same */
+struct Rng
+{
+    uint32_t state = 1;
+
+    inline void Seed(uint32_t seed) { state = seed ? seed : 1; }
+    inline uint32_t Next()
+    {
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+        return state;
+    }
+    /** 0..1, never 1 */
+    inline float Uniform() { return static_cast<float>(Next() >> 8) * (1.f / 16777216.f); }
+};
+
 /** A stepped parameter's step, 0..steps - 1, from its knob value 0..1 (clamped, since the
  *  step indexes a table) */
 inline size_t StepIndex(float val, size_t steps)

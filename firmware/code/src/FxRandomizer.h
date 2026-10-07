@@ -70,7 +70,7 @@ public:
         pool_ = pool;
         min_gate_ = static_cast<int32_t>(kMinGateMs * .001f * sample_rate);
         cool_ = static_cast<int32_t>(kCoolMs * .001f * sample_rate);
-        rng_ = 0x9E3779B9u;
+        rng_.Seed(0x9E3779B9u);
         on_ = was_on_ = false;
         step_ = -1;
         armed_ = false;
@@ -233,15 +233,8 @@ private:
         gate_left_ = 0;
     }
 
-    uint32_t Next()
-    {
-        rng_ ^= rng_ << 13;
-        rng_ ^= rng_ >> 17;
-        rng_ ^= rng_ << 5;
-        return rng_;
-    }
-    /** 0..1, never 1 */
-    inline float Uniform() { return static_cast<float>(Next() >> 8) * (1.f / 16777216.f); }
+    inline uint32_t Next() { return rng_.Next(); }
+    inline float Uniform() { return rng_.Uniform(); }
 
     float sample_rate_;
     uint16_t pool_;
@@ -249,7 +242,7 @@ private:
     int32_t min_gate_;  // samples, kMinGateMs
     int32_t cool_;      // samples, kCoolMs
     float params_[kNumFxParams];
-    uint32_t rng_;
+    Rng rng_;
     volatile bool on_;
     bool was_on_;       // what Block last saw of on_
     int32_t step_;      // the 16th the clock's on, -1 before its first

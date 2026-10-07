@@ -64,7 +64,7 @@ public:
     void Process(float* l, float* r)
     {
         const float gate = gate_.Process();
-        const float dry = dry_.Process(.002f);
+        const float dry = dry_.Process();
         const float feedback = feedback_.Process();
 
         if (gate_.TakePress())

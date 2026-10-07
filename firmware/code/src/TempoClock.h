@@ -107,8 +107,9 @@ public:
     /** The loop was erased: back to the MIDI clock, or to free running at the loop's tempo */
     void ClearLoop()
     {
-        bpm_ = ClampBpm(loop_bpm_);
-        tempo_ = static_cast<int>(bpm_ + .5f);
+        // the free clock runs at the whole BPM the FX use, so their times stay on its grid
+        tempo_ = static_cast<int>(ClampBpm(loop_bpm_) + .5f);
+        bpm_ = static_cast<float>(tempo_);
         tempo_set_ = true;
         loop_length_ = 0;
         paused_ = false;
@@ -137,8 +138,8 @@ public:
             loop_idx_ = free_idx_ = PulseIndex(loop_pos_);
             return;
         }
-        bpm_ = ClampBpm(bpm);
-        tempo_ = static_cast<int>(bpm_ + .5f);
+        tempo_ = static_cast<int>(ClampBpm(bpm) + .5f);
+        bpm_ = static_cast<float>(tempo_);
         // the next pulse lands now and starts the nearest beat
         const uint32_t beat = (pulse_count_ + kPulsesPerBeat / 2) / kPulsesPerBeat * kPulsesPerBeat;
         pulse_count_ = (beat + kPulsesPerCycle - 1) % kPulsesPerCycle;
