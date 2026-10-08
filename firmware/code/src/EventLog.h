@@ -391,9 +391,11 @@ private:
     }
 
     EventLogMem* mem_ = nullptr;
-    char scenes_[kSceneFileMax]; // the card's files at power-on
-    char master_[kMasterFileMax];
-    char text_[kEventLogText + 128];
+    // the card's files at power-on, and the text going to it: whole cache lines, as the SD
+    // driver keeps the cache in step with its DMA by them (SceneStore's buf_ too)
+    alignas(32) char scenes_[kSceneFileMax];
+    alignas(32) char master_[kMasterFileMax];
+    alignas(32) char text_[kEventLogText + 128];
     FATFS* fs_ = nullptr;
     const char* path_ = nullptr;
     FIL file_;

@@ -311,7 +311,7 @@ private:
 
     struct Text
     {
-        char buf[3072];
+        alignas(32) char buf[3072]; // whole cache lines for the SD DMA, as SceneStore's
         size_t pos = 0;
         void Put(const char* s)
         {
