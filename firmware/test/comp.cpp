@@ -245,6 +245,17 @@ static void TestFile()
               b.comp[0] == .5f && b.rand[0] == kRandParams.defaults[0] &&
               b.rand[2] == kRandParams.defaults[2],
           "file: one from before the randomizer, its knobs on their defaults");
+
+    // the mono input switch, on a line of its own
+    a.Reset();
+    a.mono = true;
+    FormatMaster(a, buf, sizeof(buf));
+    Check(ParseMaster(buf, b) && b.mono, "file: mono round-trips");
+    a.mono = false;
+    FormatMaster(a, buf, sizeof(buf));
+    Check(ParseMaster(buf, b) && !b.mono, "file: stereo round-trips");
+    Check(ParseMaster("FRIZZ master 1\ncompressor 500000 500000 500000 500000\n", b) && !b.mono,
+          "file: one from before the mono switch, stereo");
 }
 
 int main()

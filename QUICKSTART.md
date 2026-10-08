@@ -52,8 +52,8 @@ A loop can be up to 2:45 long and is gone when you switch off.
 ## 3. Play the effects
 
 The first twelve white keys hold effects, counted from the left, in the order the sound goes
-through them. The 13th does nothing, the 14th is the master compressor and the last one the
-randomizer (both below).
+through them. The 13th switches the input to mono, for a mono cable (lit white while mono),
+the 14th is the master compressor and the last one the randomizer (both below).
 
 | White key | 1st | 2nd | 3rd | 4th | 5th | 6th | 7th | 8th | 9th | 10th | 11th | 12th |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|

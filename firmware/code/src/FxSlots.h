@@ -42,9 +42,13 @@ static const FxSlot kFxSlots[] = {
     {Hardware::SwId::KEY_10, 15, amber, {amber, white, red}, FxKind::INSERT},         // tape stop
     {Hardware::SwId::KEY_11, 14, green, {green, white, med_blue}, FxKind::SEND},      // delay
     {Hardware::SwId::KEY_12, 13, blue, {med_blue, blue, purple}, FxKind::SEND},       // reverb
-    // KEY_13 is free
 };
 static_assert(sizeof(kFxSlots) / sizeof(kFxSlots[0]) == kNumFx, "one per FxId");
+
+// The mono input switch, the 13th white key: lit white while mono (the AUX input's left
+// channel to both sides, for a mono cable), dark while stereo
+static const Hardware::SwId kMonoKey = Hardware::SwId::KEY_13;
+static const uint8_t kMonoKeyLed = 12;
 
 // The master compressor's key (MasterComp.h), the white key before the last: white, lighting
 // up with its gain reduction. Its knob LEDs at 0 / .5 / 1

@@ -146,6 +146,9 @@ namespace chompi
             }
             fx_.TakeCompChanged();
             fx_.TakeRandChanged();
+            // and the mono input switch
+            mono_ = scenes_->master.mono;
+            engine_->SetMonoInput(mono_);
             scene_ctl_.Init(scenes_->scenes, &fx_);
             keys_.Init(this);
 
@@ -246,6 +249,18 @@ namespace chompi
                 break;
             }
 
+            if (buttonID == static_cast<uint16_t>(kMonoKey))
+            {
+                if (rising)
+                {
+                    keys_.FxKey();
+                    mono_ = !mono_;
+                    engine_->SetMonoInput(mono_);
+                    master_unsaved_ = true;
+                    master_changed_at_ = System::GetNow();
+                }
+                return true;
+            }
             if (buttonID == static_cast<uint16_t>(kCompKey))
             {
                 // the compressor is always on: its key only selects, and always flashes
@@ -464,6 +479,7 @@ namespace chompi
                     scenes_->master.comp[p] = fx_.CompParam(p);
                     scenes_->master.rand[p] = fx_.RandParam(p);
                 }
+                scenes_->master.mono = mono_;
                 scenes_->RequestMasterSave();
                 master_unsaved_ = false;
             }
@@ -670,6 +686,9 @@ namespace chompi
             else
                 SmtLed(kCompKeyLed, white, level);
 
+            // the mono input switch: white while mono, dark while stereo
+            SmtLed(kMonoKeyLed, white, mono_ ? 1.f : 0.f);
+
             // the randomizer's key: dim white while on, a gate open in the colour of an effect
             // it fired; a select flashes white
             const float* rand_color = white;
@@ -828,6 +847,7 @@ namespace chompi
         LedSignal tap_flash_;
         LedSignal select_flash_; // on the selected FX's key
         float speed_chunk_ = 0.f;   // transport detents towards the next speed step
+        bool mono_ = false;               // the AUX input in mono (kMonoKey)
         bool master_unsaved_ = false;     // the compressor's or randomizer's knobs, not yet
                                           // on the card
         uint32_t master_changed_at_ = 0;  // when they last changed

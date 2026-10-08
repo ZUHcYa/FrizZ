@@ -185,7 +185,7 @@ committed by writing a temp file then renaming it.
 **FRIZZ is simpler:** it builds `FRIZZ.bin`, has no `SDCallback()`, `FileStreamingManager`,
 NoSDPage or MenuPage, and no MIDI out. It reads the card once at boot and writes it only from
 `MainLoop()` when an FX scene is saved, copied or deleted, or when the master compressor's or
-the randomizer's knobs have rested 2 s (`SceneStore.h`, `MasterSettings.h`). Its files live in
+the randomizer's knobs or the mono input switch have rested 2 s (`SceneStore.h`, `MasterSettings.h`). Its files live in
 `/FRIZZ`, which `EnterFrizzDir()` creates at boot on a card without it. Its play page is
 `NormalPage.h`; its engine is `passthroughEngine.h` → `Looper.h` + `FxMorph.h` → `FxChain.h` →
 `MasterComp.h` → output gain → `limiter.h`.

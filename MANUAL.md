@@ -43,6 +43,21 @@ master at every power-on.
 (Page 3 used to be the master compressor, which has its own key now, see
 [Master compressor](#master-compressor). The headphone feed used to be on the mode switch.)
 
+## Mono input
+
+The 13th white key switches the AUX input between stereo and mono. Mono is for a mono (TS)
+cable, such as one from a Lyra-8 or a guitar pedal: the plug grounds the right channel, so in
+stereo the source is heard on the left only. In mono the left channel feeds both sides, and the
+effects' stereo knobs spread it from there.
+
+| Key | Result |
+|---|---|
+| Tap the 13th white key | Mono on / off |
+
+- LEDs: the key is lit white while mono, dark while stereo.
+- It's saved on the card with the master compressor and the randomizer, so it comes back at
+  power-on. It isn't part of a scene.
+
 ## Looper
 
 | Looper | Key | Result |
@@ -132,7 +147,7 @@ freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> wow & 
   -> tape stop -> delay -> reverb
 ```
 
-The effects fill the first 12 white keys. The 13th does nothing yet; the 14th is the
+The effects fill the first 12 white keys. The 13th is the [mono input](#mono-input) switch; the 14th is the
 [master compressor](#master-compressor)'s and the 15th, the last, the
 [randomizer](#randomizer)'s. (Wow & flutter and the tape stop used to sit one key further right,
 the delay and reverb two, and the compressor on the last key.)
