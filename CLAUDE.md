@@ -187,10 +187,11 @@ come out `bit-identical`. `./unit.sh NAME` runs one unit check, `NAME.cpp`: `pit
 `firmware/twin/` is the **virtual CHOMPI**: the whole firmware (`chompi_main.cpp` down, with
 libDaisy's UI, Switch, 4021 and MIDI code) compiled unchanged for the host on a simulated
 board (the 4021 chains, encoders, WS2812 DMA, charger, card, audio, MIDI in), deterministic
-and about 20x real time. `./run.sh -o out.wav -l - SCRIPT` plays a script of keys, knobs,
+and 13-20x real time. `./run.sh -o out.wav -l - SCRIPT` plays a script of keys, knobs,
 MIDI and audio into it from power-on and writes the master out and the LEDs; use it to see
 what a change does to the play page before the user flashes it. `unit.sh ui` checks the play
-page through it. It can't show the CPU load, the codec or anything else about the chip;
+page through it. It can't show the CPU load, the codec, races between the audio interrupt and `main()` or
+anything else about the chip;
 `firmware/twin/README.md` has the details.
 
 ## FRIZZ's audio callback is CPU-bound

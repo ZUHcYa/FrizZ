@@ -19,11 +19,13 @@ The firmware's `main()` runs as a coroutine: each 0.5 ms block runs the audio ca
 `main()` until it has used up the block (its time moves with `System::Delay*` and `GetNow`).
 So the boot sequence, the 2 ms UI tick, the battery checks and the card writes run as on the
 device, and a run is deterministic: the same inputs give the same samples and LEDs. It runs
-about 20 times faster than real time.
+13 (every effect on, a loop playing) to 20 times faster than real time.
 
 What it can't show: anything about time on the chip. The CPU load (crackles), the caches and
 memory placement, the codec, the card's speed. Those need the device (CLAUDE.md, *FRIZZ's
-audio callback is CPU-bound*).
+audio callback is CPU-bound*). Nor races between the audio interrupt and `main()`: here the
+callback only comes between blocks, `main()` only gives way in `GetNow` and `System::Delay*`,
+the charger's I2C reply arrives at once and each LED chain's DMA finishes once per block.
 
 ## Use
 
