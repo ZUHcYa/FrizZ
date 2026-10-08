@@ -25,7 +25,7 @@ the effects across the CHOMPI firmwares (`FX_OVERVIEW.md`).
 
 ## 1. Toolchain
 
-FRIZZ needs **GNU Arm Embedded 10.3-2021.10** (GCC 10.3.1), the Daisy toolchain default. Newer
+To build the firmware for the CHOMPI, FRIZZ needs **GNU Arm Embedded 10.3-2021.10** (GCC 10.3.1), the Daisy toolchain default. Newer
 compilers can build it, but their builds sometimes break SD card communication intermittently.
 
 - **Linux:** download ARM's official tarball (`gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2`),
@@ -46,8 +46,8 @@ comes without newlib. Check what you have:
 arm-none-eabi-gcc --version    # should say 10.3.1
 ```
 
-You also need `make`. `dfu-util` is optional (only for reinstalling the bootloader), and the
-test harness needs a host `g++` and `python3`.
+You also need `make`. `dfu-util` is optional (only for reinstalling the bootloader). The checks
+on the computer don't need any of this: see [3](#3-test-on-the-host).
 
 ## 2. Build
 
@@ -72,9 +72,21 @@ don't normally rebuild them. If you change a library, run `make` in `code/libs/l
 
 ## 3. Test on the host
 
+The checks and the virtual CHOMPI build FRIZZ for the computer, not for the CHOMPI, so they
+need no ARM toolchain, only:
+
+- **bash, git, coreutils** (`md5sum`), **`g++`** with C++14 and **`python3`** (no packages).
+  Tried on Linux (Fedora, GCC 16, Python 3.14). **macOS is untested** and won't work as it
+  is: it has no `md5sum`, and the twin's coroutine (`ucontext`) needs `_XOPEN_SOURCE` there.
+  Use Linux, a Linux VM or a container until someone ports it.
+- For the twin in the browser only: **Emscripten** (below).
+
+Nothing else gets installed: the first run builds DaisySP and the twin for the computer into
+`test/build/` and `twin/build/` (ignored by git). From a fresh clone:
+
 ```bash
 cd firmware/test
-./all.sh          # everything, one line each
+./all.sh          # everything, one line each: about 1.5 minutes, the first time a bit more
 ./check.sh        # engine at HEAD vs the working tree: a refactor must print "bit-identical"
 ./unit.sh tempo   # one unit check (each NAME.cpp; ui runs the whole firmware on the twin)
 ```
@@ -92,6 +104,23 @@ web/serve.sh      # the same in the browser, to play and hear: http://localhost:
 ```
 
 Neither shows the CPU load or anything else about the chip; that takes the device.
+
+The browser twin needs Emscripten in `~/opt/emsdk` (or `em++` on the `PATH`); it's been used
+with 6.0.11:
+
+```bash
+git clone https://github.com/emscripten-core/emsdk.git ~/opt/emsdk
+cd ~/opt/emsdk && ./emsdk install 6.0.11 && ./emsdk activate 6.0.11
+```
+
+`web/serve.sh` finds it there by itself. Its first build compiles DaisySP for the browser too,
+so it takes longer; after a change, a reload rebuilds in about 20 s.
+
+**A bug from a player:** SHIFT + transport press on the CHOMPI writes `/FRIZZ/bug-N.txt`
+(MANUAL.md, *Bug reports*), a twin script of everything since power-on with the card's files
+from then. `twin/run.sh -o out.wav -l leds.txt bug-1.txt` plays it again, up to the combo;
+once it shows the bug, turn it into a case in `test/ui.cpp`. What it holds and what not:
+[`twin/README.md`](twin/README.md#bug-reports-from-the-device).
 
 ## 4. Put it on the CHOMPI
 
@@ -135,6 +164,31 @@ s). The signal is the bench's own (a saw, a gated sine, noise), so runs compare.
 The bench measures `FRIZZ-bench.bin`, whose memory layout differs from `FRIZZ.bin`'s; a
 crackle from the layout alone (b5c658c) can show in one and not the other. It tells what the
 code costs; whether `FRIZZ.bin` crackles, only playing it tells.
+
+## Before a pull request
+
+Work on a branch off `main`, never on `main` itself, and open a pull request for it (a draft
+is fine). Before each commit that touches `code/`, `test/` or `twin/`:
+
+1. **`test/all.sh` passes.** A check that fails is fixed, or, when the change is meant to
+   alter what it checks, updated in the same commit, saying so in the commit message.
+2. **A refactor changes nothing:** `test/check.sh` and `twin/compare.sh` print
+   `bit-identical`.
+3. **What the twin can show, a check shows:** for a change to keys, LEDs, the card, levels or
+   clicks, add a case to `test/ui.cpp` and make sure `twin/ui-at.sh origin/main` fails it (it
+   passes with your change). `git fetch` first: a stale local `main` compares with an old
+   version.
+4. **The binaries match the source:** a change under `code/` rebuilds both and commits them
+   with it: `make` and `make BENCH=1` in `code/src`, then `build/FRIZZ.bin` and
+   `build-bench/FRIZZ-bench.bin` to `bin/`.
+5. **Players read about it:** what they notice goes into [`CHANGELOG.md`](../CHANGELOG.md)
+   under *Unreleased*, and a changed control into [`MANUAL.md`](../MANUAL.md).
+
+The pull request lists what changed, what the twin checked (with `twin/compare.sh origin/main
+HEAD`'s output, every difference explained), and a checklist of what only the device can
+show: the CPU load and crackles (with a bench run's `cpu.txt` when the engine, the effects
+or the memory layout changed), the sound by ear, the codec, real MIDI, USB and the card.
+[`CLAUDE.md`](../CLAUDE.md) has the full workflow, including test builds and releases.
 
 ## 5. Debug
 

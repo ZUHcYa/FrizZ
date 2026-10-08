@@ -76,9 +76,9 @@ working on a branch:
   cherry-pick) so GitHub marks their PR merged and credits them in the release notes.
 - **What the virtual CHOMPI can show, it checks, not the user** (`firmware/twin/`). For each
   thing to test that is about keys, LEDs, the card, levels or clicks, the branch adds a case
-  to `firmware/test/ui.cpp`, and `firmware/twin/ui-at.sh main` shows it failing without the
-  change (it passes with it). `firmware/twin/compare.sh main HEAD` goes into the PR with every
-  difference it reports explained. The PR lists those under **Checked on the twin** (no
+  to `firmware/test/ui.cpp`, and `firmware/twin/ui-at.sh origin/main` shows it failing without
+  the change (it passes with it). `firmware/twin/compare.sh origin/main HEAD` goes into the PR
+  with every difference it reports explained. `git fetch` first: the local `main` can lag. The PR lists those under **Checked on the twin** (no
   boxes); the hardware checklist keeps what only the device can show: the CPU load and
   crackles, sound judged by ear, the codec, real MIDI, USB and card hardware.
 

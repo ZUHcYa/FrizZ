@@ -34,7 +34,7 @@ web/serve.sh          # serves http://localhost:8765
 ```
 
 Each load of the page first rebuilds the twin if the firmware or the twin changed (under a
-second to check, a few seconds to rebuild), so reloading the page always plays the working tree
+second to check, about 20 s to rebuild), so reloading the page always plays the working tree
 as it is; a build that fails shows its messages instead. The firmware's commit is at the top of
 the page, with `+changes` when the working tree differs from it.
 
@@ -60,7 +60,8 @@ host would do.
 Nobody has tried the mic input or WebMIDI on real devices yet.
 
 `build.sh wasm` needs Emscripten: [emsdk](https://emscripten.org/docs/getting_started/downloads.html)
-in `~/opt/emsdk` (or `em++` on the PATH).
+in `~/opt/emsdk` (or `em++` on the PATH); the developer guide
+([`../README.md`](../README.md#3-test-on-the-host)) has the three commands that install it.
 
 ## On the command line
 
@@ -80,10 +81,13 @@ stdout): the time in ms, the 10 panel LEDs (`pth`, in `NormalPage.h`'s numbering
 
 ```bash
 ./compare.sh                 # HEAD against the working tree: a refactor must be bit-identical
-./compare.sh main HEAD       # what this branch changes for a player
-./compare.sh v0.10 main      # since a release
-./ui-at.sh main              # ../test/ui.cpp's checks on another version's firmware
+./compare.sh origin/main HEAD   # what this branch changes for a player
+./compare.sh v0.10 origin/main  # since a release
+./ui-at.sh origin/main          # ../test/ui.cpp's checks on another version's firmware
 ```
+
+Any git ref works. Compare with `origin/main` after a `git fetch` rather than a local `main`,
+which may lag behind what's merged.
 
 `compare.sh` builds the twin on each version's firmware (once per commit, kept in
 `build/compare/`), plays every scenario in `scenarios/` on both and compares what came out:

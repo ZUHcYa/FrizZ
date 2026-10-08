@@ -1,17 +1,37 @@
-# FRIZZ engine harness
+# FRIZZ host checks
 
-The only automated check FRIZZ has off the device. It compiles FRIZZ's audio engine
-(`code/src/passthroughEngine.h` and everything it includes) with the host's `g++`, runs a fixed
-script of key presses and knob turns through it, and writes every output sample and FX meter
-to a file. Two versions of the engine can then be compared.
+Everything that can be checked about FRIZZ without a CHOMPI: the audio engine compiled with the
+host's `g++`, single parts of it, and the whole firmware on the virtual CHOMPI (`../twin/`).
+What you need installed, and how long a first run takes, is in the developer guide
+([`../README.md`](../README.md#3-test-on-the-host)): bash, `g++`, `python3` and git, no ARM
+toolchain.
 
 ```bash
-./all.sh                    # every check below, one line each; exits 0 when all pass
+./all.sh                    # every check, one line each; exits 0 when all pass
 ./unit.sh tempo             # one unit check (NAME.cpp)
-./check.sh                  # HEAD against the working tree
+./check.sh                  # the engine at HEAD against the working tree
 ./check.sh 9da090e 647185b  # any two git refs ("work" = the working tree)
 STRESS=1 ./run.sh work out.bin
 ```
+
+| Check | What it looks at |
+|---|---|
+| `check.sh` | the engine harness (below): every output sample and FX meter of a fixed script, two versions compared; a refactor must be `bit-identical` |
+| `pitch`, `tape`, `delay`, `comp`, `clicks`, `level`, `sleep` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up events, the master compressor, moves that used to click, the level guard (an effect no louder than its input), effects that are off costing no time |
+| `scenes`, `store` | the scene and master files and the card: formats, a late card, backups |
+| `controls`, `keys`, `looper`, `tempo` | the play page's logic classes on their own: FX keys and knobs, SHIFT and the confirm, the looper, the tempo clock |
+| `ui` | the whole firmware from power-on on the virtual CHOMPI: keys through the 4021s, LEDs, the card, bug reports; each case on a fresh device |
+| `bench` | the CPU bench's firmware on the twin: it runs through and writes its file (the loads themselves need the device) |
+
+`all.sh` takes about 1.5 minutes; the first run longer, as it builds DaisySP and the twin for the
+host (into `build/` here and `../twin/build/`, both ignored by git).
+
+## Engine harness
+
+`check.sh` compiles FRIZZ's audio engine (`code/src/passthroughEngine.h` and everything it
+includes) with the host's `g++`, runs a fixed script of key presses and knob turns through
+it, and writes every output sample and FX meter to a file. Two versions of the engine can
+then be compared.
 
 - **A change that shouldn't alter the sound** (a refactor, a rename): `check.sh` should print
   `bit-identical` and exit 0. Anything else means the sound changed.
