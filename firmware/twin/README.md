@@ -30,8 +30,13 @@ the charger's I2C reply arrives at once and each LED chain's DMA finishes once p
 ## In the browser
 
 ```bash
-web/serve.sh          # builds for the browser if needed, serves http://localhost:8765
+web/serve.sh          # serves http://localhost:8765
 ```
+
+Each load of the page first rebuilds the twin if the firmware or the twin changed (under a
+second to check, a few seconds to rebuild), so reloading the page always plays the working tree
+as it is; a build that fails shows its messages instead. The firmware's commit is at the top of
+the page, with `+changes` when the working tree differs from it.
 
 The panel is drawn from CHOMPI's own board file (`tools/board_layout.py` → `web/layout.json`):
 every key, knob and LED where it sits on the board, the LEDs in the order their data runs, so
@@ -99,5 +104,6 @@ that needs it; time moves only with `wait` and `at`.
   wasm` builds the browser's `web/build/frizz-twin.{js,wasm}` the same way.
 - `wasm.cpp`: `twin.h` as C functions for the browser.
 - `web/`: the page (`index.html`, `app.js`), the worker running the twin (`worker.js`), the audio
-  thread (`worklet.js`), the panel (`layout.json`), `serve.sh`.
+  thread (`worklet.js`), the panel (`layout.json`), `serve.sh` / `serve.py` (the server that
+  rebuilds on each page load).
 - `tools/board_layout.py`: makes `web/layout.json` from the board file.

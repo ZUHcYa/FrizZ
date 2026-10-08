@@ -52,6 +52,12 @@ so the binary always matches its source. On a merge conflict over it, rebuild ra
 side. It reaches `main` with the merge, so `main` holds the last tested build; releases for
 users stay on GitHub's Releases page.
 
+Every such commit, and every one that changes `firmware/test/` or `firmware/twin/`, first
+passes `firmware/test/all.sh`: the engine against HEAD, every unit check, and `ui`, which runs
+the whole firmware from power-on on the virtual CHOMPI. A check that fails is fixed, or, when
+the change is meant to alter what it checks, updated in the same commit, saying so in the
+commit message. Say in the PR when a commit changed what a check expects.
+
 Two artifacts track every branch; keep both current with each change, and read them before
 working on a branch:
 
@@ -191,7 +197,8 @@ and 13-20x real time. `./run.sh -o out.wav -l - SCRIPT` plays a script of keys, 
 MIDI and audio into it from power-on and writes the master out and the LEDs; use it to see
 what a change does to the play page before the user flashes it. `unit.sh ui` checks the play
 page through it. `web/serve.sh` runs the same twin in the browser (Emscripten, from
-`~/opt/emsdk`) on a panel drawn from the board file, with sound, for the user to play. It can't show the CPU load, the codec, races between the audio interrupt and `main()` or
+`~/opt/emsdk`) on a panel drawn from the board file, with sound, for the user to play; each
+page load rebuilds it first if the source changed, so a reload plays the working tree. It can't show the CPU load, the codec, races between the audio interrupt and `main()` or
 anything else about the chip;
 `firmware/twin/README.md` has the details.
 
