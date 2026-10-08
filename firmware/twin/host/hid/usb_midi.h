@@ -1,5 +1,5 @@
-// Host stand-in for libDaisy's MidiUsbTransport: the twin feeds MIDI through the TRS jack's
-// UART only, so USB MIDI never receives anything
+// Host stand-in for libDaisy's MidiUsbTransport: what twin::MidiUsb() queues arrives here as the
+// raw MIDI bytes the real transport unpacks from its USB-MIDI packets (board.h)
 #pragma once
 #include "daisy_core.h"
 
@@ -24,7 +24,11 @@ public:
 
     void Init(Config) {}
     void Reset() {}
-    void StartRx(MidiRxParseCallback, void*) { active_ = true; }
+    void StartRx(MidiRxParseCallback rx, void* context)
+    {
+        active_ = true;
+        twin::UsbMidiListen(rx, context);
+    }
     bool RxActive() { return active_; }
     void FlushRx() {}
     bool Tx(uint8_t*, size_t) { return true; }

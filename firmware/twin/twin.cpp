@@ -21,6 +21,30 @@
 
 #include "twin.h"
 
+// The engine's tempo clock and the MIDI clock's source are private. An explicit template
+// instantiation may name a private member, so Probe() reads them this way, without a getter
+// in the firmware: compare.sh and ui-at.sh build older firmwares with this twin too
+template <typename Tag, typename Tag::type M>
+struct TwinReach
+{
+    friend typename Tag::type Reach(Tag) { return M; }
+};
+struct ReachSource
+{
+    typedef MidiClock::Source MidiClock::*type;
+    friend type Reach(ReachSource);
+};
+template struct TwinReach<ReachSource, &MidiClock::source_>;
+#if __has_include("TempoClock.h")
+#define TWIN_HAS_TEMPO 1
+struct ReachTempo
+{
+    typedef chompi::TempoClock PassthroughEngine::*type;
+    friend type Reach(ReachTempo);
+};
+template struct TwinReach<ReachTempo, &PassthroughEngine::tempo_clock_>;
+#endif
+
 // the firmware's restart (chompi_main.cpp): the chip would reset; here it's noted
 static bool restarted = false;
 void NVIC_SystemReset() { restarted = true; }
@@ -362,6 +386,26 @@ void UartListen(UartRx rx, void* context)
     uart_context = context;
 }
 
+static UsbMidiRx usb_rx = nullptr;
+static void* usb_context = nullptr;
+static std::deque<uint8_t> usb_in;
+void UsbMidiListen(UsbMidiRx rx, void* context)
+{
+    usb_rx = rx;
+    usb_context = context;
+}
+
+// what arrived since the last block, handed over at its start, as the UART's DMA and the USB
+// interrupt do before the audio callback polls them
+static void Deliver(std::deque<uint8_t>& q, void (*rx)(uint8_t*, size_t, void*), void* context)
+{
+    if (!rx || q.empty())
+        return;
+    std::vector<uint8_t> bytes(q.begin(), q.end());
+    q.clear();
+    rx(bytes.data(), bytes.size(), context);
+}
+
 // ======== the API (twin.h) ========
 std::map<std::string, std::string>& CardFiles() { return FakeCard::Get().files; }
 void SetCardPresent(bool present) { FakeCard::Get().present = present; }
@@ -407,13 +451,8 @@ void Run(size_t blocks, const float* in, float* out)
             StepEncoders();
             StepLedDma();
 
-            // the UART's DMA hands over what arrived since the last block
-            if (uart_rx && !midi_in.empty())
-            {
-                std::vector<uint8_t> bytes(midi_in.begin(), midi_in.end());
-                midi_in.clear();
-                uart_rx(bytes.data(), bytes.size(), uart_context);
-            }
+            Deliver(midi_in, uart_rx, uart_context);
+            Deliver(usb_in, usb_rx, usb_context);
 
             if (audio_cb)
                 audio_cb(in_ptr, out_ptr, kBlockSize);
@@ -486,6 +525,32 @@ void SetToggle(bool raw_level)
 }
 
 void Midi(uint8_t byte) { midi_in.push_back(byte); }
+void MidiUsb(uint8_t byte) { usb_in.push_back(byte); }
+
+double BlockMs() { return block_ns / 1e6; }
+
+ClockState Probe()
+{
+    ClockState c = {};
+    c.has_clock = midi_clock.HasClock();
+    c.source = static_cast<int>(midi_clock.*Reach(ReachSource()));
+    c.midi_bpm = midi_clock.GetBpm();
+    c.tick_period = midi_clock.GetTickPeriod();
+    c.ticks = midi_clock.GetTicks();
+    c.locks = midi_clock.GetLocks();
+#ifdef TWIN_HAS_TEMPO
+    const chompi::TempoClock& t = engine.*Reach(ReachTempo());
+    c.tempo = t.GetTempo();
+    c.fx_bpm = t.GetFxBpm();
+    c.position = t.Position();
+#endif
+    c.loop_state = static_cast<int>(engine.looper.GetState());
+    c.loop_length = engine.looper.GetLength();
+    c.loop_beats = engine.looper.GetBeats();
+    c.loop_pos = engine.looper.GetPosition();
+    c.loop_speed = engine.looper.GetActualSpeed();
+    return c;
+}
 
 void SetBattery(float volts, bool plugged, bool full)
 {

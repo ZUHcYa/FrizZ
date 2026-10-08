@@ -194,7 +194,7 @@ The exception is FRIZZ: `firmware/test/` compiles its audio engine on the host a
 script of key presses and knob turns through it (3 s per effect plus four combined segments).
 `./all.sh` runs everything. `./check.sh` compares HEAD with the working tree; a refactor must
 come out `bit-identical`. `./unit.sh NAME` runs one unit check, `NAME.cpp`: `pitch`, `tape`,
-`scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`, `comp`, `level`, `sleep`, `ui`, `bench`; a new check is just a new
+`scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`, `comp`, `level`, `sleep`, `ui`, `bench`, `midi`, `sync`; a new check is just a new
 `.cpp`. What each covers is in `firmware/test/README.md`.
 
 `firmware/twin/` is the **virtual CHOMPI**: the whole firmware (`chompi_main.cpp` down, with

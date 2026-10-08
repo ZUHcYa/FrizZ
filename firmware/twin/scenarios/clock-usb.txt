@@ -1,0 +1,25 @@
+# A DAW's clock over USB (1 ms frames, 0.3 ms jitter) at 174 BPM: the delay and the filter's LFO
+# on it, a quantized 2-bar loop, a ramp down to 120 with the loop playing, then the clock gone
+input sine 220 0.3
+clock 174 usb jitter 0.3
+at 6000
+down KEY_12
+wait 80
+tap KEY_26
+up KEY_12
+turn 3 20
+wait 3000
+down KEY_27
+tap KEY_28
+up KEY_27
+wait 2200
+tap KEY_28
+wait 4000
+down KEY_5
+turn 3 30
+wait 2000
+up KEY_5
+clock 174 usb jitter 0.3 ramp 120 4000
+wait 6000
+clock 0
+wait 2000

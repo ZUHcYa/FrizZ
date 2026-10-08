@@ -55,6 +55,36 @@ void SetToggle(bool raw_level);
 /** A byte into the MIDI jack (TRS, the UART) */
 void Midi(uint8_t byte);
 
+/** A byte over USB MIDI. Like the jack's, the bytes queued reach the firmware at the next
+ *  block; a USB-MIDI sender's 1 ms frames are up to the caller (clockgen.h does them) */
+void MidiUsb(uint8_t byte);
+
+/** The start of the current block in ms, to the block (NowMs() is whole ms) */
+double BlockMs();
+
+/** What the firmware makes of the MIDI clock, read out of it: MidiClock, the engine's
+ *  TempoClock and the looper. For the checks of timing that LEDs and audio can't show */
+struct ClockState
+{
+    // MidiClock.h
+    bool has_clock;
+    int source; // 0 none, 1 TRS, 2 USB
+    float midi_bpm;
+    float tick_period; // in samples, smoothed
+    uint32_t ticks, locks;
+    // TempoClock.h, as the engine has it (all 0 on a firmware without it)
+    int tempo;     // the FX's whole BPM
+    float fx_bpm;  // the FX's tempo for their times
+    uint32_t position; // the last pulse's, 0..191
+    // Looper.h
+    int loop_state; // Looper::State: 0 empty, 1 recording, 2 playing, 3 paused
+    size_t loop_length;
+    uint32_t loop_beats;
+    float loop_pos;
+    float loop_speed;
+};
+ClockState Probe();
+
 /** Whether the firmware's main() has entered its loop (after about 1 s): a bug report's times
  *  count from there */
 bool MainLoopRunning();
