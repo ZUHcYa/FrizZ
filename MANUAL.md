@@ -21,40 +21,45 @@ at random. The built-in microphone is not used.
 |---|---|---|
 | Turn (page 1, default) | Output gain, headphone + master (default 75%) | VU meter of the master, scaled by gain |
 | Press, then turn (page 2) | Input gain, AUX (default 75%) | blue (0%) to red (100%) |
-| Press twice, then turn (page 3) | Headphone feed: the master out to the AUX input on its own (default: the master out) | white (master) to green (input) |
+| Press twice, then turn (page 3) | [Mono input](#mono-input): 3 detents left = mono, 3 right = stereo (default: stereo) | light blue (stereo), white (mono) |
+| Press three times, then turn (page 4) | Headphone feed: the master out to the AUX input on its own (default: the master out) | white (master) to green (input) |
 | SHIFT + turn | Input/loop mix: input only to looper only | green (input) to purple (loop) |
 | SHIFT + press | Resets the mix: the loop only while there is one, otherwise the input only | |
 | Press and hold 1.25 s | Battery check | white: full, on the charger; green: above 3.3 V; yellow: below; red: below 3 V, about to switch off unless charging |
 
-Every turn moves 1% per detent. Pressing again on page 3 returns to page 1. Picking a page
-blinks its number in white: once for page 1, twice for 2, three times for 3. Whether a press
+Every turn moves 1% per detent, except on page 3. Pressing again on page 4 returns to page 1.
+Picking a page blinks its number in white: once for page 1, twice for 2, and so on. Whether a press
 is SHIFT + press is decided when it goes down, so letting go of CHOMPI first doesn't also
 change the page. The mix starts
 on the input only, jumps to the loop only when a recording finishes and back to the input only
 when the loop is erased; SHIFT + press puts it back there. The punch-in FX come after this mix,
 so they act on the input as well as the loop.
 
-**Headphone feed (page 3):** the master out always carries the full signal. Turned up, the
+**Headphone feed (page 4):** the master out always carries the full signal. Turned up, the
 headphones carry the AUX input on its own instead, after input gain and VOLUME: no loop, no
 effects, no mix, no compressor. Use it when the master goes to a PA, mixer or recorder and the
 headphones are your monitor; with headphones alone, leave it at the master. It's back on the
 master at every power-on.
 
 (Page 3 used to be the master compressor, which has its own key now, see
-[Master compressor](#master-compressor). The headphone feed used to be on the mode switch.)
+[Master compressor](#master-compressor). The headphone feed used to be on the mode switch,
+then on page 3.)
 
 ## Mono input
 
-The 13th white key switches the AUX input between stereo and mono. Mono is for a mono (TS)
+VOLUME's page 3 switches the AUX input between stereo and mono. Mono is for a mono (TS)
 cable, such as one from a Lyra-8 or a guitar pedal: the plug grounds the right channel, so in
 stereo the source is heard on the left only. In mono the left channel feeds both sides, and the
 effects' stereo knobs spread it from there.
 
-| Key | Result |
+| On VOLUME's page 3 | Result |
 |---|---|
-| Tap the 13th white key | Mono on / off |
+| Turn left 3 detents | Mono |
+| Turn right 3 detents | Stereo |
 
-- LEDs: the key is lit white while mono, dark while stereo.
+- LED: VOLUME is white while mono, light blue while stereo, on page 3.
+- It takes 3 detents in one direction, so a nudge doesn't switch it; picking another page
+  starts the count over.
 - It's saved on the card with the master compressor and the randomizer, so it comes back at
   power-on. It isn't part of a scene.
 
@@ -147,7 +152,7 @@ freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> wow & 
   -> tape stop -> delay -> reverb
 ```
 
-The effects fill the first 12 white keys. The 13th is the [mono input](#mono-input) switch; the 14th is the
+The effects fill the first 12 white keys. The 13th does nothing yet; the 14th is the
 [master compressor](#master-compressor)'s and the 15th, the last, the
 [randomizer](#randomizer)'s. (Wow & flutter and the tape stop used to sit one key further right,
 the delay and reverb two, and the compressor on the last key.)

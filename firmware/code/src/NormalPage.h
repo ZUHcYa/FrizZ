@@ -4,8 +4,11 @@
  *  SceneStore.h), with their LEDs. The logic is in FxControls.h and SceneControls.h; this
  *  routes the hardware to it and draws. MANUAL.md describes every control; what's here is what the manual doesn't say.
  *
- *  SHIFT is the CHOMPI key held. The mode switch isn't used in play mode: VOLUME's page 3
+ *  SHIFT is the CHOMPI key held. The mode switch isn't used in play mode: VOLUME's page 4
  *  sets the headphone feed instead, from the master out to the dry input (passthroughEngine.h).
+ *  Page 3 switches the AUX input to mono, the left channel to both sides, kMonoDetents
+ *  detents left, and back to stereo as many right; it goes to the master file as the
+ *  compressor's knobs do.
  *
  *  The CHOMPI, PLAY and LOOP keys' rules are in PlayKeys.h: SHIFT, the confirm tap in a scene
  *  mode, the looper's combos, tap tempo (TapTempo.h). This page is its Host. Every other key
@@ -52,7 +55,9 @@ namespace chompi
     static const float kDefaultInGain = .75f;
     static const float kDefaultMix = 0.f; // fully dry at power-on, nothing recorded yet
 
-    static const uint8_t kNumPages = 3; // output gain, input gain, headphone cue
+    static const uint8_t kNumPages = 4; // output gain, input gain, mono, headphone cue
+    static const uint8_t kMonoPage = 2;
+    static const float kMonoDetents = 3.f; // VOLUME detents on page 3 to switch mono / stereo
 
     // encoder IDs, by ui.h's encoder_map: 0-3 are knobs 1-4
     static const uint16_t kTransportEncoder = 4;
@@ -209,6 +214,8 @@ namespace chompi
             }
             else if (page_ == 1)
                 Xfade(blue, red, in_gain_, &r, &g, &b);
+            else if (page_ == kMonoPage)
+                Xfade(med_blue, white, mono_ ? 1.f : 0.f, &r, &g, &b);
             else
                 Xfade(white, green, hp_cue_, &r, &g, &b);
             SetPthLedFloat(kVolumeLed, r, g, b);
@@ -249,18 +256,6 @@ namespace chompi
                 break;
             }
 
-            if (buttonID == static_cast<uint16_t>(kMonoKey))
-            {
-                if (rising)
-                {
-                    keys_.FxKey();
-                    mono_ = !mono_;
-                    engine_->SetMonoInput(mono_);
-                    master_unsaved_ = true;
-                    master_changed_at_ = System::GetNow();
-                }
-                return true;
-            }
             if (buttonID == static_cast<uint16_t>(kCompKey))
             {
                 // the compressor is always on: its key only selects, and always flashes
@@ -311,6 +306,7 @@ namespace chompi
                     if (!vol_shift_ && now - batt_hold < kBattHoldMs)
                     {
                         page_ = (page_ + 1) % kNumPages;
+                        mono_chunk_ = 0.f;
                         page_flash_.Start(now, (page_ + 1) * 2 * kSignalBlinkMs);
                     }
                     batt_display = false;
@@ -501,6 +497,23 @@ namespace chompi
                 in_gain_ = fclamp(in_gain_ + inc, 0.f, 1.f);
                 engine_->SetInputGain(in_gain_);
             }
+            else if (page_ == kMonoPage)
+            {
+                // left: mono, right: stereo, after kMonoDetents so a nudge doesn't switch
+                mono_chunk_ += detents;
+                if (mono_chunk_ <= -kMonoDetents || mono_chunk_ >= kMonoDetents)
+                {
+                    const bool mono = mono_chunk_ < 0.f;
+                    mono_chunk_ = 0.f;
+                    if (mono != mono_)
+                    {
+                        mono_ = mono;
+                        engine_->SetMonoInput(mono_);
+                        master_unsaved_ = true;
+                        master_changed_at_ = System::GetNow();
+                    }
+                }
+            }
             else
             {
                 hp_cue_ = fclamp(hp_cue_ + inc, 0.f, 1.f);
@@ -686,9 +699,6 @@ namespace chompi
             else
                 SmtLed(kCompKeyLed, white, level);
 
-            // the mono input switch: white while mono, dark while stereo
-            SmtLed(kMonoKeyLed, white, mono_ ? 1.f : 0.f);
-
             // the randomizer's key: dim white while on, a gate open in the colour of an effect
             // it fired; a select flashes white
             const float* rand_color = white;
@@ -847,9 +857,10 @@ namespace chompi
         LedSignal tap_flash_;
         LedSignal select_flash_; // on the selected FX's key
         float speed_chunk_ = 0.f;   // transport detents towards the next speed step
-        bool mono_ = false;               // the AUX input in mono (kMonoKey)
-        bool master_unsaved_ = false;     // the compressor's or randomizer's knobs, not yet
-                                          // on the card
+        bool mono_ = false;          // the AUX input in mono (VOLUME's page 3)
+        float mono_chunk_ = 0.f;     // page 3's detents towards a switch
+        bool master_unsaved_ = false;     // the compressor's or randomizer's knobs or mono,
+                                          // not yet on the card
         uint32_t master_changed_at_ = 0;  // when they last changed
         uint32_t master_tries_ = 0;       // failed writes since
         LedSignal master_refused_;        // a failed write, on the compressor's key

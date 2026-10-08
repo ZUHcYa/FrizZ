@@ -14,7 +14,7 @@ The looper records the input **before** the effects, so you can play effects ove
 nothing gets printed into it. The effects come **after** the mix, so they act on everything you
 hear, the live input as well as the loop. The mix knob balances input against loop; there's no
 dry path around the effects on the master out. The headphones carry the same as the master
-out, or, from VOLUME's page 3, only the dry input (no loop, no effects).
+out, or, from VOLUME's page 4, only the dry input (no loop, no effects).
 
 **SHIFT** means holding the CHOMPI key. The key lights white while it acts as SHIFT.
 
@@ -24,13 +24,14 @@ out, or, from VOLUME's page 3, only the dry input (no loop, no effects).
 |---|---|
 | Turn VOLUME | Output volume. The LED is a level meter |
 | Press VOLUME, then turn | Input gain. The LED runs from blue to red |
+| Press again, then turn | Mono: turn left for a mono cable (white), right for stereo (light blue) |
 | Press again, then turn | Headphones: white = the master out, green = only the dry input |
 | Press again | Back to output volume |
 | SHIFT + turn VOLUME | Input/loop mix: green = only the input, purple = only the loop |
 | SHIFT + press VOLUME | Mix back to the loop only (with a loop) or the input only (without) |
 
 Each press blinks the page's number in white: once for output, twice for input, three times
-for the headphones.
+for mono, four times for the headphones.
 
 ## 2. Record a loop
 
@@ -52,8 +53,8 @@ A loop can be up to 2:45 long and is gone when you switch off.
 ## 3. Play the effects
 
 The first twelve white keys hold effects, counted from the left, in the order the sound goes
-through them. The 13th switches the input to mono, for a mono cable (lit white while mono),
-the 14th is the master compressor and the last one the randomizer (both below).
+through them. The 13th does nothing, the 14th is the master compressor and the last one the
+randomizer (both below).
 
 | White key | 1st | 2nd | 3rd | 4th | 5th | 6th | 7th | 8th | 9th | 10th | 11th | 12th |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
