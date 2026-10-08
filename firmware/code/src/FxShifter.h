@@ -136,7 +136,7 @@ public:
         ring_.Advance();
     }
 
-    /** The parameters land at once, no slew: the randomizer's gates (FxRandomizer.h) */
+    /** The parameters land at once, no slew: at Init */
     void SnapParams() override
     {
         dry_.Snap();

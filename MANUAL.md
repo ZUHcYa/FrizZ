@@ -11,9 +11,8 @@ The stereo AUX input goes to the headphone and master outputs through a volume s
 from TAPE's Volume Engine, with a looper on the wet side of a dry/wet mix. The looper can
 record free-length loops or loops quantized to whole bars of an incoming MIDI clock. The
 white keys punch in effects on the mixed signal, and four dark keys save and recall their
-settings as scenes, next to one that clears them. A master compressor, set from the
-second-to-last white key, sits after the effects, and the last white key plays the effects
-at random. The built-in microphone is not used.
+settings as scenes, next to one that clears them. A master compressor, set from the last
+white key, sits after the effects. The built-in microphone is not used.
 
 ## VOLUME knob
 
@@ -61,7 +60,7 @@ effects' stereo knobs spread it from there.
 - LED: VOLUME is white while mono, light blue while stereo, on page 3.
 - It takes 3 detents in one direction, so a nudge doesn't switch it; picking another page
   starts the count over.
-- It's saved on the card with the master compressor and the randomizer, so it comes back at
+- It's saved on the card with the master compressor, so it comes back at
   power-on. It isn't part of a scene.
 
 ## Looper
@@ -103,9 +102,7 @@ while it's paused, and nothing without a loop.
 
 ## Tempo
 
-The effects that follow a tempo (the delay, the filter LFO, the freezer, the slicer, the tape stop
-and the randomizer's patterns) take
-it from one of three places, the first that applies:
+The effects that follow a tempo (the delay, the filter LFO, the freezer, the slicer, the tape stop) take it from one of three places, the first that applies:
 
 1. **The loop, while there is one**, with or without MIDI clock. Beat 1 is the loop's start,
    so the slicer chops on the loop's beat from the first pass and the delay's echoes land on
@@ -144,6 +141,11 @@ Effects sit on the white keys and act on the whole mix, after the input/loop mix
 master compressor and the output gain. The looper records the input before the effects, so an effect is never
 printed into a loop.
 
+Effects that are off cost (almost) no processing time, but the ones that are on do. Some
+heavy combinations (the shifter and the crusher with a loop playing and the master compressor
+working hard, for example) can need more time than there is, which is heard as crackles;
+switching one of them off clears it.
+
 The keys run in signal order, left to right:
 
 ```
@@ -152,10 +154,11 @@ freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> wow & 
   -> tape stop -> delay -> reverb
 ```
 
-The effects fill the first 12 white keys. The 13th does nothing yet; the 14th is the
-[master compressor](#master-compressor)'s and the 15th, the last, the
-[randomizer](#randomizer)'s. (Wow & flutter and the tape stop used to sit one key further right,
-the delay and reverb two, and the compressor on the last key.)
+The inserts fill the first 10 white keys, the 11th is free, the delay and reverb are the
+12th and 13th, the 14th is free again and the 15th, the last, is the
+[master compressor](#master-compressor)'s. The free keys set the inserts, the sends and the
+compressor apart. (The delay and reverb used to sit on the 11th and 12th keys, the compressor
+on the 14th, and the last key was the randomizer's, which is gone.)
 
 - **Inserts** (freezer, shifter, folder, crusher, filter, flanger, slicer): replace the
   signal while on and stop the moment they're off. The freezer comes first, so it captures
@@ -184,7 +187,7 @@ the delay and reverb two, and the compressor on the last key.)
 | Knobs 1-4 | The parameters of the most recently pressed or selected FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo, tape stop and spin-up times) move one step per 3 detents |
 | SHIFT + knobs 1-4 | Coarse: jumps to the next point of the parameter's grid per detent (see below) |
 | SHIFT + press knobs 1-4 | Resets that parameter to its default |
-| Press knobs 1-4 | Nothing yet (kept free for a second parameter page). Like the 13th white key and the two upper dark keys left of the scene functions, it doesn't cancel a SHIFT combo either |
+| Press knobs 1-4 | Nothing yet (kept free for a second parameter page). Like the 11th and 14th white keys and the two upper dark keys left of the scene functions, it doesn't cancel a SHIFT combo either |
 
 The FX keys are dimly lit in their effect's colour while off and at full brightness while
 on, where the audio coming out of the effect pushes the colour towards white, from -30 dBFS
@@ -224,8 +227,8 @@ SHIFT + press on a knob takes it back there.
 | 8th white | Slicer: Kastle 2 FX Wizard's rhythmic gate | Pattern, 8 steps of 16ths: `x.......`, `x...x...`, `..x...x.`, `x....x..`, `x..x..x.`, `x.x.x.x.`, `x.x.xx..`, `xxxxxxxx` (default `xxxxxxxx`) | Decay, 10 ms to 1 s (default 1 s) | Chance: each step flipped at random, up to 90% (default off) | Stereo: the left channel plays a pattern up the list, the right one down, 0-7 apart (default off) |
 | 9th white | Wow & flutter: TAPE's warble, plus flutter | Wow: TAPE's warble knob, how often the pitch drifts and how much of it you hear, together (default off) | Flutter: a fast, shallow wobble, up to 1.4% of pitch; real tape's 0.1-0.5% is the lower half (default off) | Tone, lowpass 200 Hz to open (default open) | Stereo: the right channel drifts on its own and wobbles out of step (default off) |
 | 10th white | Tape stop | Stop time: 1/16, 1/8, 1/4, 1/2, 1 bar, 2 bars (default 1/2) | Spin-up time on release: off, 1/16, 1/8, 1/4, 1/2, 1 bar (default 1/4) | Curve: linear to a brake, fast at first then dragging (default linear) | — |
-| 11th white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 0) |
-| 12th white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Diffusion (default 60%) | Tone, dark to open (default 60%) | Level (default 0) |
+| 12th white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 0) |
+| 13th white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Diffusion (default 60%) | Tone, dark to open (default 60%) | Level (default 0) |
 
 SHIFT + turn moves one point of a fixed grid per detent, always to the next point in the
 direction you turn, so a value set finely snaps onto the grid with the first coarse move:
@@ -384,7 +387,7 @@ Delay details:
 
 A stereo compressor on the master out, after the effects and before VOLUME, so turning
 VOLUME doesn't change how hard it works. It's always on; at its default amount it's off.
-The 14th white key, the one before the last, selects it for knobs 1-4, which then turn
+The last white key, the 15th, selects it for knobs 1-4, which then turn
 it the way they turn an effect: 1% per detent, SHIFT + turn coarse, SHIFT + press resets.
 Pressing an FX key gives the knobs back to that effect. The key does nothing else: it has no
 latch, and holding it doesn't switch anything. With SHIFT it's a select, as an FX key's is.
@@ -410,60 +413,6 @@ latch, and holding it doesn't switch anything. With SHIFT it's a select, as an F
 - LEDs: the key is white, dim, lighting up with the gain reduction, at full brightness from
   12 dB; it flashes white when pressed. While selected, the knobs go light blue (0%) through
   white to orange (100%).
-
-## Randomizer
-
-The last white key (the 15th) makes no sound of its own: it plays the other effects. While
-it's on, it runs a one-bar pattern of 16ths on the [tempo](#tempo), and every gate in it
-switches 1 to 5 random effects on for the gate's length, with every one of their knobs set at
-random. Each gate picks again, so two gates in a row are two different sounds. It starts with
-the bar: if the 16th you press it on has a gate, that gate fires at once.
-
-Its key works as an FX key does: hold it to play, hold it then SHIFT to latch, SHIFT then the
-key to select its knobs silently, a plain press to unlatch.
-
-| Knob | Function |
-|---|---|
-| 1 | Pattern: 17 patterns of 16 steps, sparse to dense, one step per 3 detents (default 3rd: quarters) |
-| 2 | Pulse width: every gate's length, from 20 ms up to the whole 16th (default half a 16th) |
-| 3 | Chance: each gate's, 0 to 100% (default 100%, so it plays as soon as you press it) |
-| 4 | Shift: every gate later, by up to half a 16th (default 0, on the grid) |
-
-The patterns, `x` a gate, a bar in 16ths:
-
-| # | Pattern | # | Pattern |
-|---|---|---|---|
-| 1 | `x... .... .... ....` | 10 | `xxx. .... x... ....` |
-| 2 | `x... .... x... ....` | 11 | `xx.. xx.. x... x...` |
-| 3 | `x... x... x... x...` | 12 | `x... xx.. xxx. xxxx` |
-| 4 | `x... ..x. .... x...` | 13 | `x..x x..x x..x x..x` |
-| 5 | `x..x ..x. .x.. x..x` | 14 | `x..x ..x. ..x. x...` |
-| 6 | `x... x... x..x ....` | 15 | `.xxx .xxx .xxx .xxx` |
-| 7 | `x... x... x.x. x...` | 16 | `xxxx xxxx .... ....` |
-| 8 | `..x. ..x. ..xx ..x.` | 17 | `xxxx x.x. x.xx x.x.` |
-| 9 | `x... x..x .xx. x...` | | |
-
-- **What it plays:** every effect but the freezer, the delay and the reverb: the other
-  inserts, the resonator, wow & flutter and the tape stop. (The freezer waits for the next
-  16th to start recording, and a gate is over by then, so it would never be heard.) An effect whose key you're holding or have latched isn't
-  picked, and keeps your knobs. Nor is one the last gate had, while it's still fading out.
-- **Your knobs stay yours:** the random values only last for the gate. Once the effect has
-  faded out, it's back on your settings. Pressing the key of an effect a gate has takes it
-  over at once, gliding to your knobs.
-- **Every gate is a press:** the shifter swoops, the flanger and slicer restart, the tape
-  starts to stop and spins back up. Random knobs can also land an effect on a neutral
-  setting (the flanger's amount at 0, the filter at its centre), so a gate can sound like
-  nothing happened.
-- **Level:** a gate is never more than 3 dB louder than what goes into the effects. A gate
-  that stacks feedback and resonance is turned down while it plays, then the level glides
-  back once it has faded out. Your own effects playing at the same time are turned down with
-  it, and the delay and reverb hear the turned-down sound.
-- **Not part of a scene:** a scene doesn't save, recall or morph its latch or knobs. The
-  knobs are kept on the card with the compressor's, in `FRIZZ/frizz_master.txt`, 2 s after
-  the last turn.
-- LEDs: the key is dim white while off, brighter while on, and lights in the colour of an
-  effect it fired while a gate is open. The keys of the effects a gate has on light as if
-  pressed. While selected, the knobs go purple (0%) through white to teal (100%).
 
 ## FX scenes
 

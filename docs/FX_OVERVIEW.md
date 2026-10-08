@@ -49,11 +49,9 @@ drive the VU LEDs.
   (fed the delay's echoes too) → master compressor (`MasterComp.h`: amount, ratio, speed, mix,
   on its own key) → output gain → safety limiter (`limiter.h` at its lowest setting). The
   resonator's comb loops from after the flanger back to after the freezer.
-  Each effect is a punch-in key, and the keys run in this order left to right. The randomizer
-  (`FxRandomizer.h`, last white key) is no effect of its own: on a one-bar gate pattern it
-  switches 1-5 of the inserts (not the freezer) on with random knobs (`FxChain::RandomBlock`),
-  and a level guard (`LevelGuard`, between the tape stop and the delay) holds the inserts to
-  +3 dB over what went into them while it does.
+  Each effect is a punch-in key, and the keys run in this order left to right, with a free
+  key between the inserts and the sends and another before the compressor. (A randomizer
+  that played the inserts on gate patterns sat on the last key until it was removed.)
 
 ## Unused effects in the vendored DaisySP
 
@@ -87,8 +85,8 @@ their keys' order left to right (see the FRIZZ chain above). Their controls are 
 | 8th white | Slicer (insert) | Bastl Instruments' Kastle 2 FX Wizard slicer (MIT) |
 | 9th white | Wow & flutter (insert) | TAPE's `Warble.h` as knob 1, plus FRIZZ's own flutter, tone and stereo |
 | 10th white | Tape stop (insert) | FRIZZ's own: a varispeed read head on an SDRAM buffer, tempo-synced stop and spin-up |
-| 11th white | Delay (send) | TEMPO's `granularDelay.h`, clocked by FRIZZ's `TempoClock.h` (the loop, MIDI clock, taps or free running) |
-| 12th white | Reverb (send, also fed the delay's echoes) | TEMPO's `reverb.h` + `fx_engine.h` |
-| 13th white | Free (no function yet) | — |
-| 14th white | Master compressor (always on, after the chain) | FRIZZ's own (`MasterComp.h`) |
-| 15th white | Randomizer (plays the inserts, no sound of its own) | FRIZZ's own (`FxRandomizer.h`); the patterns are the user's |
+| 11th white | Free | — |
+| 12th white | Delay (send) | TEMPO's `granularDelay.h`, clocked by FRIZZ's `TempoClock.h` (the loop, MIDI clock, taps or free running) |
+| 13th white | Reverb (send, also fed the delay's echoes) | TEMPO's `reverb.h` + `fx_engine.h` |
+| 14th white | Free | — |
+| 15th white | Master compressor (always on, after the chain) | FRIZZ's own (`MasterComp.h`) |

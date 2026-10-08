@@ -80,7 +80,7 @@ public:
     /** What the loop added in the last Feed, for the key LED */
     inline float Return() const { return ret_[0] + ret_[1]; }
 
-    /** The parameters land at once, no slew: the randomizer's gates (FxRandomizer.h) */
+    /** The parameters land at once, no slew: at Init */
     void SnapParams() override
     {
         for (size_t c = 0; c < 2; c++)

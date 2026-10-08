@@ -109,7 +109,6 @@ public:
             morph_.Pulse(chompi::TempoClock::IsBarLine(pos));
         }
         morph_.Process(size, tempo_clock_.PulseSamples());
-        fx_.RandomBlock(size);
 
         for (size_t i = 0; i < size; i++)
         {
@@ -184,14 +183,6 @@ public:
     }
     /** Before a scene recall's SetFxParams: they land at the recall's slew (FxCommon.h) */
     inline void FastFxSlew() { fx_.FastSlew(); }
-    /** The randomizer (FxRandomizer.h): its key and knobs. Not part of a scene, so not the
-     *  morph's */
-    inline void SetRandomizerOn(bool on) { fx_.SetRandomizerOn(on); }
-    inline void SetRandomizerParam(size_t param, float val) { fx_.SetRandomizerParam(param, val); }
-    /** For the LEDs: a random gate has the effect on */
-    inline bool GetFxRandomOn(size_t fx) const { return (fx_.RandomMask() >> fx) & 1; }
-    /** The first effect the randomizer's last gate picked */
-    inline size_t RandomizerPick() const { return fx_.RandomPick(); }
     /** A scene morph (FxMorph.h) to the next bar line of the FX's clock, one more per
      *  AddFxMorphBar; held until ReleaseFxMorph (SHIFT let go); LandFxMorph ends it at once.
      *  All with the audio interrupt blocked */

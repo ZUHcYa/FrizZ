@@ -7,6 +7,8 @@ what FRIZZ does.
 
 ## Unreleased
 
+## v0.10 (2026-10-08)
+
 ### Added
 
 - **Mono input** on VOLUME's page 3: turn 3 detents left for a mono (TS) cable, such as one
@@ -16,11 +18,14 @@ what FRIZZ does.
   to the dry input on its own; back on the master at power-on.
 - SHIFT + press VOLUME resets the input/loop mix.
 - Picking a VOLUME page blinks its number in white.
-- A failed write of the compressor's or randomizer's settings blinks the compressor's key red
+- A failed write of the compressor's settings blinks its key red
   and is tried again, up to 3 times.
 
 ### Changed
 
+- **New key layout:** the delay and reverb moved one key right (12th and 13th) and the master
+  compressor to the last key (15th). The 11th and 14th keys are free, setting the inserts,
+  the sends and the compressor apart.
 - The headphone feed moved from the mode switch to VOLUME; the mode switch does nothing in
   play mode.
 - A morph started with SHIFT + scene key waits while SHIFT is held, however long, and on
@@ -29,8 +34,7 @@ what FRIZZ does.
 - The DELETE scene mode is amber, so red only means refused.
 - VOLUME turns faster: the gains move 2% per detent, the mix (SHIFT + turn) 4%.
 - The battery check shows red below 3 V and reads correctly from a second after boot.
-- Random gates are held to at most +3 dB over their input, and the crusher to its input's
-  level.
+- The crusher is held to its input's level.
 - The reverb's modulation runs at its intended rate (it was 1/32 too fast); the delay's
   feedback and the filter's resonance glide like every other knob. The sound changes slightly.
 - The filter's LFO follows a loop slowed below 50 BPM instead of running ahead.
@@ -66,7 +70,16 @@ what FRIZZ does.
 
 ### Removed
 
+- **The randomizer.** Its line in `FRIZZ/frizz_master.txt` is skipped and dropped at the next
+  save; the compressor's settings and the mono input stay as they were.
 - The factory self-test page (TAPE or WAVE run the same test).
+
+### Known issues
+
+- Some combinations of effects, especially the shifter and the crusher with a loop playing
+  and the master compressor working hard, can need more processing time than there is, which
+  is heard as crackles. Switching one of them off clears it. Effects that are off cost (almost)
+  nothing.
 
 ## v0.9 (2026-10-06)
 

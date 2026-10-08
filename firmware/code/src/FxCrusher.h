@@ -103,7 +103,7 @@ public:
         *r += gate * (outr - *r);
     }
 
-    /** The parameters land at once, no slew: the randomizer's gates (FxRandomizer.h) */
+    /** The parameters land at once, no slew: at Init */
     void SnapParams() override
     {
         rate_.Snap();
