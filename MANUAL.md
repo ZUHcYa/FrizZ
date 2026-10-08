@@ -141,6 +141,11 @@ Effects sit on the white keys and act on the whole mix, after the input/loop mix
 master compressor and the output gain. The looper records the input before the effects, so an effect is never
 printed into a loop.
 
+Effects that are off cost (almost) no processing time, but the ones that are on do. Some
+heavy combinations (the shifter and the crusher with a loop playing and the master compressor
+working hard, for example) can need more time than there is, which is heard as crackles;
+switching one of them off clears it.
+
 The keys run in signal order, left to right:
 
 ```

@@ -7,6 +7,8 @@ what FRIZZ does.
 
 ## Unreleased
 
+## v0.10 (2026-10-08)
+
 ### Added
 
 - **Mono input** on VOLUME's page 3: turn 3 detents left for a mono (TS) cable, such as one
@@ -71,6 +73,13 @@ what FRIZZ does.
 - **The randomizer.** Its line in `FRIZZ/frizz_master.txt` is skipped and dropped at the next
   save; the compressor's settings and the mono input stay as they were.
 - The factory self-test page (TAPE or WAVE run the same test).
+
+### Known issues
+
+- Some combinations of effects, especially the shifter and the crusher with a loop playing
+  and the master compressor working hard, can need more processing time than there is, which
+  is heard as crackles. Switching one of them off clears it. Effects that are off cost (almost)
+  nothing.
 
 ## v0.9 (2026-10-06)
 
