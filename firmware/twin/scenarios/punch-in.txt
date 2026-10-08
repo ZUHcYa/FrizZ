@@ -1,0 +1,66 @@
+# Punch-ins after each effect has gone to sleep (FxGate::Asleep), at the settings where
+# coming back from it could show most: set with the key held, let go, then pressed again
+# and again, each time once it's asleep. The crusher on a quiet input with its coarsest
+# bits, lowest rate and the XOR at the top; the filter low, at full resonance and LFO
+# depth; the resonator at full feedback
+input sine 220 0.02
+at 6000
+# KEY_4
+down KEY_4
+wait 100
+turn 4 100
+wait 850
+turn 1 100
+wait 850
+turn 2 100
+wait 850
+turn 3 100
+wait 850
+up KEY_4
+wait 1000
+tap KEY_4 300
+wait 700
+tap KEY_4 500
+wait 700
+tap KEY_4 700
+wait 700
+tap KEY_4 900
+wait 700
+input sine 220 0.3
+# KEY_5
+down KEY_5
+wait 100
+turn 4 -100
+wait 850
+turn 4 20
+wait 210
+turn 1 100
+wait 850
+turn 2 100
+wait 850
+up KEY_5
+wait 1000
+tap KEY_5 300
+wait 700
+tap KEY_5 500
+wait 700
+tap KEY_5 700
+wait 700
+tap KEY_5 900
+wait 700
+# KEY_7
+down KEY_7
+wait 100
+turn 1 100
+wait 850
+up KEY_7
+wait 1000
+tap KEY_7 300
+wait 700
+tap KEY_7 500
+wait 700
+tap KEY_7 700
+wait 700
+tap KEY_7 900
+wait 700
+wait 1000

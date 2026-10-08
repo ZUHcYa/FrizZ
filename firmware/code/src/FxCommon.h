@@ -342,6 +342,12 @@ struct LevelGuard
 
     inline float Gain() const { return gain_; }
 
+    /** While the effect doesn't run: only the input is followed */
+    inline void Listen(float in_l, float in_r) { Follow(&env_in_, in_l * in_l + in_r * in_r); }
+    /** Back from Listen: the output taken to be at the input's level, the gain where it was
+     *  left, until the output is measured again (a 1ms attack): never louder than that */
+    inline void Wake() { env_out_ = env_in_; }
+
 private:
     inline void Follow(float* env, float power) const
     {

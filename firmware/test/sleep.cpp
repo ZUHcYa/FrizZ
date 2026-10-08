@@ -196,9 +196,13 @@ int main()
     static chompi::Shifter shifter;
     static chompi::Flanger flanger;
     static chompi::Warble warble;
+    static chompi::Crusher crusher;
+    static chompi::Filter filter;
     TestInsert(shifter, "shifter");
     TestInsert(flanger, "flanger");
     TestInsert(warble, "warble");
+    TestInsert(crusher, "crusher");
+    TestInsert(filter, "filter");
     TestResonator();
     TestDelay();
     TestReverb();

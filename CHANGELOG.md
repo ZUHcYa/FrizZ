@@ -17,6 +17,8 @@ what FRIZZ does.
 
 ### Changed
 
+- The crusher, the filter and the resonator take far less processing time while they're
+  off, which leaves more room for the effects that are on and fewer crackles on busy scenes.
 - Turning the master compressor's knobs takes far less processing time while they glide,
   so it no longer adds to crackles on busy scenes.
 - Mono input (VOLUME's page 3) needs its 3 detents in one direction: turning back starts the
