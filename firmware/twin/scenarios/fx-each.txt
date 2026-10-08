@@ -1,0 +1,267 @@
+# Every effect on its own: held, each knob up and part way back, then its tail
+input sine 220 0.3
+at 6000
+# KEY_1
+down KEY_1
+wait 100
+turn 4 12
+wait 150
+turn 4 -6
+wait 100
+turn 1 12
+wait 150
+turn 1 -6
+wait 100
+turn 2 12
+wait 150
+turn 2 -6
+wait 100
+turn 3 12
+wait 150
+turn 3 -6
+wait 100
+wait 300
+up KEY_1
+wait 600
+# KEY_2
+down KEY_2
+wait 100
+turn 4 12
+wait 150
+turn 4 -6
+wait 100
+turn 1 12
+wait 150
+turn 1 -6
+wait 100
+turn 2 12
+wait 150
+turn 2 -6
+wait 100
+turn 3 12
+wait 150
+turn 3 -6
+wait 100
+wait 300
+up KEY_2
+wait 600
+# KEY_3
+down KEY_3
+wait 100
+turn 4 12
+wait 150
+turn 4 -6
+wait 100
+turn 1 12
+wait 150
+turn 1 -6
+wait 100
+turn 2 12
+wait 150
+turn 2 -6
+wait 100
+turn 3 12
+wait 150
+turn 3 -6
+wait 100
+wait 300
+up KEY_3
+wait 600
+# KEY_4
+down KEY_4
+wait 100
+turn 4 12
+wait 150
+turn 4 -6
+wait 100
+turn 1 12
+wait 150
+turn 1 -6
+wait 100
+turn 2 12
+wait 150
+turn 2 -6
+wait 100
+turn 3 12
+wait 150
+turn 3 -6
+wait 100
+wait 300
+up KEY_4
+wait 600
+# KEY_5
+down KEY_5
+wait 100
+turn 4 12
+wait 150
+turn 4 -6
+wait 100
+turn 1 12
+wait 150
+turn 1 -6
+wait 100
+turn 2 12
+wait 150
+turn 2 -6
+wait 100
+turn 3 12
+wait 150
+turn 3 -6
+wait 100
+wait 300
+up KEY_5
+wait 600
+# KEY_6
+down KEY_6
+wait 100
+turn 4 12
+wait 150
+turn 4 -6
+wait 100
+turn 1 12
+wait 150
+turn 1 -6
+wait 100
+turn 2 12
+wait 150
+turn 2 -6
+wait 100
+turn 3 12
+wait 150
+turn 3 -6
+wait 100
+wait 300
+up KEY_6
+wait 600
+# KEY_7
+down KEY_7
+wait 100
+turn 4 12
+wait 150
+turn 4 -6
+wait 100
+turn 1 12
+wait 150
+turn 1 -6
+wait 100
+turn 2 12
+wait 150
+turn 2 -6
+wait 100
+turn 3 12
+wait 150
+turn 3 -6
+wait 100
+wait 300
+up KEY_7
+wait 600
+# KEY_8
+down KEY_8
+wait 100
+turn 4 12
+wait 150
+turn 4 -6
+wait 100
+turn 1 12
+wait 150
+turn 1 -6
+wait 100
+turn 2 12
+wait 150
+turn 2 -6
+wait 100
+turn 3 12
+wait 150
+turn 3 -6
+wait 100
+wait 300
+up KEY_8
+wait 600
+# KEY_9
+down KEY_9
+wait 100
+turn 4 12
+wait 150
+turn 4 -6
+wait 100
+turn 1 12
+wait 150
+turn 1 -6
+wait 100
+turn 2 12
+wait 150
+turn 2 -6
+wait 100
+turn 3 12
+wait 150
+turn 3 -6
+wait 100
+wait 300
+up KEY_9
+wait 600
+# KEY_10
+down KEY_10
+wait 100
+turn 4 12
+wait 150
+turn 4 -6
+wait 100
+turn 1 12
+wait 150
+turn 1 -6
+wait 100
+turn 2 12
+wait 150
+turn 2 -6
+wait 100
+turn 3 12
+wait 150
+turn 3 -6
+wait 100
+wait 300
+up KEY_10
+wait 600
+# KEY_12
+down KEY_12
+wait 100
+turn 4 12
+wait 150
+turn 4 -6
+wait 100
+turn 1 12
+wait 150
+turn 1 -6
+wait 100
+turn 2 12
+wait 150
+turn 2 -6
+wait 100
+turn 3 12
+wait 150
+turn 3 -6
+wait 100
+wait 300
+up KEY_12
+wait 600
+# KEY_13
+down KEY_13
+wait 100
+turn 4 12
+wait 150
+turn 4 -6
+wait 100
+turn 1 12
+wait 150
+turn 1 -6
+wait 100
+turn 2 12
+wait 150
+turn 2 -6
+wait 100
+turn 3 12
+wait 150
+turn 3 -6
+wait 100
+wait 300
+up KEY_13
+wait 600

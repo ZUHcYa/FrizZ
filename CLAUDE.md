@@ -14,7 +14,7 @@ which will not receive updates.
 | Path | What | Audience |
 |---|---|---|
 | `README.md`, `INSTALL.md`, `QUICKSTART.md`, `MANUAL.md`, `CHANGELOG.md` | what FRIZZ is, install, quick guide, full controls, what changed since the last release | users |
-| `firmware/` | FRIZZ source (`code/`, `bin/`, `test/`); `firmware/README.md` is the developer guide | developers |
+| `firmware/` | FRIZZ source (`code/`, `bin/`, `test/`, `twin/`); `firmware/README.md` is the developer guide | developers |
 | `docs/` | our design notes: `LOOPER.md` (looper spec), `FX_OVERVIEW.md` | developers |
 | `reference/` | the original CHOMPI release, unchanged except for links: `reference/firmware/{chompi-tape,chompi-tempo,chompi-wave,chompi-bootloader-v6.4-beta,card-profiles}`, `reference/hardware/`, CHOMPI's README | reference only |
 | `LICENSE`, `THIRD_PARTY.md`, `TRADEMARKS.md`, `CLAUDE.md` | legal, this file | — |
@@ -52,6 +52,12 @@ so the binary always matches its source. On a merge conflict over it, rebuild ra
 side. It reaches `main` with the merge, so `main` holds the last tested build; releases for
 users stay on GitHub's Releases page.
 
+Every such commit, and every one that changes `firmware/test/` or `firmware/twin/`, first
+passes `firmware/test/all.sh`: the engine against HEAD, every unit check, and `ui`, which runs
+the whole firmware from power-on on the virtual CHOMPI. A check that fails is fixed, or, when
+the change is meant to alter what it checks, updated in the same commit, saying so in the
+commit message. Say in the PR when a commit changed what a check expects.
+
 Two artifacts track every branch; keep both current with each change, and read them before
 working on a branch:
 
@@ -68,6 +74,13 @@ working on a branch:
   branch built on another unmerged branch either gets a PR covering both or a stacked PR
   based on that branch. Merge an outside contributor's commit unchanged (no squash, rebase or
   cherry-pick) so GitHub marks their PR merged and credits them in the release notes.
+- **What the virtual CHOMPI can show, it checks, not the user** (`firmware/twin/`). For each
+  thing to test that is about keys, LEDs, the card, levels or clicks, the branch adds a case
+  to `firmware/test/ui.cpp`, and `firmware/twin/ui-at.sh main` shows it failing without the
+  change (it passes with it). `firmware/twin/compare.sh main HEAD` goes into the PR with every
+  difference it reports explained. The PR lists those under **Checked on the twin** (no
+  boxes); the hardware checklist keeps what only the device can show: the CPU load and
+  crackles, sound judged by ear, the codec, real MIDI, USB and card hardware.
 
 A build handed out for testing goes on GitHub as a **pre-release**, never as Latest, so v0.10
 users aren't offered it:
@@ -181,9 +194,20 @@ The exception is FRIZZ: `firmware/test/` compiles its audio engine on the host a
 script of key presses and knob turns through it (3 s per effect plus four combined segments).
 `./all.sh` runs everything. `./check.sh` compares HEAD with the working tree; a refactor must
 come out `bit-identical`. `./unit.sh NAME` runs one unit check, `NAME.cpp`: `pitch`, `tape`,
-`scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`, `comp`, `level`, `sleep`; a new check is just a new
-`.cpp`. What each covers is in `firmware/test/README.md`. None covers the LEDs, `NormalPage.h`'s
-key routing, real MIDI or the hardware.
+`scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`, `comp`, `level`, `sleep`, `ui`; a new check is just a new
+`.cpp`. What each covers is in `firmware/test/README.md`.
+
+`firmware/twin/` is the **virtual CHOMPI**: the whole firmware (`chompi_main.cpp` down, with
+libDaisy's UI, Switch, 4021 and MIDI code) compiled unchanged for the host on a simulated
+board (the 4021 chains, encoders, WS2812 DMA, charger, card, audio, MIDI in), deterministic
+and 13-20x real time. `./run.sh -o out.wav -l - SCRIPT` plays a script of keys, knobs,
+MIDI and audio into it from power-on and writes the master out and the LEDs; use it to see
+what a change does to the play page before the user flashes it. `unit.sh ui` checks the play
+page through it. `web/serve.sh` runs the same twin in the browser (Emscripten, from
+`~/opt/emsdk`) on a panel drawn from the board file, with sound, for the user to play; each
+page load rebuilds it first if the source changed, so a reload plays the working tree. It can't show the CPU load, the codec, races between the audio interrupt and `main()` or
+anything else about the chip;
+`firmware/twin/README.md` has the details.
 
 ## FRIZZ's audio callback is CPU-bound
 

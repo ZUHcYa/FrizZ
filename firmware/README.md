@@ -16,6 +16,7 @@ bin/                      FRIZZ.bin (the latest build), the v6.2 bootloader bina
                           install script; the bootloader's source is in
                           reference/firmware/chompi-wave/code/Chompi_Bootloader/
 test/                     host-side checks: the engine against HEAD, and unit checks (unit.sh NAME)
+twin/                     the virtual CHOMPI: the whole firmware on the PC, on a simulated board
 ```
 
 Design notes live in [`../docs/`](../docs/): the looper spec (`LOOPER.md`) and an overview of
@@ -74,12 +75,22 @@ don't normally rebuild them. If you change a library, run `make` in `code/libs/l
 cd firmware/test
 ./all.sh          # everything, one line each
 ./check.sh        # engine at HEAD vs the working tree: a refactor must print "bit-identical"
-./unit.sh tempo   # one unit check: comp, controls, keys, level, looper, pitch, scenes,
-                  # tape or tempo (each NAME.cpp)
+./unit.sh tempo   # one unit check (each NAME.cpp; ui runs the whole firmware on the twin)
 ```
 
-They don't cover the LEDs, the routing of keys in `NormalPage.h`, MIDI clock or the hardware.
 [`test/README.md`](test/README.md) says what each check covers.
+
+To try a change before flashing it, play it on the virtual CHOMPI: the firmware from
+power-on, keys, knobs, MIDI and audio from a script, the master out as a WAV and the LEDs as
+text ([`twin/README.md`](twin/README.md)):
+
+```bash
+cd firmware/twin
+./run.sh -o out.wav -l - examples/filter.txt
+web/serve.sh      # the same in the browser, to play and hear: http://localhost:8765
+```
+
+Neither shows the CPU load or anything else about the chip; that takes the device.
 
 ## 4. Put it on the CHOMPI
 

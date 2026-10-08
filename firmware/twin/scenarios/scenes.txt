@@ -1,0 +1,47 @@
+# Scenes: save, change, recall, blank, morph, copy, delete
+input sine 220 0.3
+at 6000
+down KEY_5
+wait 80
+tap KEY_26
+up KEY_5
+wait 200
+turn 4 -20
+wait 300
+down KEY_6
+wait 80
+tap KEY_26
+up KEY_6
+wait 200
+turn 2 15
+wait 500
+tap KEY_25
+tap KEY_17
+wait 300
+tap KEY_26
+wait 1000
+turn 2 -15
+wait 300
+tap KEY_6
+wait 500
+tap KEY_17
+wait 1000
+tap KEY_16
+wait 1000
+down KEY_26
+tap KEY_17
+up KEY_26
+wait 4000
+tap KEY_24
+tap KEY_17
+tap KEY_18
+wait 300
+tap KEY_26
+wait 800
+tap KEY_23
+tap KEY_17
+wait 300
+tap KEY_26
+wait 800
+tap KEY_18
+wait 1500

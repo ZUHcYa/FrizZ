@@ -1,0 +1,35 @@
+# The looper: record, play, every speed up and back through reverse, pause, scrub, erase at the
+# loop's end, tap tempo
+input sine 220 0.3
+at 6000
+tap KEY_28
+wait 2000
+tap KEY_28
+input off
+wait 1500
+turn 5 32
+wait 2500
+turn 5 -64
+wait 3000
+tap ENC_5_SW
+wait 1000
+tap KEY_27
+wait 500
+turn 5 6
+wait 500
+turn 5 -12
+wait 500
+tap KEY_27
+wait 1000
+down KEY_26
+tap KEY_28 40
+wait 450
+tap KEY_28 40
+wait 450
+tap KEY_28 40
+up KEY_26
+wait 1000
+down KEY_27
+tap KEY_28
+up KEY_27
+wait 2500

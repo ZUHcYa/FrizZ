@@ -1,0 +1,42 @@
+# Effects latched together, coarse turns (SHIFT + turn), resets (SHIFT + press), a select
+input sine 330 0.3
+at 6000
+down KEY_5
+wait 80
+tap KEY_26
+up KEY_5
+wait 200
+turn 4 -15
+wait 500
+down KEY_6
+wait 80
+tap KEY_26
+up KEY_6
+wait 200
+turn 2 20
+turn 4 10
+wait 800
+down KEY_12
+wait 80
+tap KEY_26
+up KEY_12
+wait 200
+turn 3 30
+wait 1500
+down KEY_26
+wait 50
+turn 4 3
+wait 300
+tap ENC_4_SW
+wait 200
+up KEY_26
+wait 500
+down KEY_26
+tap KEY_13
+up KEY_26
+wait 300
+turn 3 25
+wait 1000
+tap KEY_5
+tap KEY_6
+wait 2000
