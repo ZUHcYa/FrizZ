@@ -22,6 +22,7 @@ using namespace daisysp;
 
 constexpr float delayDivs[] = {1.f/8.f, 1.f/6.f, 1.f/4.f, 1.f/3.f, 3.f/8.f, 1.f/2.f, 3.f/4.f, 1.f, 2.f};
 constexpr size_t kNumDelayDivs = sizeof(delayDivs) / sizeof(delayDivs[0]);
+constexpr size_t kStartDiv = 2; // 1/4, the division knob's default (FxParams.h)
 constexpr uint32_t kMaxCrossfadeSamps = 256;       // a division change
 constexpr uint32_t kMaxEventCrossfadeSamps = 1024; // a random event's fade in and out
 constexpr float kTempoJump = .02f; // a tempo change this much of the delay time crossfades
@@ -101,7 +102,7 @@ class delayVoice {
     };
 
     /** active: the voice that starts out reading */
-    void Init(float *buffer, size_t buffer_size, bool active) {
+    void Init(float *buffer, size_t buffer_size, bool active, size_t div) {
         buffer_ = buffer;
         buffer_size_ = buffer_size;
         write_head_ = 0;
@@ -112,7 +113,7 @@ class delayVoice {
         event_crossfade_counter_ = 0;
         active_ = active;
         fading_in_ = fading_out_ = false;
-        div_pos_ = 8;
+        div_pos_ = div; // the delay's own (TEMPO's voices started on 8 while it was too)
         div_read_head_ = div_delay_samples_ = 0.f;
         div_crossfade_ = false;
         div_crossfade_counter_ = 0;
@@ -328,13 +329,13 @@ class granularDelay {
 
         write_head_ = 0;
         SetTempo(120);
-        delay_samples_ = delay_samples_target_ = BarSamples() * delayDivs[2];
+        delay_samples_ = delay_samples_target_ = BarSamples() * delayDivs[kStartDiv];
         cur_sig_l_ = cur_sig_r_ = 0.f;
 
-        division_ = 2;
+        division_ = kStartDiv;
         shimmer_ = false;
         alt_control_ = 0.f;
-        delay_div_position_ = 2;
+        delay_div_position_ = kStartDiv;
 
         setFeedback(.3f);
 
@@ -346,7 +347,7 @@ class granularDelay {
         curIdx = 0;
         nextIdx = 1;
         for (size_t i = 0; i < 2; ++i) {
-            myVoices[i].Init(buffer_, buffer_size_, i == curIdx);
+            myVoices[i].Init(buffer_, buffer_size_, i == curIdx, delay_div_position_);
         }
     }
 

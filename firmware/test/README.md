@@ -101,6 +101,15 @@ Runs a 220 Hz sine through moves that used to jump the sound and fails if the ou
 further between two samples than a smooth sweep does: the flanger's stereo knob turned back
 to 0, as a recall or morph does.
 
+## Delay check
+
+```bash
+./unit.sh delay
+```
+
+Checks where the delay's voices (`granularDelay.h`) start a pitch-up event: half a bar back at
+the default 1/4, right after Init as after a division change.
+
 ## Master compressor check
 
 ```bash
