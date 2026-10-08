@@ -653,6 +653,13 @@ int main()
         run(300);
         Tap("KEY_6");
         run(1000);
+        // a long sweep of knob 1: the file runs over several sectors, written in pieces
+        for (int i = 0; i < 6; i++)
+        {
+            Turn(4, i % 2 ? -60 : 60);
+            run(600);
+        }
+        run(500);
         Press("KEY_26", true);
         run(100);
         const uint32_t combo = NowMs();
@@ -687,6 +694,18 @@ int main()
               "bug log: with the card's scenes as they were at power-on, not as saved since");
         Check(log.find("\nturn 5 1\n") != std::string::npos && log.find("\nup KEY_28\n") != std::string::npos,
               "bug log: and the session's keys and knobs");
+        // every line one the twin reads, over all its sectors
+        std::istringstream lines(log);
+        std::string line;
+        int bad = 0;
+        while (std::getline(lines, line))
+            bad += !(line.empty() || line[0] == '#' || line[0] == '|' || line.rfind("at ", 0) == 0
+                     || line.rfind("down ", 0) == 0 || line.rfind("up ", 0) == 0
+                     || line.rfind("turn ", 0) == 0 || line.rfind("card file ", 0) == 0
+                     || line.rfind("toggle ", 0) == 0 || line.rfind("input ", 0) == 0
+                     || line == "booted");
+        Check(log.size() > 3 * 512 && bad == 0,
+              "bug log: a file of several sectors comes out whole (the SD DMA's alignment)");
         KeepCard();
     }});
 

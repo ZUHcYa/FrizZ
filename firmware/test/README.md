@@ -245,7 +245,9 @@ And the bug report (`code/src/EventLog.h`): after a session (a latch, knob 1 wit
 SHIFT, a loop recorded and sped up, a scene recalled and another saved), SHIFT + transport
 press writes `/FRIZZ/bug-1.txt` while the transport LEDs blink white, holding the card's
 scenes as at power-on (not the one saved since) and the session's keys and knobs, and the
-saves after it still go to `/FRIZZ` (writing it remounts the card). Played on a
+saves after it still go to `/FRIZZ` (writing it remounts the card), and a file of several
+sectors comes out whole: the card here shifts whole sectors written from an unaligned
+address, as the device's SD DMA does (found in the first report from a device). Played on a
 fresh twin (`script.h`), the LEDs are the session's every millisecond up to the combo, and the
 replay writes the same events again.
 

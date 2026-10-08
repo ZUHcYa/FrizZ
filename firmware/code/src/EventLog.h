@@ -48,6 +48,7 @@ struct LoggedEvent
 // 2 MB of SDRAM: 260,000 events, far more than a session
 static const size_t kEventLogSize = 1u << 18;
 static const size_t kEventLogText = 4096; // written a chunk this size at a time
+static const size_t kSector = 512;        // the card's, and FatFs's
 
 /** Its list, in SDRAM (chompi_main.cpp) */
 struct EventLogMem
@@ -267,13 +268,20 @@ private:
             text_[pos_++] = digits[--i];
     }
     /** text_ so far to the file */
-    EVENT_LOG_ONCE bool Flush()
+    /** text_ to the file in whole sectors, the rest kept for the next (all: everything, at the
+     *  end). FatFs hands whole sectors straight from text_ to the SD card's DMA, which reads
+     *  from a word-aligned address: so every write starts on a sector of the file and at the
+     *  start of text_, or the sectors come out shifted (bytes repeated, others lost) */
+    EVENT_LOG_ONCE bool Flush(bool all = false)
     {
+        const size_t n = all ? pos_ : pos_ - pos_ % kSector;
+        if (n == 0)
+            return true;
         UINT written = 0;
-        const FRESULT res = f_write(&file_, text_, static_cast<UINT>(pos_), &written);
-        const bool ok = res == FR_OK && written == pos_;
-        pos_ = 0;
-        return ok;
+        const FRESULT res = f_write(&file_, text_, static_cast<UINT>(n), &written);
+        memmove(text_, text_ + n, pos_ - n);
+        pos_ -= n;
+        return res == FR_OK && written == n;
     }
     /** A card file as the script's `card file` block: every line behind a `|` */
     EVENT_LOG_ONCE bool PutFile(const char* path, const char* text)
@@ -386,7 +394,7 @@ private:
         Put("# written here, ");
         PutNum(end_);
         Put(" events\n");
-        const bool ok = Flush();
+        const bool ok = Flush(true);
         return f_close(&file_) == FR_OK && ok;
     }
 

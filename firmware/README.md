@@ -288,6 +288,13 @@ chompi_sram.lds        linker script (the firmware runs from SRAM, placed there 
   creates on a new card) and writes it only from `MainLoop`, when a scene is saved, copied or
   deleted, or 2 s after the compressor's knobs or the mono input were last changed
   (`SceneStore.h`).
+- **Card buffers:** FatFs hands the whole sectors of a read or write straight between your
+  buffer and the SD card's DMA. So a buffer for the card lives in internal RAM (a global or a
+  member of one: not on the stack, which is in DTCM, and not in SDRAM, neither of which the
+  DMA reaches reliably), is aligned (`alignas(32)`, for the cache's lines), and every write
+  of it starts at its beginning on a sector of the file: write whole sectors, keep the rest
+  for the next write (`EventLog::Flush`). Otherwise the sectors come out shifted, bytes
+  repeated and others lost; the twin's card does the same (`test/host/fatfs.h`).
 - Large buffers (the loop, the delay, the freezer, the tape stop) live in SDRAM (`DSY_SDRAM_BSS`) and are
   cleared at boot.
 - `__attribute__((optimize("-O0")))` and similar per-function overrides are deliberate
