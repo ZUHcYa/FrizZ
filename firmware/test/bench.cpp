@@ -4,6 +4,8 @@
 // and out. The loads themselves are 0 here: no time passes on the twin while the callback
 // runs, so only the device measures them. Run by unit.sh bench.
 // twin defines: -DFRIZZ_BENCH=1
+#include <sys/wait.h>
+#include <unistd.h>
 #include <cmath>
 #include <cstdio>
 #include <sstream>
@@ -15,22 +17,57 @@
 using namespace twin;
 
 static const char* const kSegments[] = {
-    "idle",      "freezer",  "shifter",    "folder",     "crusher",         "filter",
-    "flanger",   "resonator", "slicer",    "warble",     "tapestop",        "delay",
-    "reverb",    "compressor", "inserts",  "everything", "stress",          "recording",
-    "loop",      "loop+delay", "loop+scene4+dly", "loop+everything",
+    "idle",       "freezer",   "shifter",      "folder",      "crusher",
+    "filter",     "flanger",   "resonator",    "slicer",      "warble",
+    "tapestop",   "compressor", "inserts",     "recording",   "loop",
+    "loop+inserts", "loop+delay", "loop+scene4+delay", "loop+reverb", "everything",
+    "stress",     "loop+everything",
 };
+// up to the reverb's: nothing may still be working in them that isn't theirs
+static const size_t kClean = 18;
 static const size_t kNum = sizeof(kSegments) / sizeof(kSegments[0]);
+
+// Without a card: the bench runs, then the panel blinks red
+static int NoCard()
+{
+    SetCardPresent(false);
+    Boot();
+    const uint32_t end_ms = 11400 + 3000 * kNum + 3000;
+    Run(end_ms * 2, nullptr, nullptr);
+    int lit = 0, dark = 0;
+    for (int i = 0; i < 1000; i++)
+    {
+        Run(2, nullptr, nullptr);
+        const Rgb c = PthLedFull(0);
+        lit += c.r > 200 && c.g == 0;
+        dark += c.r == 0 && c.g == 0 && c.b == 0;
+    }
+    Check(lit > 300 && dark > 300, "bench: without a card the panel blinks red at the end");
+    return failures;
+}
 
 int main()
 {
+    fflush(stdout);
+    const pid_t pid = fork();
+    if (pid == 0)
+    {
+        const int result = NoCard();
+        fflush(stdout);
+        _exit(result);
+    }
+    int status = 0;
+    waitpid(pid, &status, 0);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+        failures++;
+
     Boot();
-    // the boot animation, then 22 segments of 3 s and the 4 s recording among them; the input
-    // is the bench's own, so none is fed here
+    // the boot animation, about 10 s for the delay to rest, then 22 segments of 3 s with the
+    // 4 s recording among them; the input is the bench's own, so none is fed here
     std::vector<float> rms; // the master out's level every 3 s from when the bench starts
     float out[kBlockSize * kChannels];
     double sum = 0.;
-    const uint32_t start_ms = 1400, end_ms = start_ms + 3000 * kNum + 1000 + 2000;
+    const uint32_t start_ms = 11400, end_ms = start_ms + 3000 * kNum + 1000 + 2000;
     for (uint32_t b = 0; b < end_ms * 2; b++)
     {
         Run(1, nullptr, out);
@@ -48,15 +85,26 @@ int main()
     Check(it != card.end(), "bench: /FRIZZ/cpu.txt is written at the end");
     const std::string text = it == card.end() ? "" : it->second;
     size_t found = 0;
+    bool clean = true;
     std::istringstream in(text);
     std::string line;
     for (size_t s = 0; std::getline(in, line);)
-        if (s < kNum && line.rfind(kSegments[s], 0) == 0 && line.size() >= 30)
+        if (s < kNum && line.rfind(std::string(kSegments[s]) + " ", 0) == 0 && line.size() >= 32)
         {
+            // "name  max  mean  still working...": what follows the 35th column
+            if (s < kClean && line.size() > 35)
+            {
+                printf("      %s\n", line.c_str());
+                clean = false;
+            }
             found++;
             s++;
         }
-    Check(found == kNum, "bench: every segment has its line, in order, with a max and an average");
+    Check(found == kNum, "bench: every segment has its line, in order, with a max and a mean");
+    Check(clean, "bench: nothing else still works in a segment before the reverb's");
+    Check(text.find(" s, playing in every loop segment") != std::string::npos
+              && text.find("# loop:    4.0 s") != std::string::npos,
+          "bench: the 4 s loop plays in every loop segment");
     Check(text.find("# worst: ") != std::string::npos, "bench: and the worst is named");
 
     bool keys = true;

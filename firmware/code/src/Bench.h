@@ -2,11 +2,17 @@
  *  @brief The CPU bench, only in FRIZZ-bench.bin (make BENCH=1; the normal build leaves it out).
  *
  *  After the boot animation it plays a fixed list of segments through the engine on a signal
- *  of its own, 3 s each: nothing on, every effect on its own, the inserts together, everything,
- *  everything at its heaviest, and a playing loop alone, with the delay, with PR #7's scene 4
- *  and with everything. In each it measures the audio callback's load, all of it (controls, UI
- *  events, MIDI, the engine), with libDaisy's CpuLoadMeter: the highest and the average, as
- *  parts of the 0.5 ms a block has. When it's done it writes them to /FRIZZ/cpu.txt.
+ *  of its own, 3 s each, and measures the audio callback's load in each, all of it (controls,
+ *  UI events, MIDI, the engine), by the system timer as libDaisy's CpuLoadMeter does: the
+ *  highest and the mean, as parts of the 0.5 ms a block has. When it's done it writes them to
+ *  /FRIZZ/cpu.txt, with the effects that were still working in a segment they're not part of
+ *  (a delay or reverb tail: the delay sleeps only after 10 s of silence) and whether the loop
+ *  played. So the clean segments come first and the sends last, and it starts only once every
+ *  effect rests: the delay works for its first 10 s after power-on, until its tail watch has
+ *  heard 10 s of silence.
+ *
+ *  It measures FRIZZ-bench.bin, whose memory layout isn't FRIZZ.bin's: a crackle that comes
+ *  from the layout alone (b5c658c) may show in one and not the other.
  *
  *  LEDs: one key per segment as it's done, white keys left to right, then the dark keys: green
  *  below 80%, amber below 95%, red above; the segment running blinks white. At the end every
@@ -31,16 +37,18 @@ public:
     static const size_t kSegmentBlocks = 6000; // 3 s at 48 kHz in 24-sample blocks
     static const size_t kRecordBlocks = 8000;  // the loop: 4 s
     static const size_t kKnobBlocks = 500;     // a knob moves every 0.25 s
+    static const size_t kSettleBlocks = 30000; // waiting for the effects to rest: 15 s at most
 
     void Init(float sample_rate, size_t block_size, FATFS* fs, const char* path)
     {
-        meter_.Init(sample_rate, static_cast<int>(block_size));
+        // ticks of the system timer in one block's time
+        ticks_per_block_ = daisy::System::GetTickFreq() * (block_size / sample_rate);
         fs_ = fs;
         path_ = path;
     }
 
     /** At the very start of the audio callback */
-    inline void BlockStart() { meter_.OnBlockStart(); }
+    inline void BlockStart() { start_tick_ = daisy::System::GetTick(); }
 
     /** The bench's signal into AUX in place of the inputs, while it runs */
     const float* const* Input(const float* const* in, size_t size)
@@ -73,38 +81,63 @@ public:
     /** At the very end of the audio callback: the measurement, then the next step */
     void BlockEnd(PassthroughEngine& engine)
     {
-        meter_.OnBlockEnd();
+        const float load = static_cast<float>(daisy::System::GetTick() - start_tick_)
+                           / ticks_per_block_;
         if (!started_)
         {
             started_ = true;
             running_ = true;
-            Begin(engine, 0);
+            settling_ = true;
+            for (size_t fx = 0; fx < kNumFx; fx++)
+                engine.SetFxOn(fx, false);
             return;
         }
         if (!running_)
             return;
-
-        blocks_++;
-        if (recording_)
+        if (settling_)
         {
-            if (blocks_ == kRecordBlocks)
+            // until every effect rests: the delay keeps working for 10 s after power-on, until
+            // its tail watch has heard 10 s of silence
+            bool resting = true;
+            for (size_t fx = 0; fx < kNumFx; fx++)
+                resting &= engine.FxResting(fx);
+            if (resting || ++blocks_ >= kSettleBlocks)
             {
-                max_[segment_] = meter_.GetMaxCpuLoad();
-                avg_[segment_] = meter_.GetAvgCpuLoad();
-                engine.looper.StopRecording();
-                recording_ = false;
-                Begin(engine, segment_ + 1);
+                settling_ = false;
+                Begin(engine, 0);
             }
             return;
         }
-        if (blocks_ % kKnobBlocks == 0 && !Fixed(segment_))
+
+        max_[segment_] = fmaxf(max_[segment_], load);
+        sum_ += load;
+        blocks_++;
+        const Segment& seg = kSegments[segment_];
+        if (!(seg.flags & (STRESS | SCENE4 | RECORD)) && blocks_ % kKnobBlocks == 0)
             TurnAKnob(engine);
-        if (blocks_ == kSegmentBlocks)
+        size_t length = kSegmentBlocks;
+        if (seg.flags & RECORD)
+            length = kRecordBlocks;
+        if (blocks_ < length)
+            return;
+
+        mean_[segment_] = static_cast<float>(sum_ / blocks_);
+        // what still worked without being part of the segment, and the loop
+        for (size_t fx = 0; fx < kNumFx; fx++)
+            if (!(seg.fx & (1u << fx)) && !engine.FxResting(fx))
+                awake_[segment_] |= static_cast<uint16_t>(1u << fx);
+        if (seg.flags & RECORD)
         {
-            max_[segment_] = meter_.GetMaxCpuLoad();
-            avg_[segment_] = meter_.GetAvgCpuLoad();
-            Begin(engine, segment_ + 1);
+            engine.looper.StopRecording();
+            loop_frames_ = engine.looper.GetLength(); // 0 until the stop lands: read below
         }
+        if (seg.flags & LOOP)
+        {
+            loop_frames_ = engine.looper.GetLength();
+            if (engine.looper.GetState() != Looper::State::PLAYING)
+                loop_missing_ = true;
+        }
+        Begin(engine, segment_ + 1);
     }
 
     /** In MainLoop: writes cpu.txt once the last segment is done */
@@ -126,7 +159,7 @@ public:
             float r = 0.f, g = 0.f, b = 0.f;
             if (s < segment_ || !running_)
                 Grade(max_[s], r, g, b);
-            else if (s == segment_)
+            else if (s == segment_ && !settling_)
                 r = g = b = (now / 150) % 2 ? .6f : 0.f;
             SetSmtLedFloat(kKeyLeds[s], r, g, b);
         }
@@ -146,8 +179,6 @@ public:
         }
         fill_led_data();
     }
-
-    inline bool Running() const { return running_; }
 
 private:
     // what a segment plays
@@ -195,12 +226,11 @@ private:
             r = 1.f, g = 0.f;
     }
 
-    static bool Fixed(size_t s) { return kSegments[s].flags & (STRESS | SCENE4); }
-
     void Begin(PassthroughEngine& engine, size_t s)
     {
         segment_ = s;
         blocks_ = 0;
+        sum_ = 0.;
         if (s >= kNumSegments)
         {
             running_ = false;
@@ -238,11 +268,9 @@ private:
         {
             engine.SetMix(0.f);
             engine.looper.StartRecording(false);
-            recording_ = true;
         }
         else
             engine.SetMix(seg.flags & LOOP ? .5f : 0.f);
-        meter_.Reset();
     }
 
     void TurnAKnob(PassthroughEngine& engine)
@@ -267,7 +295,7 @@ private:
     // a load as a percentage in 6 characters, "  87.3": the firmware's printf has no floats
     static void Percent(float load, char* out)
     {
-        int tenths = load == load ? static_cast<int>(load * 1000.f + .5f) : 0; // NaN: nothing ran
+        int tenths = static_cast<int>(load * 1000.f + .5f);
         if (tenths > 99999)
             tenths = 99999;
         int whole = tenths / 10;
@@ -280,46 +308,69 @@ private:
         }
     }
 
-    static size_t Put(char* buf, size_t pos, size_t size, const char* s)
+    struct Text
     {
-        while (*s && pos + 1 < size)
-            buf[pos++] = *s++;
-        return pos;
-    }
+        char buf[3072];
+        size_t pos = 0;
+        void Put(const char* s)
+        {
+            while (*s && pos + 1 < sizeof(buf))
+                buf[pos++] = *s++;
+        }
+        void Pad(size_t to)
+        {
+            while (pos < to && pos + 1 < sizeof(buf))
+                buf[pos++] = ' ';
+        }
+        void Load(float load)
+        {
+            char p[7] = {};
+            Percent(load, p);
+            Put(p);
+        }
+    };
 
     bool Write()
     {
-        static char buf[2048];
-        size_t pos = Put(buf, 0, sizeof(buf), "FRIZZ cpu bench, built " __DATE__ " " __TIME__
-                                               "\n# segment          max %  avg %  (of 0.5 ms a block)\n");
+        static Text t;
+        t.pos = 0;
+        t.Put("FRIZZ cpu bench, built " __DATE__ " " __TIME__ "\n");
+        t.Put("# of the 0.5 ms a block has; measured in FRIZZ-bench.bin, whose memory layout\n");
+        t.Put("# isn't FRIZZ.bin's\n");
+        t.Put("# segment           max %  mean %  still working\n");
         float worst = 0.f;
         size_t worst_at = 0;
         for (size_t s = 0; s < kNumSegments; s++)
         {
-            pos = Put(buf, pos, sizeof(buf), kSegments[s].name);
-            for (size_t n = strlen(kSegments[s].name); n < 17 && pos + 1 < sizeof(buf); n++)
-                buf[pos++] = ' ';
-            char p[6];
-            if (pos + 16 < sizeof(buf))
-            {
-                Percent(max_[s], p);
-                for (char c : p)
-                    buf[pos++] = c;
-                buf[pos++] = ' ';
-                Percent(avg_[s], p);
-                for (char c : p)
-                    buf[pos++] = c;
-                buf[pos++] = '\n';
-            }
+            const size_t line = t.pos;
+            t.Put(kSegments[s].name);
+            t.Pad(line + 18);
+            t.Load(max_[s]);
+            t.Put("  ");
+            t.Load(mean_[s]);
+            if (awake_[s])
+                t.Pad(line + 35);
+            for (size_t fx = 0; fx < kNumFx; fx++)
+                if (awake_[s] & (1u << fx))
+                {
+                    t.Put(" ");
+                    t.Put(kFxNames[fx]);
+                }
+            t.Put("\n");
             if (max_[s] > worst)
             {
                 worst = max_[s];
                 worst_at = s;
             }
         }
-        pos = Put(buf, pos, sizeof(buf), "# worst: ");
-        pos = Put(buf, pos, sizeof(buf), kSegments[worst_at].name);
-        pos = Put(buf, pos, sizeof(buf), "\n");
+        t.Put("# worst: ");
+        t.Put(kSegments[worst_at].name);
+        t.Put("\n# loop: ");
+        char len[8] = {};
+        Percent(static_cast<float>(loop_frames_) / 48000.f / 100.f, len); // seconds, 1 decimal
+        t.Put(len);
+        t.Put(loop_missing_ || loop_frames_ == 0 ? " s, NOT playing in every loop segment\n"
+                                                 : " s, playing in every loop segment\n");
 
         if (f_mount(fs_, path_, 1) != FR_OK)
             return false;
@@ -328,19 +379,25 @@ private:
         if (f_open(&file, "/FRIZZ/cpu.txt", FA_CREATE_ALWAYS | FA_WRITE) != FR_OK)
             return false;
         UINT written = 0;
-        const FRESULT res = f_write(&file, buf, static_cast<UINT>(pos), &written);
-        return f_close(&file) == FR_OK && res == FR_OK && written == pos;
+        const FRESULT res = f_write(&file, t.buf, static_cast<UINT>(t.pos), &written);
+        return f_close(&file) == FR_OK && res == FR_OK && written == t.pos;
     }
 
-    daisy::CpuLoadMeter meter_;
+    float ticks_per_block_ = 1.f;
+    uint32_t start_tick_ = 0;
     FATFS* fs_ = nullptr;
     const char* path_ = nullptr;
     volatile bool started_ = false, running_ = false;
-    bool recording_ = false, written_ = false, stored_ = false;
+    bool settling_ = false;
+    bool written_ = false, stored_ = false;
     volatile size_t segment_ = 0;
     size_t blocks_ = 0;
+    double sum_ = 0.;
     float max_[kNumSegments] = {};
-    float avg_[kNumSegments] = {};
+    float mean_[kNumSegments] = {};
+    uint16_t awake_[kNumSegments] = {};
+    size_t loop_frames_ = 0;
+    bool loop_missing_ = false;
     uint32_t lcg_ = 12345;
     float saw_ = 0.f, sine_ = 0.f;
     uint32_t gate_ = 0;
@@ -348,6 +405,9 @@ private:
     const float* inputs_[4];
 };
 
+// The clean segments first, the sends last: a delay or reverb tail would run on into the next
+// segments (the delay sleeps only after 10 s of silence). The delay before the reverb, so the
+// loop with the delay, the case that crackled, is measured on its own
 const Bench::Segment Bench::kSegments[Bench::kNumSegments] = {
     {"idle", 0, 0},
     {"freezer", Bench::Bit(FX_FREEZER), 0},
@@ -360,16 +420,16 @@ const Bench::Segment Bench::kSegments[Bench::kNumSegments] = {
     {"slicer", Bench::Bit(FX_SLICER), 0},
     {"warble", Bench::Bit(FX_WARBLE), 0},
     {"tapestop", Bench::Bit(FX_TAPESTOP), 0},
-    {"delay", Bench::Bit(FX_DELAY), 0},
-    {"reverb", Bench::Bit(FX_REVERB), 0},
     {"compressor", 0, Bench::COMP},
     {"inserts", Bench::kInserts, 0},
-    {"everything", Bench::kEverything, Bench::COMP},
-    {"stress", Bench::kEverything, Bench::STRESS | Bench::COMP},
     {"recording", 0, Bench::RECORD},
     {"loop", 0, Bench::LOOP},
+    {"loop+inserts", Bench::kInserts, Bench::LOOP},
     {"loop+delay", Bench::Bit(FX_DELAY), Bench::LOOP},
-    {"loop+scene4+dly", Bench::kScene4 | Bench::Bit(FX_DELAY), Bench::LOOP | Bench::SCENE4},
+    {"loop+scene4+delay", Bench::kScene4 | Bench::Bit(FX_DELAY), Bench::LOOP | Bench::SCENE4},
+    {"loop+reverb", Bench::Bit(FX_REVERB), Bench::LOOP},
+    {"everything", Bench::kEverything, Bench::COMP},
+    {"stress", Bench::kEverything, Bench::STRESS | Bench::COMP},
     {"loop+everything", Bench::kEverything, Bench::LOOP | Bench::COMP},
 };
 constexpr uint8_t Bench::kKeyLeds[];

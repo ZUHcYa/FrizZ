@@ -218,16 +218,24 @@ enough to make it crackle on the device, while the host harness stayed bit-ident
 host can't measure this, nor can the virtual CHOMPI. The device does, with the **CPU bench**:
 `make BENCH=1` in `firmware/code/src` builds `FRIZZ-bench.bin` (`Bench.h`, compiled in only
 then; the normal `FRIZZ.bin` stays byte for byte the same). On the card in place of
-`FRIZZ.bin`, it runs 22 segments by itself after booting (every effect alone, together, at
-their heaviest, a playing loop with the delay, PR #7's scene 4, ...), measures the whole audio
-callback with libDaisy's `CpuLoadMeter`, and writes the max and average load of each to
-`/FRIZZ/cpu.txt`; the key LEDs grade each segment, the panel ends green or red. A branch that
-touches the engine, the effects or the memory layout commits a fresh
-`firmware/bin/FRIZZ-bench.bin` with its `FRIZZ.bin`, and its hardware checklist asks for a
-bench run, whose `cpu.txt` goes into the PR and is compared with the last one there.
-`unit.sh bench` checks on the twin that the bench runs through and writes its file (the loads
-there are 0). Many inserts on at once still cost as much as ever. Keep effects that are off
-cheap, and suspect the CPU when crackles appear on hardware that the harness can't reproduce.
+`FRIZZ.bin`, it waits for every effect to rest (the delay works for its first 10 s after
+power-on), then runs 22 segments by itself, the clean ones first and the sends last (every
+effect alone, together, at their heaviest, a playing loop with the delay, PR #7's scene 4,
+...). It times the whole audio callback by the system timer, as libDaisy's `CpuLoadMeter`
+does, and writes each segment's max and mean load to `/FRIZZ/cpu.txt`, with any effect still
+working outside its segment and whether the loop played. The key LEDs grade each segment;
+the panel ends green or red.
+
+Its memory layout isn't `FRIZZ.bin`'s, and b5c658c crackled from layout alone: a bench run
+shows what the code costs, not that `FRIZZ.bin` itself won't crackle, which only playing it
+shows. Every commit that rebuilds `FRIZZ.bin` also rebuilds `firmware/bin/FRIZZ-bench.bin`
+(`make BENCH=1`), so the two always match their source. A branch that touches the engine,
+the effects or the memory layout asks for a bench run in its hardware checklist; its
+`cpu.txt` goes into the PR and is compared with the last one there. `unit.sh bench` checks on
+the twin that the bench runs through, writes its file, keeps its clean segments clean and
+plays its loop (the loads there are 0). Many inserts on at once still cost as much as ever.
+Keep effects that are off cheap, and suspect the CPU when crackles appear on hardware that
+the harness can't reproduce.
 
 ## SRAM is the binding constraint, especially on TAPE
 

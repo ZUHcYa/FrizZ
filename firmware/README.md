@@ -114,20 +114,27 @@ make BENCH=1      # build-bench/FRIZZ-bench.bin; the normal build is untouched
 ```
 
 1. Put `FRIZZ-bench.bin` (this one, or `bin/FRIZZ-bench.bin`) on the card instead of
-   `FRIZZ.bin` (only one `.bin` on the card) and switch on. The bootloader flashes it as usual.
-2. After the boot animation the bench runs by itself, about 70 s. Don't touch anything: the
-   keys light up one per segment, green below 80% load, amber below 95%, red above; the one
-   running blinks white.
+   `FRIZZ.bin` (the bootloader takes the first `.bin` it finds, whatever its name) and switch
+   on. The bootloader flashes it as usual.
+2. After the boot animation the bench waits about 10 s for every effect to rest (only CHOMPI
+   glows dimly), then runs by itself, about 70 s. Don't touch anything: the keys light up one
+   per segment, green below 80% load, amber below 95%, red above; the one running blinks white.
 3. At the end every panel LED is green (all below 95%) or red. Blinking red: `cpu.txt`
    couldn't be written (no card?).
-4. On the computer, `FRIZZ/cpu.txt` has every segment's highest and average load. Put
-   `FRIZZ.bin` back on the card to play again.
+4. On the computer, `FRIZZ/cpu.txt` has every segment's highest and mean load, any effect
+   still working outside its segment (a tail), and whether the loop played. Put `FRIZZ.bin`
+   back on the card to play again.
 
 The segments: nothing on, each effect alone (its knobs moving every 0.25 s), the compressor,
-the inserts together, everything, everything with every feedback at the top (the harness's
-STRESS), recording a loop, the loop alone, with the delay, with PR #7's scene 4 (shifter +7,
-folder, crusher, slicer, compressor at 1) and the delay, and with everything. The signal is
-the bench's own (a saw, a gated sine, noise), so runs compare.
+the inserts together, recording a loop, the loop alone, with the inserts, with the delay, with
+PR #7's scene 4 (shifter +7, folder, crusher, slicer, compressor at 1) and the delay, with the
+reverb, then everything, everything with every feedback at the top (the harness's STRESS), and
+the loop with everything. The sends come last because their tails run on (the delay's for 10
+s). The signal is the bench's own (a saw, a gated sine, noise), so runs compare.
+
+The bench measures `FRIZZ-bench.bin`, whose memory layout differs from `FRIZZ.bin`'s; a
+crackle from the layout alone (b5c658c) can show in one and not the other. It tells what the
+code costs; whether `FRIZZ.bin` crackles, only playing it tells.
 
 ## 5. Debug
 

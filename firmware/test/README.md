@@ -236,8 +236,10 @@ crackles either.
 
 Runs the CPU bench's firmware (`FRIZZ-bench.bin`, `code/src/Bench.h`, built for the twin with
 `FRIZZ_BENCH`) on the virtual CHOMPI from power-on to its end: every segment ends up in
-`/FRIZZ/cpu.txt` in order with a max and an average, the worst is named, every segment's key
-is graded, the panel ends green, and the bench's signal reaches the output throughout. The
+`/FRIZZ/cpu.txt` in order with a max and a mean, nothing else still works in the segments
+before the reverb's (no tail, the delay asleep before the first), the 4 s loop plays in every
+loop segment, the worst is named, every segment's key is graded, the panel ends green, and the
+bench's signal reaches the output throughout. Without a card, the panel blinks red at the end. The
 loads are 0 there (no time passes on the twin while the callback runs): the numbers come from
 the device only. A check asks for a twin with defines of its own with a
 `// twin defines: ...` line, which builds it into `../twin/build/NAME`.
