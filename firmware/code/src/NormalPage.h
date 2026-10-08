@@ -342,8 +342,9 @@ namespace chompi
             }
             for (size_t knob = 0; knob < kNumFxParams; knob++)
             {
-                // a knob press does something only with SHIFT: the reset
-                if (buttonID == static_cast<uint16_t>(kFxKnobSwitches[knob]) && Shift())
+                // a knob press does something only with SHIFT, on a knob the FX uses: the reset
+                if (buttonID == static_cast<uint16_t>(kFxKnobSwitches[knob]) && Shift()
+                    && knob < fx_.Knobs().num_params)
                 {
                     keys_.Used();
                     fx_.KnobPressed(knob, true);
@@ -353,17 +354,25 @@ namespace chompi
             return true;
         }
 
+        /** Like the keys, only a turn that does something is a SHIFT combo (keys_.Used): not
+         *  the transport, which does nothing with SHIFT, nor a knob the FX doesn't use */
         bool OnEncoderTurned(uint16_t encoderID,
                              int16_t turns,
                              uint16_t stepsPerRevolution) override
         {
-            keys_.Used();
             if (encoderID == kTransportEncoder)
                 TransportTurned(turns);
             else if (encoderID < kNumFxParams)
+            {
+                if (encoderID < fx_.Knobs().num_params)
+                    keys_.Used();
                 fx_.KnobTurned(encoderID, turns, Shift());
+            }
             else if (encoderID == kVolumeEncoder)
+            {
+                keys_.Used();
                 VolumeTurned(turns);
+            }
             else
                 return false;
             return true;
@@ -752,13 +761,14 @@ namespace chompi
 
         void TransportTurned(int16_t turns)
         {
-            if (Shift())
+            // SHIFT + turn does nothing, so it never makes a SHIFT combo
+            if (Shift() || !LoopExists())
                 return;
 
             Looper& looper = engine_->looper;
             if (looper.GetState() == Looper::State::PAUSED)
                 looper.Scrub(turns);
-            else if (looper.GetState() == Looper::State::PLAYING)
+            else
             {
                 speed_chunk_ += turns * kSpeedStepPerTurn;
                 if (speed_chunk_ >= 1.f || speed_chunk_ <= -1.f)

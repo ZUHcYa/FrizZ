@@ -117,13 +117,15 @@ public:
     }
 
     /** SHIFT going down: every FX key held will toggle its latch on release. True if one
-     *  will, so SHIFT is a latch combo */
+     *  will, so SHIFT is a latch combo. A second SHIFT press in the same hold is still that
+     *  latch (it toggles once), so its release doesn't confirm a scene either. A key held
+     *  from a select (KEEP) has no latch to toggle */
     bool ShiftPressed()
     {
         bool latch = false;
         for (size_t fx = 0; fx < kNumFx; fx++)
         {
-            if (held_[fx] && on_release_[fx] == OnRelease::CLEAR)
+            if (held_[fx] && on_release_[fx] != OnRelease::KEEP)
             {
                 on_release_[fx] = OnRelease::TOGGLE;
                 latch = true;
@@ -149,11 +151,11 @@ public:
      *  detent. Knobs past the selected FX's num_params do nothing */
     void KnobTurned(size_t knob, float detents, bool shift)
     {
-        if (shift)
-            ShiftUsed();
         const FxParams& fxp = Knobs();
         if (knob >= fxp.num_params)
             return;
+        if (shift)
+            ShiftUsed();
 
         const float val = Knob(knob);
 
@@ -201,10 +203,9 @@ public:
      *  kept free for a second parameter page */
     void KnobPressed(size_t knob, bool shift)
     {
-        if (shift)
-            ShiftUsed();
         if (!shift || knob >= Knobs().num_params)
             return;
+        ShiftUsed();
 
         SetKnob(knob, Knobs().defaults[knob]);
         chunk_[knob] = 0.f;

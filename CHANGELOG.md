@@ -7,6 +7,13 @@ what FRIZZ does.
 
 ## Unreleased
 
+### Fixed
+
+- Holding an FX key and tapping CHOMPI twice in a save, copy or delete mode confirmed the
+  scene and dropped the latch; it now latches and doesn't confirm, as with one tap.
+- Holding an FX key, then SHIFT with a control that does nothing (the transport, or a knob the
+  effect doesn't use) no longer cancels the latch or a pending confirm.
+
 ## v0.10 (2026-10-08)
 
 ### Added
