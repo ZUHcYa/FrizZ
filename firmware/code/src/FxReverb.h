@@ -26,7 +26,6 @@ public:
     {
         reverb_ = reverb;
         reverb_->Init(sample_rate);
-        reverb_->SetAmount(1.f);    // wet only, the dry path is the signal itself
         reverb_->SetInputGain(.3f); // WAVE's / TAPE's input gain
         gate_.Init();
         level_.Reset(0.f);
