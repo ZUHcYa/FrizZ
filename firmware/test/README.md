@@ -99,7 +99,8 @@ FatFs itself or a card swapped while mounted.
 
 Runs a 220 Hz sine through moves that used to jump the sound and fails if the output steps
 further between two samples than a smooth sweep does: the flanger's stereo knob turned back
-to 0, as a recall or morph does.
+to 0, as a recall or morph does, and the freezer pressed again while its release still fades
+the loop out.
 
 ## Delay check
 

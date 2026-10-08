@@ -24,6 +24,9 @@ static const uint8_t kFreezerRollStages[] = {0, 8, 4, 2, 1};
  *  it recorded until the key is released. It keeps recording past the loop for as long as
  *  the buffer lasts, so the length can be turned up while it repeats. The roll halves the
  *  loop as it repeats, down to 1/64 bar, a beat repeat's build-up; it isn't Kastle's.
+ *  Pressed again while a release still fades the loop out, the loop plays on until the 16th
+ *  that starts the new capture, and hands over to it in a short crossfade instead of
+ *  dropping to the live signal at once.
  *  Params: 0 length (kNumLengths steps), 1 feedback, 2 roll (kNumRolls steps), 3 stereo.
  *  The freezer's buffers are separate (SDRAM, chompi_main.cpp), kFreezerFrames per channel. */
 class Freezer : public FxBase
@@ -48,6 +51,8 @@ public:
         frames_ = frames;
         state_ = State::IDLE;
         start_ = false;
+        rearmed_ = false;
+        handover_ = 0;
         gate_.Init();
         tempo_ = 120.f;
         Restart();
@@ -69,7 +74,7 @@ public:
     }
     void ClockPulse(uint32_t pos)
     {
-        if (pos % kPulsesPer16th == 0 && state_ == State::ARMED)
+        if (pos % kPulsesPer16th == 0 && (state_ == State::ARMED || rearmed_))
             start_ = true;
     }
 
@@ -79,8 +84,11 @@ public:
         const float gate = gate_.Process();
 
         // back to idle once the release has faded out
-        if (!gate_.IsOn() && state_ != State::IDLE && gate < .001f)
+        if (state_ != State::IDLE && gate_.Asleep())
+        {
             state_ = State::IDLE;
+            rearmed_ = false;
+        }
 
         if (start_)
         {
@@ -88,6 +96,12 @@ public:
             if (state_ == State::ARMED)
             {
                 state_ = State::RUNNING;
+                Restart();
+            }
+            else if (state_ == State::RUNNING && rearmed_)
+            {
+                rearmed_ = false;
+                Handover();
                 Restart();
             }
         }
@@ -109,45 +123,29 @@ public:
 
         for (size_t c = 0; c < 2; c++)
         {
-            const size_t target = len_[c];
-
             // the first pass: still recording the loop, the live signal passes
-            if (written_ <= target && recording)
-                continue;
+            float wet = *io[c];
+            if (written_ > len_[c] || !recording)
+                wet = Repeat(c, *io[c]);
 
-            // can't loop more than has been recorded
-            size_t len = target < written_ ? target : written_;
-            if (pos_[c] >= len)
+            // a new capture taking over from a loop still playing: crossfaded
+            if (handover_ && old_len_[c])
             {
-                // the seam: where the loop just ended, which the crossfade below follows on
-                seam_[c] = pos_[c];
-                pos_[c] = 0;
-                // the right loop has no stereo offset, so it counts the repeats for the roll
-                if (c == 1 && Repeated())
-                    len = len_[c] < written_ ? len_[c] : written_;
-            }
-            const size_t pos = pos_[c];
-
-            // Kastle has no seam crossfade; this blends the loop start with what was recorded
-            // just after the seam (on the first repeat, the loop's end), so each repeat
-            // follows on from the one before seamlessly, also when the roll shortens it
-            float* const b = buf_[c];
-            float wet = b[pos];
-            const size_t seam = seam_[c] ? seam_[c] : len;
-            const size_t xfade = len / 4 < kXfadeFrames ? len / 4 : kXfadeFrames;
-            if (pos < xfade && seam + pos < written_)
-            {
-                const float t = static_cast<float>(pos) / static_cast<float>(xfade);
-                wet = wet * t + b[seam + pos] * (1.f - t);
+                size_t& pos = old_pos_[c];
+                if (pos >= old_len_[c])
+                {
+                    old_seam_[c] = pos;
+                    pos = 0;
+                }
+                const float old = LoopSample(c, pos++, old_len_[c], old_seam_[c], old_written_);
+                const float t = 1.f - static_cast<float>(handover_) / static_cast<float>(kXfadeFrames);
+                wet = old + t * (wet - old);
             }
 
-            // feedback: the input overdubbed into the loop, which fades a little
-            if (fb_in_ > .0001f)
-                b[pos] = 2.f * SoftClip(.5f * (b[pos] * fb_keep_ + *io[c] * fb_in_));
-
-            pos_[c] = pos + 1;
             *io[c] += gate * (wet - *io[c]);
         }
+        if (handover_)
+            handover_--;
     }
 
     void SetOn(bool on) override
@@ -155,7 +153,14 @@ public:
         // the gate is on before the capture is armed, so the audio callback can't drop the
         // new capture back to idle
         if (gate_.SetOn(on))
-            state_ = State::ARMED; // a new capture, also during a release fade-out
+        {
+            // a new capture, also during a release fade-out; while the old loop still plays,
+            // it goes on until the new one starts
+            if (state_ == State::RUNNING)
+                rearmed_ = true;
+            else
+                state_ = State::ARMED;
+        }
     }
 
     void SetParam(size_t param, float val) override
@@ -222,6 +227,69 @@ private:
         UpdateLengths();
     }
 
+    /** Channel c's loop, past its first pass: its next sample, with the seam crossfade, and
+     *  in the input overdubbed for the feedback */
+    float Repeat(size_t c, float in)
+    {
+        // can't loop more than has been recorded
+        const size_t target = len_[c];
+        size_t len = target < written_ ? target : written_;
+        if (pos_[c] >= len)
+        {
+            // the seam: where the loop just ended, which the crossfade below follows on
+            seam_[c] = pos_[c];
+            pos_[c] = 0;
+            // the right loop has no stereo offset, so it counts the repeats for the roll
+            if (c == 1 && Repeated())
+                len = len_[c] < written_ ? len_[c] : written_;
+        }
+        const size_t pos = pos_[c];
+        const float wet = LoopSample(c, pos, len, seam_[c], written_);
+
+        // feedback: the input overdubbed into the loop, which fades a little
+        float* const b = buf_[c];
+        if (fb_in_ > .0001f)
+            b[pos] = 2.f * SoftClip(.5f * (b[pos] * fb_keep_ + in * fb_in_));
+
+        pos_[c] = pos + 1;
+        return wet;
+    }
+
+    /** A loop's sample at pos. Kastle has no seam crossfade; this blends the loop start with
+     *  what was recorded just after the seam (on the first repeat, the loop's end), so each
+     *  repeat follows on from the one before seamlessly, also when the roll shortens it */
+    float LoopSample(size_t c, size_t pos, size_t len, size_t seam, size_t written) const
+    {
+        const float* const b = buf_[c];
+        float wet = b[pos];
+        if (!seam)
+            seam = len;
+        const size_t xfade = len / 4 < kXfadeFrames ? len / 4 : kXfadeFrames;
+        if (pos < xfade && seam + pos < written)
+        {
+            const float t = static_cast<float>(pos) / static_cast<float>(xfade);
+            wet = wet * t + b[seam + pos] * (1.f - t);
+        }
+        return wet;
+    }
+
+    /** A new capture starting while the old loop plays: the old one goes on for the
+     *  crossfade, read as it was. The new capture records over its start, which by then the
+     *  seam crossfade reads less and less of. A channel still in its first pass was passing
+     *  the live signal, as the new capture's first pass does: nothing to fade from */
+    void Handover()
+    {
+        for (size_t c = 0; c < 2; c++)
+        {
+            const bool looping = written_ > len_[c] || written_ >= frames_;
+            old_len_[c] = looping ? (len_[c] < written_ ? len_[c] : written_) : 0;
+            old_pos_[c] = pos_[c];
+            old_seam_[c] = seam_[c];
+        }
+        old_written_ = written_;
+        handover_ = kXfadeFrames;
+    }
+
     void Restart()
     {
         written_ = 0;
@@ -264,6 +332,12 @@ private:
     size_t frames_;
     volatile State state_;
     volatile bool start_;
+    volatile bool rearmed_;   // pressed again while running: a new capture at the next 16th
+    size_t handover_;         // samples of the crossfade from the old loop left
+    size_t old_len_[2] = {0, 0}; // the old loop, per channel (0: nothing to fade from)
+    size_t old_pos_[2] = {0, 0};
+    size_t old_seam_[2] = {0, 0};
+    size_t old_written_ = 0;
     float tempo_;
     size_t written_;  // frames recorded since the capture started
     size_t pos_[2];   // loop read position, per channel

@@ -261,7 +261,8 @@ Filter details:
 Freezer details:
 - **Capture:** pressing the key waits for the next 16th, then records. The first pass is the
   live signal, so there's no gap; after one length it repeats. Releasing the key goes back to
-  the live signal. It keeps recording past the loop (up to 5 s), so the length can be turned
+  the live signal. Pressed again before the repeats have faded, they play on until the next
+  16th starts the new capture. It keeps recording past the loop (up to 5 s), so the length can be turned
   up while repeating; turned past what's recorded, it plays on through the recording until
   the length is reached.
 - **Feedback:** at 0 the loop repeats unchanged. Turning up mixes the input into it (up to
