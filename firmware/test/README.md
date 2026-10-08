@@ -91,6 +91,16 @@ overwrite sends its file to `.bak` first, its master settings are kept as
 `frizz_master.bak`, and a read-only card refuses without touching anything. It doesn't cover
 FatFs itself or a card swapped while mounted.
 
+## Clicks check
+
+```bash
+./unit.sh clicks
+```
+
+Runs a 220 Hz sine through moves that used to jump the sound and fails if the output steps
+further between two samples than a smooth sweep does: the flanger's stereo knob turned back
+to 0, as a recall or morph does.
+
 ## Master compressor check
 
 ```bash

@@ -23,6 +23,7 @@ what FRIZZ does.
 
 - Holding an FX key and tapping CHOMPI twice in a save, copy or delete mode confirmed the
   scene and dropped the latch; it now latches and doesn't confirm, as with one tap.
+- The flanger clicked when its stereo knob went back to 0, as a scene recall or morph does.
 - A card put in after switching on without one lost its saved scenes and master settings
   to the first save. Its scenes are now read into the empty slots, and what a save would
   overwrite is kept as `.bak`.

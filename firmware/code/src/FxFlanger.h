@@ -79,8 +79,9 @@ public:
                      : phase_[c] < .75f ? 2.f - 4.f * phase_[c]
                                         : 4.f * phase_[c] - 4.f;
         }
-        // Kastle: the right LFO is the left one until stereo is turned up
-        if (stereo_mix_.target >= 1.f)
+        // Kastle: the right LFO is the left one until stereo is turned up. Re-synced once the
+        // glide back has all but arrived, where the right one's share is too small to jump
+        if (stereo_mix > kStereoSync)
             phase_[1] = phase_[0];
         lfo[1] = stereo_mix * lfo[0] + (1.f - stereo_mix) * lfo[1];
 
@@ -149,6 +150,7 @@ private:
     Smoothed depth_;
     Smoothed mix_;
     Smoothed feedback_;
+    static constexpr float kStereoSync = .9999f;
     Smoothed stereo_mix_;
 };
 
