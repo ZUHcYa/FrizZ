@@ -12,8 +12,8 @@ what FRIZZ does.
 - **Mono input** on VOLUME's page 3: turn 3 detents left for a mono (TS) cable, such as one
   from a Lyra-8 or a pedal, and the left channel feeds both sides; 3 right for stereo. Saved
   on the card. By sfaber02 ([#1](https://github.com/ZUHcYa/FrizZ/pull/1)).
-- **Headphone feed** on VOLUME's page 4: blends steplessly from the master out to the dry
-  input on its own, back on the master at power-on.
+- **Headphone feed** on VOLUME's page 4: turned left, blends steplessly from the master out
+  to the dry input on its own; back on the master at power-on.
 - SHIFT + press VOLUME resets the input/loop mix.
 - Picking a VOLUME page blinks its number in white.
 - A failed write of the compressor's settings blinks its key red
@@ -26,9 +26,11 @@ what FRIZZ does.
   the sends and the compressor apart.
 - The headphone feed moved from the mode switch to VOLUME; the mode switch does nothing in
   play mode.
-- A morph started with SHIFT + scene key waits while SHIFT is held, and on release glides the
-  whole way to the same bar line. The effects it fades in come on when the glide starts.
-- The DELETE scene mode is orange, so red only means refused.
+- A morph started with SHIFT + scene key waits while SHIFT is held, however long, and on
+  release glides the whole way to the next bar line (one more per tap). The effects it
+  fades in come on when the glide starts.
+- The DELETE scene mode is amber, so red only means refused.
+- VOLUME turns faster: the gains move 2% per detent, the mix (SHIFT + turn) 4%.
 - The battery check shows red below 3 V and reads correctly from a second after boot.
 - The crusher is held to its input's level.
 - The reverb's modulation runs at its intended rate (it was 1/32 too fast); the delay's
@@ -46,7 +48,12 @@ what FRIZZ does.
 - The shifter keeps its swoop when a knob turns during it.
 - A quantized recording closes when MIDI clock drops out and comes back within a block.
 - A delay event on a slowed-down loop no longer runs off the buffer.
+- The delay no longer zips when a loop closes on a tempo of its own (or the tempo jumps
+  otherwise): it crossfades to the new delay time instead of scrubbing through its buffer.
 - The master compressor, turned off under a hot signal, releases before bypassing.
+- The master compressor no longer crackles at extreme settings: its detector holds a peak
+  for 10 ms, and its fastest attack is 1 ms (was 0.5 ms). It sounds smoother on bass and
+  reduces slightly more at the same settings (about 1 dB with the amount at 30%).
 
 ### Removed
 

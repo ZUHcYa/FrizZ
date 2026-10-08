@@ -45,7 +45,10 @@
 
 namespace chompi
 {
-    static const float kVolumeStep = .01f; // per detent: 1%, like the FX knobs
+    // per detent: the gains 2%, the mix (SHIFT) 4%, the headphone feed 1% like the FX knobs
+    static const float kVolumeStep = .02f;
+    static const float kMixStep = .04f;
+    static const float kHpCueStep = .01f;
     static const uint32_t kBattHoldMs = 1250;
 
     static const float kDefaultOutGain = .75f;
@@ -93,7 +96,7 @@ namespace chompi
     // SAVE / COPY / DELETE on TAPE's preset keys in TEMPO's colours. One language for all
     // three: the mode's colour shows what will happen (the slots it can act on, the pick, the
     // CHOMPI key that confirms), white that it's done, red that it was refused or isn't on
-    // the card. So no mode is red: DELETE is orange
+    // the card. So no mode is red: DELETE is amber
     static const Hardware::SwId kSceneKeys[kNumSlots] = {
         Hardware::SwId::KEY_16,
         Hardware::SwId::KEY_17,
@@ -112,7 +115,7 @@ namespace chompi
     static const SceneModeKey kSceneModeKeys[] = {
         {SceneMode::SAVE, Hardware::SwId::KEY_25, 9, blue},
         {SceneMode::COPY, Hardware::SwId::KEY_24, 8, green},
-        {SceneMode::DELETE, Hardware::SwId::KEY_23, 7, orange}, // red means refused
+        {SceneMode::DELETE, Hardware::SwId::KEY_23, 7, amber}, // red means refused
     };
     static const uint32_t kSceneBlinkMs = 250;      // a picked slot, the armed CHOMPI key
     static const uint32_t kScenePulseMs = 1000;     // the active scene, edited
@@ -466,7 +469,7 @@ namespace chompi
             const float inc = detents * kVolumeStep;
 
             if (Shift())
-                SetMix(mix_ + inc);
+                SetMix(mix_ + detents * kMixStep);
             else if (page_ == 0)
             {
                 out_gain_ = fclamp(out_gain_ + inc, 0.f, 1.f);
@@ -496,7 +499,8 @@ namespace chompi
             }
             else
             {
-                hp_cue_ = fclamp(hp_cue_ + inc, 0.f, 1.f);
+                // left towards the dry input, right back to the master
+                hp_cue_ = fclamp(hp_cue_ - detents * kHpCueStep, 0.f, 1.f);
                 engine_->SetHeadphoneCue(hp_cue_);
             }
         }

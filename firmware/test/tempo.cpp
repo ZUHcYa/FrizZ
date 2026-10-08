@@ -409,8 +409,9 @@ static void TestMorph()
     Check(fabsf(half - (.25f + .75f * 3.f / 7.f)) < .01f && chain.params[FX_FILTER][0] == 1.f,
           "morph: and glide over both bars");
 
-    // held (SHIFT still down): two taps, nothing moves until the release a quarter into the
-    // second bar, then the whole way over the rest; lands on the second bar line as before
+    // held (SHIFT still down): two taps, nothing moves however long it's held, past bar lines
+    // too; released a quarter into the third bar, it glides the whole way from there to the
+    // next bar line plus the extra tap's
     while (clock.Position() != 0)
         MorphBlock(clock, morph);
     chain.params[FX_FILTER][0] = 0.f;
@@ -420,22 +421,24 @@ static void TestMorph()
         MorphBlock(clock, morph);
     Check(morph.AddBar(clock.PulsesPerBarLine()), "held morph: a second tap adds a bar");
     lines = 0;
-    for (int i = 0; i < 4000; i++)
+    for (int i = 0; i < 8000; i++)
         lines += MorphBlock(clock, morph);
-    Check(chain.params[FX_FILTER][0] == 0.f && morph.Active() && lines == 1,
-          "held morph: nothing moves while held, past a bar line");
-    morph.Release();
+    Check(chain.params[FX_FILTER][0] == 0.f && morph.Active() && lines == 2,
+          "held morph: nothing moves while held, nor lands, past two bar lines");
+    morph.Release(clock.PulsesToBarLine(), clock.PulsesPerBarLine());
     Check(!morph.Holding(), "held morph: released");
-    blocks = 5000;
+    blocks = 9000;
+    lines = 0;
     while (morph.Active())
     {
         lines += MorphBlock(clock, morph);
         blocks++;
-        if (blocks == 6500)
+        if (blocks == 12500)
             half = chain.params[FX_FILTER][0];
     }
-    Check(lines == 2 && blocks > 7990 && blocks <= 8001, "held morph: lands on the second bar line");
-    // from 0 at the release (5000) to 1 at 8000: half way at 6500
+    Check(lines == 2 && blocks > 15990 && blocks <= 16001,
+          "held morph: lands on the second bar line after the release");
+    // from 0 at the release (9000) to 1 at 16000: half way at 12500
     Check(fabsf(half - .5f) < .01f && chain.params[FX_FILTER][0] == 1.f,
           "held morph: glides the whole way after the release");
 
@@ -556,6 +559,57 @@ static void TestDelayReverse()
     Check(delay.ReverseFits(), "delay: 1 bar at 50 BPM, room again");
 }
 
+/** The delay on a tempo change: a jump (a loop closing on its own tempo) crossfades to the
+ *  new time instead of dragging the read head through the buffer; a small step still slides */
+static void TestDelayTempoJump()
+{
+    static const size_t kFrames = 480000;
+    static float mem[kFrames * 2];
+    static granularDelay delay;
+    auto run = [&](int from, int to, int* slid, int* swaps, bool* xfaded) {
+        delay.Init(mem, kFrames);
+        delay.setRandom(.5f); // no random events
+        delay.setDivision(4);
+        delay.SetTempo(from);
+        float l, r;
+        for (int i = 0; i < 48000; i++)
+        {
+            delay.write(0.f, 0.f);
+            delay.read(&l, &r);
+        }
+        delay.SetTempo(to);
+        *slid = *swaps = 0;
+        *xfaded = false;
+        float last[2] = {delay.myVoices[0].read_head_, delay.myVoices[1].read_head_};
+        for (int i = 0; i < 48000; i++)
+        {
+            delay.write(0.f, 0.f);
+            delay.read(&l, &r);
+            for (int v = 0; v < 2; v++)
+            {
+                const delayVoice& voice = delay.myVoices[v];
+                *xfaded = *xfaded || voice.div_crossfade_;
+                float d = voice.read_head_ - last[v];
+                if (d < -static_cast<float>(kFrames) / 2.f)
+                    d += kFrames;
+                last[v] = voice.read_head_;
+                if (!voice.active_)
+                    continue;
+                if (fabsf(d) > 100.f)
+                    (*swaps)++;
+                else if (fabsf(d - 1.f) > .01f)
+                    (*slid)++;
+            }
+        }
+    };
+    int slid, swaps;
+    bool xfaded;
+    run(120, 89, &slid, &swaps, &xfaded);
+    Check(xfaded && swaps == 1 && slid == 0, "delay: a tempo jump crossfades to the new time");
+    run(120, 119, &slid, &swaps, &xfaded);
+    Check(!xfaded && swaps == 0 && slid > 0, "delay: a step of 1 BPM slides");
+}
+
 int main()
 {
     TestTaps();
@@ -566,5 +620,6 @@ int main()
     TestBarLines();
     TestMorph();
     TestDelayReverse();
+    TestDelayTempoJump();
     return Finish();
 }
