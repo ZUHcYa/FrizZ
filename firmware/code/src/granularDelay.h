@@ -340,6 +340,7 @@ class granularDelay {
         setFeedback(.3f);
 
         clock_edge_ = false;
+        events_ = false;
         since_edge_ = 0;
         rng_.Seed(0x6C8E9CF5u);
         event_type_[0] = event_type_[1] = delayVoice::NONE;
@@ -423,7 +424,7 @@ class granularDelay {
         if (clock_edge_) {
             since_edge_ = 0;
             event_type_[0] = event_type_[1];
-            bool random_event = !cut_short && rng_.Uniform() < (0.5f * alt_control_);
+            bool random_event = events_ && !cut_short && rng_.Uniform() < (0.5f * alt_control_);
             if (random_event) {
                 curIdx = nextIdx;
                 nextIdx = (curIdx + 1) % 2;
@@ -508,8 +509,10 @@ class granularDelay {
         alt_control_ = fabsf(val - .5f) * 2.f;
     }
 
-    /** An 8th note: the next read may start a random event */
-    void setClockEdge() {
+    /** An 8th note: the next read ends the running event and, with events, may start a
+     *  random one. Without, the tail of a delay that's off rings out as plain echoes */
+    void setClockEdge(bool events) {
+        events_ = events;
         clock_edge_ = true;
     }
 
@@ -531,6 +534,7 @@ class granularDelay {
     size_t delay_div_position_;
 
     bool clock_edge_; // set by the clock pulses, in the audio callback too
+    bool events_;     // whether the last edge may start a random event
     uint32_t since_edge_; // samples since the last edge
     chompi::Rng rng_;     // its random events, not newlib's shared rand()
     delayEvent event_type_[2];
