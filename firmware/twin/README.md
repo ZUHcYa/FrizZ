@@ -107,7 +107,8 @@ it with SHIFT held: leave the gaps a hand would.
 
 | Command | |
 |---|---|
-| `wait MS` / `at MS` | run for MS / until MS after power-on |
+| `wait MS` / `at MS` | run for MS / until MS after power-on (after `booted`: after the main loop's start) |
+| `booted` | run until the firmware's `main()` enters its loop (about 1 s); `at` counts from there. A bug report's times do |
 | `down KEY` / `up KEY` / `tap KEY [MS]` | a key by its `Hardware::SwId` name: `KEY_1` .. `KEY_28` (white keys 1-15 are `KEY_1`-`KEY_15`; CHOMPI, PLAY, LOOP are `KEY_26`-`KEY_28`), `ENC_1_SW` .. `ENC_6_SW`. `tap` holds it 60 ms |
 | `turn ENC N` | encoder 1-6 (SW1-SW6: 4 is knob 1, 1-3 knobs 2-4, 5 the transport, 6 VOLUME) by N detents. They play out in the background, 8 ms each, as a hand turns: `wait` for them before the next key |
 | `toggle 0\|1` | the mode switch, as the 4021 reads it |
@@ -115,14 +116,38 @@ it with SHIFT held: leave the gaps a hand would.
 | `midi HEX...` / `clock BPM` | raw bytes into the MIDI jack / a running MIDI clock (`clock 0` stops it) |
 | `battery V [plugged] [full]` | the battery's voltage and the charger |
 | `card put PATH FILE` / `card remove` / `card insert` / `card dump` | the SD card: put a file on it before power-on (`/FRIZZ/frizz_scenes.txt`), take it out, print it |
+| `card file PATH`, then lines starting with `\|` | a file on the card before power-on, its text in the script: each line after its `\|` |
 | `leds` | print the LEDs now |
 | `expect led pth\|smt N RRGGBB` / `expect on` / `expect off` | fail (exit 1) unless so |
+
+## Bug reports from the device
+
+SHIFT + transport press on a CHOMPI writes `/FRIZZ/bug-N.txt` (`code/src/EventLog.h`, MANUAL.md's
+*Bug reports*): a script of this kind. It puts the card's `frizz_scenes.txt` and
+`frizz_master.txt` as they were at power-on on the twin's card (`card file`), plays a 220 Hz
+tone into AUX (the audio in isn't recorded: change the `input` line to play a WAV instead),
+and from `booted` on, every key, detent, mode-switch flip and MIDI clock change at the time
+the hand made it: the device logs when its debouncing saw it, and gives the time back by the
+latency the twin measures for the same code (a key 7-8 ms, a detent 3-4 ms, the mode switch
+56-58 ms). So
+
+```bash
+./run.sh -o out.wav -l leds.txt bug-1.txt
+```
+
+plays the session again and ends where the combo was pressed (with the twin writing its own
+`bug-1.txt`). On the twin itself the replay is exact: `unit.sh ui` records a session, plays its
+file on a fresh twin, and gets the same LEDs every millisecond and the same file back. From a
+device, what the twin can't know differs: the audio (so the FX keys' and VOLUME's meters),
+the MIDI clock's phase (logged as a tempo once it settles, back-dated to its lock), the battery.
+The browser plays it too (Replay), in its 16 ms steps. Once it shows the bug, make it a case
+in `test/ui.cpp`.
 
 ## Files
 
 - `twin.h` / `twin.cpp`: the API and the simulated board; `twin.cpp` includes `chompi_main.cpp`.
 - `host/`: what replaces libDaisy's hardware layer (`daisy.h`, `daisy_seed.h`, `per/`, `sys/`, ...).
-- `cli.cpp`: `frizz-twin`, the script player.
+- `script.cpp` / `script.h`: the script player; `cli.cpp`: `frizz-twin`, around it.
 - `build.sh`: copies the firmware, the libDaisy files it uses and `host/` into `build/tree` and
   builds there, so every include resolves to either the real file or its stand-in. `build.sh
   wasm` builds the browser's `web/build/frizz-twin.{js,wasm}` the same way.

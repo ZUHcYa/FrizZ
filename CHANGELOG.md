@@ -7,6 +7,14 @@ what FRIZZ does.
 
 ## Unreleased
 
+### Added
+
+- **Bug reports:** SHIFT + press the transport knob writes what you did since switching on
+  (every key, knob, the mode switch and MIDI clock, with the card's scenes as they were at
+  power-on) to `/FRIZZ/bug-1.txt` (then `bug-2.txt`, ...). Send it with a bug report: the
+  virtual CHOMPI plays it back and shows what happened. The transport LEDs blink white while
+  it's written, then 3 times white when it's on the card, red when it isn't.
+
 ### Changed
 
 - Turning the master compressor's knobs takes far less processing time while they glide,

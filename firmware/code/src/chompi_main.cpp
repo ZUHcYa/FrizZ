@@ -14,6 +14,7 @@
 #include "fatfs.h"
 #include "passthroughEngine.h"
 #include "SceneStore.h"
+#include "EventLog.h"
 #if FRIZZ_BENCH
 #include "Bench.h"
 #endif
@@ -33,6 +34,9 @@ FatFSInterface fsi;
 PassthroughEngine engine;
 MidiClock midi_clock;
 SceneStore scene_store;
+// every key, knob and clock change since power-on, for a bug report (SHIFT + transport press)
+EventLog event_log;
+EventLogMem DSY_SDRAM_BSS event_log_mem;
 #if FRIZZ_BENCH
 // FRIZZ-bench.bin (make BENCH=1): measures the audio callback's load (Bench.h)
 Bench bench;
@@ -167,6 +171,8 @@ void MainLoop(void* data)
 
     // a scene saved, copied or deleted: the card is written here, never in the audio callback
     scene_store.Process();
+    // a bug report asked for: written a chunk per pass, also from MainLoop only
+    event_log.Process(now, midi_clock);
 
 #if FRIZZ_BENCH
     bench.Process();
@@ -226,7 +232,8 @@ int main(void)
                 tapestop_mem_l, tapestop_mem_r, kTapeStopFrames);
 
     LedSetup();
-    ui.Init(&engine, &hw, &scene_store);
+    event_log.Init(&event_log_mem, &fsi.GetSDFileSystem(), fsi.GetSDPath());
+    ui.Init(&engine, &hw, &scene_store, &event_log);
 #if FRIZZ_BENCH
     bench.Init(hw.seed.AudioSampleRate(), 24, &fsi.GetSDFileSystem(), fsi.GetSDPath());
 #endif
@@ -269,6 +276,8 @@ int main(void)
     daisy::System::Delay(1); // Wait a sec
     hw.usb_sw.Write(true);     // take USB control
 
+    // the event log starts here, its memory cleared and the card read
+    event_log.Start(daisy::System::GetNow(), hw.GetToggleState());
     main_loop_running = true;
     while (1)
     {

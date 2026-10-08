@@ -491,4 +491,6 @@ void SetBattery(float volts, bool plugged, bool full)
 }
 
 bool Powered() { return powered; }
+
+bool MainLoopRunning() { return main_loop_running; }
 } // namespace twin

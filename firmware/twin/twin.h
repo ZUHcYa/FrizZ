@@ -55,6 +55,10 @@ void SetToggle(bool raw_level);
 /** A byte into the MIDI jack (TRS, the UART) */
 void Midi(uint8_t byte);
 
+/** Whether the firmware's main() has entered its loop (after about 1 s): a bug report's times
+ *  count from there */
+bool MainLoopRunning();
+
 /** The battery and charger the MP2722 reports */
 void SetBattery(float volts, bool plugged, bool full = false);
 

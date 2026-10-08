@@ -203,7 +203,10 @@ board (the 4021 chains, encoders, WS2812 DMA, charger, card, audio, MIDI in), de
 and 13-20x real time. `./run.sh -o out.wav -l - SCRIPT` plays a script of keys, knobs,
 MIDI and audio into it from power-on and writes the master out and the LEDs; use it to see
 what a change does to the play page before the user flashes it. `unit.sh ui` checks the play
-page through it. `web/serve.sh` runs the same twin in the browser (Emscripten, from
+page through it. A bug the user hits on the device comes as such a script: SHIFT + transport
+press writes `/FRIZZ/bug-N.txt` (`EventLog.h`), every key, knob and clock change since power-on
+with the card's files from then, and `run.sh` plays it from power-on to the combo; once it
+shows the bug, it becomes a case in `ui.cpp`. `web/serve.sh` runs the same twin in the browser (Emscripten, from
 `~/opt/emsdk`) on a panel drawn from the board file, with sound, for the user to play; each
 page load rebuilds it first if the source changed, so a reload plays the working tree. It can't show the CPU load, the codec, races between the audio interrupt and `main()` or
 anything else about the chip;
@@ -282,7 +285,7 @@ NoSDPage or MenuPage, and no MIDI out; it does take MIDI clock in (`MidiClock.h`
 `TempoClock.h`, with `TapTempo.h` as the fallback). It reads the card once at boot and writes it
 only from `MainLoop()` when an FX scene is saved, copied or deleted, or when the master
 compressor's knobs or the mono input setting have rested 2 s (`SceneStore.h`,
-`MasterSettings.h`). Its files live in
+`MasterSettings.h`), or a bug report is asked for (`EventLog.h`). Its files live in
 `/FRIZZ`, which `EnterFrizzDir()` creates at boot on a card without it. Its play page is
 `NormalPage.h`; its engine is `passthroughEngine.h` → `Looper.h` + `FxMorph.h` → `FxChain.h` →
 `MasterComp.h` → output gain → `limiter.h`.
@@ -338,7 +341,7 @@ not leftovers.
 
 FRIZZ needs only `FRIZZ.bin` at the root. Its state is two text files in `/FRIZZ`:
 `frizz_scenes.txt` (FX scenes, `FxScenes.h` format) and `frizz_master.txt` (master settings,
-`MasterSettings.h`). The rest of this section is about the stock firmwares.
+`MasterSettings.h`), plus any bug reports, `bug-N.txt`, the user wrote (`EventLog.h`). The rest of this section is about the stock firmwares.
 
 The card is the firmware's filesystem: one `CHOMPI.bin`, the audio assets, `options.json`,
 `presets.json`. FAT32, assets at the card root. `reference/firmware/card-profiles/` holds the three factory

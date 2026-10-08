@@ -36,7 +36,7 @@ stage()
 }
 
 stage
-SRCS="src/twin.cpp src/encoder.cpp lib/ui/UI.cpp lib/hid/switch.cpp lib/hid/midi.cpp lib/hid/midi_parser.cpp"
+SRCS="src/twin.cpp src/script.cpp src/encoder.cpp lib/ui/UI.cpp lib/hid/switch.cpp lib/hid/midi.cpp lib/hid/midi_parser.cpp"
 
 if [ "$1" = wasm ]; then
     command -v em++ > /dev/null || source ~/opt/emsdk/emsdk_env.sh > /dev/null 2>&1 \
@@ -93,7 +93,7 @@ for f in $SRCS; do
     g++ $FLAGS -w -c "$TREE/$f" -o "$B/obj/$(basename "$f" .cpp).o" &
 done
 wait
-for f in twin encoder UI switch midi midi_parser; do
+for f in twin script encoder UI switch midi midi_parser; do
     [ -f "$B/obj/$f.o" ] || { echo "the twin didn't build"; exit 1; }
 done
 rm -f "$B/libtwin.a"

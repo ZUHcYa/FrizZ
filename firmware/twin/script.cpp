@@ -1,0 +1,336 @@
+/** @file script.cpp
+ *  @brief The script player (script.h): a script of key presses, knob turns, MIDI and audio
+ *  played into the virtual CHOMPI from power-on. README.md lists the commands.
+ */
+#include "script.h"
+#include "twin.h"
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
+namespace twin
+{
+static std::vector<float>* out_samples = nullptr; // the master out, interleaved L R
+static FILE* led_log = nullptr;
+static std::string last_leds;
+static int failures = 0;
+
+// the audio into AUX (L and R): a sine, a WAV file looped, or nothing
+static enum { IN_OFF, IN_SINE, IN_WAV } input = IN_OFF;
+static float sine_freq = 220.f, sine_amp = .3f, sine_phase = 0.f;
+static std::vector<float> wav_in; // interleaved L R
+static size_t wav_pos = 0;
+
+// MIDI clock out of a virtual sequencer: 24 ticks a beat
+static float clock_bpm = 0.f;
+static double clock_next_ms = 0.;
+
+static std::string Hex(const Rgb& c)
+{
+    char s[8];
+    snprintf(s, sizeof(s), "%02x%02x%02x", c.r, c.g, c.b);
+    return s;
+}
+
+std::string LedLine()
+{
+    std::string s = "pth";
+    for (int i = 0; i < kNumPthLeds; i++)
+        s += " " + Hex(PthLedFull(i));
+    s += " | smt";
+    for (int i = 0; i < kNumSmtLeds; i++)
+        s += " " + Hex(SmtLedFull(i));
+    return s;
+}
+
+static void LogLeds()
+{
+    const std::string now = LedLine();
+    if (now == last_leds)
+        return;
+    last_leds = now;
+    if (led_log)
+        fprintf(led_log, "%7u %s\n", NowMs(), now.c_str());
+}
+
+static void RunMs(uint32_t ms)
+{
+    const size_t blocks = ms * 2;
+    float in[kBlockSize * kChannels], out[kBlockSize * kChannels];
+    for (size_t b = 0; b < blocks; b++)
+    {
+        while (clock_bpm > 0.f && clock_next_ms <= NowMs() + .5)
+        {
+            Midi(0xF8);
+            clock_next_ms += 60000. / (clock_bpm * 24.);
+        }
+        for (size_t i = 0; i < kBlockSize; i++)
+        {
+            float l = 0.f, r = 0.f;
+            if (input == IN_SINE)
+            {
+                l = r = sine_amp * sinf(sine_phase);
+                sine_phase += 2.f * float(M_PI) * sine_freq / kSampleRate;
+                if (sine_phase > 2.f * float(M_PI))
+                    sine_phase -= 2.f * float(M_PI);
+            }
+            else if (input == IN_WAV && !wav_in.empty())
+            {
+                l = wav_in[wav_pos];
+                r = wav_in[wav_pos + 1];
+                wav_pos = (wav_pos + 2) % wav_in.size();
+            }
+            in[i * kChannels + 0] = 0.f;
+            in[i * kChannels + 1] = 0.f;
+            in[i * kChannels + 2] = l;
+            in[i * kChannels + 3] = r;
+        }
+        Run(1, in, out);
+        for (size_t i = 0; out_samples && i < kBlockSize; i++)
+        {
+            out_samples->push_back(out[i * kChannels + 2]);
+            out_samples->push_back(out[i * kChannels + 3]);
+        }
+        if (b % 2 == 1)
+            LogLeds();
+    }
+}
+
+// A WAV file's samples as interleaved stereo floats: 16-bit PCM or 32-bit float, mono or stereo
+static bool ReadWav(const char* path, std::vector<float>& to)
+{
+    std::ifstream f(path, std::ios::binary);
+    std::vector<char> d((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    if (d.size() < 12 || memcmp(d.data(), "RIFF", 4) || memcmp(d.data() + 8, "WAVE", 4))
+        return false;
+    uint16_t format = 0, channels = 0, bits = 0;
+    for (size_t p = 12; p + 8 <= d.size();)
+    {
+        uint32_t len;
+        memcpy(&len, &d[p + 4], 4);
+        if (!memcmp(&d[p], "fmt ", 4))
+        {
+            memcpy(&format, &d[p + 8], 2);
+            memcpy(&channels, &d[p + 10], 2);
+            memcpy(&bits, &d[p + 22], 2);
+        }
+        else if (!memcmp(&d[p], "data", 4) && channels)
+        {
+            const size_t frames = len / (channels * bits / 8);
+            for (size_t i = 0; i < frames; i++)
+                for (int c = 0; c < 2; c++)
+                {
+                    const size_t at = p + 8 + (i * channels + (c < channels ? c : 0)) * bits / 8;
+                    float v = 0.f;
+                    if (format == 1 && bits == 16)
+                    {
+                        int16_t s;
+                        memcpy(&s, &d[at], 2);
+                        v = s / 32768.f;
+                    }
+                    else if (format == 3 && bits == 32)
+                        memcpy(&v, &d[at], 4);
+                    else
+                        return false;
+                    to.push_back(v);
+                }
+            return true;
+        }
+        p += 8 + len + (len & 1);
+    }
+    return false;
+}
+
+static void Fail(int line, const std::string& what)
+{
+    fprintf(stderr, "line %d: %s\n", line, what.c_str());
+    failures++;
+}
+
+int PlayScript(std::istream& src_in, FILE* leds, std::vector<float>* out)
+{
+    std::istream* src = &src_in;
+    led_log = leds;
+    out_samples = out;
+    failures = 0;
+    std::string text;
+    int line_no = 0;
+    uint32_t at_base = 0; // `at` counts from here: power-on, or the main loop's start (booted)
+    bool booted = false;
+    auto boot = [&]() {
+        if (!booted)
+            Boot();
+        booted = true;
+    };
+    while (std::getline(*src, text))
+    {
+        line_no++;
+        std::istringstream in(text);
+        std::string cmd;
+        if (!(in >> cmd) || cmd[0] == '#')
+            continue;
+
+        if (cmd == "card")
+        {
+            // card put PATH FILE / card text PATH "..." / card dump
+            std::string what, path;
+            in >> what;
+            if (what == "file" && in >> path)
+            {
+                // the file's lines follow, each behind a |
+                std::string& f = CardFiles()[path];
+                f.clear();
+                while (src->peek() == '|' && std::getline(*src, text))
+                {
+                    line_no++;
+                    f += text.substr(1) + "\n";
+                }
+            }
+            else if (what == "put" && in >> path)
+            {
+                std::string from;
+                in >> from;
+                std::ifstream f(from, std::ios::binary);
+                if (!f)
+                    Fail(line_no, "can't read " + from);
+                std::stringstream ss;
+                ss << f.rdbuf();
+                CardFiles()[path] = ss.str();
+            }
+            else if (what == "remove")
+                SetCardPresent(false);
+            else if (what == "insert")
+                SetCardPresent(true);
+            else if (what == "dump")
+                for (auto& f : CardFiles())
+                    printf("--- %s\n%s\n", f.first.c_str(), f.second.c_str());
+            else
+                Fail(line_no, "card: file PATH, put PATH FILE, remove, insert or dump");
+            continue;
+        }
+        if (cmd == "battery")
+        {
+            float v = 3.8f;
+            std::string a, b;
+            in >> v >> a >> b;
+            SetBattery(v, a == "plugged" || b == "plugged", a == "full" || b == "full");
+            continue;
+        }
+        if (cmd == "input")
+        {
+            std::string what;
+            in >> what;
+            if (what == "sine")
+            {
+                in >> sine_freq >> sine_amp;
+                input = IN_SINE;
+            }
+            else if (what == "wav")
+            {
+                std::string path;
+                in >> path;
+                wav_in.clear();
+                wav_pos = 0;
+                if (ReadWav(path.c_str(), wav_in))
+                    input = IN_WAV;
+                else
+                    Fail(line_no, "can't read " + path + " (16-bit PCM or 32-bit float WAV)");
+            }
+            else
+                input = IN_OFF;
+            continue;
+        }
+
+        // everything else happens to the running device
+        boot();
+        if (cmd == "wait")
+        {
+            uint32_t ms = 0;
+            in >> ms;
+            RunMs(ms);
+        }
+        else if (cmd == "at")
+        {
+            uint32_t ms = 0;
+            in >> ms;
+            ms += at_base;
+            if (ms > NowMs())
+                RunMs(ms - NowMs());
+        }
+        else if (cmd == "booted")
+        {
+            // a bug report's times count from when main() enters its loop (EventLog.h)
+            while (!MainLoopRunning() && NowMs() < 10000)
+                RunMs(1);
+            at_base = NowMs();
+        }
+        else if (cmd == "down" || cmd == "up" || cmd == "tap")
+        {
+            std::string name;
+            uint32_t hold = 60;
+            in >> name >> hold;
+            if (!Press(name.c_str(), cmd != "up"))
+                Fail(line_no, "no key " + name);
+            if (cmd == "tap")
+            {
+                RunMs(hold);
+                Press(name.c_str(), false);
+            }
+        }
+        else if (cmd == "turn")
+        {
+            int enc = 0, detents = 0;
+            in >> enc >> detents;
+            Turn(enc, detents);
+        }
+        else if (cmd == "toggle")
+        {
+            int level = 1;
+            in >> level;
+            SetToggle(level);
+        }
+        else if (cmd == "midi")
+        {
+            std::string b;
+            while (in >> b)
+                Midi(static_cast<uint8_t>(strtol(b.c_str(), nullptr, 16)));
+        }
+        else if (cmd == "clock")
+        {
+            in >> clock_bpm;
+            clock_next_ms = NowMs();
+        }
+        else if (cmd == "leds")
+            printf("%7u %s\n", NowMs(), LedLine().c_str());
+        else if (cmd == "expect")
+        {
+            // expect led pth|smt INDEX RRGGBB (at full scale), expect off, expect on
+            std::string what, chain, want;
+            int index = 0;
+            in >> what;
+            if (what == "led" && in >> chain >> index >> want)
+            {
+                const std::string got = Hex(chain == "pth" ? PthLedFull(index)
+                                                           : SmtLedFull(index));
+                if (got != want)
+                    Fail(line_no, chain + " " + std::to_string(index) + " is " + got + ", not " +
+                                      want);
+            }
+            else if (what == "off" && Powered())
+                Fail(line_no, "still powered");
+            else if (what == "on" && !Powered())
+                Fail(line_no, "powered off");
+        }
+        else
+            Fail(line_no, "unknown command " + cmd);
+    }
+
+    return failures;
+}
+} // namespace twin

@@ -221,6 +221,13 @@ And PR #7's hardware checklist, each of which fails on the firmware before it (`
   compressor; after a reboot both scenes are there; saving into a slot the card also has
   keeps its file as `frizz_scenes.bak`.
 
+And the bug report (`code/src/EventLog.h`): after a session (a latch, knob 1 with and without
+SHIFT, a loop recorded and sped up, a scene recalled and another saved), SHIFT + transport
+press writes `/FRIZZ/bug-1.txt` while the transport LEDs blink white, holding the card's
+scenes as at power-on (not the one saved since) and the session's keys and knobs. Played on a
+fresh twin (`script.h`), the LEDs are the session's every millisecond up to the combo, and the
+replay writes the same events again.
+
 The flicker #7 fixed in the transport LED (a value just over 1 wrapping to dark) doesn't show
 on the twin before the fix either, so that check guards only what it can see.
 
