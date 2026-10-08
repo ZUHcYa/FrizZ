@@ -59,6 +59,9 @@ void Midi(uint8_t byte);
  *  count from there */
 bool MainLoopRunning();
 
+/** Whether the firmware has reset the chip (NVIC_SystemReset): a restart asked for over MIDI */
+bool Restarted();
+
 /** The battery and charger the MP2722 reports */
 void SetBattery(float volts, bool plugged, bool full = false);
 

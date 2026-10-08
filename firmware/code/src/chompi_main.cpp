@@ -174,6 +174,11 @@ void MainLoop(void* data)
     // a bug report asked for: written a chunk per pass, also from MainLoop only
     event_log.Process(now, midi_clock);
 
+    // a restart asked for over MIDI (MidiClock.h), once no report is being written: the
+    // chip's reset, as the launcher hands over, so the bootloader starts what's in QSPI
+    if (midi_clock.RestartRequested() && !event_log.Writing())
+        NVIC_SystemReset();
+
 #if FRIZZ_BENCH
     bench.Process();
     bench.DrawLeds(now);

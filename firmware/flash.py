@@ -10,8 +10,10 @@ The launcher (github.com/sfaber02/CHOMPI, firmware/chompi-launcher, its releases
 CHOMPI.bin in the card's root, and keeps the firmwares in /FIRMWARE/NN_NAME.bin, NN being the
 key that starts it. While its picker shows, it takes a firmware over USB MIDI, writes it to
 its slot, replacing whatever is there, and starts it (tools/midi_send.py, the launcher's
-own client). So: run this, and when it says so, switch the CHOMPI off and on; it waits for
-the launcher, sends, and FRIZZ starts. FRIZZ_SLOT and BENCH_SLOT set other slots.
+own client). A running FRIZZ is first asked to restart over USB MIDI (MidiClock.h), which
+brings the launcher up by itself; a FRIZZ from before that, or another firmware, needs the
+power switch, and this says so. It then waits for the launcher, sends, and FRIZZ starts.
+FRIZZ_SLOT and BENCH_SLOT set other slots.
 
 Linux only (ALSA's raw MIDI), Python 3 without packages; building needs the ARM toolchain
 (README.md).
@@ -52,10 +54,35 @@ def build(bench):
     return os.path.join(SRC, "build-bench/FRIZZ-bench.bin" if bench else "build/FRIZZ.bin")
 
 
+# FRIZZ's restart (MidiClock.h): the launcher's SysEx header, FRIZZ's own command
+RESTART = midi_send.HEADER + bytes([0x10, 0xF7])
+
+
+def request_restart(given=None):
+    """Asks a running FRIZZ to restart into the launcher; the launcher itself ignores it"""
+    device = given or midi_send.find_device()
+    if not device:
+        return False
+    try:
+        fd = os.open(device, os.O_WRONLY | os.O_NONBLOCK)
+        try:
+            os.write(fd, RESTART)
+        finally:
+            os.close(fd)
+        return True
+    except OSError:
+        return False
+
+
 def wait_for_launcher(timeout, given=None):
     """The launcher's raw MIDI node, once it answers. FRIZZ itself is a CHOMPI MIDI device
     too, but doesn't answer, so this waits through it for the power cycle"""
-    print("switch the CHOMPI off and on: waiting for the launcher's picker ...", flush=True)
+    if request_restart(given):
+        print("asked the CHOMPI to restart into the launcher (if it doesn't, switch it off and "
+              "on) ...", flush=True)
+    else:
+        print("switch the CHOMPI on, or off and on: waiting for the launcher's picker ...",
+              flush=True)
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         device = given or midi_send.find_device()

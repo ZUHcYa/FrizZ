@@ -249,6 +249,9 @@ saves after it still go to `/FRIZZ` (writing it remounts the card). Played on a
 fresh twin (`script.h`), the LEDs are the session's every millisecond up to the combo, and the
 replay writes the same events again.
 
+And a restart over MIDI (`MidiClock.h`, for `flash.py`): FRIZZ's own SysEx resets the chip,
+the launcher's PING or a longer message doesn't.
+
 The flicker #7 fixed in the transport LED (a value just over 1 wrapping to dark) doesn't show
 on the twin before the fix either, so that check guards only what it can see.
 

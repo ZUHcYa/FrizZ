@@ -604,6 +604,21 @@ int main()
         Check(SavedLatch(Card("/FRIZZ/frizz_scenes.txt"), 2, "shifter") == 1, "card: and frizz_scenes.txt has the new one");
     }});
 
+    // a restart over MIDI (MidiClock.h), for the launcher: only on FRIZZ's own SysEx
+    cases.push_back({"restart", [] {
+        RunMs(kReadyMs);
+        for (uint8_t b : {0xF0, 0x7D, 0x43, 0x48, 0x01, 0xF7}) // the launcher's PING
+            Midi(b);
+        for (uint8_t b : {0xF0, 0x7D, 0x43, 0x48, 0x10, 0x00, 0xF7}) // one byte too many
+            Midi(b);
+        RunMs(50);
+        Check(!Restarted(), "restart: other SysEx, the launcher's own too, don't restart FRIZZ");
+        for (uint8_t b : {0xF0, 0x7D, 0x43, 0x48, 0x10, 0xF7})
+            Midi(b);
+        RunMs(50);
+        Check(Restarted(), "restart: F0 7D 43 48 10 F7 restarts it (the chip's reset)");
+    }});
+
     // the event log (EventLog.h): a session, SHIFT + transport press, its file on the card
     cases.push_back({"bug-log", [] {
         TakeCard(); // card-3's: scenes in slots 1 and 2

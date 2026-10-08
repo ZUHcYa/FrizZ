@@ -133,14 +133,16 @@ MIDI, writes it to its slot and starts it:
 
 ```bash
 cd firmware
-./flash.py            # builds FRIZZ.bin, then: switch the CHOMPI off and on; it's sent to slot 10
+./flash.py            # builds FRIZZ.bin, restarts the CHOMPI into the launcher, sends it to slot 10
 ./flash.py --bench    # FRIZZ-bench.bin to slot 11
 ./flash.py --no-build # bin/FRIZZ.bin as committed
 ```
 
 Sending replaces whatever is in that slot, so set yours (`FRIZZ_SLOT=4 ./flash.py`,
-`BENCH_SLOT`, or `--slot`) if FRIZZ isn't on key 10. It waits up to 2 minutes for the
-launcher, so run it, then switch the CHOMPI off and on. Linux only (ALSA), Python 3, no
+`BENCH_SLOT`, or `--slot`) if FRIZZ isn't on key 10. A running FRIZZ restarts into the
+launcher when asked over USB MIDI (the SysEx `F0 7D 43 48 10 F7`, `MidiClock.h`), so
+nothing needs touching; with an older FRIZZ or another firmware running, switch the CHOMPI
+off and on when it says so (it waits up to 2 minutes). Linux only (ALSA), Python 3, no
 packages; it uses the launcher's own client, `tools/midi_send.py`. On macOS or Windows, the
 launcher's web page (https://ugrossek.github.io/CHOMPI/, Chrome or Edge) does the same. The
 launcher's key 15 is USB storage: the card shows up as a drive, for `cpu.txt` and bug reports.

@@ -253,8 +253,9 @@ bootloader out of QSPI flash. Standard Daisy flashing advice does not apply.
 
 - **While developing:** the user runs sfaber02's multi-firmware launcher (`CHOMPI.bin` in the
   root, firmwares in `/FIRMWARE/NN_NAME.bin`, FRIZZ on key 10, the bench on 11).
-  `firmware/flash.py` builds and sends a build to its slot over USB MIDI after a power cycle
-  (`--bench`, `--no-build`); key 15 mounts the card over USB, for `cpu.txt` and bug reports.
+  `firmware/flash.py` builds, asks a running FRIZZ to restart into the launcher (SysEx
+  `F0 7D 43 48 10 F7`, `MidiClock.h`) and sends the build to its slot over USB MIDI
+  (`--bench`, `--no-build`); an older firmware needs the power switch instead; key 15 mounts the card over USB, for `cpu.txt` and bug reports.
   Sending replaces the slot's file: never send to a slot the user didn't name.
 - **Normal path:** copy `build/FRIZZ.bin` (stock: `build/CHOMPI.bin`) onto the microSD card
   (delete any other `.bin` first)

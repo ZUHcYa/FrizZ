@@ -21,6 +21,10 @@
 
 #include "twin.h"
 
+// the firmware's restart (chompi_main.cpp): the chip would reset; here it's noted
+static bool restarted = false;
+void NVIC_SystemReset() { restarted = true; }
+
 namespace twin
 {
 // ======== clock and the two contexts ========
@@ -493,4 +497,6 @@ void SetBattery(float volts, bool plugged, bool full)
 bool Powered() { return powered; }
 
 bool MainLoopRunning() { return main_loop_running; }
+
+bool Restarted() { return ::restarted; }
 } // namespace twin

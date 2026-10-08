@@ -7,6 +7,9 @@
 #include "board.h"
 
 #define DSY_SDRAM_BSS
+
+/** CMSIS's chip reset: on the twin it's noted (twin::Restarted) and the firmware runs on */
+void NVIC_SystemReset();
 #define DMA_BUFFER_MEM_SECTION
 #define DSY_MIN(in, mn) (in < mn ? in : mn)
 #define DSY_MAX(in, mx) (in > mx ? in : mx)
