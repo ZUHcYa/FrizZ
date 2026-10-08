@@ -24,7 +24,8 @@ what FRIZZ does.
 - The headphone feed moved from the mode switch to VOLUME; the mode switch does nothing in
   play mode.
 - A morph started with SHIFT + scene key waits while SHIFT is held, however long, and on
-  release glides the whole way to the next bar line (one more per tap). The effects it fades in come on when the glide starts.
+  release glides the whole way to the next bar line (one more per tap). The effects it
+  fades in come on when the glide starts.
 - The DELETE scene mode is amber, so red only means refused.
 - VOLUME turns faster: the gains move 2% per detent, the mix (SHIFT + turn) 4%.
 - The battery check shows red below 3 V and reads correctly from a second after boot.
