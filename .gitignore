@@ -10,6 +10,7 @@ Icon?
 
 # Firmware build output (the prebuilt libraries under code/libs/*/build/ stay committed)
 firmware/code/src/build/
+firmware/code/src/build-bench/
 firmware/test/build/
 firmware/twin/build/
 firmware/twin/web/build/

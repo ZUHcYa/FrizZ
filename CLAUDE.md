@@ -194,7 +194,7 @@ The exception is FRIZZ: `firmware/test/` compiles its audio engine on the host a
 script of key presses and knob turns through it (3 s per effect plus four combined segments).
 `./all.sh` runs everything. `./check.sh` compares HEAD with the working tree; a refactor must
 come out `bit-identical`. `./unit.sh NAME` runs one unit check, `NAME.cpp`: `pitch`, `tape`,
-`scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`, `comp`, `level`, `sleep`, `ui`; a new check is just a new
+`scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`, `comp`, `level`, `sleep`, `ui`, `bench`; a new check is just a new
 `.cpp`. What each covers is in `firmware/test/README.md`.
 
 `firmware/twin/` is the **virtual CHOMPI**: the whole firmware (`chompi_main.cpp` down, with
@@ -215,11 +215,19 @@ FRIZZ's audio callback has 0.5 ms per 24-sample block. Until effects that are of
 processing (`FxGate::Asleep`), a playing loop with the delay ran it at 90-100%. At that
 margin, a change that only shifts the memory layout (b5c658c, removing the randomizer) was
 enough to make it crackle on the device, while the host harness stayed bit-identical. The
-host can't measure this. On the device, wrap `AudioCallback()` in libDaisy's `CpuLoadMeter`
-(`OnBlockStart`/`OnBlockEnd`, `Init(sample rate, 24)`) and show `GetMaxCpuLoad()` on a free
-key's LED, resetting it every 0.5 s. Many inserts on at once still cost as much as ever.
-Keep effects that are off cheap, and suspect the CPU when crackles appear on hardware that
-the harness can't reproduce.
+host can't measure this, nor can the virtual CHOMPI. The device does, with the **CPU bench**:
+`make BENCH=1` in `firmware/code/src` builds `FRIZZ-bench.bin` (`Bench.h`, compiled in only
+then; the normal `FRIZZ.bin` stays byte for byte the same). On the card in place of
+`FRIZZ.bin`, it runs 22 segments by itself after booting (every effect alone, together, at
+their heaviest, a playing loop with the delay, PR #7's scene 4, ...), measures the whole audio
+callback with libDaisy's `CpuLoadMeter`, and writes the max and average load of each to
+`/FRIZZ/cpu.txt`; the key LEDs grade each segment, the panel ends green or red. A branch that
+touches the engine, the effects or the memory layout commits a fresh
+`firmware/bin/FRIZZ-bench.bin` with its `FRIZZ.bin`, and its hardware checklist asks for a
+bench run, whose `cpu.txt` goes into the PR and is compared with the last one there.
+`unit.sh bench` checks on the twin that the bench runs through and writes its file (the loads
+there are 0). Many inserts on at once still cost as much as ever. Keep effects that are off
+cheap, and suspect the CPU when crackles appear on hardware that the harness can't reproduce.
 
 ## SRAM is the binding constraint, especially on TAPE
 

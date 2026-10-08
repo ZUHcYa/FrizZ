@@ -12,7 +12,8 @@ the two have diverged, so treat WAVE as reference, not as a shared core.
 ```
 code/src/                 the firmware
 code/libs/                vendored libDaisy and DaisySP (patched, MIT; never swap in upstream)
-bin/                      FRIZZ.bin (the latest build), the v6.2 bootloader binary and its
+bin/                      FRIZZ.bin (the latest build), FRIZZ-bench.bin (the CPU bench, below),
+                          the v6.2 bootloader binary and its
                           install script; the bootloader's source is in
                           reference/firmware/chompi-wave/code/Chompi_Bootloader/
 test/                     host-side checks: the engine against HEAD, and unit checks (unit.sh NAME)
@@ -101,6 +102,32 @@ the card into QSPI flash and runs it from SRAM. Standard Daisy flashing advice d
 Every CHOMPI already has the bootloader, and an SD update never touches it. Only a blank or
 erased Daisy Seed needs it installed. To do that, hold BOOT and tap RESET to enter DFU mode,
 then run `bin/install_bootloader.sh`.
+
+## Measure the CPU load
+
+The audio callback has 0.5 ms per block, and neither the host checks nor the virtual CHOMPI
+can tell how much of it a change uses. The CPU bench can, on the device:
+
+```bash
+cd firmware/code/src
+make BENCH=1      # build-bench/FRIZZ-bench.bin; the normal build is untouched
+```
+
+1. Put `FRIZZ-bench.bin` (this one, or `bin/FRIZZ-bench.bin`) on the card instead of
+   `FRIZZ.bin` (only one `.bin` on the card) and switch on. The bootloader flashes it as usual.
+2. After the boot animation the bench runs by itself, about 70 s. Don't touch anything: the
+   keys light up one per segment, green below 80% load, amber below 95%, red above; the one
+   running blinks white.
+3. At the end every panel LED is green (all below 95%) or red. Blinking red: `cpu.txt`
+   couldn't be written (no card?).
+4. On the computer, `FRIZZ/cpu.txt` has every segment's highest and average load. Put
+   `FRIZZ.bin` back on the card to play again.
+
+The segments: nothing on, each effect alone (its knobs moving every 0.25 s), the compressor,
+the inserts together, everything, everything with every feedback at the top (the harness's
+STRESS), recording a loop, the loop alone, with the delay, with PR #7's scene 4 (shifter +7,
+folder, crusher, slicer, compressor at 1) and the delay, and with everything. The signal is
+the bench's own (a saw, a gated sine, noise), so runs compare.
 
 ## 5. Debug
 

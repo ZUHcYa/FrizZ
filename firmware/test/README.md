@@ -228,6 +228,20 @@ on the twin before the fix either, so that check guards only what it can see.
 fail on the version before its fix. It can't see time on the chip: the CPU load, so not
 crackles either.
 
+## CPU bench check
+
+```bash
+./unit.sh bench
+```
+
+Runs the CPU bench's firmware (`FRIZZ-bench.bin`, `code/src/Bench.h`, built for the twin with
+`FRIZZ_BENCH`) on the virtual CHOMPI from power-on to its end: every segment ends up in
+`/FRIZZ/cpu.txt` in order with a max and an average, the worst is named, every segment's key
+is graded, the panel ends green, and the bench's signal reaches the output throughout. The
+loads are 0 there (no time passes on the twin while the callback runs): the numbers come from
+the device only. A check asks for a twin with defines of its own with a
+`// twin defines: ...` line, which builds it into `../twin/build/NAME`.
+
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample
 conversions), `MidiClock.h` (no clock, unless a test sets its fields, as `tempo.cpp`
 does) and `fatfs.h` (an SD card in memory, for `store.cpp`). DaisySP is compiled for the host once into `build/`,
