@@ -171,7 +171,7 @@ The exception is FRIZZ: `firmware/test/` compiles its audio engine on the host a
 script of key presses and knob turns through it (3 s per effect plus four combined segments).
 `./all.sh` runs everything. `./check.sh` compares HEAD with the working tree; a refactor must
 come out `bit-identical`. `./unit.sh NAME` runs one unit check, `NAME.cpp`: `pitch`, `tape`,
-`scenes`, `controls`, `keys`, `looper`, `tempo`, `comp`, `randomizer`; a new check is just a new
+`scenes`, `controls`, `keys`, `looper`, `tempo`, `comp`, `level`; a new check is just a new
 `.cpp`. What each covers is in `firmware/test/README.md`. None covers the LEDs, `NormalPage.h`'s
 key routing, real MIDI or the hardware.
 
@@ -216,8 +216,8 @@ committed by writing a temp file then renaming it.
 
 **FRIZZ is simpler:** it builds `FRIZZ.bin`, has no `SDCallback()`, `FileStreamingManager`,
 NoSDPage or MenuPage, and no MIDI out. It reads the card once at boot and writes it only from
-`MainLoop()` when an FX scene is saved, copied or deleted, or when the master compressor's or
-the randomizer's knobs or the mono input setting have rested 2 s (`SceneStore.h`, `MasterSettings.h`). Its files live in
+`MainLoop()` when an FX scene is saved, copied or deleted, or when the master compressor's
+knobs or the mono input setting have rested 2 s (`SceneStore.h`, `MasterSettings.h`). Its files live in
 `/FRIZZ`, which `EnterFrizzDir()` creates at boot on a card without it. Its play page is
 `NormalPage.h`; its engine is `passthroughEngine.h` → `Looper.h` + `FxMorph.h` → `FxChain.h` →
 `MasterComp.h` → output gain → `limiter.h`.

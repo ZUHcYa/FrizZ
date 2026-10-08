@@ -28,10 +28,6 @@ struct FakeEngine
     void FastFxSlew() { fast_slews++; }
     float comp[kNumFxParams] = {};
     void SetCompParam(size_t p, float v) { comp[p] = v; }
-    bool rand_on = false;
-    float rand[kNumFxParams] = {};
-    void SetRandomizerOn(bool o) { rand_on = o; }
-    void SetRandomizerParam(size_t p, float v) { rand[p] = v; }
 
     // the morph: what it was started with, and its bar lines
     FxMorphPlan plan = {};
@@ -347,64 +343,6 @@ static void TestComp()
     Check(fx.CompParam(0) == 1.f && e.comp[0] == 1.f, "SetComp: clamped and sent");
 }
 
-static void TestRandomizer()
-{
-    FakeEngine e;
-    Fx fx;
-    Fresh(e, fx);
-    bool defaults = true;
-    for (size_t p = 0; p < kNumFxParams; p++)
-        defaults = defaults && e.rand[p] == kRandParams.defaults[p] &&
-                   fx.RandParam(p) == kRandParams.defaults[p];
-    Check(defaults && !e.rand_on, "randomizer: init off, its knobs on their defaults");
-    Check(!fx.TakeRandChanged(), "randomizer: init isn't a change to keep");
-
-    // its key: on while held, selects its knobs
-    fx.KeyPressed(kRandSelected, true, false);
-    Check(e.rand_on && fx.Selected() == kRandSelected, "randomizer key: on while held, selected");
-    fx.KnobTurned(0, 3.f, false);
-    Check(Near(fx.RandParam(0), 3.f / 16.f) && Near(e.rand[0], 3.f / 16.f),
-          "randomizer: the pattern knob steps");
-    Check(fx.TakeRandChanged() && !fx.TakeRandChanged(), "randomizer: a turn is a change, once");
-    fx.KeyPressed(kRandSelected, false, false);
-    Check(!e.rand_on && !fx.Edited(), "randomizer: off on release, the scene unedited");
-
-    // latched as an FX key is: held, then SHIFT
-    fx.KeyPressed(kRandSelected, true, false);
-    Check(fx.ShiftPressed(), "randomizer key, SHIFT: a latch combo");
-    fx.KeyPressed(kRandSelected, false, false);
-    Check(e.rand_on && fx.IsLatched(kRandSelected) && !fx.Edited(),
-          "randomizer: latched, the scene unedited");
-
-    // SHIFT first: a silent select
-    fx.KeyPressed(FX_FILTER, true, true);
-    fx.KeyPressed(FX_FILTER, false, true);
-    fx.KeyPressed(kRandSelected, true, true);
-    fx.KeyPressed(kRandSelected, false, true);
-    Check(e.rand_on && fx.IsLatched(kRandSelected) && fx.Selected() == kRandSelected,
-          "SHIFT, randomizer key: selected, its latch kept");
-
-    // scenes don't touch it
-    FxScene scene;
-    fx.Snapshot(scene);
-    Check(!(scene.latched >> kRandSelected), "a snapshot leaves the randomizer out");
-    FxScene other = scene;
-    other.latched = 0;
-    fx.Recall(other);
-    Check(e.rand_on && fx.IsLatched(kRandSelected) && Near(fx.RandParam(0), 3.f / 16.f),
-          "a recall leaves the randomizer alone");
-    fx.Morph(scene);
-    Check(e.rand_on && fx.IsLatched(kRandSelected), "a morph leaves the randomizer alone");
-
-    // a plain press clears the latch
-    fx.KeyPressed(kRandSelected, true, false);
-    fx.KeyPressed(kRandSelected, false, false);
-    Check(!e.rand_on && !fx.IsLatched(kRandSelected), "randomizer: a plain press unlatches");
-
-    fx.SetRand(2, -1.f);
-    Check(fx.RandParam(2) == 0.f && e.rand[2] == 0.f, "SetRand: clamped and sent");
-}
-
 static void TestScenes()
 {
     FakeEngine e;
@@ -715,7 +653,6 @@ int main()
     TestKeys();
     TestKnobs();
     TestComp();
-    TestRandomizer();
     TestScenes();
     TestMorph();
     TestTails();

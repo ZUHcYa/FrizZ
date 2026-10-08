@@ -8,14 +8,8 @@
  *  (kCompSelected), which then turn as they do for an FX (kCompParams). It's always on and
  *  not part of a scene, so its knobs leave the scene unedited.
  *
- *  So is the randomizer (FxRandomizer.h): its key is held and latched as an FX key is
- *  (kRandSelected, one more key after the FX), and selects its knobs (kRandParams). Like the
- *  compressor it's not part of a scene: a recall or morph leaves its latch and knobs alone,
- *  and they leave the scene unedited.
- *
  *  Engine is PassthroughEngine on the device, a fake on the host. It needs SetFxOn(fx, on),
- *  SetFxParam(fx, param, val), SetCompParam(param, val), SetRandomizerOn(on),
- *  SetRandomizerParam(param, val), FastFxSlew() and the morph's
+ *  SetFxParam(fx, param, val), SetCompParam(param, val), FastFxSlew() and the morph's
  *  StartFxMorph(plan), AddFxMorphBar(), LandFxMorph(), FreezeFxMorph(params, unswitched,
  *  was_on) and FxMorphing().
  */
@@ -34,12 +28,8 @@ static const float kFxDetentsPerStep = 3.f;
 // The sends: their tails ring on after their keys go off, so a recall or morph doesn't change
 // an off send's settings in the engine until its key comes on again
 static const uint16_t kFxSends = (1u << FX_DELAY) | (1u << FX_REVERB);
-// The randomizer's key, after the FX keys: KeyPressed and Selected() take it as an FX's
-static const size_t kRandSelected = kNumFx;
-// The keys held and latched: the FX's and the randomizer's
-static const size_t kNumFxKeys = kNumFx + 1;
 // Selected() while the knobs edit the master compressor
-static const size_t kCompSelected = kNumFx + 1;
+static const size_t kCompSelected = kNumFx;
 
 template <class Engine>
 class FxControls
@@ -60,17 +50,12 @@ public:
             }
             engine_->SetFxOn(fx, false);
         }
-        held_[kRandSelected] = latched_[kRandSelected] = false;
-        on_release_[kRandSelected] = OnRelease::KEEP;
-        engine_->SetRandomizerOn(false);
         for (size_t p = 0; p < kNumFxParams; p++)
         {
             comp_[p] = -1.f;
             SetComp(p, kCompParams.defaults[p]);
-            rand_[p] = -1.f;
-            SetRand(p, kRandParams.defaults[p]);
         }
-        comp_changed_ = rand_changed_ = false;
+        comp_changed_ = false;
         ClearChunks();
         chunk_shift_ = false;
         selected_ = 0;
@@ -83,7 +68,7 @@ public:
      *  going down during the hold toggles it (ShiftPressed), a plain press clears it. With
      *  SHIFT already down, the press only selects it: it stays off, its latch stays, and the
      *  release does nothing, also once SHIFT is let go first. A release without its press
-     *  (held through boot) does nothing. fx can be kRandSelected, the randomizer's key */
+     *  (held through boot) does nothing */
     void KeyPressed(size_t fx, bool down, bool shift)
     {
         if (down)
@@ -108,7 +93,7 @@ public:
                 latched = false;
             else if (on_release_[fx] == OnRelease::TOGGLE)
                 latched = !latched;
-            if (latched != latched_[fx] && fx < kNumFx)
+            if (latched != latched_[fx])
             {
                 edited_ = true;
                 TouchedInMorph(fx);
@@ -136,7 +121,7 @@ public:
     bool ShiftPressed()
     {
         bool latch = false;
-        for (size_t fx = 0; fx < kNumFxKeys; fx++)
+        for (size_t fx = 0; fx < kNumFx; fx++)
         {
             if (held_[fx] && on_release_[fx] == OnRelease::CLEAR)
             {
@@ -152,7 +137,7 @@ public:
      *  to what the presses alone would do */
     void ShiftUsed()
     {
-        for (size_t fx = 0; fx < kNumFxKeys; fx++)
+        for (size_t fx = 0; fx < kNumFx; fx++)
         {
             if (held_[fx] && on_release_[fx] == OnRelease::TOGGLE)
                 on_release_[fx] = OnRelease::CLEAR;
@@ -450,46 +435,25 @@ public:
         comp_changed_ = false;
         return changed;
     }
-    inline float RandParam(size_t param) const { return rand_[param]; }
-    /** A randomizer knob set, from the card; clamped and sent */
-    void SetRand(size_t param, float val)
-    {
-        val = fclamp(val, 0.f, 1.f);
-        if (val != rand_[param])
-            rand_changed_ = true;
-        rand_[param] = val;
-        engine_->SetRandomizerParam(param, val);
-    }
-    /** True once after the randomizer's knobs changed, so the play page can keep them */
-    bool TakeRandChanged()
-    {
-        const bool changed = rand_changed_;
-        rand_changed_ = false;
-        return changed;
-    }
     inline bool IsLatched(size_t fx) const { return latched_[fx]; }
     inline bool IsOn(size_t fx) const { return held_[fx] || latched_[fx]; }
-    /** The FX the knobs edit: the last one pressed, kRandSelected or kCompSelected */
+    /** The FX the knobs edit: the last one pressed, or kCompSelected */
     inline size_t Selected() const { return selected_; }
     /** Knobs or latches changed since the last Snapshot or Recall */
     inline bool Edited() const { return edited_; }
     inline void MarkEdited() { edited_ = true; }
 
-    /** The selected FX's, the randomizer's or the compressor's knobs */
+    /** The selected FX's or the compressor's knobs */
     inline const FxParams& Knobs() const
     {
         if (selected_ == kCompSelected)
             return kCompParams;
-        if (selected_ == kRandSelected)
-            return kRandParams;
         return kFxParams[selected_];
     }
     inline float Knob(size_t knob) const
     {
         if (selected_ == kCompSelected)
             return comp_[knob];
-        if (selected_ == kRandSelected)
-            return rand_[knob];
         return params_[selected_][knob];
     }
 
@@ -500,11 +464,6 @@ private:
     /** The key's state to the engine; coming on, first the parameters it lags behind in */
     void SendOn(size_t fx)
     {
-        if (fx == kRandSelected)
-        {
-            engine_->SetRandomizerOn(IsOn(fx));
-            return;
-        }
         if (IsOn(fx) && Stale(fx))
         {
             for (size_t p = 0; p < kNumFxParams; p++)
@@ -538,8 +497,6 @@ private:
     {
         if (selected_ == kCompSelected)
             SetComp(knob, val);
-        else if (selected_ == kRandSelected)
-            SetRand(knob, val);
         else
             SetParam(selected_, knob, val);
     }
@@ -563,14 +520,12 @@ private:
 
     Engine* engine_ = nullptr;
     float params_[kNumFx][kNumFxParams];
-    bool held_[kNumFxKeys];
-    bool latched_[kNumFxKeys];
-    OnRelease on_release_[kNumFxKeys];
+    bool held_[kNumFx];
+    bool latched_[kNumFx];
+    OnRelease on_release_[kNumFx];
     size_t selected_ = 0;
     float comp_[kNumFxParams];  // the master compressor's knobs
     bool comp_changed_ = false; // since the last TakeCompChanged
-    float rand_[kNumFxParams];  // the randomizer's knobs
-    bool rand_changed_ = false; // since the last TakeRandChanged
     float chunk_[kNumFxParams]; // detents towards the next step or grid point
     bool chunk_shift_ = false;  // whether they were turned with SHIFT
     bool edited_ = false;

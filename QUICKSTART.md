@@ -52,13 +52,13 @@ A loop can be up to 2:45 long and is gone when you switch off.
 
 ## 3. Play the effects
 
-The first twelve white keys hold effects, counted from the left, in the order the sound goes
-through them. The 13th does nothing, the 14th is the master compressor and the last one the
-randomizer (both below).
+The white keys hold twelve effects, counted from the left, in the order the sound goes
+through them: ten inserts, a free key, the delay and reverb, another free key, and the master
+compressor on the last one (below).
 
-| White key | 1st | 2nd | 3rd | 4th | 5th | 6th | 7th | 8th | 9th | 10th | 11th | 12th |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Effect | Freezer | Shifter | Folder | Crusher | Filter | Flanger | Resonator | Slicer | Wow & flutter | Tape stop | Delay | Reverb |
+| White key | 1st | 2nd | 3rd | 4th | 5th | 6th | 7th | 8th | 9th | 10th | 11th | 12th | 13th | 14th | 15th |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Effect | Freezer | Shifter | Folder | Crusher | Filter | Flanger | Resonator | Slicer | Wow & flutter | Tape stop | – | Delay | Reverb | – | Compressor |
 
 - **Hold a key:** the effect is on while you hold it.
 - **Hold a key, then SHIFT:** latch the effect on. Do it again, or just tap the key, to turn
@@ -78,15 +78,10 @@ Every effect starts silent or nearly so: one knob brings it in. That's knob 1 on
 and reverb. The freezer, slicer and tape stop work from the first press: the freezer repeats
 a whole bar, the slicer pumps gently and the tape stop stops.
 
-**Master compressor:** press the second-to-last white key, and knobs 1-4 set the compressor on the
+**Master compressor:** press the last white key, and knobs 1-4 set the compressor on the
 master out: amount (off at first), ratio, speed and mix. Its key lights up as it compresses.
 It's always on, and FRIZZ remembers its settings when you switch off. Press an effect key to
 give the knobs back to the effect.
-
-**Randomizer:** hold the last white key, and it plays the effects for you: on every gate of
-a one-bar pattern it switches 1 to 5 of them on, with random settings. Knob 1 picks the
-pattern, 2 the gate length, 3 the chance and 4 shifts every gate a little late. Latch it like
-an effect. See [Randomizer](MANUAL.md#randomizer).
 
 Delay and reverb tails keep ringing after you let go. The other effects stop the moment you
 release the key, except the tape stop, which spins back up first. Settings reset when you switch off, unless you save them as a scene.
@@ -100,12 +95,12 @@ Things to try first:
   clicks for a fifth, then hold the key to hear it.
 - **Resonator (7th key)** with the crusher or the shifter latched: the ringing goes through them on
   every pass.
-- **Delay + reverb (the 11th and 12th keys):** turn up their knob 4, then tap them to throw echoes and
+- **Delay + reverb (the 12th and 13th keys):** turn up their knob 4, then tap them to throw echoes and
   tails onto single notes.
 - **Tape stop (10th key)** with the delay or reverb latched: hold it on a beat and the music
   winds down over half a bar while the tails ring on. Let go and it spins back up.
 
-The freezer, slicer, filter LFO, tape stop, delay and randomizer follow a tempo: the loop's while there is one, so
+The freezer, slicer, filter LFO, tape stop and delay follow a tempo: the loop's while there is one, so
 they lock to it; otherwise MIDI clock, or the last tempo (120 BPM at power-on). Hold SHIFT
 and tap LOOP three times or more to tap a tempo, or to tell FRIZZ how many beats a loop has.
 See [Tempo](MANUAL.md#tempo).

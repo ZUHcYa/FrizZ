@@ -88,32 +88,21 @@ each end of the ratio and the amount (within 0.2 dB, the soft knee too), the att
 release slowing from fast to slow speed, and the linked stereo. Then the whole engine with
 everything up and a full-scale square starting from silence, so the outputs must stay within
 1.0 through the safety limiter. Last, the settings file (`MasterSettings.h`): it round-trips,
-grid points come back exactly, and foreign, unknown or partial files are read sensibly, the
-randomizer's line too, and a file from before it keeps its knobs on their defaults. It
-doesn't touch the card or the play page.
+grid points come back exactly, and foreign, unknown or partial files are read sensibly; the
+mono line round-trips, a file without it reads as stereo, and the line of the removed
+randomizer is skipped and not written again. It doesn't touch the card or the play page.
 
-## Randomizer check
+## Level check
 
 ```bash
-./unit.sh randomizer
+./unit.sh level
 ```
 
-Runs `FxRandomizer.h` on a 120 BPM clock: every pattern fires exactly its gates at chance 1,
-none at chance 0 and about half at .5; the pulse width sets the gate's length (20 ms at
-least), the shift delays every gate alike. Over 40 bars of 16ths, each gate picks 1-5
-effects, never a send or the freezer, never one whose key is on and never one the gate
-before had, still fading out. Then `FxChain.h` around it: a gate's effects are the randomizer's, a key coming
-on takes its effect back at the next block, and once a closed gate's effects have faded out
-they're the user's again. Turned on again mid-bar, it fires at once on a gate's 16th, and a
-gate that was waiting out the shift when it went off doesn't fire later. Its level guard
-(`LevelGuard`): untouched bit for bit while the randomizer has nothing, an output 12 dB over its
-input held to +3 dB, a quieter one never turned up, back to exactly unity after the gate; and
-through the chain, a -12 dBFS sine under the densest pattern for 32 bars never comes out more
-than 3 dB (+1 dB for the attack) over its input in any 16th (it prints the loudest; about
-+19 dB without the guard). The crusher's own guard: with XOR at full, a sine at
+The level guard (`LevelGuard`, `FxCommon.h`) on its own: untouched bit for bit while
+inactive, an output 12 dB over its input held to +3 dB, a quieter one never turned up, back
+to exactly unity once inactive. Then the crusher's guard: with XOR at full, a sine at
 -40 dBFS comes out no louder than it went in (+22 dB without the guard), and one at -6 dBFS
-no louder but still there. It doesn't check that the effects' knobs land at once
-(`SnapParams`), nor what a gate sounds like.
+no louder but still there.
 
 ## Play page, looper and tempo checks
 
@@ -128,8 +117,7 @@ no louder but still there. It doesn't check that the effects' knobs land at once
 engine that records what it's sent: holding and latching in either order, fine, stepped and
 coarse knob turns, SHIFT + press, and the scene save / copy / delete / recall flow, including
 that a recall sends only what changes, and what a scene morph does with each effect, its
-taps and stopping it; the compressor's key and knobs, which a recall leaves alone; and the
-randomizer's key, held, latched and selected as an FX key is, which scenes leave alone. `unit.sh keys` runs the CHOMPI, PLAY and LOOP keys (`PlayKeys.h`) against a
+taps and stopping it; and the compressor's key and knobs, which a recall leaves alone. `unit.sh keys` runs the CHOMPI, PLAY and LOOP keys (`PlayKeys.h`) against a
 fake host: the confirm tap, SHIFT combos, the looper's combos and the erase hold, and that a
 release without its press does nothing. `unit.sh looper` runs `Looper.h` without MIDI clock: a free
 recording plays back frame for frame at its length, play / pause, erase, the speed ladder, and

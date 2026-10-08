@@ -108,9 +108,8 @@ class FxBase
 public:
     virtual void SetOn(bool on) { gate_.SetOn(on); }
     virtual void SetParam(size_t param, float val) = 0;
-    /** The slewed parameters jump to their targets. The randomizer (FxRandomizer.h) sets an
-     *  effect's knobs while it's silent, just before its gate opens: a gate is shorter than
-     *  the knobs' slew. An effect without slewed parameters has nothing to do */
+    /** The slewed parameters jump to their targets, at Init. An effect without slewed
+     *  parameters has nothing to do */
     virtual void SnapParams() {}
 
 protected:
@@ -251,7 +250,7 @@ struct StereoRing
  *  back to unity once inactive. No lookahead, so no latency: a sudden jump gets through for
  *  the first 1-2ms, which the safety limiter (limiter.h) keeps below full scale. Its followers
  *  are on the power, linked stereo, both alike so their ratio is the gain the effect adds.
- *  The randomizer's gates (FxChain.h, +3dB) and the crusher (0dB) use one. */
+ *  The crusher uses one, at 0dB. */
 struct LevelGuard
 {
     static constexpr float kEnvFloor = 1e-7f; // -70dB: a buzz or ring on silence is held down too

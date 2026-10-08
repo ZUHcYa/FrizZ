@@ -74,7 +74,7 @@ don't normally rebuild them. If you change a library, run `make` in `code/libs/l
 cd firmware/test
 ./all.sh          # everything, one line each
 ./check.sh        # engine at HEAD vs the working tree: a refactor must print "bit-identical"
-./unit.sh tempo   # one unit check: comp, controls, keys, looper, pitch, randomizer, scenes,
+./unit.sh tempo   # one unit check: comp, controls, keys, level, looper, pitch, scenes,
                   # tape or tempo (each NAME.cpp)
 ```
 
@@ -117,8 +117,8 @@ FxChain.h              the punch-in effects in their processing order, with a le
 FxParams.h             each effect's knobs: how many, defaults, steps, coarse grids; the compressor's too
 FxSlots.h              each effect's key, LED and colours; the compressor's key
 MasterComp.h           the master compressor: amount, ratio, speed, mix, stereo-linked
-MasterSettings.h       what's kept on the card outside the scenes (the compressor's and the randomizer's
-                       knobs), and its file format
+MasterSettings.h       what's kept on the card outside the scenes (the compressor's knobs and the
+                       mono input), and its file format
 SceneStore.h           the card: /FRIZZ, the scene file and the master file, written from MainLoop
 FxScenes.h             the FX scenes and their file format
 FxControls.h           the FX keys and knobs: latches, fine / stepped / coarse turns, scene snapshot and recall;
@@ -129,8 +129,7 @@ PlayKeys.h             the CHOMPI, PLAY and LOOP keys: SHIFT, the confirm tap, t
 FxCommon.h             what the effects share: the key's fade, smoothed settings, the base class,
                        tone lowpass, press envelope, stereo delay line
 Fx*.h                  one effect each: Freezer, Shifter, Folder, Crusher, Filter, Flanger,
-                       Resonator, Slicer, Warble (wow & flutter), TapeStop, Delay, Reverb;
-                       FxRandomizer.h plays them on gate patterns
+                       Resonator, Slicer, Warble (wow & flutter), TapeStop, Delay, Reverb
 LICENSE-kastle2        the MIT license of the effects ported from Bastl's Kastle 2 FX Wizard
 LedColors.h            the LED colours
 DJFilter.h, BasicMMF.h WAVE's DJ filter
@@ -159,7 +158,7 @@ chompi_sram.lds        linker script (the firmware runs from SRAM, placed there 
 - **No file I/O and no blocking calls in the audio callback.** FRIZZ reads the SD card once at
   boot (the FX scenes and the compressor's settings, after changing into `/FRIZZ`, which it
   creates on a new card) and writes it only from `MainLoop`, when a scene is saved, copied or
-  deleted, or 2 s after the compressor's or the randomizer's knobs were last turned
+  deleted, or 2 s after the compressor's knobs or the mono input were last changed
   (`SceneStore.h`).
 - Large buffers (the loop, the delay, the freezer, the tape stop) live in SDRAM (`DSY_SDRAM_BSS`) and are
   cleared at boot.

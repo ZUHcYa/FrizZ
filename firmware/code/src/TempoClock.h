@@ -1,6 +1,6 @@
 /** @file TempoClock.h
  *  @brief The tempo and clock pulses for what follows it: the delay, the filter LFO, the
- *  freezer, the slicer, the tape stop, the randomizer and the scene morph. Three sources, in this order:
+ *  freezer, the slicer, the tape stop and the scene morph. Three sources, in this order:
  *
  *  1. A loop (SetLoop): while one exists, it is the clock, whether MIDI clock runs or not.
  *     The loop holds a whole number of beats, and the pulses come from its play position, so

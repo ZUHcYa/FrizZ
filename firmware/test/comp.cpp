@@ -232,19 +232,13 @@ static void TestFile()
           "file: an empty one, every default");
     Check(FormatMaster(a, buf, 20) == 0, "file: one that doesn't fit isn't written");
 
-    // the randomizer's knobs, on a line of their own
-    a.Reset();
-    a.rand[0] = 15.f / 16.f;
-    a.rand[3] = .3f;
-    FormatMaster(a, buf, sizeof(buf));
-    same = ParseMaster(buf, b);
-    for (size_t p = 0; p < kNumFxParams; p++)
-        same = same && fabsf(a.rand[p] - b.rand[p]) < 1e-6f && fabsf(a.comp[p] - b.comp[p]) < 1e-6f;
-    Check(same, "file: the randomizer's knobs round-trip");
-    Check(ParseMaster("FRIZZ master 1\ncompressor 500000 500000 500000 500000\n", b) &&
-              b.comp[0] == .5f && b.rand[0] == kRandParams.defaults[0] &&
-              b.rand[2] == kRandParams.defaults[2],
-          "file: one from before the randomizer, its knobs on their defaults");
+    // a file from when there was a randomizer: its line is skipped and not written again
+    Check(ParseMaster("FRIZZ master 1\ncompressor 500000 500000 500000 500000\n"
+                      "randomizer 125000 500000 1000000 0\nmono 1\n", b) &&
+              b.comp[0] == .5f && b.mono,
+          "file: one with the randomizer's line, the rest read");
+    FormatMaster(b, buf, sizeof(buf));
+    Check(!strstr(buf, "randomizer"), "file: the randomizer's line isn't written again");
 
     // the mono input switch, on a line of its own
     a.Reset();

@@ -99,7 +99,7 @@ public:
         *r += gate * (wet[1] * match - *r);
     }
 
-    /** The parameters land at once, no slew: the randomizer's gates (FxRandomizer.h) */
+    /** The parameters land at once, no slew: at Init */
     void SnapParams() override
     {
         drive_.Snap();

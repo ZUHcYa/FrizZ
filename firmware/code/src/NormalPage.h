@@ -22,9 +22,6 @@
  *  always on, so the key does nothing else. Its knobs go to the card (SceneStore's master
  *  file) kMasterSaveDelayMs after the last turn, so a sweep is one write.
  *
- *  The randomizer's key (kRandKey) is held, latched and selected as an FX key is; its knobs
- *  go to the master file as the compressor's do. An effect a random gate has on lights as if
- *  its key were on.
  *
  *  Scenes: a recall sends only the parameters that change, within one audio block and at the
  *  fast slew (FxChain::FastSlew), so an FX the two scenes share runs on untouched. SHIFT +
@@ -89,7 +86,6 @@ namespace chompi
     static const float kFxMeterFloorDb = -30.f; // the meters' range, up to 0 dBFS
     static const float kFxWhiteMax = .8f;     // on: how far the loudest audio pushes to white
     static const float kCompMeterDb = 12.f;   // the compressor key's full brightness, dB reduced
-    static const float kRandOnLevel = .5f;    // the randomizer's key while on, between gates
     static const uint32_t kMasterSaveDelayMs = 2000;
     static const uint32_t kMasterSaveTries = 3; // a failed write is tried again, this often
 
@@ -143,14 +139,10 @@ namespace chompi
             engine_->SetHeadphoneCue(hp_cue_);
 
             fx_.Init(engine_);
-            // the compressor's and the randomizer's knobs as they were left, from the card
+            // the compressor's knobs as they were left, from the card
             for (size_t p = 0; p < kNumFxParams; p++)
-            {
                 fx_.SetComp(p, scenes_->master.comp[p]);
-                fx_.SetRand(p, scenes_->master.rand[p]);
-            }
             fx_.TakeCompChanged();
-            fx_.TakeRandChanged();
             // and the mono input switch
             mono_ = scenes_->master.mono;
             engine_->SetMonoInput(mono_);
@@ -264,13 +256,6 @@ namespace chompi
                     FxKeyDown(true);
                     fx_.CompKeyPressed(Shift());
                 }
-                return true;
-            }
-            if (buttonID == static_cast<uint16_t>(kRandKey))
-            {
-                if (rising)
-                    FxKeyDown(Shift());
-                fx_.KeyPressed(kRandSelected, rising, Shift());
                 return true;
             }
             for (size_t fx = 0; fx < kNumFx; fx++)
@@ -407,7 +392,7 @@ namespace chompi
         inline void CancelErase() { engine_->looper.CancelErase(); }
         inline bool ErasePending() const { return engine_->looper.IsErasePending(); }
 
-        /** An FX, compressor or randomizer key going down: tells PlayKeys, and flashes the
+        /** An FX or the compressor's key going down: tells PlayKeys, and flashes the
          *  key white for a select */
         void FxKeyDown(bool flash)
         {
@@ -450,9 +435,7 @@ namespace chompi
             }
 
             // the compressor's knobs to the card, once they've been left alone a while
-            // and the randomizer's, into the same file
-            const bool comp_changed = fx_.TakeCompChanged();
-            if (fx_.TakeRandChanged() || comp_changed)
+            if (fx_.TakeCompChanged())
             {
                 master_unsaved_ = true;
                 master_changed_at_ = now;
@@ -471,10 +454,7 @@ namespace chompi
             if (master_unsaved_ && now - master_changed_at_ > kMasterSaveDelayMs)
             {
                 for (size_t p = 0; p < kNumFxParams; p++)
-                {
                     scenes_->master.comp[p] = fx_.CompParam(p);
-                    scenes_->master.rand[p] = fx_.RandParam(p);
-                }
                 scenes_->master.mono = mono_;
                 scenes_->RequestMasterSave();
                 master_unsaved_ = false;
@@ -640,14 +620,10 @@ namespace chompi
 
         void DrawFxLeds(uint32_t now)
         {
-            // knob LEDs: the selected FX's parameters in its colours, or the compressor's or
-            // the randomizer's
+            // knob LEDs: the selected FX's parameters in its colours, or the compressor's
             const size_t selected = fx_.Selected();
             const bool comp = selected == kCompSelected;
-            const bool rand = selected == kRandSelected;
-            const float* const* colors = comp   ? kCompKnobColors
-                                         : rand ? kRandKnobColors
-                                                : kFxSlots[selected].knob_colors;
+            const float* const* colors = comp ? kCompKnobColors : kFxSlots[selected].knob_colors;
             const FxParams& knobs = fx_.Knobs();
             for (size_t p = 0; p < kNumFxParams; p++)
             {
@@ -669,7 +645,7 @@ namespace chompi
                 const float meter = fclamp(1.f - db / kFxMeterFloorDb, 0.f, 1.f);
                 float level = kFxOffLevel;
                 float whiten = 0.f; // how far towards white
-                if (fx_.IsOn(fx) || engine_->GetFxRandomOn(fx))
+                if (fx_.IsOn(fx))
                 {
                     level = 1.f;
                     // squared, so normal levels stay coloured and the peaks flash white
@@ -698,27 +674,6 @@ namespace chompi
                 SmtLed(kCompKeyLed, red, master_refused_.BlinkLit(now) ? 1.f : 0.f);
             else
                 SmtLed(kCompKeyLed, white, level);
-
-            // the randomizer's key: dim white while on, a gate open in the colour of an effect
-            // it fired; a select flashes white
-            const float* rand_color = white;
-            float rand_level = kFxOffLevel;
-            if (fx_.IsOn(kRandSelected))
-            {
-                rand_level = kRandOnLevel;
-                const size_t pick = engine_->RandomizerPick();
-                if (engine_->GetFxRandomOn(pick))
-                {
-                    rand_color = kFxSlots[pick].key_color;
-                    rand_level = 1.f;
-                }
-            }
-            if (rand && select_flash_.Active(now))
-            {
-                rand_color = white;
-                rand_level = 1.f;
-            }
-            SmtLed(kRandKeyLed, rand_color, rand_level);
         }
 
         void DrawLooperLeds(uint32_t now)
@@ -859,7 +814,7 @@ namespace chompi
         float speed_chunk_ = 0.f;   // transport detents towards the next speed step
         bool mono_ = false;          // the AUX input in mono (VOLUME's page 3)
         float mono_chunk_ = 0.f;     // page 3's detents towards a switch
-        bool master_unsaved_ = false;     // the compressor's or randomizer's knobs or mono,
+        bool master_unsaved_ = false;     // the compressor's knobs or mono,
                                           // not yet on the card
         uint32_t master_changed_at_ = 0;  // when they last changed
         uint32_t master_tries_ = 0;       // failed writes since
