@@ -9,4 +9,5 @@
 #include "hid/switch.h"
 #include "hid/midi.h"
 #include "ui/UI.h"
+#include "util/CpuLoadMeter.h"
 #include "periph.h"

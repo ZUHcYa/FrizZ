@@ -9,7 +9,8 @@
 # them, so every include resolves inside it.
 #
 # TWIN_FIRMWARE=DIR builds another firmware (a code/src from another commit, as compare.sh
-# does) and TWIN_BUILD=DIR builds into DIR instead of build/.
+# does), TWIN_BUILD=DIR builds into DIR instead of build/, and TWIN_DEFINES adds compiler
+# flags (-DFRIZZ_BENCH=1 for the CPU bench's firmware).
 source "$(dirname "$0")/../test/lib.sh"   # T, REPO, INC (DaisySP), the host DaisySP
 TW=$REPO/firmware/twin
 B=${TWIN_BUILD:-$TW/build}
@@ -24,7 +25,7 @@ stage()
     mkdir -p "$TREE.new/lib" "$TREE.new/src"
     for f in ui/UI.h ui/UI.cpp ui/UiEventQueue.h util/FIFO.h util/Stack.h util/ringbuffer.h \
              dev/sr_4021.h hid/switch.h hid/switch.cpp hid/midi.h hid/midi.cpp \
-             hid/midi_parser.h hid/midi_parser.cpp hid/MidiEvent.h; do
+             hid/midi_parser.h hid/midi_parser.cpp hid/MidiEvent.h util/CpuLoadMeter.h; do
         mkdir -p "$TREE.new/lib/$(dirname "$f")"
         cp "$LIBDAISY/$f" "$TREE.new/lib/$f"
     done
@@ -35,7 +36,7 @@ stage()
 }
 
 stage
-SRCS="src/twin.cpp src/encoder.cpp lib/ui/UI.cpp lib/hid/switch.cpp lib/hid/midi.cpp lib/hid/midi_parser.cpp"
+SRCS="src/twin.cpp src/script.cpp src/encoder.cpp lib/ui/UI.cpp lib/hid/switch.cpp lib/hid/midi.cpp lib/hid/midi_parser.cpp"
 
 if [ "$1" = wasm ]; then
     command -v em++ > /dev/null || source ~/opt/emsdk/emsdk_env.sh > /dev/null 2>&1 \
@@ -76,7 +77,7 @@ if [ "$1" = wasm ]; then
     exit 0
 fi
 
-FLAGS="-O2 -g -std=gnu++14 -I$TREE/lib -I$TREE/src $INC"
+FLAGS="-O2 -g -std=gnu++14 $TWIN_DEFINES -I$TREE/lib -I$TREE/src $INC"
 STAMP=$( (g++ --version; echo "$FLAGS"; find "$TREE.new" -type f | sort | xargs cat) | md5sum | cut -d' ' -f1)
 if [ -f "$B/frizz-twin" ] && [ "$(cat "$B/twin.stamp" 2>/dev/null)" = "$STAMP" ]; then
     rm -rf "$TREE.new"
@@ -92,7 +93,7 @@ for f in $SRCS; do
     g++ $FLAGS -w -c "$TREE/$f" -o "$B/obj/$(basename "$f" .cpp).o" &
 done
 wait
-for f in twin encoder UI switch midi midi_parser; do
+for f in twin script encoder UI switch midi midi_parser; do
     [ -f "$B/obj/$f.o" ] || { echo "the twin didn't build"; exit 1; }
 done
 rm -f "$B/libtwin.a"

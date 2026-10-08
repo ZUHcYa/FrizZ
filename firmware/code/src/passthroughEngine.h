@@ -207,6 +207,8 @@ public:
     inline uint32_t FxClockPosition() const { return tempo_clock_.Position(); }
     /** 0..1, for the FX key LEDs: an insert's output, a send's return */
     inline float GetFxLevel(size_t fx) { return fx_.GetLevel(fx); }
+    /** Off and costing no more than off (FxChain::Resting): for the CPU bench */
+    inline bool FxResting(size_t fx) const { return fx_.Resting(fx); }
 
     inline float GetVUSample() { return output_env_follower.GetLastSamp(); }
 

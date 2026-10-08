@@ -30,8 +30,10 @@ let recording = null;
 let log = [];
 let logStart = 0;
 
-// a script being played back: lines with the time they're due
+// a script being played back: lines with the time they're due, from power-on or, after its
+// `booted` line (a bug report, EventLog.h), from when the firmware's main loop started
 let script = [];
+let bootedAt = -1;
 
 let lastLeds = '';
 let lastCard = '';
@@ -85,27 +87,36 @@ function Apply(cmd, args, fromScript)
         Log([cmd, ...args].join(' '));
 }
 
-/** A script (the command line twin's format): its timed commands, from power-on */
+/** A script (the command line twin's format): its timed commands, from power-on, and the
+ *  files its `card file` blocks put on the card */
 function ParseScript(text)
 {
-    const out = [];
-    let t = 0;
+    const out = [], card = {};
+    let t = 0, booted = false, file = null;
     for (const raw of text.split('\n'))
     {
+        if (file !== null && raw.startsWith('|'))
+        {
+            card[file] += raw.slice(1) + '\n';
+            continue;
+        }
+        file = null;
         const words = raw.replace(/#.*/, '').trim().split(/\s+/).filter(Boolean);
         if (words.length === 0) continue;
         const [cmd, ...args] = words;
-        if (cmd === 'wait') t += +args[0];
+        if (cmd === 'card' && args[0] === 'file') card[file = args[1]] = '';
+        else if (cmd === 'booted') { booted = true; t = 0; }
+        else if (cmd === 'wait') t += +args[0];
         else if (cmd === 'at') t = Math.max(t, +args[0]);
         else if (cmd === 'tap')
         {
-            out.push({ t, cmd: 'down', args: [args[0]] });
+            out.push({ t, cmd: 'down', args: [args[0]], booted });
             t += args[1] ? +args[1] : 60;
-            out.push({ t, cmd: 'up', args: [args[0]] });
+            out.push({ t, cmd: 'up', args: [args[0]], booted });
         }
-        else out.push({ t, cmd, args });
+        else out.push({ t, cmd, args, booted });
     }
-    return out;
+    return { items: out, card };
 }
 
 function FillInput(inp)
@@ -146,7 +157,9 @@ function Produce()
 {
     const inp = m._twin_in() >> 2, outp = m._twin_out() >> 2;
     const now = m._twin_now_ms();
-    while (script.length && script[0].t <= now)
+    if (bootedAt < 0 && m._twin_main_loop_running()) bootedAt = now;
+    while (script.length && script[0].t + (script[0].booted ? bootedAt : 0) <= now
+           && !(script[0].booted && bootedAt < 0))
     {
         const s = script.shift();
         Apply(s.cmd, s.args, true);
@@ -242,8 +255,11 @@ onmessage = async (e) => {
     if (d.start)
     {
         m = await FrizzTwin({ locateFile: (f) => 'build/' + f });
-        for (const [path, text] of Object.entries(d.card || {})) m._twin_card_put(str(path), str(text));
-        if (d.script) script = ParseScript(d.script);
+        const parsed = d.script ? ParseScript(d.script) : { items: [], card: {} };
+        // a script's own card files over the page's
+        for (const [path, text] of Object.entries({ ...(d.card || {}), ...parsed.card }))
+            m._twin_card_put(str(path), str(text));
+        script = parsed.items;
         // a script plays from power-on: its own keys and inputs only
         for (const k of d.script ? [] : d.held || []) m._twin_press(str(k), 1);
         if (d.toggle !== undefined) m._twin_toggle(d.toggle);

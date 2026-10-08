@@ -11,14 +11,24 @@
  *  precise as the audio block (24 samples = 0.5ms) plus the transport's own latency.
  *
  *  The UART/USB setup is from WAVE's MidiManager.h. See LOOPER.md 1.4.
+ *
+ *  One other message is read: the SysEx F0 7D 43 48 10 F7 asks for a restart, so a computer
+ *  can get the CHOMPI back to the multi-firmware launcher without the power switch
+ *  (firmware/flash.py). The header is the launcher's (7D, non-commercial, then "CH";
+ *  github.com/sfaber02/CHOMPI, firmware/chompi-launcher/PROTOCOL.md); 10 is FRIZZ's own
+ *  command, above the launcher's 01-04. MainLoop does the restart (chompi_main.cpp).
  */
 #pragma once
+#include <string.h>
 #include "daisy.h"
 
 using namespace daisy;
 
 namespace chompi
 {
+
+// a restart, after the F0: the launcher's header, FRIZZ's command
+static const uint8_t kRestartSysEx[] = {0x7D, 0x43, 0x48, 0x10};
 
 static const uint32_t kTicksPerBeat = 24;
 static const uint32_t kBeatsPerBar = 4;                 // 4/4 fixed
@@ -97,9 +107,19 @@ public:
         return period_ > 0.f ? sample_rate_ * 60.f / (period_ * kTicksPerBeat) : 0.f;
     }
 
+    /** True once a restart was asked for over MIDI, from either input */
+    inline bool RestartRequested() const { return restart_; }
+
 private:
     void HandleEvent(const MidiEvent& event, Source from, uint32_t now)
     {
+        if (event.type == SystemCommon && event.sc_type == SystemExclusive)
+        {
+            restart_ = restart_
+                       || (event.sysex_message_len == sizeof(kRestartSysEx)
+                           && memcmp(event.sysex_data, kRestartSysEx, sizeof(kRestartSysEx)) == 0);
+            return;
+        }
         if (event.type != SystemRealTime || event.srt_type != TimingClock)
             return;
 
@@ -134,6 +154,7 @@ private:
     uint32_t locks_;
     uint32_t last_tick_;
     float period_;
+    volatile bool restart_ = false;
 };
 
 } // namespace chompi

@@ -12,6 +12,7 @@
 #include "BootPage.h"
 #include "RainbowWavePage.h"
 #include "passthroughEngine.h"
+#include "EventLog.h"
 
 namespace chompi
 {
@@ -26,9 +27,10 @@ namespace chompi
     class UserInterface
     {
     public:
-        void Init(PassthroughEngine *engine, Hardware *hw, SceneStore *scenes)
+        void Init(PassthroughEngine *engine, Hardware *hw, SceneStore *scenes, EventLog *log)
         {
             hw_ = hw;
+            log_ = log;
 
             /** Describe UI special controls - if any */
             daisy::UI::SpecialControlIds specialControlIds; /**< None here */
@@ -46,7 +48,7 @@ namespace chompi
                     {ledDisplayDescriptor},
                     canvasLedDisplay);
 
-            normal_page_.Init(engine, hw_, scenes);
+            normal_page_.Init(engine, hw_, scenes, log);
             ui.OpenPage(normal_page_);
 
             boot_page_.Init();
@@ -65,7 +67,7 @@ namespace chompi
         }
 
         // Translates raw debounced hardware state into daisy::UiEventQueue events
-        // for whatever page is active.
+        // for whatever page is active, and logs each for a bug report (EventLog.h)
         void GenerateEvents()
         {
             for (int i = 0; i < static_cast<int>(Hardware::SwId::SR_LAST); i++)
@@ -75,15 +77,16 @@ namespace chompi
                 if (i == ENC_5_SW || i == static_cast<int>(Hardware::SwId::SW_TOG))
                     continue;
                 else if (hw_->button_sr.FallingEdge(i))
-                    event_queue.AddButtonReleased(i);
+                    Released(i);
                 else if (hw_->button_sr.RisingEdge(i))
-                    event_queue.AddButtonPressed(i, 1);
+                    Pressed(i);
             }
 
             if (hw_->enc[4].FallingEdge())
-                event_queue.AddButtonReleased(ENC_5_SW);
+                Released(ENC_5_SW);
             else if (hw_->enc[4].RisingEdge())
-                event_queue.AddButtonPressed(ENC_5_SW, 1);
+                Pressed(ENC_5_SW);
+            log_->Toggle(hw_->GetToggleState());
 
             // encoder_map remaps the encoders' wiring order to the knobs' order; one event per
             // detent
@@ -91,7 +94,10 @@ namespace chompi
             {
                 int inc = hw_->enc[i].Increment();
                 if (inc == 1 || inc == -1)
+                {
                     event_queue.AddEncoderTurned(encoder_map[i], inc, 0);
+                    log_->Add(EventLog::TURN, i + 1, inc);
+                }
             }
         }
 
@@ -110,12 +116,24 @@ namespace chompi
         }
 
     private:
+        void Pressed(int key)
+        {
+            event_queue.AddButtonPressed(key, 1);
+            log_->Add(EventLog::KEY, key, 1);
+        }
+        void Released(int key)
+        {
+            event_queue.AddButtonReleased(key);
+            log_->Add(EventLog::KEY, key, 0);
+        }
+
         BootPage boot_page_;
         NormalPage normal_page_;
         RainbowPage rainbow_page_;
         daisy::UiEventQueue event_queue;
         daisy::UI ui;
         Hardware *hw_;
+        EventLog *log_;
     };
 
 } // namespace chompi

@@ -2,6 +2,7 @@
 // taken out (card.present), filled and read back (card.files, keyed by full path), and made to
 // refuse writes (card.read_only).
 #pragma once
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -137,9 +138,24 @@ inline FRESULT f_read(FIL* f, void* buf, UINT n, UINT* read)
     *read = static_cast<UINT>(len);
     return FR_OK;
 }
+// FatFs passes the whole sectors of a write straight from the caller's buffer to the SD
+// card's DMA, which on the device reads from a word-aligned address: from a buffer that isn't
+// word-aligned there, the sectors come out shifted, bytes repeated at their start and lost at
+// their end (a bug report's file, 2026-10-08). The card here does the same, so the checks
+// see it. Only the part before the first sector boundary and after the last goes through
+// FatFs's own buffer, untouched
+static const size_t kSectorSize = 512;
 inline FRESULT f_write(FIL* f, const void* buf, UINT n, UINT* written)
 {
-    FakeCard::Get().files[f->path].append(static_cast<const char*>(buf), n);
+    const char* src = static_cast<const char*>(buf);
+    std::string& file = FakeCard::Get().files[f->path];
+    const size_t head = std::min<size_t>(n, (kSectorSize - f->fptr % kSectorSize) % kSectorSize);
+    const size_t whole = (n - head) / kSectorSize * kSectorSize;
+    file.append(src, head);
+    const size_t shift = reinterpret_cast<uintptr_t>(src + head) % 4;
+    for (size_t i = 0; i < whole; i++)
+        file.push_back(head + i >= shift ? src[head + i - shift] : '\0');
+    file.append(src + head + whole, n - head - whole);
     f->fptr += n;
     *written = n;
     return FR_OK;

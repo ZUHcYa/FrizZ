@@ -92,7 +92,8 @@ Transport knob (the big purple one), once a loop exists:
 | Turn while playing | Speed in 5ths and octaves, 2× down to 1/16×, then reverse back up to −2× (4 detents per step) |
 | Turn while paused | Scrub |
 | Press | Back to 1× forward |
-| SHIFT + turn or press | Nothing |
+| SHIFT + turn | Nothing |
+| SHIFT + press | Writes a [bug report](#bug-reports) |
 
 LEDs: LOOP is red while recording and blinks while a quantized recording finishes its bar or
 an erase waits for the loop's end, at the slow blink everything waiting uses (a picked scene
@@ -565,6 +566,23 @@ Quantized recording, and the effects' tempo while there's no loop, follow MIDI c
 (24 PPQN) from the TRS MIDI input or USB. CHOMPI is a
 USB device, so USB clock comes from a computer or a host. Whichever source ticks first is
 used, until it has been silent for 0.5 s. Only clock is read; there's no MIDI out.
+
+## Bug reports
+
+SHIFT + press the transport knob writes everything you did since switching on to the card,
+as `/FRIZZ/bug-1.txt` (the next one `bug-2.txt`, and so on): every key, knob detent and
+mode-switch flip with its time, the MIDI clock's tempo, and the scenes and compressor the card
+held at power-on. Do it right after something went wrong and send the file with your report:
+FRIZZ's developers play it on a virtual CHOMPI on their computer, which then does what yours
+did, key for key.
+
+- While it's written, both transport LEDs blink white; then they blink 3 times, white when
+  it's on the card, red when it isn't (no card, or a full one). A long session takes a moment,
+  and the keys answer late until it's done; the sound plays on.
+- It doesn't hold the audio you played in, so a problem that depends on the sound itself
+  needs a description too. It holds about 260,000 events, hours of playing; a session longer
+  than that is cut off at the end.
+- It doesn't send anything anywhere and costs nothing while you play.
 
 ## Power and battery
 

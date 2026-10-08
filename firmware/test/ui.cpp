@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 #include "check.h"
+#include "script.h"
 #include "twin.h"
 
 using namespace twin;
@@ -603,6 +604,170 @@ int main()
         Check(SavedLatch(Card("/FRIZZ/frizz_scenes.txt"), 2, "shifter") == 1, "card: and frizz_scenes.txt has the new one");
     }});
 
+    // a restart over MIDI (MidiClock.h), for the launcher: only on FRIZZ's own SysEx
+    cases.push_back({"restart", [] {
+        RunMs(kReadyMs);
+        for (uint8_t b : {0xF0, 0x7D, 0x43, 0x48, 0x01, 0xF7}) // the launcher's PING
+            Midi(b);
+        for (uint8_t b : {0xF0, 0x7D, 0x43, 0x48, 0x10, 0x00, 0xF7}) // one byte too many
+            Midi(b);
+        RunMs(50);
+        Check(!Restarted(), "restart: other SysEx, the launcher's own too, don't restart FRIZZ");
+        for (uint8_t b : {0xF0, 0x7D, 0x43, 0x48, 0x10, 0xF7})
+            Midi(b);
+        RunMs(50);
+        Check(Restarted(), "restart: F0 7D 43 48 10 F7 restarts it (the chip's reset)");
+    }});
+
+    // the event log (EventLog.h): a session, SHIFT + transport press, its file on the card
+    cases.push_back({"bug-log", [] {
+        TakeCard(); // card-3's: scenes in slots 1 and 2
+        CardFiles().erase("/FRIZZ/frizz_scenes.bak");
+        CardFiles().erase("/FRIZZ/frizz_master.bak");
+        std::ofstream leds(card_file + ".leds");
+        auto run = [&](uint32_t ms) {
+            for (uint32_t t = 0; t < ms; t++)
+            {
+                RunMs(1);
+                leds << NowMs() << ' ' << LedLine() << '\n';
+            }
+        };
+        run(kReadyMs);
+        Latch("KEY_6");
+        Turn(4, 7);              // knob 1
+        Press("KEY_26", true);   // SHIFT + knob 1: coarse
+        run(20);
+        Turn(4, -3);
+        run(60);
+        Press("KEY_26", false);
+        run(200);
+        Tap("KEY_28");           // record
+        run(2000);
+        Tap("KEY_28");           // play
+        run(500);
+        Turn(5, 6);              // the transport: speed
+        run(500);
+        Tap("KEY_18");           // the card's scene in slot 2
+        run(400);
+        Save(3);                 // a change to the card after power-on
+        run(300);
+        Tap("KEY_6");
+        run(1000);
+        // a long sweep of knob 1: the file runs over several sectors, written in pieces
+        for (int i = 0; i < 6; i++)
+        {
+            Turn(4, i % 2 ? -60 : 60);
+            run(600);
+        }
+        run(500);
+        Press("KEY_26", true);
+        run(100);
+        const uint32_t combo = NowMs();
+        Press("ENC_5_SW", true);
+        leds << "# combo " << combo << '\n';
+        bool white = false;
+        for (int i = 0; i < 400; i++)
+        {
+            RunMs(1);
+            const Rgb rev = PthLedFull(kTransportRevLed), fwd = PthLedFull(kTransportFwdLed);
+            white |= std::min({rev.r, rev.g, rev.b, fwd.r, fwd.g, fwd.b}) > 200;
+        }
+        Press("ENC_5_SW", false);
+        Press("KEY_26", false);
+        RunMs(1000);
+        const std::string log = Card("/FRIZZ/bug-1.txt");
+        // the card goes on as before: a save and the compressor land in /FRIZZ
+        const std::string scenes = Card("/FRIZZ/frizz_scenes.txt");
+        const std::string master = Card("/FRIZZ/frizz_master.txt");
+        Save(4);
+        Tap("KEY_15");
+        Turn(4, 10);
+        RunMs(3000);
+        Check(Card("/FRIZZ/frizz_scenes.txt") != scenes && Card("/FRIZZ/frizz_master.txt") != master
+                  && Card("/frizz_scenes.txt").empty() && Card("/frizz_master.txt").empty(),
+              "bug log: saves after it still go to /FRIZZ");
+        Check(log.rfind("# FRIZZ event log 1:", 0) == 0 && log.find("# written here") != std::string::npos,
+              "bug log: SHIFT + transport press writes /FRIZZ/bug-1.txt");
+        Check(white, "bug log: and the transport LEDs blink white");
+        Check(log.find("card file /FRIZZ/frizz_scenes.txt\n|") != std::string::npos
+                  && log.find("|scene 3") == std::string::npos,
+              "bug log: with the card's scenes as they were at power-on, not as saved since");
+        Check(log.find("\nturn 5 1\n") != std::string::npos && log.find("\nup KEY_28\n") != std::string::npos,
+              "bug log: and the session's keys and knobs");
+        // every line one the twin reads, over all its sectors
+        std::istringstream lines(log);
+        std::string line;
+        int bad = 0;
+        while (std::getline(lines, line))
+            bad += !(line.empty() || line[0] == '#' || line[0] == '|' || line.rfind("at ", 0) == 0
+                     || line.rfind("down ", 0) == 0 || line.rfind("up ", 0) == 0
+                     || line.rfind("turn ", 0) == 0 || line.rfind("card file ", 0) == 0
+                     || line.rfind("toggle ", 0) == 0 || line.rfind("input ", 0) == 0
+                     || line == "booted");
+        Check(log.size() > 3 * 512 && bad == 0,
+              "bug log: a file of several sectors comes out whole (the SD DMA's alignment)");
+        KeepCard();
+    }});
+
+    // the log played back on a fresh twin: the same LEDs every ms up to the combo, and the
+    // same log written at the end
+    cases.push_back({"bug-replay", [] {
+        TakeCard();
+        const std::string log = Card("/FRIZZ/bug-1.txt");
+        CardFiles().clear(); // the card is what the log says
+        FILE* leds = tmpfile();
+        std::istringstream script(log + "\nwait 1000\n");
+        const int failed = PlayScript(script, leds, nullptr);
+        Check(failed == 0 && !log.empty(), "bug log: the twin plays it without a fault");
+
+        // the original, ms by ms, and the replay's changes
+        std::ifstream orig(card_file + ".leds");
+        std::map<uint32_t, std::string> want;
+        uint32_t combo = 0;
+        std::string line;
+        while (std::getline(orig, line))
+        {
+            if (line.rfind("# combo ", 0) == 0)
+                combo = std::stoul(line.substr(8));
+            else
+                want[std::stoul(line)] = line.substr(line.find(' ') + 1);
+        }
+        rewind(leds);
+        std::map<uint32_t, std::string> got_changes;
+        char buf[1024];
+        while (fgets(buf, sizeof(buf), leds))
+        {
+            std::string l(buf);
+            l.erase(l.find_last_not_of(" \n") + 1);
+            const size_t sp = l.find_first_not_of(' ');
+            const size_t end = l.find(' ', sp);
+            got_changes[std::stoul(l.substr(sp, end - sp))] = l.substr(l.find("pth"));
+        }
+        fclose(leds);
+        uint32_t differ = 0, first = 0;
+        std::string got;
+        auto next = got_changes.begin();
+        for (auto& w : want)
+        {
+            if (w.first >= combo)
+                break;
+            while (next != got_changes.end() && next->first <= w.first)
+                got = (next++)->second;
+            if (got != w.second && !differ++)
+                first = w.first;
+        }
+        if (differ)
+            printf("      %u ms differ, from %u ms\n", differ, first);
+        Check(combo > 0 && differ == 0, "bug log: played back, the LEDs are the session's, every ms up to the combo");
+
+        // and it ends at the same combo, so the replay writes the same events
+        const std::string again = Card("/FRIZZ/bug-1.txt");
+        auto events = [](const std::string& t) { return t.substr(t.find("booted\n")); };
+        Check(again.find("booted\n") != std::string::npos && events(again) == events(log),
+              "bug log: and the replay writes the same log again");
+        unlink((card_file + ".leds").c_str());
+    }});
+
     char card_name[] = "/tmp/frizz-ui-card-XXXXXX";
     const int card_fd = mkstemp(card_name);
     close(card_fd);
@@ -615,7 +780,9 @@ int main()
         const pid_t pid = fork();
         if (pid == 0)
         {
-            Boot();
+            // a replay boots by its script
+            if (strcmp(c.first, "bug-replay") != 0)
+                Boot();
             c.second();
             fflush(stdout);
             _exit(failures > 255 ? 255 : failures);

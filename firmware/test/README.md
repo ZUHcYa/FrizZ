@@ -1,17 +1,37 @@
-# FRIZZ engine harness
+# FRIZZ host checks
 
-The only automated check FRIZZ has off the device. It compiles FRIZZ's audio engine
-(`code/src/passthroughEngine.h` and everything it includes) with the host's `g++`, runs a fixed
-script of key presses and knob turns through it, and writes every output sample and FX meter
-to a file. Two versions of the engine can then be compared.
+Everything that can be checked about FRIZZ without a CHOMPI: the audio engine compiled with the
+host's `g++`, single parts of it, and the whole firmware on the virtual CHOMPI (`../twin/`).
+What you need installed, and how long a first run takes, is in the developer guide
+([`../README.md`](../README.md#3-test-on-the-host)): bash, `g++`, `python3` and git, no ARM
+toolchain.
 
 ```bash
-./all.sh                    # every check below, one line each; exits 0 when all pass
+./all.sh                    # every check, one line each; exits 0 when all pass
 ./unit.sh tempo             # one unit check (NAME.cpp)
-./check.sh                  # HEAD against the working tree
+./check.sh                  # the engine at HEAD against the working tree
 ./check.sh 9da090e 647185b  # any two git refs ("work" = the working tree)
 STRESS=1 ./run.sh work out.bin
 ```
+
+| Check | What it looks at |
+|---|---|
+| `check.sh` | the engine harness (below): every output sample and FX meter of a fixed script, two versions compared; a refactor must be `bit-identical` |
+| `pitch`, `tape`, `delay`, `comp`, `clicks`, `level`, `sleep` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up events, the master compressor, moves that used to click, the level guard (an effect no louder than its input), effects that are off costing no time |
+| `scenes`, `store` | the scene and master files and the card: formats, a late card, backups |
+| `controls`, `keys`, `looper`, `tempo` | the play page's logic classes on their own: FX keys and knobs, SHIFT and the confirm, the looper, the tempo clock |
+| `ui` | the whole firmware from power-on on the virtual CHOMPI: keys through the 4021s, LEDs, the card, bug reports; each case on a fresh device |
+| `bench` | the CPU bench's firmware on the twin: it runs through and writes its file (the loads themselves need the device) |
+
+`all.sh` takes about 1.5 minutes; the first run longer, as it builds DaisySP and the twin for the
+host (into `build/` here and `../twin/build/`, both ignored by git).
+
+## Engine harness
+
+`check.sh` compiles FRIZZ's audio engine (`code/src/passthroughEngine.h` and everything it
+includes) with the host's `g++`, runs a fixed script of key presses and knob turns through
+it, and writes every output sample and FX meter to a file. Two versions of the engine can
+then be compared.
 
 - **A change that shouldn't alter the sound** (a refactor, a rename): `check.sh` should print
   `bit-identical` and exit 0. Anything else means the sound changed.
@@ -221,12 +241,41 @@ And PR #7's hardware checklist, each of which fails on the firmware before it (`
   compressor; after a reboot both scenes are there; saving into a slot the card also has
   keeps its file as `frizz_scenes.bak`.
 
+And the bug report (`code/src/EventLog.h`): after a session (a latch, knob 1 with and without
+SHIFT, a loop recorded and sped up, a scene recalled and another saved), SHIFT + transport
+press writes `/FRIZZ/bug-1.txt` while the transport LEDs blink white, holding the card's
+scenes as at power-on (not the one saved since) and the session's keys and knobs, and the
+saves after it still go to `/FRIZZ` (writing it remounts the card), and a file of several
+sectors comes out whole: the card here shifts whole sectors written from an unaligned
+address, as the device's SD DMA does (found in the first report from a device). Played on a
+fresh twin (`script.h`), the LEDs are the session's every millisecond up to the combo, and the
+replay writes the same events again.
+
+And a restart over MIDI (`MidiClock.h`, for `flash.py`): FRIZZ's own SysEx resets the chip,
+the launcher's PING or a longer message doesn't.
+
 The flicker #7 fixed in the transport LED (a value just over 1 wrapping to dark) doesn't show
 on the twin before the fix either, so that check guards only what it can see.
 
 `../twin/ui-at.sh REF` runs these checks on another version's firmware: a new check should
 fail on the version before its fix. It can't see time on the chip: the CPU load, so not
 crackles either.
+
+## CPU bench check
+
+```bash
+./unit.sh bench
+```
+
+Runs the CPU bench's firmware (`FRIZZ-bench.bin`, `code/src/Bench.h`, built for the twin with
+`FRIZZ_BENCH`) on the virtual CHOMPI from power-on to its end: every segment ends up in
+`/FRIZZ/cpu.txt` in order with a max and a mean, nothing else still works in any segment (no
+tail: the bench waits for them; the delay asleep before the first), the 4 s loop plays in every
+loop segment, the worst is named, every segment's key is graded, the panel ends green, and the
+bench's tune reaches the output throughout. Without a card, the panel blinks red at the end. The
+loads are 0 there (no time passes on the twin while the callback runs): the numbers come from
+the device only. A check asks for a twin with defines of its own with a
+`// twin defines: ...` line, which builds it into `../twin/build/NAME`.
 
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample
 conversions), `MidiClock.h` (no clock, unless a test sets its fields, as `tempo.cpp`

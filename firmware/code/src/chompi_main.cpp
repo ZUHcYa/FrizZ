@@ -14,6 +14,10 @@
 #include "fatfs.h"
 #include "passthroughEngine.h"
 #include "SceneStore.h"
+#include "EventLog.h"
+#if FRIZZ_BENCH
+#include "Bench.h"
+#endif
 
 using namespace daisy;
 using namespace chompi;
@@ -30,6 +34,13 @@ FatFSInterface fsi;
 PassthroughEngine engine;
 MidiClock midi_clock;
 SceneStore scene_store;
+// every key, knob and clock change since power-on, for a bug report (SHIFT + transport press)
+EventLog event_log;
+EventLogMem DSY_SDRAM_BSS event_log_mem;
+#if FRIZZ_BENCH
+// FRIZZ-bench.bin (make BENCH=1): measures the audio callback's load (Bench.h)
+Bench bench;
+#endif
 
 int16_t DSY_SDRAM_BSS loop_mem[kLoopMemSize];
 
@@ -97,6 +108,9 @@ void ZeroSDRAM()
 // The audio ISR. Called by the Daisy audio driver once per block
 void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, size_t size)
 {
+#if FRIZZ_BENCH
+    bench.BlockStart();
+#endif
     midi_clock.Process(sample_clock);
     sample_clock += size;
 
@@ -119,7 +133,12 @@ void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, s
         return;
     }
 
+#if FRIZZ_BENCH
+    engine.Process(bench.Input(in, size), out, size);
+    bench.BlockEnd(engine);
+#else
     engine.Process(in, out, size);
+#endif
 }
 
 uint32_t uit, now, boot_start;
@@ -152,6 +171,18 @@ void MainLoop(void* data)
 
     // a scene saved, copied or deleted: the card is written here, never in the audio callback
     scene_store.Process();
+    // a bug report asked for: written a chunk per pass, also from MainLoop only
+    event_log.Process(now, midi_clock);
+
+    // a restart asked for over MIDI (MidiClock.h), once no report is being written: the
+    // chip's reset, as the launcher hands over, so the bootloader starts what's in QSPI
+    if (midi_clock.RestartRequested() && !event_log.Writing())
+        NVIC_SystemReset();
+
+#if FRIZZ_BENCH
+    bench.Process();
+    bench.DrawLeds(now);
+#endif
 
     if (loading_screen && now - boot_start > kBootScreenMs)
         loading_screen = false;
@@ -206,7 +237,11 @@ int main(void)
                 tapestop_mem_l, tapestop_mem_r, kTapeStopFrames);
 
     LedSetup();
-    ui.Init(&engine, &hw, &scene_store);
+    event_log.Init(&event_log_mem, &fsi.GetSDFileSystem(), fsi.GetSDPath());
+    ui.Init(&engine, &hw, &scene_store, &event_log);
+#if FRIZZ_BENCH
+    bench.Init(hw.seed.AudioSampleRate(), 24, &fsi.GetSDFileSystem(), fsi.GetSDPath());
+#endif
 
     hw.StartAudio(AudioCallback);
 
@@ -246,6 +281,8 @@ int main(void)
     daisy::System::Delay(1); // Wait a sec
     hw.usb_sw.Write(true);     // take USB control
 
+    // the event log starts here, its memory cleared and the card read
+    event_log.Start(daisy::System::GetNow(), hw.GetToggleState());
     main_loop_running = true;
     while (1)
     {

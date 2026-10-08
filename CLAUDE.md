@@ -76,9 +76,9 @@ working on a branch:
   cherry-pick) so GitHub marks their PR merged and credits them in the release notes.
 - **What the virtual CHOMPI can show, it checks, not the user** (`firmware/twin/`). For each
   thing to test that is about keys, LEDs, the card, levels or clicks, the branch adds a case
-  to `firmware/test/ui.cpp`, and `firmware/twin/ui-at.sh main` shows it failing without the
-  change (it passes with it). `firmware/twin/compare.sh main HEAD` goes into the PR with every
-  difference it reports explained. The PR lists those under **Checked on the twin** (no
+  to `firmware/test/ui.cpp`, and `firmware/twin/ui-at.sh origin/main` shows it failing without
+  the change (it passes with it). `firmware/twin/compare.sh origin/main HEAD` goes into the PR
+  with every difference it reports explained. `git fetch` first: the local `main` can lag. The PR lists those under **Checked on the twin** (no
   boxes); the hardware checklist keeps what only the device can show: the CPU load and
   crackles, sound judged by ear, the codec, real MIDI, USB and card hardware.
 
@@ -194,7 +194,7 @@ The exception is FRIZZ: `firmware/test/` compiles its audio engine on the host a
 script of key presses and knob turns through it (3 s per effect plus four combined segments).
 `./all.sh` runs everything. `./check.sh` compares HEAD with the working tree; a refactor must
 come out `bit-identical`. `./unit.sh NAME` runs one unit check, `NAME.cpp`: `pitch`, `tape`,
-`scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`, `comp`, `level`, `sleep`, `ui`; a new check is just a new
+`scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`, `comp`, `level`, `sleep`, `ui`, `bench`; a new check is just a new
 `.cpp`. What each covers is in `firmware/test/README.md`.
 
 `firmware/twin/` is the **virtual CHOMPI**: the whole firmware (`chompi_main.cpp` down, with
@@ -203,7 +203,10 @@ board (the 4021 chains, encoders, WS2812 DMA, charger, card, audio, MIDI in), de
 and 13-20x real time. `./run.sh -o out.wav -l - SCRIPT` plays a script of keys, knobs,
 MIDI and audio into it from power-on and writes the master out and the LEDs; use it to see
 what a change does to the play page before the user flashes it. `unit.sh ui` checks the play
-page through it. `web/serve.sh` runs the same twin in the browser (Emscripten, from
+page through it. A bug the user hits on the device comes as such a script: SHIFT + transport
+press writes `/FRIZZ/bug-N.txt` (`EventLog.h`), every key, knob and clock change since power-on
+with the card's files from then, and `run.sh` plays it from power-on to the combo; once it
+shows the bug, it becomes a case in `ui.cpp`. `web/serve.sh` runs the same twin in the browser (Emscripten, from
 `~/opt/emsdk`) on a panel drawn from the board file, with sound, for the user to play; each
 page load rebuilds it first if the source changed, so a reload plays the working tree. It can't show the CPU load, the codec, races between the audio interrupt and `main()` or
 anything else about the chip;
@@ -215,9 +218,26 @@ FRIZZ's audio callback has 0.5 ms per 24-sample block. Until effects that are of
 processing (`FxGate::Asleep`), a playing loop with the delay ran it at 90-100%. At that
 margin, a change that only shifts the memory layout (b5c658c, removing the randomizer) was
 enough to make it crackle on the device, while the host harness stayed bit-identical. The
-host can't measure this. On the device, wrap `AudioCallback()` in libDaisy's `CpuLoadMeter`
-(`OnBlockStart`/`OnBlockEnd`, `Init(sample rate, 24)`) and show `GetMaxCpuLoad()` on a free
-key's LED, resetting it every 0.5 s. Many inserts on at once still cost as much as ever.
+host can't measure this, nor can the virtual CHOMPI. The device does, with the **CPU bench**:
+`make BENCH=1` in `firmware/code/src` builds `FRIZZ-bench.bin` (`Bench.h`, compiled in only
+then; the normal `FRIZZ.bin` stays byte for byte the same). On the card in place of
+`FRIZZ.bin`, it waits for every effect to rest (the delay works for its first 10 s after
+power-on), then runs 22 segments by itself on a tune of its own, the clean ones first and the
+sends last, waiting before each for what it doesn't use to rest (every effect alone,
+together, at their heaviest, a playing loop with the delay, PR #7's scene 4, ...). It times
+the whole audio callback but the tune (made after the measurement) by the system timer, as libDaisy's `CpuLoadMeter`
+does, and writes each segment's max and mean load to `/FRIZZ/cpu.txt`, with any effect still
+working outside its segment and whether the loop played. The key LEDs grade each segment;
+the panel ends green or red.
+
+Its memory layout isn't `FRIZZ.bin`'s, and b5c658c crackled from layout alone: a bench run
+shows what the code costs, not that `FRIZZ.bin` itself won't crackle, which only playing it
+shows. Every commit that rebuilds `FRIZZ.bin` also rebuilds `firmware/bin/FRIZZ-bench.bin`
+(`make BENCH=1`), so the two always match their source. A branch that touches the engine,
+the effects or the memory layout asks for a bench run in its hardware checklist; its
+`cpu.txt` goes into the PR and is compared with the last one there. `unit.sh bench` checks on
+the twin that the bench runs through, writes its file, keeps its clean segments clean and
+plays its loop (the loads there are 0). Many inserts on at once still cost as much as ever.
 Keep effects that are off cheap, and suspect the CPU when crackles appear on hardware that
 the harness can't reproduce.
 
@@ -232,6 +252,12 @@ with the most headroom, which is why its README nominates it as the base for cus
 All three firmwares are `APP_TYPE=BOOT_SRAM`: the firmware runs from SRAM, loaded by CHOMPI's own
 bootloader out of QSPI flash. Standard Daisy flashing advice does not apply.
 
+- **While developing:** the user runs sfaber02's multi-firmware launcher (`CHOMPI.bin` in the
+  root, firmwares in `/FIRMWARE/NN_NAME.bin`, FRIZZ on key 10, the bench on 11).
+  `firmware/flash.py` builds, asks a running FRIZZ to restart into the launcher (SysEx
+  `F0 7D 43 48 10 F7`, `MidiClock.h`) and sends the build to its slot over USB MIDI
+  (`--bench`, `--no-build`); an older firmware needs the power switch instead; key 15 mounts the card over USB, for `cpu.txt` and bug reports.
+  Sending replaces the slot's file: never send to a slot the user didn't name.
 - **Normal path:** copy `build/FRIZZ.bin` (stock: `build/CHOMPI.bin`) onto the microSD card
   (delete any other `.bin` first)
   and power on. A slow rainbow LED pattern means it is reprogramming QSPI.
@@ -266,7 +292,7 @@ NoSDPage or MenuPage, and no MIDI out; it does take MIDI clock in (`MidiClock.h`
 `TempoClock.h`, with `TapTempo.h` as the fallback). It reads the card once at boot and writes it
 only from `MainLoop()` when an FX scene is saved, copied or deleted, or when the master
 compressor's knobs or the mono input setting have rested 2 s (`SceneStore.h`,
-`MasterSettings.h`). Its files live in
+`MasterSettings.h`), or a bug report is asked for (`EventLog.h`). Its files live in
 `/FRIZZ`, which `EnterFrizzDir()` creates at boot on a card without it. Its play page is
 `NormalPage.h`; its engine is `passthroughEngine.h` → `Looper.h` + `FxMorph.h` → `FxChain.h` →
 `MasterComp.h` → output gain → `limiter.h`.
@@ -322,7 +348,7 @@ not leftovers.
 
 FRIZZ needs only `FRIZZ.bin` at the root. Its state is two text files in `/FRIZZ`:
 `frizz_scenes.txt` (FX scenes, `FxScenes.h` format) and `frizz_master.txt` (master settings,
-`MasterSettings.h`). The rest of this section is about the stock firmwares.
+`MasterSettings.h`), plus any bug reports, `bug-N.txt`, the user wrote (`EventLog.h`). The rest of this section is about the stock firmwares.
 
 The card is the firmware's filesystem: one `CHOMPI.bin`, the audio assets, `options.json`,
 `presets.json`. FAT32, assets at the card root. `reference/firmware/card-profiles/` holds the three factory

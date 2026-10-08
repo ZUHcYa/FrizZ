@@ -12,11 +12,13 @@ the two have diverged, so treat WAVE as reference, not as a shared core.
 ```
 code/src/                 the firmware
 code/libs/                vendored libDaisy and DaisySP (patched, MIT; never swap in upstream)
-bin/                      FRIZZ.bin (the latest build), the v6.2 bootloader binary and its
+bin/                      FRIZZ.bin (the latest build), FRIZZ-bench.bin (the CPU bench, below),
+                          the v6.2 bootloader binary and its
                           install script; the bootloader's source is in
                           reference/firmware/chompi-wave/code/Chompi_Bootloader/
 test/                     host-side checks: the engine against HEAD, and unit checks (unit.sh NAME)
 twin/                     the virtual CHOMPI: the whole firmware on the PC, on a simulated board
+flash.py, tools/          sending a build to the CHOMPI over USB, through the multi-firmware launcher
 ```
 
 Design notes live in [`../docs/`](../docs/): the looper spec (`LOOPER.md`) and an overview of
@@ -24,7 +26,7 @@ the effects across the CHOMPI firmwares (`FX_OVERVIEW.md`).
 
 ## 1. Toolchain
 
-FRIZZ needs **GNU Arm Embedded 10.3-2021.10** (GCC 10.3.1), the Daisy toolchain default. Newer
+To build the firmware for the CHOMPI, FRIZZ needs **GNU Arm Embedded 10.3-2021.10** (GCC 10.3.1), the Daisy toolchain default. Newer
 compilers can build it, but their builds sometimes break SD card communication intermittently.
 
 - **Linux:** download ARM's official tarball (`gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2`),
@@ -45,8 +47,8 @@ comes without newlib. Check what you have:
 arm-none-eabi-gcc --version    # should say 10.3.1
 ```
 
-You also need `make`. `dfu-util` is optional (only for reinstalling the bootloader), and the
-test harness needs a host `g++` and `python3`.
+You also need `make`. `dfu-util` is optional (only for reinstalling the bootloader). The checks
+on the computer don't need any of this: see [3](#3-test-on-the-host).
 
 ## 2. Build
 
@@ -71,9 +73,21 @@ don't normally rebuild them. If you change a library, run `make` in `code/libs/l
 
 ## 3. Test on the host
 
+The checks and the virtual CHOMPI build FRIZZ for the computer, not for the CHOMPI, so they
+need no ARM toolchain, only:
+
+- **bash, git, coreutils** (`md5sum`), **`g++`** with C++14 and **`python3`** (no packages).
+  Tried on Linux (Fedora, GCC 16, Python 3.14). **macOS is untested** and won't work as it
+  is: it has no `md5sum`, and the twin's coroutine (`ucontext`) needs `_XOPEN_SOURCE` there.
+  Use Linux, a Linux VM or a container until someone ports it.
+- For the twin in the browser only: **Emscripten** (below).
+
+Nothing else gets installed: the first run builds DaisySP and the twin for the computer into
+`test/build/` and `twin/build/` (ignored by git). From a fresh clone:
+
 ```bash
 cd firmware/test
-./all.sh          # everything, one line each
+./all.sh          # everything, one line each: about 1.5 minutes, the first time a bit more
 ./check.sh        # engine at HEAD vs the working tree: a refactor must print "bit-identical"
 ./unit.sh tempo   # one unit check (each NAME.cpp; ui runs the whole firmware on the twin)
 ```
@@ -92,15 +106,118 @@ web/serve.sh      # the same in the browser, to play and hear: http://localhost:
 
 Neither shows the CPU load or anything else about the chip; that takes the device.
 
+The browser twin needs Emscripten in `~/opt/emsdk` (or `em++` on the `PATH`); it's been used
+with 6.0.11:
+
+```bash
+git clone https://github.com/emscripten-core/emsdk.git ~/opt/emsdk
+cd ~/opt/emsdk && ./emsdk install 6.0.11 && ./emsdk activate 6.0.11
+```
+
+`web/serve.sh` finds it there by itself. Its first build compiles DaisySP for the browser too,
+so it takes longer; after a change, a reload rebuilds in about 20 s.
+
+**A bug from a player:** SHIFT + transport press on the CHOMPI writes `/FRIZZ/bug-N.txt`
+(MANUAL.md, *Bug reports*), a twin script of everything since power-on with the card's files
+from then. `twin/run.sh -o out.wav -l leds.txt bug-1.txt` plays it again, up to the combo;
+once it shows the bug, turn it into a case in `test/ui.cpp`. What it holds and what not:
+[`twin/README.md`](twin/README.md#bug-reports-from-the-device).
+
 ## 4. Put it on the CHOMPI
 
-Copy `build/FRIZZ.bin` to the SD card and power on, as described in
+**Over USB, with the multi-firmware launcher** (the quick way while developing). The
+[CHOMPI launcher](https://github.com/sfaber02/CHOMPI/releases) by hiwatts, chomplex music theory
+and lnetzel sits on the card as `CHOMPI.bin`, keeps firmwares in `/FIRMWARE/NN_NAME.bin` and
+starts the one whose key you press (NN). While its picker shows, it takes a firmware over USB
+MIDI, writes it to its slot and starts it:
+
+```bash
+cd firmware
+./flash.py            # builds FRIZZ.bin, restarts the CHOMPI into the launcher, sends it to slot 10
+./flash.py --bench    # FRIZZ-bench.bin to slot 11
+./flash.py --no-build # bin/FRIZZ.bin as committed
+```
+
+Sending replaces whatever is in that slot, so set yours (`FRIZZ_SLOT=4 ./flash.py`,
+`BENCH_SLOT`, or `--slot`) if FRIZZ isn't on key 10. A running FRIZZ restarts into the
+launcher when asked over USB MIDI (the SysEx `F0 7D 43 48 10 F7`, `MidiClock.h`), so
+nothing needs touching; with an older FRIZZ or another firmware running, switch the CHOMPI
+off and on when it says so (it waits up to 2 minutes). Linux only (ALSA), Python 3, no
+packages; it uses the launcher's own client, `tools/midi_send.py`. On macOS or Windows, the
+launcher's web page (https://ugrossek.github.io/CHOMPI/, Chrome or Edge) does the same. The
+launcher's key 15 is USB storage: the card shows up as a drive, for `cpu.txt` and bug reports.
+FRIZZ keeps its files in `/FRIZZ`, so it shares the card with the other firmwares.
+
+**From the card:** copy `build/FRIZZ.bin` to the SD card and power on, as described in
 [`INSTALL.md`](../INSTALL.md). FRIZZ is a `BOOT_SRAM` app: CHOMPI's bootloader copies it from
 the card into QSPI flash and runs it from SRAM. Standard Daisy flashing advice doesn't apply.
 
 Every CHOMPI already has the bootloader, and an SD update never touches it. Only a blank or
 erased Daisy Seed needs it installed. To do that, hold BOOT and tap RESET to enter DFU mode,
 then run `bin/install_bootloader.sh`.
+
+## Measure the CPU load
+
+The audio callback has 0.5 ms per block, and neither the host checks nor the virtual CHOMPI
+can tell how much of it a change uses. The CPU bench can, on the device:
+
+```bash
+cd firmware/code/src
+make BENCH=1      # build-bench/FRIZZ-bench.bin; the normal build is untouched
+```
+
+1. With the launcher, `./flash.py --bench` puts it on its own key (11) and starts it. Without
+   it, put `FRIZZ-bench.bin` (this one, or `bin/FRIZZ-bench.bin`) on the card instead of
+   `FRIZZ.bin` (the bootloader takes the first `.bin` it finds, whatever its name) and switch
+   on. The bootloader flashes it as usual.
+2. After the boot animation the bench waits about 10 s for every effect to rest (only CHOMPI
+   glows dimly), then runs by itself, about 90 s: between segments it waits for the tails of
+   effects the next one doesn't use to ring out. Don't touch anything: the keys light up one
+   per segment, green below 80% load, amber below 95%, red above; the one running blinks white.
+3. At the end every panel LED is green (all below 95%) or red. Blinking red: `cpu.txt`
+   couldn't be written (no card?).
+4. On the computer (with the launcher: its USB storage on key 15), `FRIZZ/cpu.txt` has every segment's highest and mean load, any effect
+   still working outside its segment (a tail), and whether the loop played. Put `FRIZZ.bin`
+   back on the card to play again.
+
+The segments: nothing on, each effect alone (its knobs moving every 0.25 s), the compressor,
+the inserts together, recording a loop, the loop alone, with the inserts, with the delay, with
+PR #7's scene 4 (shifter +7, folder, crusher, slicer, compressor at 1) and the delay, with the
+reverb, then everything, everything with every feedback at the top (the harness's STRESS), and
+the loop with everything. The sends come last because their tails run on (the delay's for 10
+s). The signal is the bench's own, so runs compare: a little tune in A minor at 120 BPM (Am F
+C G, an arpeggio, bass, kick, hi-hat), made by a few oscillators, so it costs no room for a
+recording. It's made for the next block after each measurement, so its own cost isn't in the
+numbers (it was in the first runs', 2026-10-08, with a saw, a gated sine and noise).
+
+The bench measures `FRIZZ-bench.bin`, whose memory layout differs from `FRIZZ.bin`'s; a
+crackle from the layout alone (b5c658c) can show in one and not the other. It tells what the
+code costs; whether `FRIZZ.bin` crackles, only playing it tells.
+
+## Before a pull request
+
+Work on a branch off `main`, never on `main` itself, and open a pull request for it (a draft
+is fine). Before each commit that touches `code/`, `test/` or `twin/`:
+
+1. **`test/all.sh` passes.** A check that fails is fixed, or, when the change is meant to
+   alter what it checks, updated in the same commit, saying so in the commit message.
+2. **A refactor changes nothing:** `test/check.sh` and `twin/compare.sh` print
+   `bit-identical`.
+3. **What the twin can show, a check shows:** for a change to keys, LEDs, the card, levels or
+   clicks, add a case to `test/ui.cpp` and make sure `twin/ui-at.sh origin/main` fails it (it
+   passes with your change). `git fetch` first: a stale local `main` compares with an old
+   version.
+4. **The binaries match the source:** a change under `code/` rebuilds both and commits them
+   with it: `make` and `make BENCH=1` in `code/src`, then `build/FRIZZ.bin` and
+   `build-bench/FRIZZ-bench.bin` to `bin/`.
+5. **Players read about it:** what they notice goes into [`CHANGELOG.md`](../CHANGELOG.md)
+   under *Unreleased*, and a changed control into [`MANUAL.md`](../MANUAL.md).
+
+The pull request lists what changed, what the twin checked (with `twin/compare.sh origin/main
+HEAD`'s output, every difference explained), and a checklist of what only the device can
+show: the CPU load and crackles (with a bench run's `cpu.txt` when the engine, the effects
+or the memory layout changed), the sound by ear, the codec, real MIDI, USB and the card.
+[`CLAUDE.md`](../CLAUDE.md) has the full workflow, including test builds and releases.
 
 ## 5. Debug
 
@@ -171,6 +288,13 @@ chompi_sram.lds        linker script (the firmware runs from SRAM, placed there 
   creates on a new card) and writes it only from `MainLoop`, when a scene is saved, copied or
   deleted, or 2 s after the compressor's knobs or the mono input were last changed
   (`SceneStore.h`).
+- **Card buffers:** FatFs hands the whole sectors of a read or write straight between your
+  buffer and the SD card's DMA. So a buffer for the card lives in internal RAM (a global or a
+  member of one: not on the stack, which is in DTCM, and not in SDRAM, neither of which the
+  DMA reaches reliably), is aligned (`alignas(32)`, for the cache's lines), and every write
+  of it starts at its beginning on a sector of the file: write whole sectors, keep the rest
+  for the next write (`EventLog::Flush`). Otherwise the sectors come out shifted, bytes
+  repeated and others lost; the twin's card does the same (`test/host/fatfs.h`).
 - Large buffers (the loop, the delay, the freezer, the tape stop) live in SDRAM (`DSY_SDRAM_BSS`) and are
   cleared at boot.
 - `__attribute__((optimize("-O0")))` and similar per-function overrides are deliberate

@@ -39,6 +39,7 @@
 #include "SceneControls.h"
 #include "TapTempo.h"
 #include "SceneStore.h"
+#include "EventLog.h"
 #include "LedColors.h"
 #include "passthroughEngine.h"
 #include "temp_led_stuff.h"
@@ -140,9 +141,10 @@ namespace chompi
     class NormalPage : public daisy::UiPage
     {
     public:
-        void Init(PassthroughEngine *engine, Hardware *hw, SceneStore *scenes)
+        void Init(PassthroughEngine *engine, Hardware *hw, SceneStore *scenes, EventLog *log)
         {
             hw_ = hw;
+            log_ = log;
             engine_ = engine;
             scenes_ = scenes;
 
@@ -221,6 +223,7 @@ namespace chompi
             SetPthLedFloat(kVolumeLed, rgb[0], rgb[1], rgb[2]);
 
             DrawLooperLeds(now);
+            DrawLogLeds(now);
             DrawFxLeds(now);
             DrawSceneLeds(now);
 
@@ -313,10 +316,16 @@ namespace chompi
             // something count as a SHIFT combo (keys_.Used): a key without a function doesn't
             // cancel a confirm or a latch in the making.
 
-            // transport press: back to 1x forward; not with SHIFT, as SHIFT + turn does nothing
+            // transport press: back to 1x forward. SHIFT + press writes the event log to the
+            // card for a bug report (EventLog.h)
             if (buttonID == ENC_5_SW)
             {
-                if (!Shift() && LoopExists())
+                if (Shift())
+                {
+                    keys_.Used();
+                    log_->RequestWrite();
+                }
+                else if (LoopExists())
                 {
                     keys_.Used();
                     engine_->looper.ResetSpeed();
@@ -751,6 +760,29 @@ namespace chompi
             }
         }
 
+        /** The event log (SHIFT + transport press): both transport LEDs blink white while it's
+         *  written, then 3 blinks: white when it's on the card, red when it isn't */
+        void DrawLogLeds(uint32_t now)
+        {
+            if (log_->Written() != log_written_ || log_->Failed() != log_failed_)
+            {
+                log_ok_ = log_->Written() != log_written_;
+                log_written_ = log_->Written();
+                log_failed_ = log_->Failed();
+                log_signal_.Start(now);
+            }
+            float level = -1.f;
+            if (log_->Writing())
+                level = BlinkOn(now, kPendingBlinkMs) ? 1.f : 0.f;
+            else if (log_signal_.Active(now))
+                level = log_signal_.BlinkLit(now) ? 1.f : 0.f;
+            if (level < 0.f)
+                return;
+            const float* color = log_->Writing() || log_ok_ ? white : red;
+            PthLed(kTransportLedRev, color, level);
+            PthLed(kTransportLedFwd, color, level);
+        }
+
         /** TAPE's transport colours: speed -2..2 maps to 0..1; blue at the extremes through
          *  green and yellow to red towards a stop. The LED for the direction is lit, and the
          *  other one glows red as the speed nears zero. */
@@ -835,6 +867,10 @@ namespace chompi
         Hardware *hw_;
         PassthroughEngine *engine_;
         SceneStore *scenes_;
+        EventLog *log_;
+        uint32_t log_written_ = 0, log_failed_ = 0; // the log's files shown so far
+        bool log_ok_ = false;
+        LedSignal log_signal_; // the last file written, or not
 
         Looper::State last_looper_state_ = Looper::State::EMPTY;
         bool last_erasing_ = false;

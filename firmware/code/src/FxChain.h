@@ -202,6 +202,17 @@ public:
     /** 0..1, for the key LEDs */
     inline float GetLevel(size_t fx) { return meter_[fx].GetLastSamp(); }
 
+    /** Off and doing no more than it does off: an insert faded out, a send whose tail has gone
+     *  quiet (TailWatch). For the CPU bench (Bench.h), which reports what was still working */
+    inline bool Resting(size_t fx) const
+    {
+        if (fx == FX_DELAY)
+            return delay_.Sleeping();
+        if (fx == FX_REVERB)
+            return reverb_.Sleeping();
+        return fx_[fx]->Idle();
+    }
+
 private:
     inline void Meter(size_t fx, float sum) { meter_[fx].Process(sum * kFxMeterScale); }
 
