@@ -271,7 +271,7 @@ Runs the CPU bench's firmware (`FRIZZ-bench.bin`, `code/src/Bench.h`, built for 
 `FRIZZ_BENCH`) on the virtual CHOMPI from power-on to its end: every segment ends up in
 `/FRIZZ/cpu.txt` in order with a max and a mean, nothing else still works in any segment (no
 tail: the bench waits for them; the delay asleep before the first), the 4 s loop plays in every
-loop segment, the worst is named, every segment's key is graded, the panel ends green, and the
+loop segment, the worst is named, the split into the callback's parts has every segment, every segment's key is graded, the panel ends green, and the
 bench's tune reaches the output throughout. Without a card, the panel blinks red at the end. The
 loads are 0 there (no time passes on the twin while the callback runs): the numbers come from
 the device only. A check asks for a twin with defines of its own with a

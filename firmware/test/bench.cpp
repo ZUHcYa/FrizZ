@@ -110,6 +110,22 @@ int main()
               && text.find("# loop:    4.0 s") != std::string::npos,
           "bench: the 4 s loop plays in every loop segment");
     Check(text.find("# worst: ") != std::string::npos, "bench: and the worst is named");
+    // where the time goes: a second table, every segment again with its parts
+    const size_t parts = text.find("# where the mean goes");
+    size_t split = 0;
+    if (parts != std::string::npos)
+    {
+        std::istringstream rest(text.substr(parts));
+        for (size_t s = 0; std::getline(rest, line);)
+            if (s < kNum && line.rfind(std::string(kSegments[s]) + " ", 0) == 0
+                && line.size() >= 18 + 10 * 7 + 3 + 13 + 6)
+            {
+                split++;
+                s++;
+            }
+    }
+    Check(split == kNum && text.find("MHz measured") != std::string::npos,
+          "bench: and split into the callback's parts, with the clock it ran at");
 
     bool keys = true;
     for (int led : {24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 0, 1, 2, 3, 4, 5, 6})
