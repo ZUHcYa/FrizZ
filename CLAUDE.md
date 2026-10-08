@@ -14,7 +14,7 @@ which will not receive updates.
 | Path | What | Audience |
 |---|---|---|
 | `README.md`, `INSTALL.md`, `QUICKSTART.md`, `MANUAL.md`, `CHANGELOG.md` | what FRIZZ is, install, quick guide, full controls, what changed since the last release | users |
-| `firmware/` | FRIZZ source (`code/`, `bin/`, `test/`); `firmware/README.md` is the developer guide | developers |
+| `firmware/` | FRIZZ source (`code/`, `bin/`, `test/`, `twin/`); `firmware/README.md` is the developer guide | developers |
 | `docs/` | our design notes: `LOOPER.md` (looper spec), `FX_OVERVIEW.md` | developers |
 | `reference/` | the original CHOMPI release, unchanged except for links: `reference/firmware/{chompi-tape,chompi-tempo,chompi-wave,chompi-bootloader-v6.4-beta,card-profiles}`, `reference/hardware/`, CHOMPI's README | reference only |
 | `LICENSE`, `THIRD_PARTY.md`, `TRADEMARKS.md`, `CLAUDE.md` | legal, this file | — |
@@ -181,9 +181,17 @@ The exception is FRIZZ: `firmware/test/` compiles its audio engine on the host a
 script of key presses and knob turns through it (3 s per effect plus four combined segments).
 `./all.sh` runs everything. `./check.sh` compares HEAD with the working tree; a refactor must
 come out `bit-identical`. `./unit.sh NAME` runs one unit check, `NAME.cpp`: `pitch`, `tape`,
-`scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`, `comp`, `level`, `sleep`; a new check is just a new
-`.cpp`. What each covers is in `firmware/test/README.md`. None covers the LEDs, `NormalPage.h`'s
-key routing, real MIDI or the hardware.
+`scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`, `comp`, `level`, `sleep`, `ui`; a new check is just a new
+`.cpp`. What each covers is in `firmware/test/README.md`.
+
+`firmware/twin/` is the **virtual CHOMPI**: the whole firmware (`chompi_main.cpp` down, with
+libDaisy's UI, Switch, 4021 and MIDI code) compiled unchanged for the host on a simulated
+board (the 4021 chains, encoders, WS2812 DMA, charger, card, audio, MIDI in), deterministic
+and about 20x real time. `./run.sh -o out.wav -l - SCRIPT` plays a script of keys, knobs,
+MIDI and audio into it from power-on and writes the master out and the LEDs; use it to see
+what a change does to the play page before the user flashes it. `unit.sh ui` checks the play
+page through it. It can't show the CPU load, the codec or anything else about the chip;
+`firmware/twin/README.md` has the details.
 
 ## FRIZZ's audio callback is CPU-bound
 

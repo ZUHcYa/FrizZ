@@ -11,4 +11,5 @@ Icon?
 # Firmware build output (the prebuilt libraries under code/libs/*/build/ stay committed)
 firmware/code/src/build/
 firmware/test/build/
+firmware/twin/build/
 reference/firmware/*/code/src/build/

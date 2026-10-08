@@ -178,8 +178,32 @@ reverse) and a scene morph (`FxMorph.h`) on them: landing on the bar line, one p
 glide, held while SHIFT is down however long, fades in and out, stopping it halfway; and the
 delay (`granularDelay.h`): reverse events only where they fit, and a tempo jump crossfading
 to the new delay time while a 1 BPM step slides, and on a loop whose tempo isn't whole, a 1/4
-exactly the loop's beat. None covers the LEDs or `NormalPage.h`'s routing of the
-keys to these classes.
+exactly the loop's beat. These run the classes on their own; `unit.sh ui` below runs them
+behind the play page.
+
+## Whole-device check
+
+```bash
+./unit.sh ui
+```
+
+Runs FRIZZ's whole firmware from power-on on the virtual CHOMPI (`../twin/`: the play page,
+the LEDs as the WS2812s get them, the keys through the 4021 chain and its debouncing), each
+case on a freshly booted device:
+
+- the outputs stay muted through the boot animation and then pass the input; the FX keys
+  glow dimly;
+- an FX key held lights and sounds and its knob 1 shapes it, and it is off again once released;
+- hold + SHIFT latches it and a tap ends it;
+- SHIFT + a key puts it on the knobs without sounding;
+- LOOP records (red), plays back, PLAY pauses, and LOOP erases;
+- PLAY + LOOP is refused without MIDI clock (red blinks) and records with one;
+- VOLUME turns the master down;
+- CHOMPI + PLAY + LOOP held at power-on is shipping mode;
+- below 3 V, the panel flashes amber and the device switches off after 15 s, but not on the
+  charger.
+
+It can't see time on the chip: the CPU load, so not crackles either.
 
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample
 conversions), `MidiClock.h` (no clock, unless a test sets its fields, as `tempo.cpp`
@@ -193,7 +217,8 @@ sources or `g++` change) and has `unit_test NAME`: it copies the working tree's 
 to the host `MidiClock.h`, builds `NAME.cpp` with warnings on and runs it. A test's own
 warnings are shown; if it doesn't build, so is every message, including the headers'. The
 `.cpp` checks share `check.h` (`Check()`, `Finish()`). A new check is just a `NAME.cpp`:
-`unit.sh NAME` runs it and `all.sh` picks it up.
+`unit.sh NAME` runs it and `all.sh` picks it up. A check that includes `twin.h` is linked
+against the virtual CHOMPI instead (`../twin/build.sh` builds it when the source changed).
 
 The harness also writes `<out>.names`, its FX in order, so `compare.py` matches segments by
 name and a new effect doesn't break `check.sh`. Runs of older harnesses without it are told

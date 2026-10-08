@@ -1,0 +1,479 @@
+/** @file twin.cpp
+ *  @brief The virtual CHOMPI (twin.h): the firmware's chompi_main.cpp compiled as is, and the
+ *  board it runs on (host/board.h): the clock, the pins with the 4021 chains and encoders on
+ *  them, the MP2722 charger, the LED DMA and the audio driver.
+ */
+#include <sys/mman.h>
+#include <ucontext.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <deque>
+#include <vector>
+
+// the firmware itself: its main() becomes the coroutine below
+#define main frizz_main
+#include "chompi_main.cpp"
+#undef main
+
+#include "twin.h"
+
+namespace twin
+{
+// ======== clock and the two contexts ========
+// One block, 24 samples at 48 kHz, is exactly 0.5 ms
+static const uint64_t kBlockNs = 500000;
+// What a GetNow() costs main(), so a loop that only polls the clock still moves on (the low
+// battery warning's)
+static const uint64_t kGetNowNs = 100;
+
+static uint64_t block_ns = 0; // start of the current block: the audio callback's time
+static uint64_t main_ns = 0;  // main()'s own time, ahead of block_ns while it runs
+static uint64_t window_end = 0;
+static bool in_main = false;
+static bool booted = false;
+static bool main_done = false;
+static bool powered = true;
+
+static ucontext_t driver_ctx, main_ctx;
+static std::vector<char> main_stack;
+
+static void Yield()
+{
+    in_main = false;
+    swapcontext(&main_ctx, &driver_ctx);
+    in_main = true;
+}
+
+static void MainEntry()
+{
+    in_main = true;
+    frizz_main();
+    main_done = true;
+    in_main = false;
+    setcontext(&driver_ctx);
+}
+
+bool InMain() { return in_main; }
+
+uint64_t NowNs()
+{
+    if (!in_main)
+        return block_ns;
+    main_ns += kGetNowNs;
+    while (main_ns >= window_end)
+        Yield();
+    return main_ns;
+}
+
+// the audio callback's waits (the 4021's DelayTicks) take no time: it runs at its block's start
+void DelayNs(uint64_t ns)
+{
+    if (!in_main)
+        return;
+    main_ns += ns;
+    while (main_ns >= window_end)
+        Yield();
+}
+
+// ======== the board's wiring (hardware.h) ========
+static int PinId(const daisy::Pin& p) { return p.Id(); }
+
+// the keys' chain: 5 CD4021s, 40 inputs, Hardware::SwId order; the encoders' chain: 1 CD4021,
+// A and B of encoders 1-4. Inputs are active low (pulled up, a key pulls its input down)
+struct Chain4021
+{
+    int clk, latch, data, size;
+    bool inputs[40];
+    bool loaded[40];
+    int shifted;
+    bool clk_level;
+};
+
+static Chain4021 keys_sr = {PinId(daisy::seed::D8), PinId(daisy::seed::D7),
+                            PinId(daisy::seed::D9), 40, {}, {}, 0, false};
+static Chain4021 enc_sr = {PinId(daisy::seed::D22), PinId(daisy::seed::D23),
+                           PinId(daisy::seed::D19), 8, {}, {}, 0, false};
+
+// encoders 5 and 6 are on their own pins, encoder 5's switch too
+static const int kEnc5A = PinId(daisy::seed::D0), kEnc5B = PinId(daisy::seed::D20),
+                 kEnc5Sw = PinId(daisy::seed::D10);
+static const int kEnc6A = PinId(daisy::seed::D15), kEnc6B = PinId(daisy::seed::D17);
+
+static bool pin_level[256];
+
+static void ChainWrite(Chain4021& c, int id, bool level)
+{
+    if (id == c.latch && level)
+    {
+        // parallel load: Q8 of the last chip shows the chain's last input at once
+        memcpy(c.loaded, c.inputs, sizeof(c.loaded));
+        c.shifted = 0;
+    }
+    else if (id == c.clk)
+    {
+        if (level && !c.clk_level && !pin_level[c.latch])
+            c.shifted++;
+        c.clk_level = level;
+    }
+}
+
+static bool ChainRead(const Chain4021& c)
+{
+    // libDaisy's driver reads index (size - 1 - i) at the i-th clock: the wiring it was written for
+    const int idx = c.size - 1 - c.shifted;
+    return idx >= 0 ? c.loaded[idx] : false;
+}
+
+void PinWrite(int id, bool level)
+{
+    pin_level[id] = level;
+    ChainWrite(keys_sr, id, level);
+    ChainWrite(enc_sr, id, level);
+}
+
+bool PinRead(int id)
+{
+    if (id == keys_sr.data)
+        return ChainRead(keys_sr);
+    if (id == enc_sr.data)
+        return ChainRead(enc_sr);
+    return pin_level[id];
+}
+
+// ======== encoders: each detent a full quadrature cycle, B leading A for +1 ========
+struct Quadrature
+{
+    int pending = 0;     // detents still to play, signed
+    int step = 0;        // 0 at rest, 1..4 within a detent
+    uint64_t step_end = 0;
+};
+static Quadrature quad[6];
+static const uint64_t kQuadStepNs = 2000000; // 4 steps, 8 ms a detent
+
+static void SetEncoderLines(int enc, bool a, bool b)
+{
+    if (enc < 4)
+    {
+        enc_sr.inputs[enc * 2] = a;
+        enc_sr.inputs[enc * 2 + 1] = b;
+    }
+    else
+    {
+        pin_level[enc == 4 ? kEnc5A : kEnc6A] = a;
+        pin_level[enc == 4 ? kEnc5B : kEnc6B] = b;
+    }
+}
+
+static void StepEncoders()
+{
+    // (A, B) through one detent from rest (1, 1): +1 lowers B first, -1 lowers A first
+    static const bool kCw[4][2] = {{1, 0}, {0, 0}, {0, 1}, {1, 1}};
+    static const bool kCcw[4][2] = {{0, 1}, {0, 0}, {1, 0}, {1, 1}};
+    for (int e = 0; e < 6; e++)
+    {
+        Quadrature& q = quad[e];
+        if (q.step == 0 && q.pending == 0)
+            continue;
+        if (q.step != 0 && block_ns < q.step_end)
+            continue;
+        if (q.step == 4)
+        {
+            q.step = 0;
+            q.pending += q.pending > 0 ? -1 : 1;
+            if (q.pending == 0)
+                continue;
+        }
+        const bool (*seq)[2] = q.pending > 0 ? kCw : kCcw;
+        SetEncoderLines(e, seq[q.step][0], seq[q.step][1]);
+        q.step++;
+        q.step_end = block_ns + kQuadStepNs;
+    }
+}
+
+// ======== the MP2722 charger on I2C ========
+static uint8_t mp_regs[256];
+static uint8_t mp_read_reg = 0;
+static float batt_volts = 3.8f;
+static bool batt_plugged = false;
+static bool batt_full = false;
+
+void I2cWrite(uint16_t, const uint8_t* data, size_t size)
+{
+    if (size == 1)
+        mp_read_reg = data[0];
+    else if (size >= 2)
+    {
+        mp_regs[data[0]] = data[1];
+        // the firmware's shipping mode (hardware.h): the battery is cut off, unless on a cable
+        if (data[0] == 0x08 && data[1] == 0xBF && !batt_plugged)
+            powered = false;
+    }
+}
+
+void I2cRead(uint16_t, uint8_t* data, size_t size)
+{
+    // BATT_LOW's threshold, as hardware.h sets it: 0x5D 3V3, otherwise 3V
+    const float threshold = mp_regs[0x0c] == 0x5D ? 3.3f : 3.f;
+    for (size_t i = 0; i < size; i++)
+    {
+        const uint8_t reg = mp_read_reg + i;
+        uint8_t v = 0;
+        if (reg == 0x12)
+            v = batt_plugged ? 1 << 6 : 0; // VIN_GD
+        else if (reg == 0x13)
+            v = batt_plugged ? (batt_full ? 0b101 : 0b011) << 5 : 0; // CHG_STAT
+        else if (reg == 0x16)
+            v = batt_volts < threshold ? 1 << 4 : 0; // BATT_LOW_STAT
+        data[i] = v;
+    }
+}
+
+void Stop()
+{
+    // STOP mode: nothing runs until an interrupt; here, a while
+    DelayNs(100000000);
+}
+
+// ======== LEDs: the DMA's PWM durations back to the bytes the WS2812s latch ========
+struct LedDma
+{
+    const uint32_t* data = nullptr;
+    size_t size = 0;
+    DmaDone done = nullptr;
+    void* context = nullptr;
+    bool running = false;
+};
+static LedDma led_dma[5]; // by timer channel: 2 the keys' SMT chain, 4 the panel's PTH chain
+
+void LedDmaStart(int channel, const uint32_t* data, size_t size, DmaDone done, void* context)
+{
+    led_dma[channel] = {data, size, done, context, true};
+}
+
+// a chain's DMA takes about a block; then its callback starts the other chain (temp_led_stuff.h)
+static void StepLedDma()
+{
+    for (int ch : {2, 4})
+    {
+        if (!led_dma[ch].running)
+            continue;
+        led_dma[ch].running = false;
+        if (led_dma[ch].done)
+            led_dma[ch].done(led_dma[ch].context);
+        break;
+    }
+}
+
+// Each LED takes the first 24 pulses that reach it and passes the rest on; a zero-length
+// pulse (the porch) is no bit at all. The PTH chips read R, G, B; the SMT chips G, R, B
+static Rgb DecodeLed(int channel, int index, bool grb)
+{
+    const LedDma& d = led_dma[channel];
+    Rgb out = {0, 0, 0};
+    if (!d.data)
+        return out;
+    int bit = 0;
+    const int first = index * 24;
+    uint8_t bytes[3] = {0, 0, 0};
+    for (size_t i = 0; i < d.size && bit < first + 24; i++)
+    {
+        if (d.data[i] == 0)
+            continue;
+        if (bit >= first)
+        {
+            const int b = bit - first;
+            if (d.data[i] >= static_cast<uint32_t>((chompi::kOneTime + chompi::kZeroTime) / 2))
+                bytes[b / 8] |= 1 << (7 - b % 8);
+        }
+        bit++;
+    }
+    if (bit < first + 24)
+        return out; // the bitstream doesn't reach this LED
+    out.r = grb ? bytes[1] : bytes[0];
+    out.g = grb ? bytes[0] : bytes[1];
+    out.b = bytes[2];
+    return out;
+}
+
+Rgb PthLed(int index) { return powered ? DecodeLed(4, index, false) : Rgb{0, 0, 0}; }
+Rgb SmtLed(int index) { return powered ? DecodeLed(2, index, true) : Rgb{0, 0, 0}; }
+
+static uint8_t Scale(uint8_t v, int by) { return static_cast<uint8_t>(std::min(255, v * by)); }
+Rgb PthLedFull(int index)
+{
+    const Rgb c = PthLed(index);
+    return {Scale(c.r, 11), Scale(c.g, 11), Scale(c.b, 11)};
+}
+Rgb SmtLedFull(int index)
+{
+    const Rgb c = SmtLed(index);
+    return {Scale(c.r, 4), Scale(c.g, 4), Scale(c.b, 4)};
+}
+
+// ======== audio ========
+static AudioCallback audio_cb = nullptr;
+void StartAudio(AudioCallback cb) { audio_cb = cb; }
+
+// ======== MIDI ========
+static UartRx uart_rx = nullptr;
+static void* uart_context = nullptr;
+static std::deque<uint8_t> midi_in;
+void UartListen(UartRx rx, void* context)
+{
+    uart_rx = rx;
+    uart_context = context;
+}
+
+// ======== the API (twin.h) ========
+std::map<std::string, std::string>& CardFiles() { return FakeCard::Get().files; }
+void SetCardPresent(bool present) { FakeCard::Get().present = present; }
+
+// The firmware clears the 64 MB SDRAM at its fixed address (ZeroSDRAM): give it one there
+static void MapSdram()
+{
+    void* want = reinterpret_cast<void*>(0xc0000000UL);
+    void* got = mmap(want, 64 * 1024 * 1024, PROT_READ | PROT_WRITE,
+                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+    if (got != want)
+    {
+        fprintf(stderr, "twin: can't map the SDRAM at 0xc0000000\n");
+        exit(1);
+    }
+}
+
+void Boot()
+{
+    if (booted)
+        return;
+    booted = true;
+    MapSdram();
+    // every input pulled up: no key down, encoders at rest
+    for (bool& l : pin_level)
+        l = true;
+    for (bool& l : keys_sr.inputs)
+        l = true;
+    for (bool& l : enc_sr.inputs)
+        l = true;
+    // a card always has /FRIZZ's parent
+    FakeCard::Get().dirs[""] = true;
+
+    main_stack.resize(1 << 22);
+    getcontext(&main_ctx);
+    main_ctx.uc_stack.ss_sp = main_stack.data();
+    main_ctx.uc_stack.ss_size = main_stack.size();
+    main_ctx.uc_link = nullptr;
+    makecontext(&main_ctx, MainEntry, 0);
+}
+
+uint32_t NowMs() { return static_cast<uint32_t>(block_ns / 1000000); }
+
+void Run(size_t blocks, const float* in, float* out)
+{
+    float in_buf[kChannels][kBlockSize], out_buf[kChannels][kBlockSize];
+    const float* in_ptr[kChannels] = {in_buf[0], in_buf[1], in_buf[2], in_buf[3]};
+    float* out_ptr[kChannels] = {out_buf[0], out_buf[1], out_buf[2], out_buf[3]};
+
+    for (size_t b = 0; b < blocks; b++)
+    {
+        for (size_t i = 0; i < kBlockSize; i++)
+            for (int c = 0; c < kChannels; c++)
+            {
+                in_buf[c][i] = in ? in[(b * kBlockSize + i) * kChannels + c] : 0.f;
+                out_buf[c][i] = 0.f;
+            }
+
+        if (booted && powered)
+        {
+            StepEncoders();
+            StepLedDma();
+
+            // the UART's DMA hands over what arrived since the last block
+            if (uart_rx && !midi_in.empty())
+            {
+                std::vector<uint8_t> bytes(midi_in.begin(), midi_in.end());
+                midi_in.clear();
+                uart_rx(bytes.data(), bytes.size(), uart_context);
+            }
+
+            if (audio_cb)
+                audio_cb(in_ptr, out_ptr, kBlockSize);
+
+            window_end = block_ns + kBlockNs;
+            if (!main_done && main_ns < window_end)
+                swapcontext(&driver_ctx, &main_ctx);
+        }
+
+        if (out)
+            for (size_t i = 0; i < kBlockSize; i++)
+                for (int c = 0; c < kChannels; c++)
+                    out[(b * kBlockSize + i) * kChannels + c] = powered ? out_buf[c][i] : 0.f;
+
+        block_ns += kBlockNs;
+    }
+}
+
+// ======== keys ========
+#define TWIN_KEY(name) {#name, static_cast<int>(chompi::Hardware::SwId::name)}
+struct KeyName
+{
+    const char* name;
+    int sw;
+};
+static const KeyName kKeys[] = {
+    TWIN_KEY(KEY_1),  TWIN_KEY(KEY_2),  TWIN_KEY(KEY_3),  TWIN_KEY(KEY_4),  TWIN_KEY(KEY_5),
+    TWIN_KEY(KEY_6),  TWIN_KEY(KEY_7),  TWIN_KEY(KEY_8),  TWIN_KEY(KEY_9),  TWIN_KEY(KEY_10),
+    TWIN_KEY(KEY_11), TWIN_KEY(KEY_12), TWIN_KEY(KEY_13), TWIN_KEY(KEY_14), TWIN_KEY(KEY_15),
+    TWIN_KEY(KEY_16), TWIN_KEY(KEY_17), TWIN_KEY(KEY_18), TWIN_KEY(KEY_19), TWIN_KEY(KEY_20),
+    TWIN_KEY(KEY_21), TWIN_KEY(KEY_22), TWIN_KEY(KEY_23), TWIN_KEY(KEY_24), TWIN_KEY(KEY_25),
+    TWIN_KEY(KEY_26), TWIN_KEY(KEY_27), TWIN_KEY(KEY_28), TWIN_KEY(ENC_1_SW),
+    TWIN_KEY(ENC_2_SW), TWIN_KEY(ENC_3_SW), TWIN_KEY(ENC_4_SW), TWIN_KEY(ENC_6_SW),
+    {"ENC_5_SW", -1}, // on its own pin
+};
+#undef TWIN_KEY
+
+const char* const* KeyNames()
+{
+    static const char* names[sizeof(kKeys) / sizeof(kKeys[0]) + 1];
+    for (size_t i = 0; i < sizeof(kKeys) / sizeof(kKeys[0]); i++)
+        names[i] = kKeys[i].name;
+    return names;
+}
+
+bool Press(const char* name, bool down)
+{
+    for (const KeyName& k : kKeys)
+    {
+        if (strcmp(k.name, name) != 0)
+            continue;
+        if (k.sw < 0)
+            pin_level[kEnc5Sw] = !down;
+        else
+            keys_sr.inputs[k.sw] = !down;
+        return true;
+    }
+    return false;
+}
+
+void Turn(int encoder, int detents)
+{
+    if (encoder >= 1 && encoder <= 6)
+        quad[encoder - 1].pending += detents;
+}
+
+void SetToggle(bool raw_level)
+{
+    keys_sr.inputs[static_cast<int>(chompi::Hardware::SwId::SW_TOG)] = raw_level;
+}
+
+void Midi(uint8_t byte) { midi_in.push_back(byte); }
+
+void SetBattery(float volts, bool plugged, bool full)
+{
+    batt_volts = volts;
+    batt_plugged = plugged;
+    batt_full = full;
+}
+
+bool Powered() { return powered; }
+} // namespace twin

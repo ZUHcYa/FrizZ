@@ -1,0 +1,14 @@
+# The filter, held and played: knob 1 closes it, VOLUME's page 2 turns the input up.
+# ./run.sh -o filter.wav -l - examples/filter.txt
+input sine 220 0.3
+at 6000           # boot animation and rainbow done
+down KEY_5        # hold the filter (5th white key)
+wait 100
+turn 4 -30        # knob 1 (SW4) down: the cutoff closes
+wait 1000
+turn 4 30
+wait 1000
+up KEY_5
+wait 500
+leds
+expect led smt 20 240c14   # the filter's key back to dim pink
