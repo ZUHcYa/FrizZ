@@ -37,6 +37,14 @@ hardware where it touches the firmware) and said so; passing `firmware/test/` or
 is not that approval. If you find yourself on `main` with changes to make, create the branch
 before the first commit.
 
+Keep **one untested firmware branch at a time**: test it, merge it, and start the next one off
+the new `main`. A branch still open when another reaches `main` merges `main` in, so it's
+tested against what's there. Stack a branch on an unmerged one only when it really builds on
+it (or would conflict heavily without it), and say so in its PR; the top branch's build is
+then the test build for the whole stack, its PRs merge bottom-up once it passes, and a fix
+goes on the branch it belongs to, merged upwards. Don't start a third level: get the stack
+tested and merged first.
+
 The branch always carries a built firmware for the user to test: every commit that changes
 `firmware/code/` rebuilds with `make` in `firmware/code/src` (GCC 10.3, see below) and
 includes the fresh `build/FRIZZ.bin` copied to `firmware/bin/FRIZZ.bin`, in the same commit,
@@ -68,7 +76,8 @@ users aren't offered it:
   branch's pushed head, with that commit's `firmware/bin/FRIZZ.bin` attached and the notes
   taken from `CHANGELOG.md`'s Unreleased section plus a link to the branch's PR. The number
   never moves, so feedback can name the build.
-- The pre-release **`beta`** always carries the newest of them, at a fixed link
+- The pre-release **`beta`** always carries the newest numbered one, and moves only with a
+  new one, never with a plain push, at a fixed link
   (`https://github.com/ZUHcYa/FrizZ/releases/download/beta/FRIZZ.bin`). Moving it: `git tag
   -f beta <commit> && git push -f origin beta`, then `gh release upload beta
   firmware/bin/FRIZZ.bin --clobber` and `gh release edit beta` with the new title and notes
