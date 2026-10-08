@@ -102,7 +102,9 @@ async function DrawPanel()
     let wheel = 0;
     g.addEventListener('wheel', (e) => {
       e.preventDefault();
-      wheel += e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+      // with Shift held (SHIFT + turn), browsers scroll sideways: take whichever moved
+      const delta = e.deltaY || e.deltaX;
+      wheel += e.deltaMode === 1 ? delta * 33 : delta;
       const d = Math.trunc(wheel / 50);
       wheel -= d * 50;
       turn(-d);
