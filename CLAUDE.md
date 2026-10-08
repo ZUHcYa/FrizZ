@@ -251,6 +251,11 @@ with the most headroom, which is why its README nominates it as the base for cus
 All three firmwares are `APP_TYPE=BOOT_SRAM`: the firmware runs from SRAM, loaded by CHOMPI's own
 bootloader out of QSPI flash. Standard Daisy flashing advice does not apply.
 
+- **While developing:** the user runs sfaber02's multi-firmware launcher (`CHOMPI.bin` in the
+  root, firmwares in `/FIRMWARE/NN_NAME.bin`, FRIZZ on key 10, the bench on 11).
+  `firmware/flash.py` builds and sends a build to its slot over USB MIDI after a power cycle
+  (`--bench`, `--no-build`); key 15 mounts the card over USB, for `cpu.txt` and bug reports.
+  Sending replaces the slot's file: never send to a slot the user didn't name.
 - **Normal path:** copy `build/FRIZZ.bin` (stock: `build/CHOMPI.bin`) onto the microSD card
   (delete any other `.bin` first)
   and power on. A slow rainbow LED pattern means it is reprogramming QSPI.

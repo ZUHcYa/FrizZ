@@ -18,6 +18,7 @@ bin/                      FRIZZ.bin (the latest build), FRIZZ-bench.bin (the CPU
                           reference/firmware/chompi-wave/code/Chompi_Bootloader/
 test/                     host-side checks: the engine against HEAD, and unit checks (unit.sh NAME)
 twin/                     the virtual CHOMPI: the whole firmware on the PC, on a simulated board
+flash.py, tools/          sending a build to the CHOMPI over USB, through the multi-firmware launcher
 ```
 
 Design notes live in [`../docs/`](../docs/): the looper spec (`LOOPER.md`) and an overview of
@@ -124,7 +125,28 @@ once it shows the bug, turn it into a case in `test/ui.cpp`. What it holds and w
 
 ## 4. Put it on the CHOMPI
 
-Copy `build/FRIZZ.bin` to the SD card and power on, as described in
+**Over USB, with the multi-firmware launcher** (the quick way while developing). The
+[CHOMPI launcher](https://github.com/sfaber02/CHOMPI/releases) by hiwatts, chomplex music theory
+and lnetzel sits on the card as `CHOMPI.bin`, keeps firmwares in `/FIRMWARE/NN_NAME.bin` and
+starts the one whose key you press (NN). While its picker shows, it takes a firmware over USB
+MIDI, writes it to its slot and starts it:
+
+```bash
+cd firmware
+./flash.py            # builds FRIZZ.bin, then: switch the CHOMPI off and on; it's sent to slot 10
+./flash.py --bench    # FRIZZ-bench.bin to slot 11
+./flash.py --no-build # bin/FRIZZ.bin as committed
+```
+
+Sending replaces whatever is in that slot, so set yours (`FRIZZ_SLOT=4 ./flash.py`,
+`BENCH_SLOT`, or `--slot`) if FRIZZ isn't on key 10. It waits up to 2 minutes for the
+launcher, so run it, then switch the CHOMPI off and on. Linux only (ALSA), Python 3, no
+packages; it uses the launcher's own client, `tools/midi_send.py`. On macOS or Windows, the
+launcher's web page (https://ugrossek.github.io/CHOMPI/, Chrome or Edge) does the same. The
+launcher's key 15 is USB storage: the card shows up as a drive, for `cpu.txt` and bug reports.
+FRIZZ keeps its files in `/FRIZZ`, so it shares the card with the other firmwares.
+
+**From the card:** copy `build/FRIZZ.bin` to the SD card and power on, as described in
 [`INSTALL.md`](../INSTALL.md). FRIZZ is a `BOOT_SRAM` app: CHOMPI's bootloader copies it from
 the card into QSPI flash and runs it from SRAM. Standard Daisy flashing advice doesn't apply.
 
@@ -142,7 +164,8 @@ cd firmware/code/src
 make BENCH=1      # build-bench/FRIZZ-bench.bin; the normal build is untouched
 ```
 
-1. Put `FRIZZ-bench.bin` (this one, or `bin/FRIZZ-bench.bin`) on the card instead of
+1. With the launcher, `./flash.py --bench` puts it on its own key (11) and starts it. Without
+   it, put `FRIZZ-bench.bin` (this one, or `bin/FRIZZ-bench.bin`) on the card instead of
    `FRIZZ.bin` (the bootloader takes the first `.bin` it finds, whatever its name) and switch
    on. The bootloader flashes it as usual.
 2. After the boot animation the bench waits about 10 s for every effect to rest (only CHOMPI
@@ -150,7 +173,7 @@ make BENCH=1      # build-bench/FRIZZ-bench.bin; the normal build is untouched
    per segment, green below 80% load, amber below 95%, red above; the one running blinks white.
 3. At the end every panel LED is green (all below 95%) or red. Blinking red: `cpu.txt`
    couldn't be written (no card?).
-4. On the computer, `FRIZZ/cpu.txt` has every segment's highest and mean load, any effect
+4. On the computer (with the launcher: its USB storage on key 15), `FRIZZ/cpu.txt` has every segment's highest and mean load, any effect
    still working outside its segment (a tail), and whether the loop played. Put `FRIZZ.bin`
    back on the card to play again.
 
