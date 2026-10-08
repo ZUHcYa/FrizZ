@@ -100,3 +100,18 @@ inline int32_t f2s16(float x)
 #define DSY_GPIOC daisy::PORTC
 #define DSY_GPIOD daisy::PORTD
 #define DSY_GPIOX daisy::PORTX
+
+// The firmware clears the 64 MB SDRAM at boot (chompi_main.cpp's ZeroSDRAM: std::fill from
+// its fixed address, 0xc0000000). Here the buffers it holds are ordinary statics, zero from
+// the start, and nothing is mapped there: that one fill is skipped, every other goes ahead
+namespace std
+{
+template <>
+inline void fill<uint32_t*, int>(uint32_t* first, uint32_t* last, const int& value)
+{
+    if (reinterpret_cast<uintptr_t>(first) == 0xc0000000u)
+        return;
+    for (; first != last; ++first)
+        *first = value;
+}
+} // namespace std

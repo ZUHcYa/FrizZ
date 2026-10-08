@@ -3,8 +3,11 @@
  *  board it runs on (host/board.h): the clock, the pins with the 4021 chains and encoders on
  *  them, the MP2722 charger, the LED DMA and the audio driver.
  */
-#include <sys/mman.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten/fiber.h>
+#else
 #include <ucontext.h>
+#endif
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -35,13 +38,42 @@ static bool booted = false;
 static bool main_done = false;
 static bool powered = true;
 
-static ucontext_t driver_ctx, main_ctx;
+// main() on its own stack: ucontext natively, a fiber (Asyncify) in the browser
 static std::vector<char> main_stack;
+static void MainEntry();
+#ifdef __EMSCRIPTEN__
+static emscripten_fiber_t driver_fiber, main_fiber;
+static std::vector<char> driver_unwind, main_unwind;
+static void MainFiber(void*) { MainEntry(); }
+static void StartMain()
+{
+    main_unwind.resize(1 << 20);
+    driver_unwind.resize(1 << 20);
+    emscripten_fiber_init(&main_fiber, MainFiber, nullptr, main_stack.data(), main_stack.size(),
+                          main_unwind.data(), main_unwind.size());
+    emscripten_fiber_init_from_current_context(&driver_fiber, driver_unwind.data(),
+                                               driver_unwind.size());
+}
+static void ToMain() { emscripten_fiber_swap(&driver_fiber, &main_fiber); }
+static void ToDriver() { emscripten_fiber_swap(&main_fiber, &driver_fiber); }
+#else
+static ucontext_t driver_ctx, main_ctx;
+static void StartMain()
+{
+    getcontext(&main_ctx);
+    main_ctx.uc_stack.ss_sp = main_stack.data();
+    main_ctx.uc_stack.ss_size = main_stack.size();
+    main_ctx.uc_link = nullptr;
+    makecontext(&main_ctx, MainEntry, 0);
+}
+static void ToMain() { swapcontext(&driver_ctx, &main_ctx); }
+static void ToDriver() { swapcontext(&main_ctx, &driver_ctx); }
+#endif
 
 static void Yield()
 {
     in_main = false;
-    swapcontext(&main_ctx, &driver_ctx);
+    ToDriver();
     in_main = true;
 }
 
@@ -49,9 +81,10 @@ static void MainEntry()
 {
     in_main = true;
     frizz_main();
+    // main() never returns on the device; if it did, it would stay here
     main_done = true;
-    in_main = false;
-    setcontext(&driver_ctx);
+    for (;;)
+        Yield();
 }
 
 bool InMain() { return in_main; }
@@ -329,25 +362,11 @@ void UartListen(UartRx rx, void* context)
 std::map<std::string, std::string>& CardFiles() { return FakeCard::Get().files; }
 void SetCardPresent(bool present) { FakeCard::Get().present = present; }
 
-// The firmware clears the 64 MB SDRAM at its fixed address (ZeroSDRAM): give it one there
-static void MapSdram()
-{
-    void* want = reinterpret_cast<void*>(0xc0000000UL);
-    void* got = mmap(want, 64 * 1024 * 1024, PROT_READ | PROT_WRITE,
-                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
-    if (got != want)
-    {
-        fprintf(stderr, "twin: can't map the SDRAM at 0xc0000000\n");
-        exit(1);
-    }
-}
-
 void Boot()
 {
     if (booted)
         return;
     booted = true;
-    MapSdram();
     // every input pulled up: no key down, encoders at rest
     for (bool& l : pin_level)
         l = true;
@@ -358,12 +377,8 @@ void Boot()
     // a card always has /FRIZZ's parent
     FakeCard::Get().dirs[""] = true;
 
-    main_stack.resize(1 << 22);
-    getcontext(&main_ctx);
-    main_ctx.uc_stack.ss_sp = main_stack.data();
-    main_ctx.uc_stack.ss_size = main_stack.size();
-    main_ctx.uc_link = nullptr;
-    makecontext(&main_ctx, MainEntry, 0);
+    main_stack.resize(1 << 20);
+    StartMain();
 }
 
 uint32_t NowMs() { return static_cast<uint32_t>(block_ns / 1000000); }
@@ -401,7 +416,7 @@ void Run(size_t blocks, const float* in, float* out)
 
             window_end = block_ns + kBlockNs;
             if (!main_done && main_ns < window_end)
-                swapcontext(&driver_ctx, &main_ctx);
+                ToMain();
         }
 
         if (out)

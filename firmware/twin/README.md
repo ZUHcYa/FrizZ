@@ -13,7 +13,7 @@ unchanged with the host's `g++`. Only the board underneath is simulated (`host/`
 | SAI audio, 24-sample blocks at 48 kHz | the same callback, block by block |
 | MIDI in over the TRS jack's UART | bytes fed to libDaisy's parser |
 | SD card | `test/host/fatfs.h`, a card in memory |
-| the 64 MB SDRAM | mapped at its address, 0xc0000000 |
+| the 64 MB SDRAM, cleared at boot from its address | the buffers it holds are ordinary statics, zero from the start; that one `std::fill` at 0xc0000000 is skipped (`host/daisy_core.h`) |
 
 The firmware's `main()` runs as a coroutine: each 0.5 ms block runs the audio callback, then
 `main()` until it has used up the block (its time moves with `System::Delay*` and `GetNow`).
@@ -27,7 +27,37 @@ audio callback is CPU-bound*). Nor races between the audio interrupt and `main()
 callback only comes between blocks, `main()` only gives way in `GetNow` and `System::Delay*`,
 the charger's I2C reply arrives at once and each LED chain's DMA finishes once per block.
 
-## Use
+## In the browser
+
+```bash
+web/serve.sh          # builds for the browser if needed, serves http://localhost:8765
+```
+
+The panel is drawn from CHOMPI's own board file (`tools/board_layout.py` → `web/layout.json`):
+every key, knob and LED where it sits on the board, the LEDs in the order their data runs, so
+LED *n* on the page is the firmware's LED *n*. The firmware runs in a worker (Emscripten, its
+`main()` as a fiber), about 13 times faster than real time with every effect on; it makes the
+audio about 40 ms ahead of the speakers. No special server headers are needed, so any static
+host would do.
+
+- Keys: click; the computer keyboard (white keys Q..P and A..G, dark keys 1..0, SHIFT is Shift,
+  PLAY Space, LOOP Enter); right-click holds a key down, for combos and for power-on with keys held.
+- Knobs: scroll or drag up and down, click the centre to press.
+- Into AUX: a test tone, an audio file (looped), or the mic / a line in. Out: the master out or
+  the headphones.
+- MIDI clock: one of its own at a set tempo, or a connected MIDI device's (WebMIDI).
+- Battery: its voltage and the charger, for the low-battery lockout.
+- Switching off and on restarts the firmware (a new worker); the SD card's files are kept in the
+  browser and can be downloaded.
+- Record the output as a WAV, and download what you played as a script: it replays in the
+  browser (from power-on) and in `run.sh`, step for step, as both are deterministic.
+
+Nobody has tried the mic input or WebMIDI on real devices yet.
+
+`build.sh wasm` needs Emscripten: [emsdk](https://emscripten.org/docs/getting_started/downloads.html)
+in `~/opt/emsdk` (or `em++` on the PATH).
+
+## On the command line
 
 ```bash
 ./run.sh -o out.wav -l leds.txt examples/filter.txt   # builds if needed, plays the script
@@ -65,4 +95,9 @@ that needs it; time moves only with `wait` and `at`.
 - `host/`: what replaces libDaisy's hardware layer (`daisy.h`, `daisy_seed.h`, `per/`, `sys/`, ...).
 - `cli.cpp`: `frizz-twin`, the script player.
 - `build.sh`: copies the firmware, the libDaisy files it uses and `host/` into `build/tree` and
-  builds there, so every include resolves to either the real file or its stand-in.
+  builds there, so every include resolves to either the real file or its stand-in. `build.sh
+  wasm` builds the browser's `web/build/frizz-twin.{js,wasm}` the same way.
+- `wasm.cpp`: `twin.h` as C functions for the browser.
+- `web/`: the page (`index.html`, `app.js`), the worker running the twin (`worker.js`), the audio
+  thread (`worklet.js`), the panel (`layout.json`), `serve.sh`.
+- `tools/board_layout.py`: makes `web/layout.json` from the board file.

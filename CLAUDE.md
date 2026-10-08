@@ -190,7 +190,8 @@ board (the 4021 chains, encoders, WS2812 DMA, charger, card, audio, MIDI in), de
 and 13-20x real time. `./run.sh -o out.wav -l - SCRIPT` plays a script of keys, knobs,
 MIDI and audio into it from power-on and writes the master out and the LEDs; use it to see
 what a change does to the play page before the user flashes it. `unit.sh ui` checks the play
-page through it. It can't show the CPU load, the codec, races between the audio interrupt and `main()` or
+page through it. `web/serve.sh` runs the same twin in the browser (Emscripten, from
+`~/opt/emsdk`) on a panel drawn from the board file, with sound, for the user to play. It can't show the CPU load, the codec, races between the audio interrupt and `main()` or
 anything else about the chip;
 `firmware/twin/README.md` has the details.
 

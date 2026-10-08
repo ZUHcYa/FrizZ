@@ -12,4 +12,5 @@ Icon?
 firmware/code/src/build/
 firmware/test/build/
 firmware/twin/build/
+firmware/twin/web/build/
 reference/firmware/*/code/src/build/

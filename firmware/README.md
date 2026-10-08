@@ -87,6 +87,7 @@ text ([`twin/README.md`](twin/README.md)):
 ```bash
 cd firmware/twin
 ./run.sh -o out.wav -l - examples/filter.txt
+web/serve.sh      # the same in the browser, to play and hear: http://localhost:8765
 ```
 
 Neither shows the CPU load or anything else about the chip; that takes the device.

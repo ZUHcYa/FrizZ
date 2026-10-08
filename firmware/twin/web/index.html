@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FRIZZ twin</title>
+<style>
+:root {
+  --bg: #16171a; --panel: #23252b; --edge: #33363e; --text: #d8dae0; --dim: #8a8f9a;
+  --white-key: #e9e8e3; --dark-key: #3a3d45; --accent: #7fb2ff; --warn: #ffb35c;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; padding: 12px 16px; }
+header h1 { font-size: 18px; margin: 0; letter-spacing: .04em; }
+header .meta { color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+#panel-wrap { padding: 0 16px; }
+svg#panel { width: 100%; max-width: 1400px; display: block; margin: 0 auto; touch-action: none;
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 10px; user-select: none; }
+.key { cursor: pointer; }
+.key rect { stroke: #0006; stroke-width: .4; }
+.key.white rect { fill: var(--white-key); }
+.key.dark rect { fill: var(--dark-key); }
+.key.down rect { transform: translateY(.6px); filter: brightness(.82); }
+.key.held rect { stroke: var(--accent); stroke-width: .9; }
+.key text { font-size: 2.3px; text-anchor: middle; pointer-events: none; }
+.key.white text { fill: #555; }
+.key.dark text { fill: #bbb; }
+.key .hint { font-size: 2.6px; font-weight: 600; }
+.knob { cursor: ns-resize; }
+.knob .cap { fill: #111317; stroke: #555a66; stroke-width: .5; }
+.knob .mark { stroke: #ddd; stroke-width: .9; stroke-linecap: round; }
+.knob .push { fill: #2b2e36; cursor: pointer; }
+.knob.pressed .push { fill: var(--accent); }
+.label { font-size: 2.6px; fill: var(--dim); text-anchor: middle; pointer-events: none; }
+.toggle { cursor: pointer; }
+#controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;
+  max-width: 1400px; margin: 16px auto; padding: 0 16px; }
+fieldset { border: 1px solid var(--edge); border-radius: 8px; margin: 0; padding: 10px 12px; min-width: 0; }
+input[type=file] { max-width: 100%; }
+.key .tint { pointer-events: none; mix-blend-mode: multiply; }
+.key.dark .tint { mix-blend-mode: screen; }
+legend { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+label { display: block; margin: 4px 0; }
+button, select, input { font: inherit; color: var(--text); background: #2c2f37; border: 1px solid var(--edge);
+  border-radius: 6px; padding: 4px 8px; }
+button { cursor: pointer; }
+button.primary { background: #2f4f80; border-color: #45679c; }
+button.on { background: #7a2f2f; border-color: #a04444; }
+input[type=range] { width: 100%; padding: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.note { color: var(--dim); font-size: 12px; }
+#status.off { color: var(--warn); }
+kbd { background: #2c2f37; border: 1px solid var(--edge); border-radius: 4px; padding: 0 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>FRIZZ twin</h1>
+  <span class="meta">firmware <span id="version">–</span> · <span id="clock">0.0 s</span> ·
+    <span id="status" class="off">off</span> · dropouts <span id="underruns">0</span></span>
+</header>
+
+<div id="panel-wrap"><svg id="panel" xmlns="http://www.w3.org/2000/svg"></svg></div>
+
+<div id="controls">
+  <fieldset>
+    <legend>Power</legend>
+    <div class="row">
+      <button id="power" class="primary">Switch on</button>
+      <button id="off">Switch off</button>
+    </div>
+    <p class="note">Keys you hold (right-click a key to hold it) stay down through a power-on, as
+      for shipping mode (SHIFT + PLAY + LOOP). Switching off and on restarts the firmware; the SD
+      card stays.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Into AUX</legend>
+    <label><input type="radio" name="src" value="tone" checked> Test tone
+      <input id="freq" type="number" value="220" min="20" max="5000" style="width:6em"> Hz</label>
+    <label><input type="radio" name="src" value="file"> Audio file <input id="file" type="file" accept="audio/*"></label>
+    <label><input type="radio" name="src" value="live"> Mic / line in</label>
+    <label><input type="radio" name="src" value="off"> Nothing</label>
+    <label>Out <select id="output"><option value="master">Master out</option>
+      <option value="headphones">Headphones</option></select></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>MIDI clock</legend>
+    <div class="row">
+      <input id="bpm" type="number" value="120" min="30" max="300" style="width:6em"> BPM
+      <button id="clockbtn">Start</button>
+    </div>
+    <label>MIDI in <select id="midiin"><option value="">none</option></select></label>
+    <p class="note">A connected MIDI device's clock goes into the TRS jack.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Battery</legend>
+    <label>Battery <span id="voltsval">3.80</span> V
+      <input id="volts" type="range" min="2.8" max="4.2" step="0.01" value="3.8"></label>
+    <label><input id="plugged" type="checkbox"> On the charger</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Record</legend>
+    <div class="row">
+      <button id="rec">Record audio</button>
+      <button id="logbtn">Download what I played</button>
+    </div>
+    <label>Replay a script from power-on <input id="script" type="file" accept=".txt,.frizzlog"></label>
+    <p class="note">What you play is kept as a script (<code>firmware/twin/README.md</code>), which
+      <code>run.sh</code> replays the same way.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>SD card</legend>
+    <div class="row">
+      <button id="carddl">Download files</button>
+      <button id="cardclear">Empty the card</button>
+    </div>
+    <p class="note" id="cardinfo">empty</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Keyboard</legend>
+    <p class="note">White keys 1–10 <kbd>Q</kbd>…<kbd>P</kbd>, 11–15 <kbd>A</kbd>…<kbd>G</kbd>;
+      dark keys <kbd>1</kbd>…<kbd>0</kbd>; SHIFT (the CHOMPI key) <kbd>Shift</kbd>, PLAY
+      <kbd>Space</kbd>, LOOP <kbd>Enter</kbd>. Knobs: scroll or drag up/down; click the centre to
+      press. Right-click (or Ctrl-click) a key to hold it down, again to let go.</p>
+  </fieldset>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
