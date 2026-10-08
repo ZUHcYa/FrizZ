@@ -409,7 +409,9 @@ latch, and holding it doesn't switch anything. With SHIFT it's a select, as an F
 - **Kept:** the settings are saved to `FRIZZ/frizz_master.txt` on the card 2 s after the
   last turn, and come back at power-on. They're not part of a scene. Without a card, or when
   the card can't be written, the key blinks red 3 times instead, and FRIZZ tries again 2 s
-  later, up to 3 times; the settings then last until power-off.
+  later, up to 3 times; the settings then last until power-off. On a card put in after
+  switching on, the settings you're playing with are written and the card's own are kept as
+  `FRIZZ/frizz_master.bak`.
 - LEDs: the key is white, dim, lighting up with the gain reduction, at full brightness from
   12 dB; it flashes white when pressed. While selected, the knobs go light blue (0%) through
   white to orange (100%).
@@ -496,6 +498,10 @@ older versions kept it); after that the card is written only when you save, copy
 never on a recall. Saving takes a moment in which the LEDs may pause. A scene file FRIZZ can't
 read (from another version, or edited into something else) starts it with no scenes but
 isn't lost: the first save moves it to `frizz_scenes.bak`.
+
+A card put in after switching on without one is read before anything is written to it: its
+scenes fill the slots you haven't saved into. If you've saved into a slot it also has a
+scene in, its file is moved to `frizz_scenes.bak` first, so nothing on it is lost.
 
 ### Morphing to a scene
 

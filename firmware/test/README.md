@@ -77,6 +77,20 @@ a knob's. The recall must land sooner and within 30 ms, without a larger step be
 and hand back to the knobs' slew afterwards. It doesn't touch the card (`SceneStore.h`) or the
 play page.
 
+## Card check
+
+```bash
+./unit.sh store
+```
+
+Runs `SceneStore.h` against an SD card in memory (`host/fatfs.h`): the boot read, a `.tmp`
+left by a cut save, the move from the card's root to `/FRIZZ`, an unreadable or oversized
+scene file kept as `.bak`, and one deleted before the save. Then a card first put in after
+booting without one: its scenes fill the empty slots, a scene of its own the session would
+overwrite sends its file to `.bak` first, its master settings are kept as
+`frizz_master.bak`, and a read-only card refuses without touching anything. It doesn't cover
+FatFs itself or a card swapped while mounted.
+
 ## Master compressor check
 
 ```bash
@@ -147,8 +161,8 @@ exactly the loop's beat. None covers the LEDs or `NormalPage.h`'s routing of the
 keys to these classes.
 
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample
-conversions) and `MidiClock.h` (no clock, unless a test sets its fields, as `tempo.cpp`
-does). DaisySP is compiled for the host once into `build/`,
+conversions), `MidiClock.h` (no clock, unless a test sets its fields, as `tempo.cpp`
+does) and `fatfs.h` (an SD card in memory, for `store.cpp`). DaisySP is compiled for the host once into `build/`,
 which is ignored.
 
 ## How the scripts are built

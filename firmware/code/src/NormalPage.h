@@ -451,16 +451,12 @@ namespace chompi
 
             // the compressor's knobs to the card, once they've been left alone a while
             if (fx_.TakeCompChanged())
-            {
-                master_unsaved_ = true;
-                master_changed_at_ = now;
-                master_tries_ = 0;
-            }
+                MasterChanged(now);
             // a failed write: the compressor's key blinks red, and it's tried again a few times
             if (scenes_->TakeMasterFailed())
             {
                 master_refused_.Start(now);
-                if (++master_tries_ < kMasterSaveTries)
+                if (++master_tries_ <= kMasterSaveTries)
                 {
                     master_unsaved_ = true;
                     master_changed_at_ = now;
@@ -504,8 +500,7 @@ namespace chompi
                     {
                         mono_ = mono;
                         engine_->SetMonoInput(mono_);
-                        master_unsaved_ = true;
-                        master_changed_at_ = System::GetNow();
+                        MasterChanged(System::GetNow());
                     }
                 }
             }
@@ -530,6 +525,15 @@ namespace chompi
             tap_flash_.Start(now, kTapFlashMs);
             if (tap_tempo_.Tap(now))
                 engine_->TapTempo(tap_tempo_.Bpm());
+        }
+
+        /** The compressor's knobs or mono changed: written kMasterSaveDelayMs after the last
+         *  change, with every retry available again */
+        void MasterChanged(uint32_t now)
+        {
+            master_unsaved_ = true;
+            master_changed_at_ = now;
+            master_tries_ = 0;
         }
 
         void SetMix(float mix)
