@@ -1,0 +1,56 @@
+# Changelog
+
+What changed for players, newest first. Every branch adds its changes under **Unreleased**;
+a release renames that section to its version, and its notes on GitHub's Releases page start
+from it. Developer-only changes (refactoring, tests, docs) aren't listed unless they change
+what FRIZZ does.
+
+## Unreleased
+
+### Added
+
+- **Mono input** on VOLUME's page 3: turn 3 detents left for a mono (TS) cable, such as one
+  from a Lyra-8 or a pedal, and the left channel feeds both sides; 3 right for stereo. Saved
+  on the card. By sfaber02 ([#1](https://github.com/ZUHcYa/FrizZ/pull/1)).
+- **Headphone feed** on VOLUME's page 4: blends steplessly from the master out to the dry
+  input on its own, back on the master at power-on.
+- SHIFT + press VOLUME resets the input/loop mix.
+- Picking a VOLUME page blinks its number in white.
+- A failed write of the compressor's or randomizer's settings blinks the compressor's key red
+  and is tried again, up to 3 times.
+
+### Changed
+
+- The headphone feed moved from the mode switch to VOLUME; the mode switch does nothing in
+  play mode.
+- A morph started with SHIFT + scene key waits while SHIFT is held, and on release glides the
+  whole way to the same bar line. The effects it fades in come on when the glide starts.
+- The DELETE scene mode is orange, so red only means refused.
+- The battery check shows red below 3 V and reads correctly from a second after boot.
+- Random gates are held to at most +3 dB over their input, and the crusher to its input's
+  level.
+- The reverb's modulation runs at its intended rate (it was 1/32 too fast); the delay's
+  feedback and the filter's resonance glide like every other knob. The sound changes slightly.
+- The filter's LFO follows a loop slowed below 50 BPM instead of running ahead.
+- The CHOMPI shows up as FrizZ over USB.
+
+### Fixed
+
+- Letting go of CHOMPI before VOLUME no longer also changes the page, and SHIFT + VOLUME press
+  doesn't start the battery check.
+- Keys without a function no longer cancel a pending confirm or latch; SHIFT + transport
+  press does nothing.
+- An FX key pressed while a morph switched another effect could lose its on/off.
+- The shifter keeps its swoop when a knob turns during it.
+- A quantized recording closes when MIDI clock drops out and comes back within a block.
+- A delay event on a slowed-down loop no longer runs off the buffer.
+- The master compressor, turned off under a hot signal, releases before bypassing.
+
+### Removed
+
+- The factory self-test page (TAPE or WAVE run the same test).
+
+## v0.9 (2026-10-06)
+
+The first public release. See its
+[release notes](https://github.com/ZUHcYa/FrizZ/releases/tag/v0.9).

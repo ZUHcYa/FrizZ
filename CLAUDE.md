@@ -13,7 +13,7 @@ which will not receive updates.
 
 | Path | What | Audience |
 |---|---|---|
-| `README.md`, `INSTALL.md`, `QUICKSTART.md`, `MANUAL.md` | what FRIZZ is, install, quick guide, full controls | users |
+| `README.md`, `INSTALL.md`, `QUICKSTART.md`, `MANUAL.md`, `CHANGELOG.md` | what FRIZZ is, install, quick guide, full controls, what changed since the last release | users |
 | `firmware/` | FRIZZ source (`code/`, `bin/`, `test/`); `firmware/README.md` is the developer guide | developers |
 | `docs/` | our design notes: `LOOPER.md` (looper spec), `FX_OVERVIEW.md` | developers |
 | `reference/` | the original CHOMPI release, unchanged except for links: `reference/firmware/{chompi-tape,chompi-tempo,chompi-wave,chompi-bootloader-v6.4-beta,card-profiles}`, `reference/hardware/`, CHOMPI's README | reference only |
@@ -43,6 +43,23 @@ includes the fresh `build/FRIZZ.bin` copied to `firmware/bin/FRIZZ.bin`, in the 
 so the binary always matches its source. On a merge conflict over it, rebuild rather than pick a
 side. It reaches `main` with the merge, so `main` holds the last tested build; releases for
 users stay on GitHub's Releases page.
+
+Two artifacts track every branch; keep both current with each change, and read them before
+working on a branch:
+
+- **`CHANGELOG.md`** (Keep a Changelog style): every change a player notices goes under
+  **Unreleased** (Added / Changed / Fixed / Removed), in the commit that makes it, worded for
+  users like `MANUAL.md`. Credit outside contributors with their PR. Refactoring, tests and
+  developer docs stay out unless they change behaviour. A release renames Unreleased to the
+  version and its GitHub release notes start from it.
+- **A pull request per branch into `main`**, opened (as a draft is fine) once the branch is
+  pushed. Its description lists what changed and carries a **hardware test checklist**
+  (`- [ ]` items, one per thing the user should try on the CHOMPI, with what to expect).
+  Update the description (`gh pr edit`) whenever a commit adds or changes something to test.
+  The user ticks the list while testing; merging the PR is the approval to reach `main`. A
+  branch built on another unmerged branch either gets a PR covering both or a stacked PR
+  based on that branch. Merge an outside contributor's commit unchanged (no squash, rebase or
+  cherry-pick) so GitHub marks their PR merged and credits them in the release notes.
 
 ## Orientation: ~14.6k files, ~200 of them are source
 
