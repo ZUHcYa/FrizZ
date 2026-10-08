@@ -181,9 +181,19 @@ The exception is FRIZZ: `firmware/test/` compiles its audio engine on the host a
 script of key presses and knob turns through it (3 s per effect plus four combined segments).
 `./all.sh` runs everything. `./check.sh` compares HEAD with the working tree; a refactor must
 come out `bit-identical`. `./unit.sh NAME` runs one unit check, `NAME.cpp`: `pitch`, `tape`,
-`scenes`, `controls`, `keys`, `looper`, `tempo`, `comp`, `randomizer`; a new check is just a new
+`scenes`, `controls`, `keys`, `looper`, `tempo`, `comp`, `randomizer`, `sleep`; a new check is just a new
 `.cpp`. What each covers is in `firmware/test/README.md`. None covers the LEDs, `NormalPage.h`'s
 key routing, real MIDI or the hardware.
+
+## FRIZZ's audio callback is CPU-bound
+
+FRIZZ's audio callback has 0.5 ms per 24-sample block. Until effects that are off stopped
+processing (`FxGate::Asleep`), a playing loop with the delay ran it at 90-100%. At that
+margin, a change that only shifts the memory layout (b5c658c, removing the randomizer) was
+enough to make it crackle on the device, while the host harness stayed bit-identical. The
+host can't measure this: on the device, the local branch `diag-cpu-load` (f38209f) shows the
+worst block's load on the 14th white key's LED. Keep effects that are off cheap, and suspect
+the CPU when crackles appear on hardware that the harness can't reproduce.
 
 ## SRAM is the binding constraint, especially on TAPE
 

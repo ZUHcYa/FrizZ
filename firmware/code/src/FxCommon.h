@@ -17,6 +17,8 @@ static const size_t kNumFxParams = 4;
 // settles (to under 1%) in about 5 of them.
 // The punch-in fade: a time constant of ~5ms, settled in ~25ms
 static const float kFxGateCoeff = .004f;
+// Below this (-120dB) a fading-out key counts as silent (FxGate::Asleep)
+static const float kFxGateSleep = 1e-6f;
 // The knobs' slew: a time constant of ~21ms, settled in ~100ms
 static const float kFxParamCoeff = .001f;
 // The slew for a moment after a scene recall (FxChain::FastSlew), the punch-in fade's, so a
@@ -85,6 +87,19 @@ public:
 
     inline bool IsOn() const { return on_; }
 
+    /** After Process: off and faded out, so the effect's output is its input and it can skip
+     *  the work that only shapes what's heard. The fade's last 120dB snap to 0, so the output
+     *  is exactly the input */
+    inline bool Asleep()
+    {
+        if (on_ || value_ > kFxGateSleep)
+            return false;
+        value_ = 0.f;
+        return true;
+    }
+    /** Off and faded out (under -120dB) */
+    inline bool Silent() const { return !on_ && value_ <= kFxGateSleep; }
+
     /** True once after each press, for the audio callback */
     bool TakePress()
     {
@@ -101,8 +116,10 @@ private:
 };
 
 /** What every punch-in effect has: a key and kNumFxParams parameters, each 0..1. Process is
- *  each effect's own, called by FxChain in its place in the chain. Effects process every
- *  sample even while off, so engaging one never starts from stale state. */
+ *  each effect's own, called by FxChain in its place in the chain. While off and faded out
+ *  (FxGate::Asleep), the costly ones skip what only shapes the sound but keep what a
+ *  punch-in starts from (a delay line's input, a filter's state), so engaging one never
+ *  starts from stale state. */
 class FxBase
 {
 public:
@@ -113,8 +130,35 @@ public:
      *  the knobs' slew. An effect without slewed parameters has nothing to do */
     virtual void SnapParams() {}
 
+    /** Off and faded out: its output is its input, and its meter isn't shown */
+    inline bool Idle() const { return gate_.Silent(); }
+
 protected:
     FxGate gate_;
+};
+
+/** A send's tail: once its key is off and faded out and its return has stayed under -120dB
+ *  for longer than anything in it could come back, it has nothing left to add and can skip
+ *  its work until the key comes on */
+struct TailWatch
+{
+    uint32_t quiet = 0; // samples the return has been silent, with the key off
+
+    /** Before the work: whether to skip it. silent_in: the key is off and faded out */
+    inline bool Sleeping(bool silent_in, uint32_t hold)
+    {
+        if (!silent_in)
+            quiet = 0;
+        return quiet >= hold;
+    }
+    /** After the work, with its return */
+    inline void Track(bool silent_in, float l, float r)
+    {
+        if (silent_in && fabsf(l) < kFxGateSleep && fabsf(r) < kFxGateSleep)
+            quiet++;
+        else
+            quiet = 0;
+    }
 };
 
 /** The effects' random numbers: a xorshift32, seeded per effect so every run is the same */

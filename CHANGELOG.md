@@ -40,6 +40,10 @@ what FRIZZ does.
 
 ### Fixed
 
+- Crackles while a loop plays with the delay on, since v0.10-beta.2: the audio processing ran
+  at the edge of its time, and effects that were switched off kept working in the background.
+  They now rest once faded out (the delay and reverb only once their tails have rung out), which
+  roughly halves the work with a loop and the delay running, so it has room to spare.
 - Letting go of CHOMPI before VOLUME no longer also changes the page, and SHIFT + VOLUME press
   doesn't start the battery check.
 - Keys without a function no longer cancel a pending confirm or latch; SHIFT + transport
