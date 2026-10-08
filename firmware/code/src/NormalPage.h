@@ -55,8 +55,15 @@ namespace chompi
     static const float kDefaultInGain = .75f;
     static const float kDefaultMix = 0.f; // fully dry at power-on, nothing recorded yet
 
-    static const uint8_t kNumPages = 4; // output gain, input gain, mono, headphone cue
-    static const uint8_t kMonoPage = 2;
+    // VOLUME's pages, in the order a press steps through them
+    enum VolumePage : uint8_t
+    {
+        kOutGainPage,
+        kInGainPage,
+        kMonoPage,
+        kHpCuePage,
+        kNumPages,
+    };
     static const float kMonoDetents = 3.f; // VOLUME detents on page 3 to switch mono / stereo
 
     // encoder IDs, by ui.h's encoder_map: 0-3 are knobs 1-4
@@ -97,14 +104,18 @@ namespace chompi
     // three: the mode's colour shows what will happen (the slots it can act on, the pick, the
     // CHOMPI key that confirms), white that it's done, red that it was refused or isn't on
     // the card. So no mode is red: DELETE is amber
-    static const Hardware::SwId kSceneKeys[kNumSlots] = {
-        Hardware::SwId::KEY_16,
-        Hardware::SwId::KEY_17,
-        Hardware::SwId::KEY_18,
-        Hardware::SwId::KEY_19,
-        Hardware::SwId::KEY_20,
+    struct SceneKey
+    {
+        Hardware::SwId key;
+        uint8_t led;
     };
-    static const uint8_t kSceneLeds[kNumSlots] = {0, 1, 2, 3, 4};
+    static const SceneKey kSceneKeys[kNumSlots] = {
+        {Hardware::SwId::KEY_16, 0},
+        {Hardware::SwId::KEY_17, 1},
+        {Hardware::SwId::KEY_18, 2},
+        {Hardware::SwId::KEY_19, 3},
+        {Hardware::SwId::KEY_20, 4},
+    };
     struct SceneModeKey
     {
         SceneMode mode;
@@ -120,6 +131,10 @@ namespace chompi
     static const uint32_t kSceneBlinkMs = 250;      // a picked slot, the armed CHOMPI key
     static const uint32_t kScenePulseMs = 1000;     // the active scene, edited
 
+    // VOLUME held: the battery's level, by Hardware::BatteryLevel
+    static const float* const kBatteryColors[] = {white, green, yellow, red};
+    static const float kVuDim[3] = {.1f, .1f, .1f}; // the VU meter's floor
+
     class NormalPage : public daisy::UiPage
     {
     public:
@@ -133,7 +148,7 @@ namespace chompi
             in_gain_ = kDefaultInGain;
             mix_ = kDefaultMix;
             hp_cue_ = 0.f; // the headphones mirror the master at power-on
-            page_ = 0;
+            page_ = kOutGainPage;
 
             // the engine only hears about a value when it changes, so push them all now
             engine_->SetMainGain(out_gain_);
@@ -173,47 +188,35 @@ namespace chompi
             for (int i = 0; i < kNumPthLeds; i++)
                 SetPthLed(i, 0, 0, 0);
 
-            float r, g, b;
+            float rgb[3];
 
             if (batt_display && now - batt_hold > kBattHoldMs)
             {
-                const float* color = &green[0];
-
-                switch(hw_->GetBatteryLevel())
-                {
-                    case Hardware::BatteryLevel::FULL:   color = &white[0];  break;
-                    case Hardware::BatteryLevel::HIGH:   color = &green[0];  break;
-                    case Hardware::BatteryLevel::MEDIUM: color = &yellow[0]; break;
-                    case Hardware::BatteryLevel::LOW:    color = &red[0];    break;
-                    default: break;
-                }
-
-                r = color[0];
-                g = color[1];
-                b = color[2];
+                const unsigned level = hw_->GetBatteryLevel();
+                const float* color = level < 4 ? kBatteryColors[level] : green;
+                for (int c = 0; c < 3; c++)
+                    rgb[c] = color[c];
             }
             else if (Shift())
-                Xfade(green, purple, mix_, &r, &g, &b);
+                Xfade(green, purple, mix_, rgb);
             else if (page_flash_.Active(now))
             {
                 // a page picked: blinks its number in white
-                r = g = b = page_flash_.BlinkLit(now) ? 1.f : 0.f;
+                rgb[0] = rgb[1] = rgb[2] = page_flash_.BlinkLit(now) ? 1.f : 0.f;
             }
-            else if (page_ == 0)
+            else if (page_ == kOutGainPage)
             {
-                float vu_sample = engine_->GetVUSample();
-
-                r = out_gain_ * color_quad_xfade(.1f, green[0], yellow[0], pink[0], vu_sample);
-                g = out_gain_ * color_quad_xfade(.1f, green[1], yellow[1], pink[1], vu_sample);
-                b = out_gain_ * color_quad_xfade(.1f, green[2], yellow[2], pink[2], vu_sample);
+                Xfade4(kVuDim, green, yellow, pink, engine_->GetVUSample(), rgb);
+                for (float& c : rgb)
+                    c *= out_gain_;
             }
-            else if (page_ == 1)
-                Xfade(blue, red, in_gain_, &r, &g, &b);
+            else if (page_ == kInGainPage)
+                Xfade(blue, red, in_gain_, rgb);
             else if (page_ == kMonoPage)
-                Xfade(med_blue, white, mono_ ? 1.f : 0.f, &r, &g, &b);
+                Xfade(med_blue, white, mono_ ? 1.f : 0.f, rgb);
             else
-                Xfade(white, green, hp_cue_, &r, &g, &b);
-            SetPthLedFloat(kVolumeLed, r, g, b);
+                Xfade(white, green, hp_cue_, rgb);
+            SetPthLedFloat(kVolumeLed, rgb[0], rgb[1], rgb[2]);
 
             DrawLooperLeds(now);
             DrawFxLeds(now);
@@ -321,7 +324,7 @@ namespace chompi
             }
             for (size_t slot = 0; slot < kNumSlots; slot++)
             {
-                if (buttonID == static_cast<uint16_t>(kSceneKeys[slot]))
+                if (buttonID == static_cast<uint16_t>(kSceneKeys[slot].key))
                 {
                     keys_.Used();
                     ScenePressed(slot, Shift());
@@ -470,12 +473,12 @@ namespace chompi
 
             if (Shift())
                 SetMix(mix_ + detents * kMixStep);
-            else if (page_ == 0)
+            else if (page_ == kOutGainPage)
             {
                 out_gain_ = fclamp(out_gain_ + inc, 0.f, 1.f);
                 engine_->SetMainGain(out_gain_);
             }
-            else if (page_ == 1)
+            else if (page_ == kInGainPage)
             {
                 in_gain_ = fclamp(in_gain_ + inc, 0.f, 1.f);
                 engine_->SetInputGain(in_gain_);
@@ -512,7 +515,7 @@ namespace chompi
             const uint32_t now = System::GetNow();
             if (!engine_->CanTap())
             {
-                loop_refused_.Start(now);
+                Refused();
                 return;
             }
             tap_flash_.Start(now, kTapFlashMs);
@@ -618,7 +621,7 @@ namespace chompi
                 }
                 else if (scenes_->scenes[slot].used)
                     level = kFxOffLevel;
-                SmtLed(kSceneLeds[slot], color, level);
+                SmtLed(kSceneKeys[slot].led, color, level);
             }
         }
 
@@ -632,13 +635,10 @@ namespace chompi
             for (size_t p = 0; p < kNumFxParams; p++)
             {
                 const float val = fx_.Knob(p);
-                if (p >= knobs.num_params)
-                    SetPthLedFloat(kFxKnobLeds[p], 0.f, 0.f, 0.f);
-                else
-                    SetPthLedFloat(kFxKnobLeds[p],
-                                   color_triple_xfade(colors[0][0], colors[1][0], colors[2][0], val),
-                                   color_triple_xfade(colors[0][1], colors[1][1], colors[2][1], val),
-                                   color_triple_xfade(colors[0][2], colors[1][2], colors[2][2], val));
+                float rgb[3] = {0.f, 0.f, 0.f};
+                if (p < knobs.num_params)
+                    Xfade3(colors[0], colors[1], colors[2], val, rgb);
+                SetPthLedFloat(kFxKnobLeds[p], rgb[0], rgb[1], rgb[2]);
             }
 
             for (size_t fx = 0; fx < kNumFx; fx++)
@@ -742,16 +742,12 @@ namespace chompi
             const uint8_t led_on = value > .5f ? kTransportLedFwd : kTransportLedRev;
             const uint8_t led_off = value > .5f ? kTransportLedRev : kTransportLedFwd;
 
-            SetPthLedFloat(led_on,
-                           color_quad_xfade(med_blue[0], green[0], yellow[0], red[0], idx),
-                           color_quad_xfade(med_blue[1], green[1], yellow[1], red[1], idx),
-                           color_quad_xfade(med_blue[2], green[2], yellow[2], red[2], idx));
+            float rgb[3];
+            Xfade4(med_blue, green, yellow, red, idx, rgb);
+            SetPthLedFloat(led_on, rgb[0], rgb[1], rgb[2]);
 
             if (idx > .8f)
-            {
-                const float dim = (idx - .8f) * 5.f;
-                SetPthLedFloat(led_off, red[0] * dim, red[1] * dim, red[2] * dim);
-            }
+                PthLed(led_off, red, (idx - .8f) * 5.f);
         }
 
         void TransportTurned(int16_t turns)
@@ -781,7 +777,7 @@ namespace chompi
 
         inline bool Shift() const { return keys_.Shift(); }
 
-        // LED helpers: a colour at a level, and a crossfade between two colours
+        // LED helpers: a colour at a level, and crossfades through two, three or four colours
         static void SmtLed(uint8_t led, const float* color, float level)
         {
             SetSmtLedFloat(led, level * color[0], level * color[1], level * color[2]);
@@ -790,11 +786,21 @@ namespace chompi
         {
             SetPthLedFloat(led, level * color[0], level * color[1], level * color[2]);
         }
-        static void Xfade(const float* a, const float* b, float t, float* r, float* g, float* bl)
+        static void Xfade(const float* a, const float* b, float t, float* rgb)
         {
-            *r = color_xfade(a[0], b[0], t);
-            *g = color_xfade(a[1], b[1], t);
-            *bl = color_xfade(a[2], b[2], t);
+            for (int c = 0; c < 3; c++)
+                rgb[c] = color_xfade(a[c], b[c], t);
+        }
+        static void Xfade3(const float* a, const float* b, const float* c, float t, float* rgb)
+        {
+            for (int i = 0; i < 3; i++)
+                rgb[i] = color_triple_xfade(a[i], b[i], c[i], t);
+        }
+        static void Xfade4(const float* a, const float* b, const float* c, const float* d,
+                           float t, float* rgb)
+        {
+            for (int i = 0; i < 3; i++)
+                rgb[i] = color_quad_xfade(a[i], b[i], c[i], d[i], t);
         }
 
         Hardware *hw_;

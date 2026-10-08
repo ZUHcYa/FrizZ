@@ -82,13 +82,8 @@ public:
         {
             Used();
             play_down_ = true;
-            play_combo_ = false;
             // SHIFT + PLAY: stops a morph, and only that; without one, PLAY as ever
-            if (Shift() && host_->FreezeMorph())
-            {
-                play_combo_ = true;
-                return;
-            }
+            play_combo_ = Shift() && host_->FreezeMorph();
             return;
         }
         if (!play_down_)
