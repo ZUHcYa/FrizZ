@@ -66,7 +66,7 @@ public:
             SetParam(i, 0.f);
     }
 
-    void SetTempo(int bpm) { tempo_ = bpm; }
+    void SetTempo(float bpm) { tempo_ = bpm; }
 
     void Process(float* l, float* r)
     {
@@ -185,7 +185,7 @@ private:
     /** Frames of n 16ths at the tempo */
     uint32_t Frames16ths(uint8_t n) const
     {
-        return static_cast<uint32_t>(static_cast<float>(n) * 15.f * sample_rate_ / static_cast<float>(tempo_));
+        return static_cast<uint32_t>(static_cast<float>(n) * 15.f * sample_rate_ / tempo_);
     }
 
     /** Sets the stop's or spin-up's length, starting at t (0..1) along it */
@@ -246,7 +246,7 @@ private:
     size_t mask_;
     float max_lag_;
     size_t pos_; // the next frame to write
-    int tempo_;
+    float tempo_;
     volatile State state_;
     Head head_;
     Head old_;         // the head a jump crossfades from

@@ -50,6 +50,10 @@ what FRIZZ does.
 - The shifter keeps its swoop when a knob turns during it.
 - A quantized recording closes when MIDI clock drops out and comes back within a block.
 - A delay event on a slowed-down loop no longer runs off the buffer.
+- On a loop whose tempo isn't a whole BPM, the delay's echoes, the freezer's length and the
+  tape stop follow the loop's exact tempo instead of the nearest whole BPM. The echoes used
+  to drift off the loop's beats a little more with every repeat (up to 4 ms a repeat on a
+  1/4 delay), which smeared and flammed against the loop while it played.
 - The delay no longer zips when a loop closes on a tempo of its own (or the tempo jumps
   otherwise): it crossfades to the new delay time instead of scrubbing through its buffer.
 - The master compressor, turned off under a hot signal, releases before bypassing.

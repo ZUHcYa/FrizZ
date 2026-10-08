@@ -101,7 +101,7 @@ public:
         const uint32_t pulses = tempo_clock_.Process(
             size, looper.GetPosition(), looper.GetActualSpeed(),
             looper.GetState() == chompi::Looper::State::PAUSED);
-        fx_.SetTempo(tempo_clock_.GetTempo(), tempo_clock_.PulseSamples());
+        fx_.SetTempo(tempo_clock_.GetFxBpm(), tempo_clock_.PulseSamples());
         for (uint32_t p = 0; p < pulses; p++)
         {
             const uint32_t pos = tempo_clock_.Pulse();

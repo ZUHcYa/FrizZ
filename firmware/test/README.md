@@ -130,7 +130,8 @@ recorded quantized to a faked clock; then the bar lines (free, on 2-, 4- and 6-b
 reverse) and a scene morph (`FxMorph.h`) on them: landing on the bar line, one per tap, the
 glide, held while SHIFT is down however long, fades in and out, stopping it halfway; and the
 delay (`granularDelay.h`): reverse events only where they fit, and a tempo jump crossfading
-to the new delay time while a 1 BPM step slides. None covers the LEDs or `NormalPage.h`'s routing of the
+to the new delay time while a 1 BPM step slides, and on a loop whose tempo isn't whole, a 1/4
+exactly the loop's beat. None covers the LEDs or `NormalPage.h`'s routing of the
 keys to these classes.
 
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample
