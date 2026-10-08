@@ -171,7 +171,8 @@ make BENCH=1      # build-bench/FRIZZ-bench.bin; the normal build is untouched
    `FRIZZ.bin` (the bootloader takes the first `.bin` it finds, whatever its name) and switch
    on. The bootloader flashes it as usual.
 2. After the boot animation the bench waits about 10 s for every effect to rest (only CHOMPI
-   glows dimly), then runs by itself, about 70 s. Don't touch anything: the keys light up one
+   glows dimly), then runs by itself, about 90 s: between segments it waits for the tails of
+   effects the next one doesn't use to ring out. Don't touch anything: the keys light up one
    per segment, green below 80% load, amber below 95%, red above; the one running blinks white.
 3. At the end every panel LED is green (all below 95%) or red. Blinking red: `cpu.txt`
    couldn't be written (no card?).
@@ -184,7 +185,10 @@ the inserts together, recording a loop, the loop alone, with the inserts, with t
 PR #7's scene 4 (shifter +7, folder, crusher, slicer, compressor at 1) and the delay, with the
 reverb, then everything, everything with every feedback at the top (the harness's STRESS), and
 the loop with everything. The sends come last because their tails run on (the delay's for 10
-s). The signal is the bench's own (a saw, a gated sine, noise), so runs compare.
+s). The signal is the bench's own, so runs compare: a little tune in A minor at 120 BPM (Am F
+C G, an arpeggio, bass, kick, hi-hat), made by a few oscillators, so it costs no room for a
+recording. It's made for the next block after each measurement, so its own cost isn't in the
+numbers (it was in the first runs', 2026-10-08, with a saw, a gated sine and noise).
 
 The bench measures `FRIZZ-bench.bin`, whose memory layout differs from `FRIZZ.bin`'s; a
 crackle from the layout alone (b5c658c) can show in one and not the other. It tells what the

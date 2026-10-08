@@ -1,15 +1,17 @@
 /** @file Bench.h
  *  @brief The CPU bench, only in FRIZZ-bench.bin (make BENCH=1; the normal build leaves it out).
  *
- *  After the boot animation it plays a fixed list of segments through the engine on a signal
- *  of its own, 3 s each, and measures the audio callback's load in each, all of it (controls,
- *  UI events, MIDI, the engine), by the system timer as libDaisy's CpuLoadMeter does: the
+ *  After the boot animation it plays a fixed list of segments through the engine, 3 s each, on
+ *  a tune of its own (Tune: A minor at 120 BPM, Am F C G, an arpeggio, bass, kick and hi-hat,
+ *  made by a few oscillators, so it takes no room for a recording), and measures the audio
+ *  callback's load in each, all of it (controls, UI events, MIDI, the engine) but the tune,
+ *  which is made for the next block after the measurement, by the system timer as libDaisy's CpuLoadMeter does: the
  *  highest and the mean, as parts of the 0.5 ms a block has. When it's done it writes them to
  *  /FRIZZ/cpu.txt, with the effects that were still working in a segment they're not part of
  *  (a delay or reverb tail: the delay sleeps only after 10 s of silence) and whether the loop
- *  played. So the clean segments come first and the sends last, and it starts only once every
- *  effect rests: the delay works for its first 10 s after power-on, until its tail watch has
- *  heard 10 s of silence.
+ *  played. Before each segment it waits until every effect that isn't part of it rests (at
+ *  most 30 s), so no tail runs into the next one: the delay sleeps only after 10 s of silence,
+ *  and works for its first 10 s after power-on too.
  *
  *  It measures FRIZZ-bench.bin, whose memory layout isn't FRIZZ.bin's: a crackle that comes
  *  from the layout alone (b5c658c) may show in one and not the other.
@@ -32,18 +34,84 @@
 namespace chompi
 {
 
+/** The bench's signal: a little tune in A minor at 120 BPM, one chord a bar (Am F C G), an
+ *  arpeggio in eighths panned left and right, bass on the beats, a kick on 1 and 3, a hi-hat
+ *  on the off-beats. A few oscillators, the same every run */
+class Tune
+{
+public:
+    void Next(float& l, float& r)
+    {
+        static const uint32_t kBeat = 24000, kEighth = kBeat / 2, kBar = 4 * kBeat;
+        static const uint8_t kRoots[4] = {45, 41, 48, 43}; // A2 F2 C3 G2
+        static const bool kMinor[4] = {true, false, false, false};
+        const uint32_t in_bar = t_ % kBar;
+        const size_t chord = (t_ / kBar) % 4;
+        if (in_bar % kEighth == 0)
+        {
+            // the arpeggio: up and down the chord over two octaves
+            static const uint8_t kSteps[8] = {0, 1, 2, 3, 4, 3, 2, 1};
+            const uint8_t step = kSteps[in_bar / kEighth];
+            const uint8_t third = kMinor[chord] ? 3 : 4;
+            const uint8_t tones[3] = {0, third, 7};
+            arp_inc_ = Hz(kRoots[chord] + 12 + tones[step % 3] + 12 * (step / 3)) / 48000.f;
+            arp_env_ = 1.f;
+            arp_pan_ = -arp_pan_;
+            if (in_bar % kBeat == 0)
+            {
+                bass_inc_ = Hz(kRoots[chord] - 12) / 48000.f;
+                bass_env_ = 1.f;
+                if ((in_bar / kBeat) % 2 == 0)
+                    kick_env_ = 1.f;
+            }
+            else
+                hat_env_ = 1.f;
+        }
+        t_++;
+
+        arp_phase_ += arp_inc_;
+        arp_phase_ -= arp_phase_ >= 1.f ? 1.f : 0.f;
+        arp_lp_ += .15f * ((2.f * arp_phase_ - 1.f) - arp_lp_); // a saw, softened
+        arp_env_ *= .99985f;
+        bass_phase_ += bass_inc_;
+        bass_phase_ -= bass_phase_ >= 1.f ? 1.f : 0.f;
+        const float bass = (4.f * fabsf(bass_phase_ - .5f) - 1.f) * bass_env_; // a triangle
+        bass_env_ *= .99993f;
+        kick_phase_ += (45.f + 110.f * kick_env_ * kick_env_) / 48000.f;
+        kick_phase_ -= kick_phase_ >= 1.f ? 1.f : 0.f;
+        const float kick = sinf(6.2831853f * kick_phase_) * kick_env_;
+        kick_env_ *= .9996f;
+        seed_ = seed_ * 1664525u + 1013904223u;
+        const float hat = (static_cast<float>(seed_ >> 8) / 8388608.f - 1.f) * hat_env_;
+        hat_env_ *= .996f;
+
+        const float arp = .36f * arp_lp_ * arp_env_, mid = .4f * bass + .6f * kick;
+        l = mid + arp * (1.f - .4f * arp_pan_) + .08f * hat;
+        r = mid + arp * (1.f + .4f * arp_pan_) - .08f * hat;
+    }
+
+private:
+    static float Hz(int note) { return 440.f * powf(2.f, (note - 69) / 12.f); }
+
+    uint32_t t_ = 0, seed_ = 1;
+    float arp_phase_ = 0.f, arp_inc_ = 0.f, arp_lp_ = 0.f, arp_env_ = 0.f, arp_pan_ = 1.f;
+    float bass_phase_ = 0.f, bass_inc_ = 0.f, bass_env_ = 0.f;
+    float kick_phase_ = 0.f, kick_env_ = 0.f, hat_env_ = 0.f;
+};
+
 class Bench
 {
 public:
     static const size_t kSegmentBlocks = 6000; // 3 s at 48 kHz in 24-sample blocks
     static const size_t kRecordBlocks = 8000;  // the loop: 4 s
     static const size_t kKnobBlocks = 500;     // a knob moves every 0.25 s
-    static const size_t kSettleBlocks = 30000; // waiting for the effects to rest: 15 s at most
+    static const size_t kSettleBlocks = 60000; // waiting for the effects to rest: 30 s at most
 
     void Init(float sample_rate, size_t block_size, FATFS* fs, const char* path)
     {
         // ticks of the system timer in one block's time
         ticks_per_block_ = daisy::System::GetTickFreq() * (block_size / sample_rate);
+        block_size_ = block_size < kMaxBlock ? block_size : kMaxBlock;
         fs_ = fs;
         path_ = path;
     }
@@ -51,27 +119,11 @@ public:
     /** At the very start of the audio callback */
     inline void BlockStart() { start_tick_ = daisy::System::GetTick(); }
 
-    /** The bench's signal into AUX in place of the inputs, while it runs */
+    /** The bench's tune into AUX in place of the inputs, while it runs: made the block before */
     const float* const* Input(const float* const* in, size_t size)
     {
         if (!running_)
             return in;
-        for (size_t i = 0; i < size && i < kMaxBlock; i++)
-        {
-            // a 110 Hz saw, a 2 kHz sine gated at 4 Hz and a little noise
-            saw_ += 110.f / 48000.f;
-            if (saw_ >= 1.f)
-                saw_ -= 1.f;
-            sine_ += 2000.f / 48000.f;
-            if (sine_ >= 1.f)
-                sine_ -= 1.f;
-            gate_ = (gate_ + 1) % 12000;
-            const float s = .25f * (2.f * saw_ - 1.f)
-                            + (gate_ < 6000 ? .2f * sinf(6.2831853f * sine_) : 0.f)
-                            + .02f * (Random() * 2.f - 1.f);
-            in_l_[i] = s;
-            in_r_[i] = s * .9f;
-        }
         inputs_[0] = in[0];
         inputs_[1] = in[1];
         inputs_[2] = in_l_;
@@ -79,16 +131,26 @@ public:
         return inputs_;
     }
 
-    /** At the very end of the audio callback: the measurement, then the next step */
+    /** At the very end of the audio callback: the measurement, then the next step, then the
+     *  tune's next block, none of which counts */
     void BlockEnd(PassthroughEngine& engine)
     {
         const float load = static_cast<float>(daisy::System::GetTick() - start_tick_)
                            / ticks_per_block_;
+        Step(engine, load);
+        if (running_)
+            for (size_t i = 0; i < block_size_; i++)
+                tune_.Next(in_l_[i], in_r_[i]);
+    }
+
+    void Step(PassthroughEngine& engine, float load)
+    {
         if (!started_)
         {
             started_ = true;
             running_ = true;
             settling_ = true;
+            next_ = 0;
             for (size_t fx = 0; fx < kNumFx; fx++)
                 engine.SetFxOn(fx, false);
             return;
@@ -97,15 +159,16 @@ public:
             return;
         if (settling_)
         {
-            // until every effect rests: the delay keeps working for 10 s after power-on, until
-            // its tail watch has heard 10 s of silence
+            // until every effect the next segment doesn't use rests: at the start the delay
+            // keeps working for 10 s after power-on, later a send's tail rings out
+            const uint16_t used = kSegments[next_].fx;
             bool resting = true;
             for (size_t fx = 0; fx < kNumFx; fx++)
-                resting &= engine.FxResting(fx);
+                resting &= (used & (1u << fx)) || engine.FxResting(fx);
             if (resting || ++blocks_ >= kSettleBlocks)
             {
                 settling_ = false;
-                Begin(engine, 0);
+                Begin(engine, next_);
             }
             return;
         }
@@ -138,7 +201,24 @@ public:
             if (engine.looper.GetState() != Looper::State::PLAYING)
                 loop_missing_ = true;
         }
-        Begin(engine, segment_ + 1);
+        Next(engine, segment_ + 1);
+    }
+
+    /** The next segment, once what it doesn't use has come to rest */
+    void Next(PassthroughEngine& engine, size_t s)
+    {
+        if (s >= kNumSegments)
+        {
+            Begin(engine, s);
+            return;
+        }
+        for (size_t fx = 0; fx < kNumFx; fx++)
+            if (!(kSegments[s].fx & (1u << fx)))
+                engine.SetFxOn(fx, false);
+        next_ = s;
+        segment_ = s; // the one done is graded, this one stays dark until it runs
+        blocks_ = 0;
+        settling_ = true;
     }
 
     /** In MainLoop: writes cpu.txt once the last segment is done */
@@ -393,6 +473,8 @@ private:
     bool written_ = false, stored_ = false;
     volatile size_t segment_ = 0;
     size_t blocks_ = 0;
+    size_t next_ = 0;        // the segment a settle waits for
+    size_t block_size_ = 24;
     double sum_ = 0.;
     float max_[kNumSegments] = {};
     float mean_[kNumSegments] = {};
@@ -400,9 +482,8 @@ private:
     size_t loop_frames_ = 0;
     bool loop_missing_ = false;
     uint32_t lcg_ = 12345;
-    float saw_ = 0.f, sine_ = 0.f;
-    uint32_t gate_ = 0;
-    float in_l_[kMaxBlock], in_r_[kMaxBlock];
+    Tune tune_;
+    float in_l_[kMaxBlock] = {}, in_r_[kMaxBlock] = {};
     const float* inputs_[4];
 };
 

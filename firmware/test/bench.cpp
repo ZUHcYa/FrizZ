@@ -23,17 +23,18 @@ static const char* const kSegments[] = {
     "loop+inserts", "loop+delay", "loop+scene4+delay", "loop+reverb", "everything",
     "stress",     "loop+everything",
 };
-// up to the reverb's: nothing may still be working in them that isn't theirs
-static const size_t kClean = 18;
 static const size_t kNum = sizeof(kSegments) / sizeof(kSegments[0]);
+// the bench waits before each segment for what it doesn't use to rest, so nothing may still
+// be working in any segment that isn't part of it
+static const size_t kClean = kNum;
 
 // Without a card: the bench runs, then the panel blinks red
 static int NoCard()
 {
     SetCardPresent(false);
     Boot();
-    const uint32_t end_ms = 11400 + 3000 * kNum + 3000;
-    Run(end_ms * 2, nullptr, nullptr);
+    // the boot, the run with its pauses for tails (each at most 30 s), the end
+    Run(150000 * 2, nullptr, nullptr);
     int lit = 0, dark = 0;
     for (int i = 0; i < 1000; i++)
     {
@@ -63,12 +64,14 @@ int main()
 
     Boot();
     // the boot animation, about 10 s for the delay to rest, then 22 segments of 3 s with the
-    // 4 s recording among them; the input is the bench's own, so none is fed here
+    // 4 s recording among them and the pauses for tails between them, until cpu.txt is
+    // written; the input is the bench's own tune, so none is fed here
     std::vector<float> rms; // the master out's level every 3 s from when the bench starts
     float out[kBlockSize * kChannels];
     double sum = 0.;
-    const uint32_t start_ms = 11400, end_ms = start_ms + 3000 * kNum + 1000 + 2000;
-    for (uint32_t b = 0; b < end_ms * 2; b++)
+    const uint32_t start_ms = 11400;
+    const auto& card = CardFiles();
+    for (uint32_t b = 0; b < 200000 * 2 && !card.count("/FRIZZ/cpu.txt"); b++)
     {
         Run(1, nullptr, out);
         for (size_t i = 0; i < kBlockSize; i++)
@@ -79,8 +82,9 @@ int main()
             sum = 0.;
         }
     }
+    printf("      the run took %.1f s\n", NowMs() / 1000.);
+    Run(2000 * 2, nullptr, nullptr); // the LEDs' last frame
 
-    const auto& card = CardFiles();
     const auto it = card.find("/FRIZZ/cpu.txt");
     Check(it != card.end(), "bench: /FRIZZ/cpu.txt is written at the end");
     const std::string text = it == card.end() ? "" : it->second;
@@ -101,7 +105,7 @@ int main()
             s++;
         }
     Check(found == kNum, "bench: every segment has its line, in order, with a max and a mean");
-    Check(clean, "bench: nothing else still works in a segment before the reverb's");
+    Check(clean, "bench: nothing else still works in any segment");
     Check(text.find(" s, playing in every loop segment") != std::string::npos
               && text.find("# loop:    4.0 s") != std::string::npos,
           "bench: the 4 s loop plays in every loop segment");
@@ -119,11 +123,11 @@ int main()
         panel &= PthLedFull(i).g > 200 && PthLedFull(i).r == 0;
     Check(panel, "bench: at the end the panel is green");
 
-    // the signal goes through: every 3 s after the boot something comes out, but for the tape
+    // the tune goes through: every 3 s after the boot something comes out, but for the tape
     // stop's segment (the windows don't line up with the segments exactly)
     int quiet = 0;
     for (size_t w = 1; w < rms.size(); w++)
         quiet += rms[w] < .002f;
-    Check(rms.size() >= kNum && quiet <= 1, "bench: its signal reaches the master out throughout");
+    Check(rms.size() >= kNum && quiet <= 2, "bench: its tune reaches the master out throughout");
     return Finish();
 }

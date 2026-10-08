@@ -222,9 +222,10 @@ host can't measure this, nor can the virtual CHOMPI. The device does, with the *
 `make BENCH=1` in `firmware/code/src` builds `FRIZZ-bench.bin` (`Bench.h`, compiled in only
 then; the normal `FRIZZ.bin` stays byte for byte the same). On the card in place of
 `FRIZZ.bin`, it waits for every effect to rest (the delay works for its first 10 s after
-power-on), then runs 22 segments by itself, the clean ones first and the sends last (every
-effect alone, together, at their heaviest, a playing loop with the delay, PR #7's scene 4,
-...). It times the whole audio callback by the system timer, as libDaisy's `CpuLoadMeter`
+power-on), then runs 22 segments by itself on a tune of its own, the clean ones first and the
+sends last, waiting before each for what it doesn't use to rest (every effect alone,
+together, at their heaviest, a playing loop with the delay, PR #7's scene 4, ...). It times
+the whole audio callback but the tune (made after the measurement) by the system timer, as libDaisy's `CpuLoadMeter`
 does, and writes each segment's max and mean load to `/FRIZZ/cpu.txt`, with any effect still
 working outside its segment and whether the loop played. The key LEDs grade each segment;
 the panel ends green or red.
