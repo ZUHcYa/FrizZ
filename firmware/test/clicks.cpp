@@ -4,9 +4,12 @@
 //    channel's sweep glides back onto the left one instead of jumping there
 //  - the freezer pressed again while its release fades the loop out: the loop plays on and
 //    hands over to the new capture, instead of dropping to the live signal at once
+//  - the filter's LFO division changed at full depth and high resonance: the cutoff jumps,
+//    the output steps no further than the sweep does (a guard; it never clicked)
 #include <cmath>
 #include <vector>
 #include "FxFlanger.h"
+#include "FxFilter.h"
 #include "FxFreezer.h"
 #include "check.h"
 
@@ -91,9 +94,31 @@ static void TestFreezer()
     Check(again < kMaxStep, "freezer: pressed again in the release, no drop to the live signal");
 }
 
+static void TestFilter()
+{
+    static chompi::Filter fx;
+    fx.Init(kSr);
+    fx.SetParam(chompi::Filter::CUTOFF, .5f);
+    fx.SetParam(chompi::Filter::RESONANCE, .9f);
+    fx.SetParam(chompi::Filter::LFO_DEPTH, 1.f);
+    fx.SetParam(chompi::Filter::LFO_DIVISION, 4.f / 6.f); // 1 bar
+    fx.SetPulseSamples(static_cast<float>(kPulseSamples));
+    auto pulse = [](size_t pos) { fx.ClockPulse(static_cast<uint32_t>(pos % 192)); };
+    size_t i = 0;
+    last_l = last_r = 0.f;
+    fx.SetOn(true);
+    // a quarter bar in, where the 1 bar LFO is at its top and the 1/16's at its centre
+    const float sweep = Run(fx, i, 48000 / 4 * 2 + 3000, pulse);
+    fx.SetParam(chompi::Filter::LFO_DIVISION, 0.f); // 1/16
+    const float turned = Run(fx, i, 4800, pulse);
+    printf("      filter: largest step %.4f sweeping, %.4f on a division change\n", sweep, turned);
+    Check(turned < 2.f * fmaxf(sweep, kMaxStep), "filter: a division change at full LFO depth doesn't jump");
+}
+
 int main()
 {
     TestFlanger();
     TestFreezer();
+    TestFilter();
     return Finish();
 }
