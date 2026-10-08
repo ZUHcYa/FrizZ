@@ -126,7 +126,9 @@ public:
     inline void BlockStart()
     {
         start_tick_ = daisy::System::GetTick();
+        const uint32_t last = bench_profile.start;
         bench_profile.Start();
+        block_period_ = bench_profile.start - last; // the cycles from one block to the next
     }
 
     /** The bench's tune into AUX in place of the inputs, while it runs: made the block before */
@@ -191,6 +193,7 @@ public:
             part_sum_[p] += bench_profile.cycles[p];
         cycles_sum_ += block_cycles_;
         ticks_sum_ += block_ticks_;
+        period_sum_ += block_period_;
         blocks_++;
         const Segment& seg = kSegments[segment_];
         if (!(seg.flags & (STRESS | SCENE4 | RECORD)) && blocks_ % kKnobBlocks == 0)
@@ -205,8 +208,11 @@ public:
         for (size_t p = 0; p < BenchProfile::kNumParts; p++)
             parts_[segment_][p] = static_cast<float>(part_sum_[p]) / blocks_;
         cycles_[segment_] = static_cast<float>(cycles_sum_) / blocks_;
+        period_[segment_] = static_cast<float>(period_sum_) / blocks_;
         all_cycles_ += cycles_sum_;
         all_ticks_ += ticks_sum_;
+        all_periods_ += period_sum_;
+        all_blocks_ += blocks_;
         // what still worked without being part of the segment, and the loop
         for (size_t fx = 0; fx < kNumFx; fx++)
             if (!(seg.fx & (1u << fx)) && !engine.FxResting(fx))
@@ -335,7 +341,7 @@ private:
         sum_ = 0.;
         for (size_t p = 0; p < BenchProfile::kNumParts; p++)
             part_sum_[p] = 0;
-        cycles_sum_ = ticks_sum_ = 0;
+        cycles_sum_ = ticks_sum_ = period_sum_ = 0;
         if (s >= kNumSegments)
         {
             running_ = false;
@@ -450,21 +456,25 @@ private:
     /** Where the time went: each segment's mean split into the callback's parts */
     void WriteParts(Text& t)
     {
-        // the core's clock as measured: its cycles against the system timer's ticks
-        const float tick_hz = static_cast<float>(daisy::System::GetTickFreq());
-        const float core_hz = all_ticks_ > 0 ? static_cast<float>(all_cycles_) / all_ticks_
-                                                   * tick_hz
-                                             : 0.f;
-        const float block_cycles = core_hz * ticks_per_block_ / tick_hz;
+        // the core's clock, measured two ways: against the audio's own clock (a block's cycles
+        // from one block to the next, 0.5 ms by the codec), and against the system timer, whose
+        // rate libDaisy works out from the clock settings rather than measures
+        const float block_s = static_cast<float>(block_size_) / 48000.f;
+        const float core_hz = all_blocks_ > 0 ? all_periods_ / all_blocks_ / block_s : 0.f;
+        const float timer_hz = all_ticks_ > 0 ? static_cast<float>(all_cycles_) / all_ticks_
+                                                    * daisy::System::GetTickFreq()
+                                              : 0.f;
         t.Put("\n# the chip: core ");
 #ifdef __arm__
         t.UInt(SystemCoreClock / 1000000);
         t.Put(" MHz set, ");
 #endif
         t.UInt(static_cast<uint32_t>(core_hz / 1e6f + .5f));
-        t.Put(" MHz measured, system timer ");
+        t.Put(" MHz by the audio clock, ");
+        t.UInt(static_cast<uint32_t>(timer_hz / 1e6f + .5f));
+        t.Put(" MHz by the system timer (");
         t.UInt(daisy::System::GetTickFreq() / 1000000);
-        t.Put(" MHz");
+        t.Put(" MHz)");
 #ifdef __arm__
         t.Put(", HCLK ");
         t.UInt(HAL_RCC_GetHCLKFreq() / 1000000);
@@ -472,11 +482,14 @@ private:
         t.Put(SCB->CCR & SCB_CCR_IC_Msk ? "on" : "off");
         t.Put(", D-cache ");
         t.Put(SCB->CCR & SCB_CCR_DC_Msk ? "on" : "off");
+        t.Put(", bootloader ");
+        t.UInt(static_cast<uint32_t>(daisy::System::GetBootloaderVersion()));
 #endif
-        t.Put("\n# where the mean goes, % of the block (BenchProfile.h); fx/sample: the FX\n");
+        t.Put("\n# where the mean goes, % of the block by the audio clock (BenchProfile.h);\n");
+        t.Put("# total: the whole callback so, to set against the mean above; fx/sample: the FX\n");
         t.Put("# chain's cycles on a block's first sample and on the others\n");
-        static const char* const kParts[] = {"midi", "ctrl", "events", "input", "looper",
-                                             "tempo", "fx", "comp", "output", "rest"};
+        static const char* const kParts[] = {"midi", "ctrl", "events", "input", "looper", "tempo",
+                                             "fx",   "comp", "output", "rest",   "total"};
         t.Put("# segment         ");
         for (const char* name : kParts)
         {
@@ -500,13 +513,16 @@ private:
                 shown[p] = parts_[s][p];
             shown[BenchProfile::FX] += parts_[s][BenchProfile::FX_FIRST];
             shown[rest] = cycles_[s] - marked;
+            const float period = period_[s];
             for (size_t p = 0; p <= rest; p++)
             {
                 if (p == BenchProfile::FX_FIRST)
                     continue;
                 t.Put(" ");
-                t.Load(block_cycles > 0.f ? shown[p] / block_cycles : 0.f);
+                t.Load(period > 0.f ? shown[p] / period : 0.f);
             }
+            t.Put(" ");
+            t.Load(period > 0.f ? cycles_[s] / period : 0.f);
             t.Put("   ");
             t.UInt(static_cast<uint32_t>(parts_[s][BenchProfile::FX_FIRST] + .5f), 13);
             t.UInt(static_cast<uint32_t>(parts_[s][BenchProfile::FX] / (block_size_ - 1) + .5f),
@@ -587,9 +603,11 @@ private:
     // where the time goes (BenchProfile.h): this segment's sums so far, and each one's means
     uint32_t block_cycles_ = 0, block_ticks_ = 0;
     uint64_t part_sum_[BenchProfile::kNumParts] = {};
-    uint64_t cycles_sum_ = 0, ticks_sum_ = 0, all_cycles_ = 0, all_ticks_ = 0;
+    uint32_t block_period_ = 0;
+    uint64_t cycles_sum_ = 0, ticks_sum_ = 0, period_sum_ = 0;
+    uint64_t all_cycles_ = 0, all_ticks_ = 0, all_periods_ = 0, all_blocks_ = 0;
     float parts_[kNumSegments][BenchProfile::kNumParts] = {};
-    float cycles_[kNumSegments] = {};
+    float cycles_[kNumSegments] = {}, period_[kNumSegments] = {};
     size_t loop_frames_ = 0;
     bool loop_missing_ = false;
     uint32_t lcg_ = 12345;

@@ -118,13 +118,13 @@ int main()
         std::istringstream rest(text.substr(parts));
         for (size_t s = 0; std::getline(rest, line);)
             if (s < kNum && line.rfind(std::string(kSegments[s]) + " ", 0) == 0
-                && line.size() >= 18 + 10 * 7 + 3 + 13 + 6)
+                && line.size() >= 18 + 11 * 7 + 3 + 13 + 6)
             {
                 split++;
                 s++;
             }
     }
-    Check(split == kNum && text.find("MHz measured") != std::string::npos,
+    Check(split == kNum && text.find("MHz by the audio clock") != std::string::npos,
           "bench: and split into the callback's parts, with the clock it ran at");
 
     bool keys = true;
