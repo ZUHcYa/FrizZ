@@ -13,7 +13,7 @@ which will not receive updates.
 
 | Path | What | Audience |
 |---|---|---|
-| `README.md`, `INSTALL.md`, `QUICKSTART.md`, `MANUAL.md` | what FRIZZ is, install, quick guide, full controls | users |
+| `README.md`, `INSTALL.md`, `QUICKSTART.md`, `MANUAL.md`, `CHANGELOG.md` | what FRIZZ is, install, quick guide, full controls, what changed since the last release | users |
 | `firmware/` | FRIZZ source (`code/`, `bin/`, `test/`); `firmware/README.md` is the developer guide | developers |
 | `docs/` | our design notes: `LOOPER.md` (looper spec), `FX_OVERVIEW.md` | developers |
 | `reference/` | the original CHOMPI release, unchanged except for links: `reference/firmware/{chompi-tape,chompi-tempo,chompi-wave,chompi-bootloader-v6.4-beta,card-profiles}`, `reference/hardware/`, CHOMPI's README | reference only |
@@ -36,6 +36,45 @@ and commit and push there. Merge into `main` only after the user has tested the 
 hardware where it touches the firmware) and said so; passing `firmware/test/` or a clean build
 is not that approval. If you find yourself on `main` with changes to make, create the branch
 before the first commit.
+
+The branch always carries a built firmware for the user to test: every commit that changes
+`firmware/code/` rebuilds with `make` in `firmware/code/src` (GCC 10.3, see below) and
+includes the fresh `build/FRIZZ.bin` copied to `firmware/bin/FRIZZ.bin`, in the same commit,
+so the binary always matches its source. On a merge conflict over it, rebuild rather than pick a
+side. It reaches `main` with the merge, so `main` holds the last tested build; releases for
+users stay on GitHub's Releases page.
+
+Two artifacts track every branch; keep both current with each change, and read them before
+working on a branch:
+
+- **`CHANGELOG.md`** (Keep a Changelog style): every change a player notices goes under
+  **Unreleased** (Added / Changed / Fixed / Removed), in the commit that makes it, worded for
+  users like `MANUAL.md`. Credit outside contributors with their PR. Refactoring, tests and
+  developer docs stay out unless they change behaviour. A release renames Unreleased to the
+  version and its GitHub release notes start from it.
+- **A pull request per branch into `main`**, opened (as a draft is fine) once the branch is
+  pushed. Its description lists what changed and carries a **hardware test checklist**
+  (`- [ ]` items, one per thing the user should try on the CHOMPI, with what to expect).
+  Update the description (`gh pr edit`) whenever a commit adds or changes something to test.
+  The user ticks the list while testing; merging the PR is the approval to reach `main`. A
+  branch built on another unmerged branch either gets a PR covering both or a stacked PR
+  based on that branch. Merge an outside contributor's commit unchanged (no squash, rebase or
+  cherry-pick) so GitHub marks their PR merged and credits them in the release notes.
+
+A build handed out for testing goes on GitHub as a **pre-release**, never as Latest, so v0.9
+users aren't offered it:
+
+- Each test round gets a numbered one, `v<next>-beta.N` (now `v0.10-beta.N`), tagged on the
+  branch's pushed head, with that commit's `firmware/bin/FRIZZ.bin` attached and the notes
+  taken from `CHANGELOG.md`'s Unreleased section plus a link to the branch's PR. The number
+  never moves, so feedback can name the build.
+- The pre-release **`beta`** always carries the newest of them, at a fixed link
+  (`https://github.com/ZUHcYa/FrizZ/releases/download/beta/FRIZZ.bin`). Moving it: `git tag
+  -f beta <commit> && git push -f origin beta`, then `gh release upload beta
+  firmware/bin/FRIZZ.bin --clobber` and `gh release edit beta` with the new title and notes
+  naming the numbered build.
+- Cut a new one only when the user asks for a test build; a release for everyone stays a
+  normal release on `main`.
 
 ## Orientation: 12.8k files, ~140 of them are source
 
