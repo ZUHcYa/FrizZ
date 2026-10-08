@@ -36,7 +36,7 @@ public:
     void Init(float sample_rate)
     {
         sample_rate_ = sample_rate;
-        env_coeff_ = 1.f - expf(-1.f / (.05f * sample_rate));
+        env_coeff_ = TimeCoeff(.05f, sample_rate);
         for (size_t c = 0; c < 2; c++)
         {
             u1_[c] = 0.f;

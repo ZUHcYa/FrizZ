@@ -1,12 +1,13 @@
 // Shifter pitch check: runs a 220Hz tone through FxShifter.h at every interval from -12 to
 // +12 and measures the output's pitch (the strongest frequency over 1s, by a Goertzel scan to
 // 0.05Hz) and how much its level wobbles (1000-sample windows). Built and run by
-// pitch.sh; fails if any interval is off by more than kMaxCents or wobbles by more than
+// unit.sh pitch; fails if any interval is off by more than kMaxCents or wobbles by more than
 // kMaxWobbleDb, on a sine (the hardest case for a delay-line shifter) or a harmonic tone.
 #include <cmath>
 #include <cstdio>
 #include <vector>
 #include "FxShifter.h"
+#include "check.h"
 
 static const double kMaxCents = 5.0;
 static const double kMaxWobbleDb = 2.0;
@@ -55,7 +56,6 @@ static double Pitch(const std::vector<float>& x, size_t at)
 
 int main()
 {
-    int failed = 0;
     for (int harmonics : {1, 8})
     {
         printf("220Hz %s:\n", harmonics == 1 ? "sine" : "saw, 8 harmonics");
@@ -91,14 +91,10 @@ int main()
                 hi = fmax(hi, s);
             }
             const double wobble = 10 * log10(hi / lo);
-            const bool ok = fabs(cents) <= kMaxCents && wobble <= kMaxWobbleDb;
-            failed += !ok;
-            printf("  %+3d st: %+5.1f cents, wobble %3.1f dB%s\n", st, cents, wobble, ok ? "" : "  FAIL");
+            char what[64];
+            snprintf(what, sizeof(what), "%+3d st: %+5.1f cents, wobble %3.1f dB", st, cents, wobble);
+            Check(fabs(cents) <= kMaxCents && wobble <= kMaxWobbleDb, what);
         }
     }
-    if (failed)
-        printf("%d intervals FAILED\n", failed);
-    else
-        printf("all intervals within %.0f cents and %.0f dB\n", kMaxCents, kMaxWobbleDb);
-    return failed ? 1 : 0;
+    return Finish();
 }

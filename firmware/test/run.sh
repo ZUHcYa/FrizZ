@@ -26,7 +26,10 @@ else
 fi
 cp "$T/host/MidiClock.h" "$D/"
 
-# -ffp-contract=off: no fused multiply-adds, so builds compare bit for bit
-g++ -O2 -std=gnu++14 -ffp-contract=off -w -I"$D" -I"$T/host" $INC "$HARNESS" \
+# -ffp-contract=off: no fused multiply-adds, so builds compare bit for bit. Warnings only for
+# the working tree: an old ref's are history
+WARN=-w
+[ "$1" = work ] && WARN="-Wall -Wno-unused-function -Wno-unused-variable"
+g++ -O2 -std=gnu++14 -ffp-contract=off $WARN -I"$D" -I"$T/host" $INC "$HARNESS" \
     "$BUILD/libdaisysp_host.a" -o "$D/harness"
 "$D/harness" "$2"

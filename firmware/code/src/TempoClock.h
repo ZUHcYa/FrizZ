@@ -1,6 +1,6 @@
 /** @file TempoClock.h
- *  @brief The tempo and clock pulses for the punch-in FX that follow it: the delay, the
- *  filter LFO, the freezer and the slicer. Three sources, in this order:
+ *  @brief The tempo and clock pulses for what follows it: the delay, the filter LFO, the
+ *  freezer, the slicer, the tape stop, the randomizer and the scene morph. Three sources, in this order:
  *
  *  1. A loop (SetLoop): while one exists, it is the clock, whether MIDI clock runs or not.
  *     The loop holds a whole number of beats, and the pulses come from its play position, so
@@ -107,8 +107,9 @@ public:
     /** The loop was erased: back to the MIDI clock, or to free running at the loop's tempo */
     void ClearLoop()
     {
-        bpm_ = ClampBpm(loop_bpm_);
-        tempo_ = static_cast<int>(bpm_ + .5f);
+        // the free clock runs at the whole BPM the FX use, so their times stay on its grid
+        tempo_ = static_cast<int>(ClampBpm(loop_bpm_) + .5f);
+        bpm_ = static_cast<float>(tempo_);
         tempo_set_ = true;
         loop_length_ = 0;
         paused_ = false;
@@ -137,8 +138,8 @@ public:
             loop_idx_ = free_idx_ = PulseIndex(loop_pos_);
             return;
         }
-        bpm_ = ClampBpm(bpm);
-        tempo_ = static_cast<int>(bpm_ + .5f);
+        tempo_ = static_cast<int>(ClampBpm(bpm) + .5f);
+        bpm_ = static_cast<float>(tempo_);
         // the next pulse lands now and starts the nearest beat
         const uint32_t beat = (pulse_count_ + kPulsesPerBeat / 2) / kPulsesPerBeat * kPulsesPerBeat;
         pulse_count_ = (beat + kPulsesPerCycle - 1) % kPulsesPerCycle;
@@ -248,6 +249,9 @@ public:
 
     /** The FX's tempo, whole BPM */
     inline int GetTempo() const { return tempo_; }
+    /** The FX's tempo for their times (delay, freezer, tape stop): a loop's exact one, so
+     *  the echoes stay on its beats however long it is; else the whole BPM */
+    inline float GetFxBpm() const { return HasLoop() ? loop_fx_bpm_ : static_cast<float>(tempo_); }
     /** Whether the pulses count down: a loop playing in reverse */
     inline bool Reverse() const { return HasLoop() && !paused_ && dir_ < 0; }
 
@@ -272,6 +276,7 @@ private:
         loop_pos_ = pos;
         const float bpm = ClampBpm(loop_bpm_ * fabsf(speed));
         tempo_ = static_cast<int>(bpm + .5f);
+        loop_fx_bpm_ = bpm;
         had_clock_ = false;
         // the pulses' real rate: paused, the grid's own; playing, the loop's, unclamped
         pulse_bpm_ = paused ? bpm : loop_bpm_ * fabsf(speed);
@@ -331,6 +336,7 @@ private:
     int32_t dir_;          // the pulses' direction, -1 in reverse
     bool paused_ = false;  // the loop is paused: the grid runs on by itself
     float pulse_bpm_ = kDefaultBpm; // the loop's pulses' real rate (PulseSamples)
+    float loop_fx_bpm_ = kDefaultBpm; // the loop's tempo at its speed, clamped (GetFxBpm)
     uint32_t free_idx_ = 0; // while paused, the grid's last pulse
 };
 

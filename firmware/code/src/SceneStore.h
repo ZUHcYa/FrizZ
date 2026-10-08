@@ -98,11 +98,7 @@ public:
             return;
         const bool there = Exists(kSceneFile);
         if (Load(kSceneTmpFile, defaults))
-        {
-            // a save cut short before its rename: finish it
-            if (!there || f_unlink(kSceneFile) == FR_OK)
-                f_rename(kSceneTmpFile, kSceneFile);
-        }
+            FinishRename(kSceneFile, kSceneTmpFile);
         else if (there)
             unreadable_ = true;
     }
@@ -114,25 +110,30 @@ public:
 
     /** How the last requested save went, for the play page's confirmation */
     inline SaveState GetSaveState() const { return save_state_; }
+    /** True once after a master save failed, so the play page can show it and try again */
+    bool TakeMasterFailed()
+    {
+        const bool failed = master_failed_;
+        master_failed_ = false;
+        return failed;
+    }
 
     /** From MainLoop */
     void Process()
     {
         if (save_state_ == SaveState::PENDING)
         {
-            // after a failure, or without a card at boot: mount again, the card may be back
-            if (!mounted_ || failed_)
-                Mount();
+            Remount();
             failed_ = !(mounted_ && Save());
             save_state_ = failed_ ? SaveState::FAILED : SaveState::OK;
         }
         if (master_pending_)
         {
             master_pending_ = false;
-            if (!mounted_ || failed_)
-                Mount();
-            const size_t len = FormatMaster(master, buf_, kSceneFileMax);
+            Remount();
+            const size_t len = FormatMaster(master, buf_, kMasterFileMax);
             failed_ = !(mounted_ && len && WriteText(kMasterFile, kMasterTmpFile, len));
+            master_failed_ = failed_;
         }
     }
 
@@ -202,11 +203,22 @@ private:
         if (ReadText(kMasterFile) && ParseMaster(buf_, master))
             return;
         if (ReadText(kMasterTmpFile) && ParseMaster(buf_, master))
-        {
-            const FRESULT del = f_unlink(kMasterFile);
-            if (del == FR_OK || del == FR_NO_FILE)
-                f_rename(kMasterTmpFile, kMasterFile);
-        }
+            FinishRename(kMasterFile, kMasterTmpFile);
+    }
+
+    /** A save cut short before its rename (only tmp was read): finish it */
+    static void FinishRename(const char* name, const char* tmp)
+    {
+        const FRESULT del = f_unlink(name);
+        if (del == FR_OK || del == FR_NO_FILE)
+            f_rename(tmp, name);
+    }
+
+    /** After a failure, or without a card at boot: mount again, the card may be back */
+    void Remount()
+    {
+        if (!mounted_ || failed_)
+            Mount();
     }
 
     bool Save()
@@ -239,6 +251,7 @@ private:
     bool mounted_;
     volatile SaveState save_state_;
     bool master_pending_ = false;
+    bool master_failed_ = false;
 };
 
 } // namespace chompi

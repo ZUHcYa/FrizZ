@@ -19,7 +19,7 @@
  *  from the post-roll (the natural continuation of the loop's tail) into the loop's head, so
  *  the jump from L-1 back to 0 doesn't click, in either direction.
  *
- *  Speed (step 4): the read head is a frame index plus a fraction, advanced by the speed each
+ *  Speed: the read head is a frame index plus a fraction, advanced by the speed each
  *  sample and read with 4-point Hermite interpolation. Speed moves in TAPE's ladder of 5ths and
  *  octaves (StepSpeed), glides to each new step like TAPE's default tape slew, and runs in
  *  reverse when negative. While paused, the transport knob scrubs instead (Scrub).
@@ -298,6 +298,7 @@ private:
             target_length_ = 0;
             target_bars_ = 0;
             start_ticks_ = midi_clock_->GetTicks();
+            start_locks_ = midi_clock_->GetLocks();
             first_tick_time_ = 0;
             first_tick_count_ = 0;
             have_first_tick_ = false;
@@ -384,13 +385,14 @@ private:
     }
 
     /** Snapshots the first tick after the record press, and closes a quantized recording
-     *  immediately if the clock goes away (LOOPER.md 1.3). */
+     *  immediately if the clock goes away (LOOPER.md 1.3), also if it came back at once: its
+     *  ticks then don't count from the press any more */
     void TrackRecordingClock()
     {
         if (!quantized_)
             return;
 
-        if (!midi_clock_->HasClock())
+        if (!midi_clock_->HasClock() || midi_clock_->GetLocks() != start_locks_)
         {
             CloseLoop(write_pos_);
             return;
@@ -422,7 +424,7 @@ private:
         size_t length = write_pos_;
         uint32_t bars = 0;
 
-        if (quantized_)
+        if (quantized_ && TickPeriod() > 0.f)
         {
             const float bar = kTicksPerBar * TickPeriod();
             bars = static_cast<uint32_t>(length / bar);
@@ -613,6 +615,7 @@ private:
     float scrub_, scrub_target_;
 
     uint32_t start_ticks_;
+    uint32_t start_locks_ = 0; // the clock's locks at the record press
     uint32_t first_tick_time_;
     uint32_t first_tick_count_;
     bool have_first_tick_;

@@ -13,6 +13,12 @@ namespace chompi
 static const uint32_t kSignalBlinkMs = 100;                 // half a blink
 static const uint32_t kSignalBlinksMs = 6 * kSignalBlinkMs; // 3 blinks
 
+/** A steady blink, lit for the first half_ms of every 2 * half_ms */
+inline bool BlinkOn(uint32_t now, uint32_t half_ms)
+{
+    return (now / half_ms) % 2 == 0;
+}
+
 class LedSignal
 {
 public:

@@ -12,10 +12,8 @@
 #include "hardware.h"
 #include "temp_led_stuff.h"
 #include "ui.h"
-#include "daisysp.h"
 #include "fatfs.h"
 #include "passthroughEngine.h"
-#include "MidiClock.h"
 #include "SceneStore.h"
 
 using namespace daisy;
@@ -27,7 +25,7 @@ static const uint32_t kBootScreenMs = 1250;
 Hardware hw;
 UserInterface ui;
 
-// The SD card holds the FX scenes (SceneStore.h); the hardware self-test (TestPage) uses it too
+// The SD card holds the FX scenes and the master settings (SceneStore.h)
 SdmmcHandler sdmmc;
 FatFSInterface fsi;
 PassthroughEngine engine;
@@ -36,7 +34,7 @@ SceneStore scene_store;
 
 int16_t DSY_SDRAM_BSS loop_mem[kLoopMemSize];
 
-// TEMPO's delay buffers: 10s of interleaved stereo float each, the live and the frozen one
+// TEMPO's delay buffer: 10s of interleaved stereo float
 static const size_t kDelayFrames = 480000;
 float DSY_SDRAM_BSS delay_mem[kDelayFrames * 2];
 
@@ -60,13 +58,11 @@ daisysp::Reverb DSY_DTCMRAM_BSS reverb;
 // Running count of audio samples since audio started, the time base for MIDI clock ticks
 uint32_t sample_clock = 0;
 
-daisysp::Oscillator osc;
-
 // Set just before main() enters its loop. Until then main() blocks in its setup and the audio
 // callback runs the UI (the boot animation); from then on only MainLoop does, so the UI is
 // never re-entered from the interrupt
 volatile bool main_loop_running = false;
-// While main() reads the keys at boot (the shift registers, for test mode or shipping mode),
+// While main() reads the keys at boot (the shift registers, for shipping mode),
 // the audio callback leaves them alone: both bit-banging the same chain garbles it
 volatile bool main_reads_keys = false;
 
@@ -74,8 +70,8 @@ bool booting = true;
 bool rainbow_done = false;
 bool loading_screen = true;
 
-/** Clears the Daisy Seed's 64MB external SDRAM at boot. The loop and delay buffers live
- *  there, and unlike internal-RAM statics they aren't zeroed by the startup code */
+/** Clears the Daisy Seed's 64MB external SDRAM at boot. The loop's, delay's, freezer's and
+ *  tape stop's buffers live there, and unlike internal-RAM statics they aren't zeroed by the startup code */
 void ZeroSDRAM()
 {
     uint32_t *beg, *end;
@@ -111,7 +107,7 @@ void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, s
         ui.GenerateEvents();
     }
 
-    if((booting || loading_screen) && !ui.InTestMode())
+    if(booting || loading_screen)
     {
         if(!main_loop_running)
             ui.DoEvents();
@@ -124,16 +120,7 @@ void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, s
         return;
     }
 
-    if(ui.InTestMode() && ui.GetToggleState())
-    {
-        for(size_t i = 0; i < size; i++)
-        {
-            out[0][i] = out[1][i] = out[2][i] = out[3][i] = osc.Process();
-        }
-    }
-    else {
-        engine.Process(in, out, size);
-    }
+    engine.Process(in, out, size);
 }
 
 uint32_t uit, now, boot_start;
@@ -181,21 +168,6 @@ void MainLoop(void* data)
         hw.LowBatteryLockoutCheck();
         batt = now;
     }
-
-    if(ui.InTestMode())
-    {
-        hw.MpReadAll();
-
-        // a failed read sets read_ready too; the timeout is for one that never ends
-        const uint32_t read_start = System::GetNow();
-        while (!hw.read_ready && System::GetNow() - read_start < 100) {
-            System::Delay(1);
-        }
-        ui.TestPowerCable(hw.mp_buff_[1] >> 5 & 1); //VIN_RDY
-
-        // Normal NTC_MISSING, BATT_MISSING, NTC1_FAULT, and NTC2_FAULT
-        ui.TestBMC(hw.mp_buff_[3] == 0);
-    }
     #endif
 
     System::DelayUs(10);
@@ -237,9 +209,6 @@ int main(void)
     LedSetup();
     ui.Init(&engine, &hw, &scene_store);
 
-    osc.Init(hw.seed.AudioSampleRate());
-    osc.SetAmp(.2f);
-
     hw.StartAudio(AudioCallback);
 
     // safe while audio runs: the engine (looper, delay) doesn't run until booting is done
@@ -253,15 +222,13 @@ int main(void)
     batt = now;
     #endif
 
-    // get any junk out of the SRs, takes .5s
-    uint32_t vol_state = 0;
+    // get any junk out of the SRs, takes .5s; CHOMPI, PLAY and LOOP held throughout: shipping mode
     uint32_t sleep_state = 0;
 
     main_reads_keys = true;
     for(int i = 0; i < 5000; i++)
     {
         hw.ProcessAllControls();
-        vol_state += hw.button_sr.State(int(Hardware::SwId::ENC_6_SW));
         sleep_state += hw.button_sr.State(int(Hardware::SwId::KEY_26))
                         && hw.button_sr.State(int(Hardware::SwId::KEY_27))
                         && hw.button_sr.State(int(Hardware::SwId::KEY_28));
@@ -273,13 +240,6 @@ int main(void)
 
     if(sleep_state > 4000)
         hw.MpWrite(0x08, 0B10111111); // SHIPPING MODE
-    else if(vol_state > 4000)
-    {
-        // the test page opens here, from main(): the audio callback must stop running the UI
-        // first (it reads the card in OnFocusGained)
-        main_loop_running = true;
-        ui.TestMode();
-    }
 
     hw.usb_sw.Write(false);     // give USB control
     daisy::System::Delay(1); // Wait a sec

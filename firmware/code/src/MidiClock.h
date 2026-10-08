@@ -53,6 +53,7 @@ public:
 
         source_ = Source::NONE;
         ticks_ = 0;
+        locks_ = 0;
         period_ = 0.f;
     }
 
@@ -75,6 +76,10 @@ public:
 
     /** True while a source is locked, i.e. a tick arrived within the timeout */
     inline bool HasClock() const { return source_ != Source::NONE; }
+
+    /** How many times a source has locked: a change means the clock was lost and found again,
+     *  maybe within one block, so a count of ticks across it means nothing */
+    inline uint32_t GetLocks() const { return locks_; }
 
     /** Running count of ticks from the locked source. Only differences are meaningful:
      *  the looper snapshots it at the record press and counts from there. */
@@ -103,6 +108,7 @@ private:
             // new lock: the first tick only gives a timestamp, no period yet
             source_ = from;
             period_ = 0.f;
+            locks_++;
         }
         else if (from != source_)
         {
@@ -125,6 +131,7 @@ private:
     float sample_rate_;
     Source source_;
     uint32_t ticks_;
+    uint32_t locks_;
     uint32_t last_tick_;
     float period_;
 };

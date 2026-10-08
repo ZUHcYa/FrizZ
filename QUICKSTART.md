@@ -13,11 +13,10 @@ AUX in -> input gain -+-----------------+
 The looper records the input **before** the effects, so you can play effects over a loop and
 nothing gets printed into it. The effects come **after** the mix, so they act on everything you
 hear, the live input as well as the loop. The mix knob balances input against loop; there's no
-dry path around the effects on the master out. The headphones follow the mode switch: down,
-the same as the master out; up, only the dry input (no loop, no effects).
+dry path around the effects on the master out. The headphones carry the same as the master
+out, or, from VOLUME's page 4, only the dry input (no loop, no effects).
 
-**SHIFT** means holding the CHOMPI key (with the mode switch in either position). The key lights
-white while it acts as SHIFT.
+**SHIFT** means holding the CHOMPI key. The key lights white while it acts as SHIFT.
 
 ## 1. Set your levels
 
@@ -25,8 +24,14 @@ white while it acts as SHIFT.
 |---|---|
 | Turn VOLUME | Output volume. The LED is a level meter |
 | Press VOLUME, then turn | Input gain. The LED runs from blue to red |
+| Press again, then turn | Mono: turn left for a mono cable (white), right for stereo (light blue) |
+| Press again, then turn | Headphones: white = the master out, green = only the dry input |
 | Press again | Back to output volume |
 | SHIFT + turn VOLUME | Input/loop mix: green = only the input, purple = only the loop |
+| SHIFT + press VOLUME | Mix back to the loop only (with a loop) or the input only (without) |
+
+Each press blinks the page's number in white: once for output, twice for input, three times
+for mono, four times for the headphones.
 
 ## 2. Record a loop
 
@@ -68,8 +73,10 @@ randomizer (both below).
   setting has them, 10% otherwise.
 - **SHIFT + press a knob:** reset that setting.
 
-Every effect starts silent or nearly so: turn its knob 1 (on the delay and reverb, knob 4,
-the level) to bring it in. The tape stop is the exception: it stops the tape on every press.
+Every effect starts silent or nearly so: one knob brings it in. That's knob 1 on most, knob 2
+(feedback) on the resonator, knob 3 (amount) on the flanger and knob 4 (level) on the delay
+and reverb. The freezer, slicer and tape stop work from the first press: the freezer repeats
+a whole bar, the slicer pumps gently and the tape stop stops.
 
 **Master compressor:** press the second-to-last white key, and knobs 1-4 set the compressor on the
 master out: amount (off at first), ratio, speed and mix. Its key lights up as it compresses.
@@ -86,11 +93,11 @@ release the key, except the tape stop, which spins back up first. Settings reset
 
 Things to try first:
 
-- **Freezer (1st key)** on a beat: hold SHIFT, tap the key, and turn knob 1 down five clicks
-  to 1/8. It grabs that much from the moment you press and repeats it while you hold the
+- **Freezer (1st key)** on a beat: hold SHIFT, tap the key, and keep holding SHIFT while you
+  turn knob 1 down five clicks to 1/8 (without SHIFT, a step takes three clicks). It grabs that much from the moment you press and repeats it while you hold the
   key. Turn knob 3 for a roll that speeds up.
-- **Shifter (2nd key):** hold SHIFT, tap the key, turn knob 1 up two clicks for a fifth, then
-  hold the key to hear it.
+- **Shifter (2nd key):** hold SHIFT, tap the key, and with SHIFT still held turn knob 1 up two
+  clicks for a fifth, then hold the key to hear it.
 - **Resonator (7th key)** with the crusher or the shifter latched: the ringing goes through them on
   every pass.
 - **Delay + reverb (the 11th and 12th keys):** turn up their knob 4, then tap them to throw echoes and
@@ -98,7 +105,7 @@ Things to try first:
 - **Tape stop (10th key)** with the delay or reverb latched: hold it on a beat and the music
   winds down over half a bar while the tails ring on. Let go and it spins back up.
 
-The freezer, slicer, filter LFO, tape stop and delay follow a tempo: the loop's while there is one, so
+The freezer, slicer, filter LFO, tape stop, delay and randomizer follow a tempo: the loop's while there is one, so
 they lock to it; otherwise MIDI clock, or the last tempo (120 BPM at power-on). Hold SHIFT
 and tap LOOP three times or more to tap a tempo, or to tell FRIZZ how many beats a loop has.
 See [Tempo](MANUAL.md#tempo).
@@ -112,10 +119,10 @@ over. The other four are yours.
 - **Save:** tap the last dark key (blue), tap a scene key, tap CHOMPI to confirm.
 - **Recall:** press a scene key. Try a build-up on one scene and the drop on the next, then
   the first key to turn every effect off.
-- **Morph:** hold CHOMPI and press a scene key: the effects glide there and land at the end
-  of the bar. Keep holding CHOMPI and tap the key again for one bar more per tap, or press
-  PLAY to stop the morph where it is.
-- **Copy and delete:** the same steps with the green and red dark keys. Tap the
+- **Morph:** hold CHOMPI and press a scene key, then let go of CHOMPI: the effects glide there
+  and land at the end of the bar. Before you let go, tap the key again for one bar more per
+  tap; the glide starts when you let go. Hold CHOMPI and press PLAY to stop it where it is.
+- **Copy and delete:** the same steps with the green and amber dark keys. Tap the
   function's key again to back out.
 
 While you save, copy or delete, the scene keys you can tap light in the function's colour,

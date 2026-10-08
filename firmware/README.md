@@ -12,10 +12,10 @@ the two have diverged, so treat WAVE as reference, not as a shared core.
 ```
 code/src/                 the firmware
 code/libs/                vendored libDaisy and DaisySP (patched, MIT; never swap in upstream)
-code/Chompi_Bootloader/   source of the v6.2 bootloader that loads FRIZZ
-code/bms_test/            standalone battery-management bring-up example
-bin/                      the v6.2 bootloader binary and its install script
-test/                     host-side checks: engine, shifter pitch, scene file, play page, looper
+bin/                      FRIZZ.bin (the latest build), the v6.2 bootloader binary and its
+                          install script; the bootloader's source is in
+                          reference/firmware/chompi-wave/code/Chompi_Bootloader/
+test/                     host-side checks: the engine against HEAD, and unit checks (unit.sh NAME)
 ```
 
 Design notes live in [`../docs/`](../docs/): the looper spec (`LOOPER.md`) and an overview of
@@ -72,20 +72,14 @@ don't normally rebuild them. If you change a library, run `make` in `code/libs/l
 
 ```bash
 cd firmware/test
-./all.sh          # all of the below, one line each
+./all.sh          # everything, one line each
 ./check.sh        # engine at HEAD vs the working tree: a refactor must print "bit-identical"
-./pitch.sh        # the shifter lands on every interval from -12 to +12 semitones
-./tape.sh         # wow & flutter's depth, the tape stop's stops and spin-ups back to the input
-./scenes.sh       # the FX scene file round-trips, and the recall's fast slew ends
-./controls.sh     # the play page's FX keys, knobs and scene flow (FxControls.h, SceneControls.h)
-./keys.sh         # the CHOMPI, PLAY and LOOP keys: confirm tap, SHIFT and looper combos (PlayKeys.h)
-./looper.sh       # the looper records, plays back, pauses, erases and steps its speed
-./tempo.sh        # tap tempo, a loop's beats, the FX's tempo locked to the loop, scene morphs
-./comp.sh         # the master compressor, the safety limiter's ceiling, the master settings file
-./randomizer.sh   # the randomizer's patterns, gates and picks, and FxChain handing effects over
+./unit.sh tempo   # one unit check: comp, controls, keys, looper, pitch, randomizer, scenes,
+                  # tape or tempo (each NAME.cpp)
 ```
 
-They don't cover the LEDs, the routing of keys in `NormalPage.h`, MIDI clock or the hardware. See [`test/README.md`](test/README.md).
+They don't cover the LEDs, the routing of keys in `NormalPage.h`, MIDI clock or the hardware.
+[`test/README.md`](test/README.md) says what each check covers.
 
 ## 4. Put it on the CHOMPI
 
@@ -117,12 +111,16 @@ erase a stuck Seed, but the generic Daisy bootloader it offers is not CHOMPI's.
 
 ```
 chompi_main.cpp        entry point: audio callback, main loop, boot sequence
-passthroughEngine.h    the engine: input gain, input/loop mix ("dry/wet" in the code), punch-in FX, master compressor, output gain, safety limiter
+passthroughEngine.h    the engine: input gain, the looper, input/loop mix ("dry/wet" in the code), punch-in FX,
+                       master compressor, output gain, headphone cue, safety limiter
 FxChain.h              the punch-in effects in their processing order, with a level meter each
 FxParams.h             each effect's knobs: how many, defaults, steps, coarse grids; the compressor's too
 FxSlots.h              each effect's key, LED and colours; the compressor's key
 MasterComp.h           the master compressor: amount, ratio, speed, mix, stereo-linked
-MasterSettings.h       what's kept on the card outside the scenes (the compressor), and its file format
+MasterSettings.h       what's kept on the card outside the scenes (the compressor's and the randomizer's
+                       knobs), and its file format
+SceneStore.h           the card: /FRIZZ, the scene file and the master file, written from MainLoop
+FxScenes.h             the FX scenes and their file format
 FxControls.h           the FX keys and knobs: latches, fine / stepped / coarse turns, scene snapshot and recall;
                        the compressor's knobs too
 SceneControls.h        the scene keys: recall, morph, and the save / copy / delete flow
@@ -131,13 +129,16 @@ PlayKeys.h             the CHOMPI, PLAY and LOOP keys: SHIFT, the confirm tap, t
 FxCommon.h             what the effects share: the key's fade, smoothed settings, the base class,
                        tone lowpass, press envelope, stereo delay line
 Fx*.h                  one effect each: Freezer, Shifter, Folder, Crusher, Filter, Flanger,
-                       Resonator, Slicer, Delay, Reverb
+                       Resonator, Slicer, Warble (wow & flutter), TapeStop, Delay, Reverb;
+                       FxRandomizer.h plays them on gate patterns
 LICENSE-kastle2        the MIT license of the effects ported from Bastl's Kastle 2 FX Wizard
 LedColors.h            the LED colours
 DJFilter.h, BasicMMF.h WAVE's DJ filter
 granularDelay.h        TEMPO's tempo-synced delay, without its freeze
 reverb.h, fx_engine.h  TEMPO's reverb
-TempoClock.h           the tempo and the shared 12 PPQN pulse position for the clocked effects, from MIDI clock or internal
+TempoClock.h           the tempo and the shared 12 PPQN pulse position for the clocked effects: from the
+                       loop, MIDI clock, taps or free running
+TapTempo.h             tap tempo
 Looper.h               the looper: recording, quantized end, playback, speed, scrub
 MidiClock.h            MIDI clock input over TRS and USB
 NormalPage.h           the play page: routes the controls (VOLUME, PLAY/LOOP, transport, FX and scene keys) and draws the LEDs
@@ -148,8 +149,8 @@ limiter.h, EnvFollower.h
 hardware.h             the CHOMPI hardware: encoders, keys, switches, LEDs, battery
 encoder.h / .cpp       encoder driver
 temp_led_stuff.h       LED driver (ui_utils.h: LED flush/clear helpers)
-BootPage.h, RainbowWavePage.h, TestPage.h
-                       boot animation, rainbow-wave animation, hardware test mode
+BootPage.h, RainbowWavePage.h
+                       boot animation, rainbow-wave animation
 chompi_sram.lds        linker script (the firmware runs from SRAM, placed there by the bootloader)
 ```
 
@@ -158,8 +159,9 @@ chompi_sram.lds        linker script (the firmware runs from SRAM, placed there 
 - **No file I/O and no blocking calls in the audio callback.** FRIZZ reads the SD card once at
   boot (the FX scenes and the compressor's settings, after changing into `/FRIZZ`, which it
   creates on a new card) and writes it only from `MainLoop`, when a scene is saved, copied or
-  deleted, or 2 s after the compressor's knobs were last turned (`SceneStore.h`). The self-test writes to it too.
-- Large buffers (the loop, the delay, the freezer) live in SDRAM (`DSY_SDRAM_BSS`) and are
+  deleted, or 2 s after the compressor's or the randomizer's knobs were last turned
+  (`SceneStore.h`).
+- Large buffers (the loop, the delay, the freezer, the tape stop) live in SDRAM (`DSY_SDRAM_BSS`) and are
   cleared at boot.
 - `__attribute__((optimize("-O0")))` and similar per-function overrides are deliberate
   workarounds inherited from the stock firmware. Don't remove them as leftovers.

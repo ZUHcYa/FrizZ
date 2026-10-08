@@ -27,33 +27,52 @@ public:
     void Init(float* buffer, size_t buffer_frames)
     {
         delay_.Init(buffer, buffer_frames);
+        sleep_samples_ = static_cast<uint32_t>(buffer_frames);
         gate_.Init();
         level_.Reset(0.f);
+        feedback_.Reset(.3f); // granularDelay's own
     }
 
     /** Once per block: the tempo, plus one call per clock pulse in this block, with the
      *  clock's position (TempoClock::Pulse). Every 8th note is an edge, where the delay rolls
-     *  its random events. */
-    void SetTempo(int bpm) { delay_.SetTempo(bpm); }
+     *  its random events, only while its key is on: the tail of one that's off is plain
+     *  echoes. */
+    void SetTempo(float bpm) { delay_.SetTempo(bpm); }
     void ClockPulse(uint32_t pos)
     {
         if (pos % kPulsesPerEdge == 0)
-            delay_.setClockEdge();
+            delay_.setClockEdge(gate_.IsOn());
     }
 
     /** Feeds in_l / in_r into the delay (while on) and adds its return to *out_l / *out_r */
     void Process(float in_l, float in_r, float* out_l, float* out_r)
     {
         const float gate = gate_.Process();
+        const bool silent_in = gate_.Asleep();
+        if (tail_.Sleeping(silent_in, sleep_samples_))
+            return;
         const float level = level_.Process();
+        // the feedback slews like the other knobs, so turning it doesn't zipper the repeats
+        if (feedback_.value != feedback_.target)
+        {
+            feedback_.Process();
+            if (fabsf(feedback_.value - feedback_.target) < 1e-5f)
+                feedback_.Snap();
+            delay_.setFeedback(feedback_.value);
+        }
 
         float dl = 0.f, dr = 0.f;
         delay_.write(in_l * gate, in_r * gate);
         delay_.read(&dl, &dr);
+        tail_.Track(silent_in, dl, dr);
 
         *out_l += dl * level;
         *out_r += dr * level;
     }
+
+    /** Off and its echoes rung out for the whole buffer, so none can come back: nothing to
+     *  add, and its meter isn't needed */
+    inline bool Sleeping() const { return tail_.quiet >= sleep_samples_; }
 
     void SetParam(size_t param, float val) override
     {
@@ -63,7 +82,7 @@ public:
             delay_.setDivision(StepIndex(val, kNumDivisions));
             break;
         case FEEDBACK:
-            delay_.setFeedback(val);
+            feedback_.target = val;
             break;
         case RANDOM:
             delay_.setRandom(val);
@@ -79,6 +98,9 @@ public:
 private:
     granularDelay delay_;
     Smoothed level_;
+    Smoothed feedback_;
+    TailWatch tail_;
+    uint32_t sleep_samples_ = 0; // the buffer's length: silent that long, it holds nothing
 };
 
 } // namespace chompi

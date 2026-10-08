@@ -1,7 +1,7 @@
 // comp.cpp: checks the master compressor (MasterComp.h): off is an exact bypass, its static
-// curve, its speed, the linked stereo and the mix; the engine's safety limiter keeping the
-// outputs within 1.0; and the master settings' file format (MasterSettings.h). Exits 0 when
-// everything passes. Run by comp.sh.
+// curve, its speed, no gain ripple on bass at its fastest, the linked stereo and the mix; the
+// engine's safety limiter keeping the outputs within 1.0; and the master settings' file
+// format (MasterSettings.h). Exits 0 when everything passes. Run by unit.sh comp.
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -245,6 +245,45 @@ static void TestFile()
               b.comp[0] == .5f && b.rand[0] == kRandParams.defaults[0] &&
               b.rand[2] == kRandParams.defaults[2],
           "file: one from before the randomizer, its knobs on their defaults");
+
+    // the mono input switch, on a line of its own
+    a.Reset();
+    a.mono = true;
+    FormatMaster(a, buf, sizeof(buf));
+    Check(ParseMaster(buf, b) && b.mono, "file: mono round-trips");
+    a.mono = false;
+    FormatMaster(a, buf, sizeof(buf));
+    Check(ParseMaster(buf, b) && !b.mono, "file: stereo round-trips");
+    Check(ParseMaster("FRIZZ master 1\ncompressor 500000 500000 500000 500000\n", b) && !b.mono,
+          "file: one from before the mono switch, stereo");
+}
+
+/** The gain's ripple, dB, on a steady sine of freq Hz at 0dB: max minus min reduction
+ *  over a second, once settled */
+static float Ripple(float freq, float speed)
+{
+    MasterComp c;
+    Setup(c, 1.f, 1.f, speed, 1.f);
+    float lo = 0.f, hi = -100.f;
+    for (int i = 0; i < 96000; i++)
+    {
+        float l = sinf(2.f * static_cast<float>(M_PI) * freq * i / kSr), r = l;
+        c.Process(&l, &r);
+        if (i >= 48000)
+        {
+            lo = fminf(lo, c.GetReduction());
+            hi = fmaxf(hi, c.GetReduction());
+        }
+    }
+    return hi - lo;
+}
+
+static void TestRipple()
+{
+    const float r50 = Ripple(50.f, 0.f), r100 = Ripple(100.f, 0.f);
+    printf("      gain ripple at 20:1, fast, on a 0dB sine: %.2fdB at 50Hz, %.2fdB at 100Hz\n",
+           r50, r100);
+    Check(r50 < 1.f && r100 < 1.f, "fast: the gain doesn't follow a bass note's waveform");
 }
 
 int main()
@@ -252,6 +291,7 @@ int main()
     TestBypass();
     TestCurve();
     TestSpeed();
+    TestRipple();
     TestLinked();
     TestCeiling();
     TestFile();

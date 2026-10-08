@@ -3,28 +3,33 @@
  *
  *  Changes from TEMPO:
  *   - no clockManager: the engine sets the tempo (SetTempo) and sends 12 PPQN pulses
- *     (setClockPulse) and 8th-note edges (setClockEdge), see TempoClock in passthroughEngine.h.
+ *     (ClockPulse) and 8th-note edges (setClockEdge), from TempoClock.h via FxDelay.h.
  *     TEMPO's edges came from its arpeggiator step instead.
  *   - TEMPO's bipolar main knob (division by distance from centre, random side / shimmer side,
  *     on/off dead zone) is split into setDivision and setRandom; the delay is always on and
  *     wet_amt_ stays at 1, so the return level is applied outside and doesn't shorten tails.
  *   - no buffer mute option and no getColors (the LEDs are drawn in NormalPage).
  *   - no freeze (TEMPO's buffer lock), so no frozen buffer.
+ *   - a jump in tempo crossfades to the new delay time instead of sliding to it.
+ *   - the tempo is a float (TEMPO's was whole BPM in microseconds per beat), so on a loop
+ *     whose tempo isn't whole the echoes don't drift off its beats.
  */
 #pragma once
 #include "daisysp.h"
+#include "FxCommon.h"
 
 using namespace daisysp;
 
 constexpr float delayDivs[9] = {1.f/8.f, 1.f/6.f, 1.f/4.f, 1.f/3.f, 3.f/8.f, 1.f/2.f, 3.f/4.f, 1.f, 2.f};
 constexpr uint32_t kMaxCrossfadeSamps = 256;       // a division change
 constexpr uint32_t kMaxEventCrossfadeSamps = 1024; // a random event's fade in and out
+constexpr float kTempoJump = .02f; // a tempo change this much of the delay time crossfades
 
 constexpr float delayStereoOffsetLeft = 960.f;
 constexpr float delayStereoOffsetRight = 480.f;
 
 namespace chompi {
-    void getSample(float *buffer, float read_head, float *out_l, float *out_r, size_t buffer_size) {
+    inline void getSample(float *buffer, float read_head, float *out_l, float *out_r, size_t buffer_size) {
         float right_read_head = read_head - delayStereoOffsetRight;
         if (right_read_head < 0.f) {
             right_read_head += static_cast<float>(buffer_size);
@@ -65,7 +70,7 @@ namespace chompi {
         *out_r += (a_r + frac * (b_r - a_r));
     }
 
-    float fast_rsqrt(float x) {
+    inline float fast_rsqrt(float x) {
         union { float f; uint32_t i; } conv;
         conv.f = x;
         conv.i = 0x5f3759dfU - (conv.i >> 1);
@@ -75,7 +80,7 @@ namespace chompi {
         return y;
     }
 
-    float fast_sqrt(float x) {
+    inline float fast_sqrt(float x) {
         if (x <= 0.f) return 0.f;
         return x * fast_rsqrt(x); // sqrt(x) ≈ x * (1/sqrt(x))
     }
@@ -326,7 +331,7 @@ class granularDelay {
 
         write_head_ = 0;
         SetTempo(120);
-        delay_samples_ = delay_samples_target_ = static_cast<float>(interval_us_) * .192f * delayDivs[2];
+        delay_samples_ = delay_samples_target_ = BarSamples() * delayDivs[2];
         cur_sig_l_ = cur_sig_r_ = 0.f;
 
         division_ = 2;
@@ -337,6 +342,9 @@ class granularDelay {
         setFeedback(.3f);
 
         clock_edge_ = false;
+        events_ = false;
+        since_edge_ = 0;
+        rng_.Seed(0x6C8E9CF5u);
         event_type_[0] = event_type_[1] = delayVoice::NONE;
         curIdx = 0;
         nextIdx = 1;
@@ -356,11 +364,10 @@ class granularDelay {
     void read(float* out_l, float* out_r) {
         *out_l = *out_r = 0.f;
 
-        const size_t t_ = tempo_;
         const size_t new_interval = division_;
 
         if (new_interval != delay_div_position_) {
-            float new_delay_samps = (60000.f / t_) * 4.f * delayDivs[new_interval] * 48.f;
+            float new_delay_samps = BarSamples() * delayDivs[new_interval];
             float new_read_head = write_head_ - new_delay_samps;
             if (new_read_head < 0.f) {
                 new_read_head += static_cast<float>(buffer_size_);
@@ -377,23 +384,54 @@ class granularDelay {
             }
         }
 
-        delay_samples_target_ = static_cast<float>(interval_us_) * .192f * delayDivs[delay_div_position_];
-        fonepole(delay_samples_, delay_samples_target_, .001f);
+        delay_samples_target_ = BarSamples() * delayDivs[delay_div_position_];
+        // a jump in tempo (a loop closing on its own tempo, a tap) crossfades to the new time,
+        // as a division change does: sliding there would drag the read heads through the
+        // buffer, a zip. A small change (a speed glide, clock drift) still slides
+        if (fabsf(delay_samples_target_ - delay_samples_) > kTempoJump * delay_samples_) {
+            float new_read_head = write_head_ - delay_samples_target_;
+            if (new_read_head < 0.f) {
+                new_read_head += static_cast<float>(buffer_size_);
+            }
+            bool success = true;
+            for (size_t i = 0; i < 2; ++i) {
+                if (!myVoices[i].setDivCrossfade(new_read_head, delay_samples_target_, delay_div_position_)) {
+                    success = false;
+                }
+            }
+            if (success) {
+                delay_samples_ = delay_samples_target_;
+            }
+        }
+        else {
+            fonepole(delay_samples_, delay_samples_target_, .001f);
+        }
 
         for (size_t i = 0; i < 2; ++i) {
             myVoices[i].updateTempo(delay_samples_, write_head_);
         }
 
+        // An event runs to the next 8th-note edge. On a slowed-down loop the edges come much
+        // later than the tempo (clamped to 50 BPM) says, and a reverse or pitched head would
+        // run off the buffer: past an 8th at the tempo and its fade, the event ends as on an
+        // edge without one
+        bool cut_short = false;
+        if (++since_edge_ > EventSamples() && event_type_[1] != delayVoice::NONE && !clock_edge_) {
+            clock_edge_ = true;
+            cut_short = true;
+        }
+
         // every 8th note: maybe a random event, on the voice that isn't playing
         if (clock_edge_) {
+            since_edge_ = 0;
             event_type_[0] = event_type_[1];
-            bool random_event = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) < (0.5f * alt_control_);
+            bool random_event = events_ && !cut_short && rng_.Uniform() < (0.5f * alt_control_);
             if (random_event) {
                 curIdx = nextIdx;
                 nextIdx = (curIdx + 1) % 2;
                 float pan = 0.f;
                 if (!shimmer_) {
-                    event_type_[1] = static_cast<delayEvent>(rand() % 4);
+                    event_type_[1] = static_cast<delayEvent>(rng_.Next() % 4);
                     if (event_type_[1] == delayVoice::REVERSE && !ReverseFits()) {
                         event_type_[1] = delayVoice::RETRIG;
                     }
@@ -432,14 +470,20 @@ class granularDelay {
      *  at 2 samples a sample, for up to an 8th note plus its fades; at a slow tempo on a long
      *  division it would lap the write head and jump into what was just written */
     bool ReverseFits() const {
-        const float edge = 60.f * 48000.f / (static_cast<float>(tempo_) * 2.f);
+        const float edge = 60.f * 48000.f / (tempo_ * 2.f);
         const float run = edge + 2.f * static_cast<float>(kMaxEventCrossfadeSamps);
         return delay_samples_ + 2.f * run + 2.f < static_cast<float>(buffer_size_);
     }
 
+    /** The longest an event runs: an 8th note at the tempo, plus a fade */
+    uint32_t EventSamples() const {
+        return static_cast<uint32_t>(60.f * 48000.f / (tempo_ * 2.f))
+               + kMaxEventCrossfadeSamps;
+    }
+
     float randomPan() {
         float effective_range = 0.5f + (alt_control_ * 0.5f); // Range: [0.5, 1.0]
-        float r = ((rand() % 2001 - 1000) / 1000.f); // [-1.0, 1.0]
+        float r = static_cast<float>(static_cast<int>(rng_.Next() % 2001) - 1000) / 1000.f; // [-1.0, 1.0]
         return r * effective_range;
     }
 
@@ -447,10 +491,15 @@ class granularDelay {
         delay_feedback_amt_ = val * .975f;
     }
 
-    /** Beats per minute; the engine keeps it in the range where 2 bars fit the buffer */
-    void SetTempo(int bpm) {
+    /** Beats per minute, not rounded, so the echoes stay on a loop's beats; the engine keeps
+     *  it in the range where 2 bars fit the buffer */
+    void SetTempo(float bpm) {
         tempo_ = bpm;
-        interval_us_ = 60000000 / bpm;
+    }
+
+    /** A bar of 4 beats at the tempo, in samples */
+    float BarSamples() const {
+        return 4.f * 60.f * 48000.f / tempo_;
     }
 
     /** Index into delayDivs: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars */
@@ -466,8 +515,10 @@ class granularDelay {
         alt_control_ = fabsf(val - .5f) * 2.f;
     }
 
-    /** An 8th note: the next read may start a random event */
-    void setClockEdge() {
+    /** An 8th note: the next read ends the running event and, with events, may start a
+     *  random one. Without, the tail of a delay that's off rings out as plain echoes */
+    void setClockEdge(bool events) {
+        events_ = events;
         clock_edge_ = true;
     }
 
@@ -481,14 +532,16 @@ class granularDelay {
     float cur_sig_l_, cur_sig_r_;
     float delay_feedback_amt_;
 
-    int tempo_;
-    size_t interval_us_;
+    float tempo_;
     size_t division_;
     bool shimmer_;
     float alt_control_;
     size_t delay_div_position_;
 
     bool clock_edge_; // set by the clock pulses, in the audio callback too
+    bool events_;     // whether the last edge may start a random event
+    uint32_t since_edge_; // samples since the last edge
+    chompi::Rng rng_;     // its random events, not newlib's shared rand()
     delayEvent event_type_[2];
     uint8_t curIdx, nextIdx;
 };

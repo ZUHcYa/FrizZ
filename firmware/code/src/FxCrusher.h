@@ -41,7 +41,7 @@ public:
         xor_dc_r_.Init(sample_rate);
         dive_.Reset();
         dive_attack_inc_ = 1.f / (.1f * sample_rate);
-        dive_decay_coeff_ = expf(-6.9078f / (.4f * sample_rate)); // to -60dB in 0.4s
+        dive_decay_coeff_ = Decay60dBCoeff(.4f, sample_rate);
 
         lp_l_ = lp_r_ = 0.f;
         guard_.Init(sample_rate, 1.f);
@@ -84,8 +84,9 @@ public:
         float wr = srr_r_.Process(xr);
 
         // bit-depth reduction: round to the nearest step
+        // one value from the UI, so it can't be read half-written
         const float step = step_;
-        const float inv_step = inv_step_;
+        const float inv_step = 1.f / step;
         wl = floorf(wl * inv_step + .5f) * step;
         wr = floorf(wr * inv_step + .5f) * step;
 
@@ -125,7 +126,6 @@ public:
             // 16 bits down to 2, continuous so the knob sweeps smoothly
             const float bits = 16.f - val * 14.f;
             step_ = powf(2.f, 1.f - bits);
-            inv_step_ = 1.f / step_;
             break;
         }
 
@@ -166,8 +166,7 @@ private:
     float lp_l_, lp_r_;
     Smoothed rate_;
     Smoothed tone_coeff_;
-    float step_;     // quantizer step, 2^(1 - bits)
-    float inv_step_; // and its inverse, for the audio callback
+    float step_; // quantizer step, 2^(1 - bits)
     int16_t xor_ = 0;
     daisysp::DcBlock xor_dc_l_, xor_dc_r_;
     LevelGuard guard_; // the output held to the input's level

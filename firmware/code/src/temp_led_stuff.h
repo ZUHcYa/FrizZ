@@ -39,18 +39,9 @@ namespace chompi
     uint32_t DMA_BUFFER_MEM_SECTION
         output_smt_data[kNumSmtLeds * 3 * 8]; /**< PWM lengths data, one "duration" per bit */
 
-    /** actually measuring on chompi pre-rework */
-    // const int kOneTime = 31;
-    // const int kZeroTime = 13;
-    // const int kOneTime = 28;
-    // const int kZeroTime = 8;
-
     /** Tweaked for Rev2 hardware */
     const int kOneTime = 20; /**< measured 0.68us */
     const int kZeroTime = 10; /**< measured 0.334us */
-
-    /** map pth led index to chain index */
-
 
     void EndOfLeds(void* context);
 
@@ -86,7 +77,7 @@ namespace chompi
         tim5_pth.SetPrescaler(prescaler - 1); /**< ps=0 is divide by 1 and so on.*/
         tim5_pth.SetPeriod(period);
 
-        /** TIM3 Ch1 is for another set:
+        /** TIM3 Ch2 is for another set:
          *  All keyboard LEDs (looks like K1 - K28 in sequence)
          */
         t3chn2_cfg.tim = &tim3_smt;
@@ -111,7 +102,6 @@ namespace chompi
 
         ledSmtPwm.Start();
         ledSmtPwm.StartDma(output_smt_data, kOutSmtDataSize, EndOfLeds, (void *)&ledSmtPwm);
-        // ledPthPwm.Start();
     }
 
     /** buff expects that 8 elements are available for the one 8-bit color val*/
@@ -215,9 +205,6 @@ namespace chompi
             ledPthPwm.Start();
             ledPthPwm.StartDma(output_pth_data, kOutPthDataSize, EndOfLeds, (void *)&ledPthPwm);
         }
-
-        // pwm->SetPwm(0);
-        // pwm->Stop();
     }
 
     // ======== helper functions for color crossfading ========

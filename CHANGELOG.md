@@ -7,10 +7,66 @@ what FRIZZ does.
 
 ## Unreleased
 
+### Added
+
+- **Mono input** on VOLUME's page 3: turn 3 detents left for a mono (TS) cable, such as one
+  from a Lyra-8 or a pedal, and the left channel feeds both sides; 3 right for stereo. Saved
+  on the card. By sfaber02 ([#1](https://github.com/ZUHcYa/FrizZ/pull/1)).
+- **Headphone feed** on VOLUME's page 4: turned left, blends steplessly from the master out
+  to the dry input on its own; back on the master at power-on.
+- SHIFT + press VOLUME resets the input/loop mix.
+- Picking a VOLUME page blinks its number in white.
+- A failed write of the compressor's or randomizer's settings blinks the compressor's key red
+  and is tried again, up to 3 times.
+
 ### Changed
 
+- The headphone feed moved from the mode switch to VOLUME; the mode switch does nothing in
+  play mode.
+- A morph started with SHIFT + scene key waits while SHIFT is held, however long, and on
+  release glides the whole way to the next bar line (one more per tap). The effects it
+  fades in come on when the glide starts.
+- The DELETE scene mode is amber, so red only means refused.
+- VOLUME turns faster: the gains move 2% per detent, the mix (SHIFT + turn) 4%.
+- The battery check shows red below 3 V and reads correctly from a second after boot.
 - Random gates are held to at most +3 dB over their input, and the crusher to its input's
   level.
+- The reverb's modulation runs at its intended rate (it was 1/32 too fast); the delay's
+  feedback and the filter's resonance glide like every other knob. The sound changes slightly.
+- The filter's LFO follows a loop slowed below 50 BPM instead of running ahead.
+- The CHOMPI shows up as FrizZ over USB.
+- The delay's random events only start while its key is on: after you release it, or a
+  scene turns it off, its tail rings out as plain echoes instead of firing new grains.
+
+### Fixed
+
+- Crackles while a loop plays with the delay on, since v0.10-beta.2: the audio processing ran
+  at the edge of its time, partly because effects that were switched off kept working in the
+  background. They now rest once faded out (the delay and reverb only once their tails have
+  rung out), which roughly halves the work with a loop and the delay running. Many effects on
+  at once cost as much as before.
+- Letting go of CHOMPI before VOLUME no longer also changes the page, and SHIFT + VOLUME press
+  doesn't start the battery check.
+- Keys without a function no longer cancel a pending confirm or latch; SHIFT + transport
+  press does nothing.
+- An FX key pressed while a morph switched another effect could lose its on/off.
+- The shifter keeps its swoop when a knob turns during it.
+- A quantized recording closes when MIDI clock drops out and comes back within a block.
+- A delay event on a slowed-down loop no longer runs off the buffer.
+- On a loop whose tempo isn't a whole BPM, the delay's echoes, the freezer's length and the
+  tape stop follow the loop's exact tempo instead of the nearest whole BPM. The echoes used
+  to drift off the loop's beats a little more with every repeat (up to 4 ms a repeat on a
+  1/4 delay), which smeared and flammed against the loop while it played.
+- The delay no longer zips when a loop closes on a tempo of its own (or the tempo jumps
+  otherwise): it crossfades to the new delay time instead of scrubbing through its buffer.
+- The master compressor, turned off under a hot signal, releases before bypassing.
+- The master compressor no longer crackles at extreme settings: its detector holds a peak
+  for 10 ms, and its fastest attack is 1 ms (was 0.5 ms). It sounds smoother on bass and
+  reduces slightly more at the same settings (about 1 dB with the amount at 30%).
+
+### Removed
+
+- The factory self-test page (TAPE or WAVE run the same test).
 
 ## v0.9 (2026-10-06)
 

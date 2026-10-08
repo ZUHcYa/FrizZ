@@ -2,10 +2,7 @@
 
 using namespace chompi;
 
-void ChompiEncoder::Init(dsy_gpio_pin a,
-                   dsy_gpio_pin b,
-                   dsy_gpio_pin click,
-                   float        update_rate)
+void ChompiEncoder::Init(dsy_gpio_pin a, dsy_gpio_pin b, dsy_gpio_pin click)
 {
     last_update_ = daisy::System::GetNow();
     updated_     = false;
@@ -87,7 +84,5 @@ void ChompiEncoder::Debounce(bool a_state, bool b_state)
             inc_ = -1;
         }
     }
-
-    // Debounce built-in switch
-    // sw_.Debounce();
+    // the switch isn't debounced here: on the shift register, its state comes from there
 }

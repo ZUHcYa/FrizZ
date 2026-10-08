@@ -2,8 +2,8 @@
 
 Every control in FRIZZ. For a first session, start with the [quick guide](QUICKSTART.md).
 
-**SHIFT** means holding the CHOMPI key, with the mode switch in either position. The CHOMPI key
-lights white while it acts as SHIFT.
+**SHIFT** means holding the CHOMPI key. The CHOMPI key lights white while it acts as SHIFT.
+The mode switch does nothing in play mode.
 
 ## Overview
 
@@ -15,33 +15,54 @@ settings as scenes, next to one that clears them. A master compressor, set from 
 second-to-last white key, sits after the effects, and the last white key plays the effects
 at random. The built-in microphone is not used.
 
-## Mode switch: headphone feed
-
-| Switch | Headphones |
-|---|---|
-| Down | The same signal as the master out |
-| Up | The AUX input on its own, after input gain and VOLUME: no loop, no effects, no mix, no compressor |
-
-The master out always carries the full signal. With the switch up you hear the loop and the
-effects only on the master out, so use it when the master goes to a PA, mixer or recorder and
-the headphones are your monitor; with headphones alone, keep it down. Flipping the switch
-fades between the two, without a click. Before this, the switch did nothing in play mode: if
-yours is up, the headphones now carry the dry input. SHIFT works in either position.
-
 ## VOLUME knob
 
 | Control | Function | LED |
 |---|---|---|
-| Turn (page 1, default) | Output gain, headphone + master (default 75%), also the dry headphone feed | VU meter, scaled by gain |
+| Turn (page 1, default) | Output gain, headphone + master (default 75%) | VU meter of the master, scaled by gain |
 | Press, then turn (page 2) | Input gain, AUX (default 75%) | blue (0%) to red (100%) |
+| Press twice, then turn (page 3) | [Mono input](#mono-input): 3 detents left = mono, 3 right = stereo (default: stereo) | light blue (stereo), white (mono) |
+| Press three times, then turn (page 4) | Headphone feed: left towards the AUX input on its own, right back to the master out (default: the master out) | white (master) to green (input) |
 | SHIFT + turn | Input/loop mix: input only to looper only | green (input) to purple (loop) |
-| Press and hold 1.25 s | Battery check | white full / green / yellow / red |
+| SHIFT + press | Resets the mix: the loop only while there is one, otherwise the input only | |
+| Press and hold 1.25 s | Battery check | white: full, on the charger; green: above 3.3 V; yellow: below; red: below 3 V, about to switch off unless charging |
 
-Every turn moves 1% per detent. Pressing again on page 2 returns to page 1. (The master
-compressor used to be page 3; it has its own key now, see [Master compressor](#master-compressor).) The mix starts
+Turning moves the gains 2% per detent, the mix (SHIFT + turn) 4% and the headphone feed 1%;
+page 3 switches after 3 detents. Pressing again on page 4 returns to page 1.
+Picking a page blinks its number in white: once for page 1, twice for 2, and so on. Whether a press
+is SHIFT + press is decided when it goes down, so letting go of CHOMPI first doesn't also
+change the page. The mix starts
 on the input only, jumps to the loop only when a recording finishes and back to the input only
-when the loop is erased. The punch-in FX come after this mix, so they act on the input as well
-as the loop.
+when the loop is erased; SHIFT + press puts it back there. The punch-in FX come after this mix,
+so they act on the input as well as the loop.
+
+**Headphone feed (page 4):** the master out always carries the full signal. Turned left, the
+headphones carry the AUX input on its own instead, after input gain and VOLUME: no loop, no
+effects, no mix, no compressor. Use it when the master goes to a PA, mixer or recorder and the
+headphones are your monitor; with headphones alone, leave it at the master. It's back on the
+master at every power-on.
+
+(Page 3 used to be the master compressor, which has its own key now, see
+[Master compressor](#master-compressor). The headphone feed used to be on the mode switch,
+then on page 3.)
+
+## Mono input
+
+VOLUME's page 3 switches the AUX input between stereo and mono. Mono is for a mono (TS)
+cable, such as one from a Lyra-8 or a guitar pedal: the plug grounds the right channel, so in
+stereo the source is heard on the left only. In mono the left channel feeds both sides, and the
+effects' stereo knobs spread it from there.
+
+| On VOLUME's page 3 | Result |
+|---|---|
+| Turn left 3 detents | Mono |
+| Turn right 3 detents | Stereo |
+
+- LED: VOLUME is white while mono, light blue while stereo, on page 3.
+- It takes 3 detents in one direction, so a nudge doesn't switch it; picking another page
+  starts the count over.
+- It's saved on the card with the master compressor and the randomizer, so it comes back at
+  power-on. It isn't part of a scene.
 
 ## Looper
 
@@ -72,15 +93,18 @@ Transport knob (the big purple one), once a loop exists:
 | Turn while playing | Speed in 5ths and octaves, 2× down to 1/16×, then reverse back up to −2× (4 detents per step) |
 | Turn while paused | Scrub |
 | Press | Back to 1× forward |
+| SHIFT + turn or press | Nothing |
 
 LEDs: LOOP is red while recording and blinks while a quantized recording finishes its bar or
 an erase waits for the loop's end.
 While a loop plays, PLAY and LOOP crossfade in white to show the position (dimmed when
-paused). The transport LEDs show speed and direction.
+paused). The transport LEDs show speed and direction while it plays, the scrub speed in white
+while it's paused, and nothing without a loop.
 
 ## Tempo
 
-The effects that follow a tempo (the delay, the filter LFO, the freezer, the slicer and the tape stop) take
+The effects that follow a tempo (the delay, the filter LFO, the freezer, the slicer, the tape stop
+and the randomizer's patterns) take
 it from one of three places, the first that applies:
 
 1. **The loop, while there is one**, with or without MIDI clock. Beat 1 is the loop's start,
@@ -105,9 +129,8 @@ A loop gets a whole number of beats:
 **Tap tempo (SHIFT + LOOP):** tap at least three times, at the tempo you want; the last four
 taps count, and a pause of over 2 s starts over. LOOP flashes white on each tap.
 - With a loop, the taps pick how many beats the loop holds; the loop's length then gives the
-  exact tempo, so the effects' beats stay locked to it even if the taps were a little off.
-  (Delay times and freezer lengths use the tempo rounded to whole BPM, so on a long
-  unquantized loop the echoes can sit a few ms off the loop's beat.) Tapping
+  exact tempo, so the effects' beats stay locked to it even if the taps were a little off,
+  delay times and freezer lengths included. Tapping
   at double the loop's tempo, for example, doubles the effects' tempo.
 - Without a loop, the taps set the tempo, and the last tap lands on a beat.
 - Without a loop while MIDI clock runs, the clock is the tempo: LOOP blinks red 3 times.
@@ -147,7 +170,8 @@ the delay and reverb two, and the compressor on the last key.)
   flanger and feeds it back in after the freezer, so it rings through the shifter, folder,
   crusher, filter and flanger whenever they're on.
 - **Sends** (delay, reverb): the key opens the effect's input, and its output is added to the
-  signal, so tails ring out after the key is released. The delay gets the inserts' output;
+  signal, so tails ring out after the key is released. The delay's tail rings out as plain
+  echoes: its random events only start while its key is on. The delay gets the inserts' output;
   the reverb gets that plus the delay's echoes, so the echoes are reverberated while both
   are on.
 
@@ -160,7 +184,7 @@ the delay and reverb two, and the compressor on the last key.)
 | Knobs 1-4 | The parameters of the most recently pressed or selected FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo, tape stop and spin-up times) move one step per 3 detents |
 | SHIFT + knobs 1-4 | Coarse: jumps to the next point of the parameter's grid per detent (see below) |
 | SHIFT + press knobs 1-4 | Resets that parameter to its default |
-| Press knobs 1-4 | Nothing yet (kept free for a second parameter page) |
+| Press knobs 1-4 | Nothing yet (kept free for a second parameter page). Like the 13th white key and the two upper dark keys left of the scene functions, it doesn't cancel a SHIFT combo either |
 
 The FX keys are dimly lit in their effect's colour while off and at full brightness while
 on, where the audio coming out of the effect pushes the colour towards white, from -30 dBFS
@@ -345,8 +369,8 @@ Tape stop details:
 - LEDs: the key is amber; the knobs go amber through white to red.
 
 Delay details:
-- **Tempo:** the [tempo](#tempo), rounded to whole BPM. Limited to 50-300 BPM so 2 bars fit
-  the 10 s buffer.
+- **Tempo:** the [tempo](#tempo): with a loop, its exact tempo, so the echoes stay on its
+  beats; otherwise rounded to whole BPM. Limited to 50-300 BPM so 2 bars fit the 10 s buffer.
 - **Random events** are rolled on every 8th note; the knob's distance from centre is the
   chance. (TEMPO rolled them on its arpeggiator's step instead.)
 - **Beat phase:** the 8th notes that random events follow are counted from the loop's start.
@@ -369,7 +393,7 @@ latch, and holding it doesn't switch anything. With SHIFT it's a select, as an F
 |---|---|
 | 1 | Amount: the threshold, from 0 dB down to -30 dB, with makeup gain giving back half of what a loud signal loses (default 0, off) |
 | 2 | Ratio: 1.5:1, 2:1, 4:1, 8:1, 20:1 across the knob, which are also its coarse points (default 4:1) |
-| 3 | Speed: attack 0.5 ms to 30 ms and release 40 ms to 600 ms together, fast to slow (default attack 4 ms, release 150 ms) |
+| 3 | Speed: attack 1 ms to 30 ms and release 40 ms to 600 ms together, fast to slow (default attack 5.5 ms, release 150 ms) |
 | 4 | Mix: dry to fully compressed, for parallel compression (default fully compressed) |
 
 - **Linked:** one detector for both channels, so the stereo image doesn't shift. It has a
@@ -380,8 +404,9 @@ latch, and holding it doesn't switch anything. With SHIFT it's a select, as an F
   compressor at its lowest setting, which was its default. It keeps the outputs within full
   scale; it is what FRIZZ always had, so nothing changes until you turn the amount up.
 - **Kept:** the settings are saved to `FRIZZ/frizz_master.txt` on the card 2 s after the
-  last turn, and come back at power-on. They're not part of a scene. Without a card they
-  last until power-off.
+  last turn, and come back at power-on. They're not part of a scene. Without a card, or when
+  the card can't be written, the key blinks red 3 times instead, and FRIZZ tries again 2 s
+  later, up to 3 times; the settings then last until power-off.
 - LEDs: the key is white, dim, lighting up with the gain reduction, at full brightness from
   12 dB; it flashes white when pressed. While selected, the knobs go light blue (0%) through
   white to orange (100%).
@@ -486,7 +511,7 @@ no SHIFT needed:
 |---|---|---|
 | Last dark key (A# of the upper octave) | blue | **Save** the current effect settings into a slot |
 | 2nd-to-last dark key (upper G#) | green | **Copy** one slot into another, without changing the sound |
-| 3rd-to-last dark key (upper F#) | red | **Delete** a slot |
+| 3rd-to-last dark key (upper F#) | amber | **Delete** a slot |
 
 1. **Tap the function's key.** It lights up fully; the scene keys now select slots instead of
    recalling them. The effects and knobs keep working.
@@ -526,16 +551,20 @@ isn't lost: the first save moves it to `frizz_scenes.bak`.
 ### Morphing to a scene
 
 SHIFT + a scene key glides from where you are (the scene you're in, with whatever you've
-changed since) to that scene, and lands exactly on the next bar line: tap once and it lands
-at the end of this bar; keep holding SHIFT and tap the same key again and it lands a bar
-later, and so on, up to 8. A press in the last moment of a bar still lands on that bar's end.
-The glide stretches to the new end without a jump.
+changed since) to that scene, and lands exactly on a bar line: tap once and it lands at the
+end of the bar you let go of SHIFT in; keep holding SHIFT and tap the same key again and it
+lands a bar later, and so on, up to 8. A release in the last moment of a bar still lands on that bar's end.
+
+The glide starts when you let go of SHIFT: while you hold it, nothing moves, however long,
+and the bar lines don't count yet. On the release it glides to the next bar line from there,
+plus one more for each extra tap, so you can hold it as long as you like and let go in time
+with the music.
 
 - **An effect on in both scenes:** its knobs glide from their value to the scene's. Stepped
   ones (delay division, slicer pattern, shifter shift, freezer length, filter LFO division …)
   switch on the bar line.
-- **An effect the scene turns on fades in:** it comes on at once with the knob that brings it
-  in at off, and that knob glides up to the scene's value. Its other knobs take the scene's
+- **An effect the scene turns on fades in:** it comes on when the glide starts with the knob
+  that brings it in at off, and that knob glides up to the scene's value. Its other knobs take the scene's
   values at once. The folder, crusher and filter colour the sound with their other knobs
   too, so all of theirs (but the filter's LFO division) start on their defaults and glide.
 - **An effect the scene turns off fades out:** the same knobs glide back to their defaults,
@@ -574,8 +603,13 @@ Quantized recording, and the effects' tempo while there's no loop, follow MIDI c
 USB device, so USB clock comes from a computer or a host. Whichever source ticks first is
 used, until it has been silent for 0.5 s. Only clock is read; there's no MIDI out.
 
-## Hardware self-test
+## Power and battery
 
-Holding the VOLUME knob down at power-on enters the factory QC test that FRIZZ inherited from
-the stock firmware, instead of FRIZZ. You won't need it for normal use. To get back to FRIZZ,
-power off and on again.
+- **Low battery:** unplugged with the battery nearly empty, the knob, transport, CHOMPI, PLAY
+  and LOOP LEDs flash amber for 15 s, then the CHOMPI switches itself off. Plugging in power
+  during those 15 s stops it.
+  On a charger too weak to run it with a low battery, it goes dark until it has charged.
+- **Shipping mode:** hold CHOMPI, PLAY and LOOP while switching on: the battery is
+  disconnected until the CHOMPI is plugged into power again. Use it to store it for weeks.
+- **Hardware test:** FRIZZ has no self-test of its own. To check keys, knobs and LEDs, put the
+  stock TAPE or WAVE firmware on a card and hold VOLUME while switching on.

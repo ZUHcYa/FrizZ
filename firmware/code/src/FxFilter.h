@@ -37,7 +37,7 @@ public:
         filter_.Init(sample_rate);
         filter_.SetSlew(1.f); // the cutoff is slewed here, so the LFO isn't smoothed away
         gate_.Init();
-        tempo_ = 120;
+        pulse_inc_ = 120.f * kPulsesPerBeat / (60.f * sample_rate); // 120 BPM until told
         lfo_pulses_ = 0;
         lfo_frac_ = 0.f;
         lfo_div_pulses_ = 48;
@@ -47,9 +47,11 @@ public:
         SnapParams();
     }
 
-    /** Once per block: the tempo, plus one call per clock pulse in this block, with the
-     *  clock's position (TempoClock::Pulse) */
-    void SetTempo(int bpm) { tempo_ = bpm; }
+    /** Once per block: the time between two clock pulses in samples (TempoClock::
+     *  PulseSamples), plus one call per clock pulse in this block, with the clock's position
+     *  (TempoClock::Pulse). The pulses' real rate, not the FX's tempo, which stops at 50 BPM:
+     *  on a slowed loop the LFO would otherwise run ahead and wait at every pulse */
+    void SetPulseSamples(float samples) { pulse_inc_ = samples > 0.f ? 1.f / samples : 0.f; }
     /** reverse: the position counts down, so the LFO eases down towards the pulse before */
     void ClockPulse(uint32_t pos, bool reverse = false)
     {
@@ -63,11 +65,19 @@ public:
         const float gate = gate_.Process();
         const float cutoff = cutoff_.Process();
         const float depth = depth_.Process();
+        // the resonance slews like the other knobs, so turning it doesn't zipper
+        if (res_.value != res_.target)
+        {
+            res_.Process();
+            if (fabsf(res_.value - res_.target) < 1e-5f)
+                res_.Snap();
+            filter_.SetRes(res_.value);
+        }
 
         // move smoothly between pulses at the tempo, but wait at the next pulse rather than
         // run past it, so a late MIDI clock tick doesn't make the phase jump back. In
         // reverse, the next pulse is the one below
-        const float inc = static_cast<float>(tempo_) * 12.f / (60.f * sample_rate_);
+        const float inc = pulse_inc_;
         lfo_frac_ += lfo_reverse_ ? -inc : inc;
         if (lfo_frac_ > .999f)
             lfo_frac_ = .999f;
@@ -97,6 +107,8 @@ public:
     {
         cutoff_.Snap();
         depth_.Snap();
+        res_.Snap();
+        filter_.SetRes(res_.value);
     }
 
     void SetParam(size_t param, float val) override
@@ -108,7 +120,7 @@ public:
             break;
         case RESONANCE:
             // WAVE's master resonance: the full range, limited just below 1
-            filter_.SetRes(fclamp(val, 0.f, .99f));
+            res_.target = fclamp(val, 0.f, .99f);
             break;
         case LFO_DEPTH:
             depth_.target = val;
@@ -126,7 +138,8 @@ private:
     DjFilter filter_;
     Smoothed cutoff_;
     Smoothed depth_;
-    int tempo_;
+    Smoothed res_;
+    float pulse_inc_; // the LFO's advance a sample, in pulses
     uint32_t lfo_pulses_;     // the clock's position
     float lfo_frac_;          // progress towards the next pulse, negative in reverse
     bool lfo_reverse_ = false;

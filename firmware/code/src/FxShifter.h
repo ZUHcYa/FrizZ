@@ -53,7 +53,7 @@ public:
         gate_.Init();
         env_.Reset();
         env_attack_inc_ = 1.f / (.1f * sample_rate);
-        env_decay_coeff_ = expf(-6.9078f / sample_rate); // 1s to -60dB
+        env_decay_coeff_ = Decay60dBCoeff(1.f, sample_rate);
 
         SetParam(SHIFT, .5f);
         for (size_t i = 1; i < kNumFxParams; i++)
@@ -64,29 +64,40 @@ public:
     void Process(float* l, float* r)
     {
         const float gate = gate_.Process();
-        const float dry = dry_.Process(.002f);
+        const float dry = dry_.Process();
         const float feedback = feedback_.Process();
 
         if (gate_.TakePress())
             env_.Press();
         env_.Process(env_attack_inc_, env_decay_coeff_);
 
+        // off: only the buffer goes on, so a punch-in has the recent sound to shift
+        if (gate_.Asleep())
+        {
+            ring_.Write(0, SoftClip(*l));
+            ring_.Write(1, SoftClip(*r));
+            ring_.Advance();
+            return;
+        }
+
         // the speed per channel; recomputed every kSwoopUpdate samples while swooping (2
         // powf: every sample was ~6% of the CPU for the swoop's 1.3s), and once when it ends;
         // otherwise when a knob changed it (SetParam), so only the audio callback writes it
         const float swoop = env_.value * swoop_;
         const bool swoop_on = swoop > .0001f;
+        const float dir = semitones_ > 0 ? 1.f : (semitones_ < 0 ? -1.f : 0.f);
         if ((swoop_on && swoop_tick_++ % kSwoopUpdate == 0) || (swooping_ && !swoop_on))
         {
-            const float dir = semitones_ > 0 ? 1.f : (semitones_ < 0 ? -1.f : 0.f);
             ratios_changed_ = false;
             UpdateRatios(semitones_ + dir * swoop * kSwoopSemitones);
             swooping_ = swoop_on;
         }
         else if (ratios_changed_)
         {
+            // a knob between two swoop updates keeps the swoop
             ratios_changed_ = false;
-            UpdateRatios(static_cast<float>(semitones_));
+            UpdateRatios(swooping_ ? semitones_ + dir * swoop * kSwoopSemitones
+                                   : static_cast<float>(semitones_));
         }
 
         float* const io[2] = {l, r};

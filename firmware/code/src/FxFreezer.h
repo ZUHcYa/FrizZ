@@ -49,7 +49,7 @@ public:
         state_ = State::IDLE;
         start_ = false;
         gate_.Init();
-        tempo_ = 120;
+        tempo_ = 120.f;
         Restart();
 
         for (size_t i = 0; i < kNumFxParams; i++)
@@ -59,7 +59,7 @@ public:
 
     /** Once per block: the tempo, plus one call per clock pulse in this block, with the
      *  clock's position (TempoClock::Pulse) */
-    void SetTempo(int bpm)
+    void SetTempo(float bpm)
     {
         if (bpm != tempo_)
         {
@@ -250,7 +250,7 @@ private:
 
     void UpdateLengths()
     {
-        bar_ = static_cast<size_t>(240.f * sample_rate_ / static_cast<float>(tempo_));
+        bar_ = static_cast<size_t>(240.f * sample_rate_ / tempo_);
         base_len_ = bar_ / kFreezerBarDivisions[length_idx_];
         const size_t len = base_len_ >> halvings_;
 
@@ -264,7 +264,7 @@ private:
     size_t frames_;
     volatile State state_;
     volatile bool start_;
-    int tempo_;
+    float tempo_;
     size_t written_;  // frames recorded since the capture started
     size_t pos_[2];   // loop read position, per channel
     size_t seam_[2];  // where the last repeat ended, per channel (0: none yet)
