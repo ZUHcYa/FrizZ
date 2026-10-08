@@ -4,7 +4,8 @@
  *  an FX's from its own key (FxControls.h, kCompParams in FxParams.h) and kept on the card
  *  (MasterSettings.h), not in the scenes.
  *
- *  One stereo-linked detector, the louder channel's peak, so the image doesn't shift. Above the
+ *  One stereo-linked detector, the louder channel's peak, so the image doesn't shift, held for
+ *  kHoldMs so a fast attack doesn't follow a bass note's waveform (crackle). Above the
  *  threshold, the gain falls by the ratio, with a soft knee; the auto makeup gives back half of
  *  what a signal at the 0dB reference loses. The reduction is smoothed in dB, so the release
  *  recovers evenly however deep it went. The reference is a signal of 1.0 at this point,
@@ -13,7 +14,7 @@
  *  Knobs, each 0..1:
  *   0 amount: the threshold, 0dB down to -30dB. 0 is off, an exact bypass
  *   1 ratio: 1.5:1 to 20:1, 4:1 in the middle
- *   2 speed: attack 0.5-30ms with release 40-600ms (time constants), fast to slow
+ *   2 speed: attack 1-30ms with release 40-600ms (time constants), fast to slow
  *   3 mix: dry to fully compressed, for parallel compression
  *
  *  The safety limiter after the output gain is the old master compressor at its lowest
@@ -36,6 +37,9 @@ public:
     {
         sample_rate_ = sample_rate;
         reduction_ = 0.f;
+        held_ = 0.f;
+        hold_left_ = 0;
+        hold_samples_ = static_cast<uint32_t>(kHoldMs * .001f * sample_rate);
         for (size_t p = 0; p < kNumFxParams; p++)
             knobs_[p].Reset(0.f);
         knobs_[kMix].Reset(1.f);
@@ -69,12 +73,26 @@ public:
         if (off && reduction_ > -kOffDb)
         {
             reduction_ = 0.f;
+            held_ = 0.f;
+            hold_left_ = 0;
             return;
         }
 
-        // the reduction the louder channel's peak calls for, <= 0, and then the attack (more)
-        // or release (less) towards it
-        const float peak = fmaxf(fabsf(*l), fabsf(*r));
+        // the louder channel's peak, held for hold_samples_ before it may fall
+        const float now = fmaxf(fabsf(*l), fabsf(*r));
+        if (now >= held_)
+        {
+            held_ = now;
+            hold_left_ = hold_samples_;
+        }
+        else if (hold_left_ > 0)
+            hold_left_--;
+        else
+            held_ = now;
+        const float peak = held_;
+
+        // the reduction that peak calls for, <= 0, and then the attack (more) or release (less)
+        // towards it
         float target = 0.f;
         if (!off && peak > knee_start_)
         {
@@ -99,6 +117,7 @@ private:
     static constexpr float kKneeDb = 6.f;
     static constexpr float kOffDb = .01f; // a reduction this small is gone
     static constexpr float kMaxThreshDb = 30.f;
+    static constexpr float kHoldMs = 10.f; // a half-cycle of 50Hz
 
     /** The threshold, ratio, makeup and envelope times from the knobs */
     void Update()
@@ -112,7 +131,7 @@ private:
         knee_start_ = daisysp::pow10f((thresh_db_ - kKneeDb * .5f) * .05f);
 
         const float speed = knobs_[kSpeed].value;
-        const float attack_ms = .5f * powf(60.f, speed);
+        const float attack_ms = powf(30.f, speed);
         const float release_ms = 40.f * powf(15.f, speed);
         attack_ = 1.f - expf(-1000.f / (attack_ms * sample_rate_));
         release_ = 1.f - expf(-1000.f / (release_ms * sample_rate_));
@@ -121,6 +140,8 @@ private:
     float sample_rate_;
     Smoothed knobs_[kNumFxParams];
     float reduction_;  // dB, <= 0, smoothed
+    float held_;       // the detector's held peak
+    uint32_t hold_left_, hold_samples_;
     float thresh_db_, ratio_, makeup_db_, knee_start_;
     float attack_, release_;
 };

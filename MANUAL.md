@@ -22,12 +22,13 @@ at random. The built-in microphone is not used.
 | Turn (page 1, default) | Output gain, headphone + master (default 75%) | VU meter of the master, scaled by gain |
 | Press, then turn (page 2) | Input gain, AUX (default 75%) | blue (0%) to red (100%) |
 | Press twice, then turn (page 3) | [Mono input](#mono-input): 3 detents left = mono, 3 right = stereo (default: stereo) | light blue (stereo), white (mono) |
-| Press three times, then turn (page 4) | Headphone feed: the master out to the AUX input on its own (default: the master out) | white (master) to green (input) |
+| Press three times, then turn (page 4) | Headphone feed: left towards the AUX input on its own, right back to the master out (default: the master out) | white (master) to green (input) |
 | SHIFT + turn | Input/loop mix: input only to looper only | green (input) to purple (loop) |
 | SHIFT + press | Resets the mix: the loop only while there is one, otherwise the input only | |
 | Press and hold 1.25 s | Battery check | white: full, on the charger; green: above 3.3 V; yellow: below; red: below 3 V, about to switch off unless charging |
 
-Every turn moves 1% per detent, except on page 3. Pressing again on page 4 returns to page 1.
+Turning moves the gains 2% per detent, the mix (SHIFT + turn) 4% and the headphone feed 1%;
+page 3 switches after 3 detents. Pressing again on page 4 returns to page 1.
 Picking a page blinks its number in white: once for page 1, twice for 2, and so on. Whether a press
 is SHIFT + press is decided when it goes down, so letting go of CHOMPI first doesn't also
 change the page. The mix starts
@@ -35,7 +36,7 @@ on the input only, jumps to the loop only when a recording finishes and back to 
 when the loop is erased; SHIFT + press puts it back there. The punch-in FX come after this mix,
 so they act on the input as well as the loop.
 
-**Headphone feed (page 4):** the master out always carries the full signal. Turned up, the
+**Headphone feed (page 4):** the master out always carries the full signal. Turned left, the
 headphones carry the AUX input on its own instead, after input gain and VOLUME: no loop, no
 effects, no mix, no compressor. Use it when the master goes to a PA, mixer or recorder and the
 headphones are your monitor; with headphones alone, leave it at the master. It's back on the
@@ -392,7 +393,7 @@ latch, and holding it doesn't switch anything. With SHIFT it's a select, as an F
 |---|---|
 | 1 | Amount: the threshold, from 0 dB down to -30 dB, with makeup gain giving back half of what a loud signal loses (default 0, off) |
 | 2 | Ratio: 1.5:1, 2:1, 4:1, 8:1, 20:1 across the knob, which are also its coarse points (default 4:1) |
-| 3 | Speed: attack 0.5 ms to 30 ms and release 40 ms to 600 ms together, fast to slow (default attack 4 ms, release 150 ms) |
+| 3 | Speed: attack 1 ms to 30 ms and release 40 ms to 600 ms together, fast to slow (default attack 5.5 ms, release 150 ms) |
 | 4 | Mix: dry to fully compressed, for parallel compression (default fully compressed) |
 
 - **Linked:** one detector for both channels, so the stereo image doesn't shift. It has a
@@ -510,7 +511,7 @@ no SHIFT needed:
 |---|---|---|
 | Last dark key (A# of the upper octave) | blue | **Save** the current effect settings into a slot |
 | 2nd-to-last dark key (upper G#) | green | **Copy** one slot into another, without changing the sound |
-| 3rd-to-last dark key (upper F#) | orange | **Delete** a slot |
+| 3rd-to-last dark key (upper F#) | amber | **Delete** a slot |
 
 1. **Tap the function's key.** It lights up fully; the scene keys now select slots instead of
    recalling them. The effects and knobs keep working.
@@ -550,15 +551,14 @@ isn't lost: the first save moves it to `frizz_scenes.bak`.
 ### Morphing to a scene
 
 SHIFT + a scene key glides from where you are (the scene you're in, with whatever you've
-changed since) to that scene, and lands exactly on the next bar line: tap once and it lands
-at the end of this bar; keep holding SHIFT and tap the same key again and it lands a bar
-later, and so on, up to 8. A press in the last moment of a bar still lands on that bar's end.
+changed since) to that scene, and lands exactly on a bar line: tap once and it lands at the
+end of the bar you let go of SHIFT in; keep holding SHIFT and tap the same key again and it
+lands a bar later, and so on, up to 8. A release in the last moment of a bar still lands on that bar's end.
 
-The glide starts when you let go of SHIFT: while you hold it, the bar lines count but
-nothing moves, so every extra tap stretches the whole glide instead of what's left of it.
-Let go right after the tap for a glide over the whole bar; hold on and the glide gets
-shorter, still landing on the same bar line. If you're still holding SHIFT when it lands, it
-jumps there.
+The glide starts when you let go of SHIFT: while you hold it, nothing moves, however long,
+and the bar lines don't count yet. On the release it glides to the next bar line from there,
+plus one more for each extra tap, so you can hold it as long as you like and let go in time
+with the music.
 
 - **An effect on in both scenes:** its knobs glide from their value to the scene's. Stepped
   ones (delay division, slicer pattern, shifter shift, freezer length, filter LFO division …)

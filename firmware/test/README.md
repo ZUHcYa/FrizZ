@@ -85,7 +85,8 @@ play page.
 
 Runs `MasterComp.h` on its own: amount 0 and mix 0 are exact bypasses, the static curve at
 each end of the ratio and the amount (within 0.2 dB, the soft knee too), the attack and
-release slowing from fast to slow speed, and the linked stereo. Then the whole engine with
+release slowing from fast to slow speed, no gain ripple at 20:1 and the fastest speed on a
+50 Hz or 100 Hz sine (the detector's hold), and the linked stereo. Then the whole engine with
 everything up and a full-scale square starting from silence, so the outputs must stay within
 1.0 through the safety limiter. Last, the settings file (`MasterSettings.h`): it round-trips,
 grid points come back exactly, and foreign, unknown or partial files are read sensibly, the
@@ -139,7 +140,9 @@ on the loop's start, counting down in reverse, standing still when paused, the t
 speed, a tap refitting the beats, the loop overriding MIDI clock) and the beats of a loop
 recorded quantized to a faked clock; then the bar lines (free, on 2-, 4- and 6-beat loops, in
 reverse) and a scene morph (`FxMorph.h`) on them: landing on the bar line, one per tap, the
-glide, fades in and out, stopping it halfway. None covers the LEDs or `NormalPage.h`'s routing of the
+glide, held while SHIFT is down however long, fades in and out, stopping it halfway; and the
+delay (`granularDelay.h`): reverse events only where they fit, and a tempo jump crossfading
+to the new delay time while a 1 BPM step slides. None covers the LEDs or `NormalPage.h`'s routing of the
 keys to these classes.
 
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample

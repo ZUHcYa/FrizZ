@@ -5,9 +5,9 @@
  *  runs it in the audio callback, between the UI and the FxChain, so the landing is exact to
  *  the clock pulse.
  *
- *  Held (SHIFT still down after the tap, Start's hold): the bar lines count, and taps add
- *  bars, but nothing moves until Release, so every tap stretches the whole glide rather than
- *  what's left of it. Release glides from where the sound still is over the rest.
+ *  Held (SHIFT still down after the tap, Start's hold): nothing moves and the bar lines don't
+ *  count, however long it's held; taps add bars. Release glides from where the sound still is
+ *  to the next bar line from there, plus the bars tapped.
  *
  *  The glide follows the clock: the pulses counted since the start, plus the time since the
  *  last one, over the pulses expected to the landing. The landing itself is the bar line's
@@ -92,14 +92,17 @@ public:
         active_ = true;
     }
 
-    /** SHIFT let go: a held morph glides from here over what's left to its landing. Call
+    /** SHIFT let go: a held morph glides from here to the bar line pulses_to_bar pulses
+     *  away (an estimate), plus a bar line pulses_per_bar apart for each extra tap. Call
      *  with the audio interrupt blocked */
-    void Release()
+    void Release(uint32_t pulses_to_bar, uint32_t pulses_per_bar)
     {
         if (!active_ || !holding_)
             return;
         holding_ = false;
         base_ = pos_;
+        expected_ = pos_ + static_cast<float>(pulses_to_bar)
+                    + static_cast<float>((bars_left_ - 1) * pulses_per_bar);
     }
     inline bool Holding() const { return active_ && holding_; }
 
@@ -127,7 +130,7 @@ public:
             return;
         pulses_++;
         since_pulse_ = 0.f;
-        if (bar_line && --bars_left_ == 0)
+        if (bar_line && !holding_ && --bars_left_ == 0)
             land_ = true;
     }
 

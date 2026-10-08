@@ -10,6 +10,7 @@
  *     wet_amt_ stays at 1, so the return level is applied outside and doesn't shorten tails.
  *   - no buffer mute option and no getColors (the LEDs are drawn in NormalPage).
  *   - no freeze (TEMPO's buffer lock), so no frozen buffer.
+ *   - a jump in tempo crossfades to the new delay time instead of sliding to it.
  */
 #pragma once
 #include "daisysp.h"
@@ -20,6 +21,7 @@ using namespace daisysp;
 constexpr float delayDivs[9] = {1.f/8.f, 1.f/6.f, 1.f/4.f, 1.f/3.f, 3.f/8.f, 1.f/2.f, 3.f/4.f, 1.f, 2.f};
 constexpr uint32_t kMaxCrossfadeSamps = 256;       // a division change
 constexpr uint32_t kMaxEventCrossfadeSamps = 1024; // a random event's fade in and out
+constexpr float kTempoJump = .02f; // a tempo change this much of the delay time crossfades
 
 constexpr float delayStereoOffsetLeft = 960.f;
 constexpr float delayStereoOffsetRight = 480.f;
@@ -381,7 +383,27 @@ class granularDelay {
         }
 
         delay_samples_target_ = static_cast<float>(interval_us_) * .192f * delayDivs[delay_div_position_];
-        fonepole(delay_samples_, delay_samples_target_, .001f);
+        // a jump in tempo (a loop closing on its own tempo, a tap) crossfades to the new time,
+        // as a division change does: sliding there would drag the read heads through the
+        // buffer, a zip. A small change (a speed glide, clock drift) still slides
+        if (fabsf(delay_samples_target_ - delay_samples_) > kTempoJump * delay_samples_) {
+            float new_read_head = write_head_ - delay_samples_target_;
+            if (new_read_head < 0.f) {
+                new_read_head += static_cast<float>(buffer_size_);
+            }
+            bool success = true;
+            for (size_t i = 0; i < 2; ++i) {
+                if (!myVoices[i].setDivCrossfade(new_read_head, delay_samples_target_, delay_div_position_)) {
+                    success = false;
+                }
+            }
+            if (success) {
+                delay_samples_ = delay_samples_target_;
+            }
+        }
+        else {
+            fonepole(delay_samples_, delay_samples_target_, .001f);
+        }
 
         for (size_t i = 0; i < 2; ++i) {
             myVoices[i].updateTempo(delay_samples_, write_head_);

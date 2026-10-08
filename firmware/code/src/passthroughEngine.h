@@ -199,7 +199,10 @@ public:
     {
         morph_.Start(plan, tempo_clock_.PulsesToBarLine(), true);
     }
-    void ReleaseFxMorph() { morph_.Release(); }
+    void ReleaseFxMorph()
+    {
+        morph_.Release(tempo_clock_.PulsesToBarLine(), tempo_clock_.PulsesPerBarLine());
+    }
     bool AddFxMorphBar() { return morph_.AddBar(tempo_clock_.PulsesPerBarLine()); }
     void LandFxMorph() { morph_.Land(); }
     /** Stops the morph where it is (FxMorph::Freeze); with the audio interrupt blocked */
