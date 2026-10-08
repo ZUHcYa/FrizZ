@@ -130,7 +130,8 @@ newlib). `firmware/README.md` is FRIZZ's build guide (Linux and macOS);
 On this machine, GNU Arm Embedded 10.3-2021.10 is installed at
 `~/opt/gcc-arm-none-eabi-10.3-2021.10/` (ARM's official Linux tarball) and prepended to `PATH` in
 `~/.bashrc`, so FRIZZ, TAPE and WAVE build with a plain `make`. Non-interactive shells may not read
-`.bashrc`; prepend its `bin/` explicitly there. 13.3.rel1 is **not** installed, so TEMPO and the
+`.bashrc`; prepend its `bin/` explicitly there:
+`PATH=~/opt/gcc-arm-none-eabi-10.3-2021.10/bin:$PATH make`. 13.3.rel1 is **not** installed, so TEMPO and the
 bootloader can't be built yet. Homebrew can't supply either version: its `arm-none-eabi-gcc`
 formula is GCC 16 without newlib, and the `gcc-arm-embedded` cask is macOS-only.
 
@@ -200,10 +201,11 @@ with the most headroom, which is why its README nominates it as the base for cus
 All three firmwares are `APP_TYPE=BOOT_SRAM`: the firmware runs from SRAM, loaded by CHOMPI's own
 bootloader out of QSPI flash. Standard Daisy flashing advice does not apply.
 
-- **Normal path:** copy `build/CHOMPI.bin` onto the microSD card (delete any other `.bin` first)
+- **Normal path:** copy `build/FRIZZ.bin` (stock: `build/CHOMPI.bin`) onto the microSD card
+  (delete any other `.bin` first)
   and power on. A slow rainbow LED pattern means it is reprogramming QSPI.
-- **Do not use `make program-boot`.** Only WAVE's Makefile overrides `BOOT_BIN` to CHOMPI's
-  bootloader; from TAPE's or TEMPO's it would install libDaisy's generic Daisy bootloader.
+- **Do not use `make program-boot`.** Only WAVE's and FRIZZ's Makefiles override `BOOT_BIN` to
+  CHOMPI's bootloader; from TAPE's or TEMPO's it would install libDaisy's generic Daisy bootloader.
 - The bootloader itself lives in internal flash and is never touched by an SD update. Install it
   over DFU at `0x08000000` (`dfu-util -a 0 -s 0x08000000:leave -D ... -d ,0483:df11`) or with an
   ST-Link. `bin/install_bootloader.sh` in each firmware folder does this for the shipped v6.2.
@@ -229,7 +231,8 @@ as `FileRequest`s to a queue; large writes are chunked across many `SDCallback()
 committed by writing a temp file then renaming it.
 
 **FRIZZ is simpler:** it builds `FRIZZ.bin`, has no `SDCallback()`, `FileStreamingManager`,
-NoSDPage or MenuPage, and no MIDI out. It reads the card once at boot and writes it only from
+NoSDPage or MenuPage, and no MIDI out; it does take MIDI clock in (`MidiClock.h` →
+`TempoClock.h`, with `TapTempo.h` as the fallback). It reads the card once at boot and writes it only from
 `MainLoop()` when an FX scene is saved, copied or deleted, or when the master compressor's or
 the randomizer's knobs have rested 2 s (`SceneStore.h`, `MasterSettings.h`). Its files live in
 `/FRIZZ`, which `EnterFrizzDir()` creates at boot on a card without it. Its play page is
@@ -284,6 +287,10 @@ per-function optimization overrides — these are deliberate workarounds for tim
 not leftovers.
 
 ## SD card layout
+
+FRIZZ needs only `FRIZZ.bin` at the root. Its state is two text files in `/FRIZZ`:
+`frizz_scenes.txt` (FX scenes, `FxScenes.h` format) and `frizz_master.txt` (master settings,
+`MasterSettings.h`). The rest of this section is about the stock firmwares.
 
 The card is the firmware's filesystem: one `CHOMPI.bin`, the audio assets, `options.json`,
 `presets.json`. FAT32, assets at the card root. `reference/firmware/card-profiles/` holds the three factory
