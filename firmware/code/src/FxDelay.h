@@ -36,7 +36,7 @@ public:
      *  clock's position (TempoClock::Pulse). Every 8th note is an edge, where the delay rolls
      *  its random events, only while its key is on: the tail of one that's off is plain
      *  echoes. */
-    void SetTempo(int bpm) { delay_.SetTempo(bpm); }
+    void SetTempo(float bpm) { delay_.SetTempo(bpm); }
     void ClockPulse(uint32_t pos)
     {
         if (pos % kPulsesPerEdge == 0)

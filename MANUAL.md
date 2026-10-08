@@ -129,9 +129,8 @@ A loop gets a whole number of beats:
 **Tap tempo (SHIFT + LOOP):** tap at least three times, at the tempo you want; the last four
 taps count, and a pause of over 2 s starts over. LOOP flashes white on each tap.
 - With a loop, the taps pick how many beats the loop holds; the loop's length then gives the
-  exact tempo, so the effects' beats stay locked to it even if the taps were a little off.
-  (Delay times and freezer lengths use the tempo rounded to whole BPM, so on a long
-  unquantized loop the echoes can sit a few ms off the loop's beat.) Tapping
+  exact tempo, so the effects' beats stay locked to it even if the taps were a little off,
+  delay times and freezer lengths included. Tapping
   at double the loop's tempo, for example, doubles the effects' tempo.
 - Without a loop, the taps set the tempo, and the last tap lands on a beat.
 - Without a loop while MIDI clock runs, the clock is the tempo: LOOP blinks red 3 times.
@@ -370,8 +369,8 @@ Tape stop details:
 - LEDs: the key is amber; the knobs go amber through white to red.
 
 Delay details:
-- **Tempo:** the [tempo](#tempo), rounded to whole BPM. Limited to 50-300 BPM so 2 bars fit
-  the 10 s buffer.
+- **Tempo:** the [tempo](#tempo): with a loop, its exact tempo, so the echoes stay on its
+  beats; otherwise rounded to whole BPM. Limited to 50-300 BPM so 2 bars fit the 10 s buffer.
 - **Random events** are rolled on every 8th note; the knob's distance from centre is the
   chance. (TEMPO rolled them on its arpeggiator's step instead.)
 - **Beat phase:** the 8th notes that random events follow are counted from the loop's start.

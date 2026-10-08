@@ -610,6 +610,37 @@ static void TestDelayTempoJump()
     Check(!xfaded && swaps == 0 && slid > 0, "delay: a step of 1 BPM slides");
 }
 
+/** A loop whose tempo isn't whole: the delay's time is its beat, not the rounded BPM's, so
+ *  the echoes don't drift off the loop */
+static void TestDelayOnLoopBeat()
+{
+    MidiClock midi;
+    TempoClock clock;
+    clock.Init(kSr, &midi);
+    const size_t length = 266400; // 5.55s, 8 beats: 86.49 BPM
+    clock.SetLoop(length, 8);
+    Pulses(clock, 0.f, 1.f);
+    Check(clock.GetTempo() == 86, "loop of 86.49 BPM: whole tempo 86");
+    Check(fabsf(clock.GetFxBpm() - 86.486f) < .01f, "loop of 86.49 BPM: the FX get it exactly");
+
+    static const size_t kFrames = 480000;
+    static float mem[kFrames * 2];
+    static granularDelay delay;
+    delay.Init(mem, kFrames);
+    delay.setRandom(.5f);
+    delay.setDivision(2); // 1/4
+    delay.SetTempo(clock.GetFxBpm());
+    float l, r;
+    for (int i = 0; i < 48000; i++)
+    {
+        delay.write(0.f, 0.f);
+        delay.read(&l, &r);
+    }
+    const float beat = static_cast<float>(length) / 8.f;
+    Check(fabsf(delay.myVoices[0].delay_samples_ - beat) < 1.f,
+          "delay on a loop of 86.49 BPM: a 1/4 is the loop's beat");
+}
+
 int main()
 {
     TestTaps();
@@ -621,5 +652,6 @@ int main()
     TestMorph();
     TestDelayReverse();
     TestDelayTempoJump();
+    TestDelayOnLoopBeat();
     return Finish();
 }

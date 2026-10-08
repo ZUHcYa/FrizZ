@@ -11,6 +11,8 @@
  *   - no buffer mute option and no getColors (the LEDs are drawn in NormalPage).
  *   - no freeze (TEMPO's buffer lock), so no frozen buffer.
  *   - a jump in tempo crossfades to the new delay time instead of sliding to it.
+ *   - the tempo is a float (TEMPO's was whole BPM in microseconds per beat), so on a loop
+ *     whose tempo isn't whole the echoes don't drift off its beats.
  */
 #pragma once
 #include "daisysp.h"
@@ -329,7 +331,7 @@ class granularDelay {
 
         write_head_ = 0;
         SetTempo(120);
-        delay_samples_ = delay_samples_target_ = static_cast<float>(interval_us_) * .192f * delayDivs[2];
+        delay_samples_ = delay_samples_target_ = BarSamples() * delayDivs[2];
         cur_sig_l_ = cur_sig_r_ = 0.f;
 
         division_ = 2;
@@ -362,11 +364,10 @@ class granularDelay {
     void read(float* out_l, float* out_r) {
         *out_l = *out_r = 0.f;
 
-        const size_t t_ = tempo_;
         const size_t new_interval = division_;
 
         if (new_interval != delay_div_position_) {
-            float new_delay_samps = (60000.f / t_) * 4.f * delayDivs[new_interval] * 48.f;
+            float new_delay_samps = BarSamples() * delayDivs[new_interval];
             float new_read_head = write_head_ - new_delay_samps;
             if (new_read_head < 0.f) {
                 new_read_head += static_cast<float>(buffer_size_);
@@ -383,7 +384,7 @@ class granularDelay {
             }
         }
 
-        delay_samples_target_ = static_cast<float>(interval_us_) * .192f * delayDivs[delay_div_position_];
+        delay_samples_target_ = BarSamples() * delayDivs[delay_div_position_];
         // a jump in tempo (a loop closing on its own tempo, a tap) crossfades to the new time,
         // as a division change does: sliding there would drag the read heads through the
         // buffer, a zip. A small change (a speed glide, clock drift) still slides
@@ -469,14 +470,14 @@ class granularDelay {
      *  at 2 samples a sample, for up to an 8th note plus its fades; at a slow tempo on a long
      *  division it would lap the write head and jump into what was just written */
     bool ReverseFits() const {
-        const float edge = 60.f * 48000.f / (static_cast<float>(tempo_) * 2.f);
+        const float edge = 60.f * 48000.f / (tempo_ * 2.f);
         const float run = edge + 2.f * static_cast<float>(kMaxEventCrossfadeSamps);
         return delay_samples_ + 2.f * run + 2.f < static_cast<float>(buffer_size_);
     }
 
     /** The longest an event runs: an 8th note at the tempo, plus a fade */
     uint32_t EventSamples() const {
-        return static_cast<uint32_t>(60.f * 48000.f / (static_cast<float>(tempo_) * 2.f))
+        return static_cast<uint32_t>(60.f * 48000.f / (tempo_ * 2.f))
                + kMaxEventCrossfadeSamps;
     }
 
@@ -490,10 +491,15 @@ class granularDelay {
         delay_feedback_amt_ = val * .975f;
     }
 
-    /** Beats per minute; the engine keeps it in the range where 2 bars fit the buffer */
-    void SetTempo(int bpm) {
+    /** Beats per minute, not rounded, so the echoes stay on a loop's beats; the engine keeps
+     *  it in the range where 2 bars fit the buffer */
+    void SetTempo(float bpm) {
         tempo_ = bpm;
-        interval_us_ = 60000000 / bpm;
+    }
+
+    /** A bar of 4 beats at the tempo, in samples */
+    float BarSamples() const {
+        return 4.f * 60.f * 48000.f / tempo_;
     }
 
     /** Index into delayDivs: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars */
@@ -526,8 +532,7 @@ class granularDelay {
     float cur_sig_l_, cur_sig_r_;
     float delay_feedback_amt_;
 
-    int tempo_;
-    size_t interval_us_;
+    float tempo_;
     size_t division_;
     bool shimmer_;
     float alt_control_;

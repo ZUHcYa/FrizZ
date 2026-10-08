@@ -147,13 +147,13 @@ public:
 
     /** Once per block: the tempo and the pulses' real spacing in samples (TempoClock), then
      *  one call per clock pulse in the block with the clock's position (TempoClock::Pulse) */
-    void SetTempo(int bpm, float pulse_samples)
+    void SetTempo(float bpm, float pulse_samples)
     {
         delay_.SetTempo(bpm);
         filter_.SetPulseSamples(pulse_samples);
         freezer_.SetTempo(bpm);
         tapestop_.SetTempo(bpm);
-        randomizer_.SetTempo(bpm);
+        randomizer_.SetTempo(static_cast<int>(bpm + .5f));
     }
     /** reverse: the position counts down, a loop playing backwards (TempoClock.h) */
     void ClockPulse(uint32_t pos, bool reverse = false)
