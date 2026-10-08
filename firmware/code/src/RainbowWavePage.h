@@ -26,7 +26,7 @@ namespace chompi
 
         float gain = 0.f;
 
-        uint32_t startt;
+        uint32_t startt = 0;
         bool down = false;
 
         float fade = 1.f;
@@ -173,6 +173,6 @@ namespace chompi
         bool IsClosable() { return down && System::GetNow() - startt > 1000; }
 
     private:
-        uint32_t last_blink_time;
+        uint32_t last_blink_time = 0;
     };
 } // namespace chompi

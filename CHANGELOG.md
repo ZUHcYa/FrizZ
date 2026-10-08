@@ -7,6 +7,37 @@ what FRIZZ does.
 
 ## Unreleased
 
+### Changed
+
+- Turning the master compressor's knobs takes far less processing time while they glide,
+  so it no longer adds to crackles on busy scenes.
+- Mono input (VOLUME's page 3) needs its 3 detents in one direction: turning back starts the
+  count over, so wiggling the knob doesn't switch it.
+- A flash on a key that's already lit nearly white (a select on a loud effect or on the
+  compressor working hard, a tap on LOOP near the loop's end) goes dark instead of white, so
+  it's seen.
+- LOOP's blink while a quantized recording closes or an erase waits for the loop's end is
+  slower, the same as a picked scene slot's, so it doesn't look like a refusal's 3 quick blinks.
+
+### Fixed
+
+- Holding an FX key and tapping CHOMPI twice in a save, copy or delete mode confirmed the
+  scene and dropped the latch; it now latches and doesn't confirm, as with one tap.
+- The delay's pitch-up events (random knob left of centre) read from the wrong place after
+  switching on, until the division knob or the tempo first changed.
+- The freezer clicked when pressed again right after a release: the repeats now play on until
+  the next 16th and hand over to the new capture.
+- The flanger clicked when its stereo knob went back to 0, as a scene recall or morph does.
+- A card put in after switching on without one lost its saved scenes and master settings
+  to the first save. Its scenes are now read into the empty slots, and what a save would
+  overwrite is kept as `.bak`.
+- A failed write of the compressor's settings or the mono switch is tried again 3 times,
+  as the manual says (it was twice, and not at all for a mono change after earlier failures).
+- LEDs at full brightness no longer flicker dark: a value a hair above full wrapped to off
+  (the transport's colours at full speed, the boot animation).
+- Holding an FX key, then SHIFT with a control that does nothing (the transport, or a knob the
+  effect doesn't use) no longer cancels the latch or a pending confirm.
+
 ## v0.10 (2026-10-08)
 
 ### Added

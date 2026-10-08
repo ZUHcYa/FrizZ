@@ -86,6 +86,55 @@ inline bool Is(const char* word, size_t len, const char* s)
 {
     return strlen(s) == len && strncmp(word, s, len) == 0;
 }
+
+/** Past a file's header line, if text starts with it as a whole word ("FRIZZ scenes 10" is
+ *  another version); nullptr if it doesn't */
+template <size_t N>
+inline const char* AfterHeader(const char* text, const char (&header)[N])
+{
+    const size_t len = N - 1;
+    if (strncmp(text, header, len) != 0)
+        return nullptr;
+    const char after = text[len];
+    if (after != '\0' && after != '\n' && after != '\r' && after != ' ' && after != '\t')
+        return nullptr;
+    return text + len;
+}
+
+/** p moved to the start of the next line */
+inline void NextLine(const char*& p)
+{
+    while (*p && *p != '\n')
+        p++;
+    if (*p == '\n')
+        p++;
+}
+
+/** n values 0..1, each as " " and its millionths */
+inline void PutValues(char* buf, size_t size, size_t& pos, const float* vals, size_t n)
+{
+    for (size_t i = 0; i < n; i++)
+    {
+        const float val = fclamp(vals[i], 0.f, 1.f);
+        Put(buf, size, pos, " ");
+        PutUint(buf, size, pos, static_cast<uint32_t>(val * kScale + .5f));
+    }
+}
+
+/** Up to n values in millionths from the rest of the line, clamped to 0..1; a value the line
+ *  lacks is left as it was */
+inline void ReadValues(const char*& p, float* vals, size_t n)
+{
+    size_t len;
+    for (size_t i = 0; i < n; i++)
+    {
+        const char* num = Word(p, len);
+        if (!num)
+            break;
+        const float val = static_cast<float>(strtol(num, nullptr, 10)) / kScale;
+        vals[i] = fclamp(val, 0.f, 1.f);
+    }
+}
 } // namespace scenefile
 
 /** The used scenes as the file's text, into buf (terminated). Returns its length, or 0 if it
@@ -107,12 +156,7 @@ inline size_t FormatScenes(const FxScene* scenes, char* buf, size_t size)
         {
             Put(buf, size, pos, kFxNames[fx]);
             Put(buf, size, pos, scenes[s].latched & (1u << fx) ? " 1" : " 0");
-            for (size_t p = 0; p < kNumFxParams; p++)
-            {
-                const float val = fclamp(scenes[s].params[fx][p], 0.f, 1.f);
-                Put(buf, size, pos, " ");
-                PutUint(buf, size, pos, static_cast<uint32_t>(val * kScale + .5f));
-            }
+            PutValues(buf, size, pos, scenes[s].params[fx], kNumFxParams);
             Put(buf, size, pos, "\n");
         }
     }
@@ -132,23 +176,14 @@ inline bool ParseScenes(const char* text,
     for (size_t s = 0; s < kNumScenes; s++)
         scenes[s].used = false;
 
-    const size_t header_len = sizeof(kHeader) - 1;
-    if (strncmp(text, kHeader, header_len) != 0)
-        return false;
-    // the whole word: "FRIZZ scenes 10" is another version
-    const char after = text[header_len];
-    if (after != '\0' && after != '\n' && after != '\r' && after != ' ' && after != '\t')
+    const char* p = AfterHeader(text, kHeader);
+    if (!p)
         return false;
 
     FxScene* scene = nullptr;
-    const char* p = text + header_len;
     while (*p)
     {
-        // the start of the next line
-        while (*p && *p != '\n')
-            p++;
-        if (*p == '\n')
-            p++;
+        NextLine(p);
 
         size_t len;
         const char* word = Word(p, len);
@@ -180,14 +215,7 @@ inline bool ParseScenes(const char* text,
             const char* latch = Word(p, len);
             if (latch && *latch == '1')
                 scene->latched |= static_cast<uint16_t>(1u << fx);
-            for (size_t i = 0; i < kNumFxParams; i++)
-            {
-                const char* num = Word(p, len);
-                if (!num)
-                    break;
-                const float val = static_cast<float>(strtol(num, nullptr, 10)) / kScale;
-                scene->params[fx][i] = fclamp(val, 0.f, 1.f);
-            }
+            ReadValues(p, scene->params[fx], kNumFxParams);
             break;
         }
     }

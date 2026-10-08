@@ -48,7 +48,6 @@ class Reverb {
     // FRIZZ: the reverb lives in DTCMRAM, which the startup code doesn't zero, so clear the
     // buffer and every state Process() reads instead of relying on static zero-init
     engine_.Clear();
-    amount_ = 0.f;
     input_gain_ = 0.f;
     reverb_time_ = 0.5f;
     lp_decay_1_ = 0.f;
@@ -85,7 +84,6 @@ class Reverb {
     const float kap = diffusion_;
     // (FRIZZ: without Rings' freeze, which held the loop and shut the input)
     const float krt = fclamp(reverb_time_, 0.f, 1.f);
-    const float amount = amount_;
     const float klp = fclamp(lp_, 0.f, 1.f);
     const float gain = input_gain_;
 
@@ -120,7 +118,7 @@ class Reverb {
     c.Write(del1, 2.0f);
     c.Write(wet, 0.0f);
 
-    *left += (wet - *left) * amount;
+    *left = wet;
 
     c.Load(apout);
     c.Interpolate(del1, 4460.0f, LFO_1, 40.0f, krt);
@@ -132,14 +130,10 @@ class Reverb {
     c.Write(del2, 2.0f);
     c.Write(wet, 0.0f);
 
-    *right += (wet - *right) * amount;
+    *right = wet;
           
     lp_decay_1_ = lp_1;
     lp_decay_2_ = lp_2;
-  }
-  
-  inline void SetAmount(float amount) {
-    amount_ = amount;
   }
   
   inline void SetInputGain(float input_gain) {
@@ -158,15 +152,10 @@ class Reverb {
     lp_ = lp;
   }
   
-  inline void Clear() {
-    engine_.Clear();
-  }
-
  private:
   typedef FxEngine<32768, FORMAT_16_BIT> E;
   E engine_;
   
-  float amount_;
   float input_gain_;
   float reverb_time_;
   float diffusion_;

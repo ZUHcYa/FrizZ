@@ -10,7 +10,6 @@
  *      scenes to the SD card, and boot-time stuff.
  */
 #include "hardware.h"
-#include "temp_led_stuff.h"
 #include "ui.h"
 #include "fatfs.h"
 #include "passthroughEngine.h"

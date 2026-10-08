@@ -43,6 +43,8 @@ public:
         for (size_t p = 0; p < kNumFxParams; p++)
             knobs_[p].Reset(0.f);
         knobs_[kMix].Reset(1.f);
+        update_pending_ = false;
+        since_update_ = 0;
         Update();
     }
 
@@ -52,20 +54,20 @@ public:
     /** One stereo sample, in place */
     void Process(float* l, float* r)
     {
-        // the knobs slew; what follows from them is worked out only while one moves
-        bool moved = false;
+        // the knobs slew; what follows from them (several powf and expf) is worked out while
+        // one moves, once per kUpdateSamples, and once more where they land
+        bool moving = false;
         for (size_t p = 0; p < kNumFxParams; p++)
         {
-            Smoothed& k = knobs_[p];
-            if (k.value == k.target)
-                continue;
-            k.Process(kFxParamCoeff);
-            if (fabsf(k.value - k.target) < 1e-5f)
-                k.Snap();
-            moved = true;
+            update_pending_ |= knobs_[p].Settle(kFxParamCoeff);
+            moving |= knobs_[p].value != knobs_[p].target;
         }
-        if (moved)
+        if (update_pending_ && (!moving || ++since_update_ >= kUpdateSamples))
+        {
             Update();
+            update_pending_ = false;
+            since_update_ = 0;
+        }
 
         // off: a bypass, once a reduction left from before has released, so turning it off
         // under a hot signal doesn't click
@@ -118,6 +120,7 @@ private:
     static constexpr float kOffDb = .01f; // a reduction this small is gone
     static constexpr float kMaxThreshDb = 30.f;
     static constexpr float kHoldMs = 10.f; // a half-cycle of 50Hz
+    static constexpr uint32_t kUpdateSamples = 24; // an audio block: 0.5ms, far below the slew
 
     /** The threshold, ratio, makeup and envelope times from the knobs */
     void Update()
@@ -138,6 +141,8 @@ private:
     }
 
     float sample_rate_;
+    bool update_pending_ = false; // a knob moved since the last Update
+    uint32_t since_update_ = 0;
     Smoothed knobs_[kNumFxParams];
     float reduction_;  // dB, <= 0, smoothed
     float held_;       // the detector's held peak

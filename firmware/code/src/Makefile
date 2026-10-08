@@ -12,7 +12,7 @@ LDSCRIPT = chompi_sram.lds
 CPP_SOURCES = chompi_main.cpp \
 	encoder.cpp
 
-# FatFs: the FX scenes on the card (SceneStore.h) and the self-test's card check (TestPage)
+# FatFs: the FX scenes and master settings on the card (SceneStore.h)
 USE_FATFS = 1
 
 # Libs

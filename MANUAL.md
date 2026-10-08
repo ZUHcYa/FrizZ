@@ -58,8 +58,8 @@ effects' stereo knobs spread it from there.
 | Turn right 3 detents | Stereo |
 
 - LED: VOLUME is white while mono, light blue while stereo, on page 3.
-- It takes 3 detents in one direction, so a nudge doesn't switch it; picking another page
-  starts the count over.
+- It takes 3 detents in one direction, so a nudge doesn't switch it; turning back or
+  picking another page starts the count over.
 - It's saved on the card with the master compressor, so it comes back at
   power-on. It isn't part of a scene.
 
@@ -95,7 +95,8 @@ Transport knob (the big purple one), once a loop exists:
 | SHIFT + turn or press | Nothing |
 
 LEDs: LOOP is red while recording and blinks while a quantized recording finishes its bar or
-an erase waits for the loop's end.
+an erase waits for the loop's end, at the slow blink everything waiting uses (a picked scene
+slot, the CHOMPI key ready to confirm); a refusal is 3 quick blinks.
 While a loop plays, PLAY and LOOP crossfade in white to show the position (dimmed when
 paused). The transport LEDs show speed and direction while it plays, the scrub speed in white
 while it's paused, and nothing without a loop.
@@ -123,8 +124,9 @@ A loop gets a whole number of beats:
   between 80 and 160 BPM. It goes wrong on loops of 3 or 6 bars, or with a pickup, and may
   come out at half or double the tempo you had in mind. Tap to correct it.
 
-**Tap tempo (SHIFT + LOOP):** tap at least three times, at the tempo you want; the last four
-taps count, and a pause of over 2 s starts over. LOOP flashes white on each tap.
+**Tap tempo (SHIFT + LOOP):** tap at least three times, at the tempo you want; the last five
+taps (four gaps) count, and a pause of over 2 s starts over. LOOP flashes on each tap: white,
+or dark when it's already lit nearly white.
 - With a loop, the taps pick how many beats the loop holds; the loop's length then gives the
   exact tempo, so the effects' beats stay locked to it even if the taps were a little off,
   delay times and freezer lengths included. Tapping
@@ -182,7 +184,7 @@ on the 14th, and the last key was the randomizer's, which is gone.)
 |---|---|
 | Hold an FX key | Effect on while held |
 | Hold an FX key, then SHIFT | Latch on / off; a latched effect stays on after release. The key goes down first, then SHIFT. The latch is settled when you let go of the key: holding an FX key and using SHIFT for something else (a coarse turn, tap tempo, the mix, selecting another effect) doesn't latch it. Hold several FX keys, then SHIFT, to latch them all |
-| SHIFT, then an FX key | **Select:** the knobs now edit that effect, without hearing it. It stays off (or latched, if it was), and letting go of the key does nothing, also after letting go of SHIFT first. The key flashes white. (Before, SHIFT first latched too: now only the key first does) |
+| SHIFT, then an FX key | **Select:** the knobs now edit that effect, without hearing it. It stays off (or latched, if it was), and letting go of the key does nothing, also after letting go of SHIFT first. The key flashes (white, or dark while it's already nearly white). (Before, SHIFT first latched too: now only the key first does) |
 | FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
 | Knobs 1-4 | The parameters of the most recently pressed or selected FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo, tape stop and spin-up times) move one step per 3 detents |
 | SHIFT + knobs 1-4 | Coarse: jumps to the next point of the parameter's grid per detent (see below) |
@@ -192,7 +194,8 @@ on the 14th, and the last key was the randomizer's, which is gone.)
 The FX keys are dimly lit in their effect's colour while off and at full brightness while
 on, where the audio coming out of the effect pushes the colour towards white, from -30 dBFS
 up, the peaks most. The delay and reverb keys follow their returns, so after release they
-glow with the tail, fading from full back to dim. A selected key flashes white. The knob
+glow with the tail, fading from full back to dim. A selected key flashes white, or dark while
+a loud effect already lights it nearly white. The knob
 LEDs show the parameter values in the effect's colours; a knob the effect doesn't use is
 dark and does nothing. Values reset at power-off unless they're saved in a
 [scene](#fx-scenes).
@@ -258,7 +261,8 @@ Filter details:
 Freezer details:
 - **Capture:** pressing the key waits for the next 16th, then records. The first pass is the
   live signal, so there's no gap; after one length it repeats. Releasing the key goes back to
-  the live signal. It keeps recording past the loop (up to 5 s), so the length can be turned
+  the live signal. Pressed again before the repeats have faded, they play on until the next
+  16th starts the new capture. It keeps recording past the loop (up to 5 s), so the length can be turned
   up while repeating; turned past what's recorded, it plays on through the recording until
   the length is reached.
 - **Feedback:** at 0 the loop repeats unchanged. Turning up mixes the input into it (up to
@@ -320,6 +324,7 @@ Folder details:
 - LEDs: the key is magenta; the knobs go magenta through white to orange.
 
 Crusher details:
+- LEDs: the key is orange; the knobs go yellow through orange to red.
 - **Dive:** every press of the key drops the rate up to 10x over 0.1 s and lets it recover
   over 0.4 s, Kastle's trigger dive.
 - **XOR** flips fixed bits of each sample as 16-bit (Kastle's constants, up to 4000), a buzz
@@ -380,8 +385,11 @@ Delay details:
   Without a loop, only the clock's tempo is used, not MIDI Start / Song Position, so they're
   counted from when the clock locked (or from power-on, or the last tap, without clock), not
   from the DAW's beat 1. Echo spacing is unaffected.
-- LEDs: division green (short) through white to blue (long); random green (events) through
-  white to blue (shimmer).
+
+Reverb details:
+- LEDs: the key is blue; the knobs go light blue through blue to purple.
+- LEDs: the key is green; division green (short) through white to light blue (long); random
+  green (events) through white to light blue (shimmer).
 
 ## Master compressor
 
@@ -409,9 +417,11 @@ latch, and holding it doesn't switch anything. With SHIFT it's a select, as an F
 - **Kept:** the settings are saved to `FRIZZ/frizz_master.txt` on the card 2 s after the
   last turn, and come back at power-on. They're not part of a scene. Without a card, or when
   the card can't be written, the key blinks red 3 times instead, and FRIZZ tries again 2 s
-  later, up to 3 times; the settings then last until power-off.
+  later, up to 3 times; the settings then last until power-off. On a card put in after
+  switching on, the settings you're playing with are written and the card's own are kept as
+  `FRIZZ/frizz_master.bak`.
 - LEDs: the key is white, dim, lighting up with the gain reduction, at full brightness from
-  12 dB; it flashes white when pressed. While selected, the knobs go light blue (0%) through
+  12 dB; it flashes when pressed, white, or dark while it's already bright. While selected, the knobs go light blue (0%) through
   white to orange (100%).
 
 ## FX scenes
@@ -435,7 +445,7 @@ save again.
 | Scene key of an empty slot | Nothing (the key blinks red) |
 | Blank scene key | Every effect off, every knob back on its default |
 | SHIFT + scene key | **Morph** to the scene, landing at the end of the current bar (see below) |
-| SHIFT + the same scene key again, while it morphs | One bar longer, up to 8 |
+| SHIFT + the same scene key again, while it morphs | One bar longer, up to 8 (past that, the key blinks red) |
 | SHIFT + PLAY, while it morphs | Stop the morph where it is |
 
 A recall is meant for performing, a build-up on one scene and the drop on the next:
@@ -496,6 +506,10 @@ older versions kept it); after that the card is written only when you save, copy
 never on a recall. Saving takes a moment in which the LEDs may pause. A scene file FRIZZ can't
 read (from another version, or edited into something else) starts it with no scenes but
 isn't lost: the first save moves it to `frizz_scenes.bak`.
+
+A card put in after switching on without one is read before anything is written to it: its
+scenes fill the slots you haven't saved into. If you've saved into a slot it also has a
+scene in, its file is moved to `frizz_scenes.bak` first, so nothing on it is lost.
 
 ### Morphing to a scene
 

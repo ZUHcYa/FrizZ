@@ -29,7 +29,7 @@ public:
         LFO_DIVISION,
     };
 
-    static const size_t kNumLfoDivisions = 7;
+    static const size_t kNumLfoDivisions = sizeof(kLfoDivisionPulses) / sizeof(kLfoDivisionPulses[0]);
 
     void Init(float sample_rate)
     {
@@ -66,13 +66,8 @@ public:
         const float cutoff = cutoff_.Process();
         const float depth = depth_.Process();
         // the resonance slews like the other knobs, so turning it doesn't zipper
-        if (res_.value != res_.target)
-        {
-            res_.Process();
-            if (fabsf(res_.value - res_.target) < 1e-5f)
-                res_.Snap();
+        if (res_.Settle())
             filter_.SetRes(res_.value);
-        }
 
         // move smoothly between pulses at the tempo, but wait at the next pulse rather than
         // run past it, so a late MIDI clock tick doesn't make the phase jump back. In
@@ -103,7 +98,8 @@ public:
     }
 
     /** The parameters land at once, no slew: at Init */
-    void SnapParams() override
+    /** The slewed parameters jump to their targets, at Init */
+    void SnapParams()
     {
         cutoff_.Snap();
         depth_.Snap();

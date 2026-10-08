@@ -199,6 +199,23 @@ static void TestKeys()
     Latch(fx, FX_FILTER);
     Latch(fx, FX_CRUSHER);
 
+    // the key, then SHIFT twice (a confirm tapped while holding it): still the one latch
+    fx.KeyPressed(FX_FILTER, true, false);
+    Check(fx.ShiftPressed(), "key, then SHIFT: a latch combo");
+    Check(fx.ShiftPressed(), "... and SHIFT again in the same hold: still one");
+    fx.KeyPressed(FX_FILTER, false, true);
+    Check(fx.IsLatched(FX_FILTER) && e.on[FX_FILTER], "key, SHIFT twice: latched");
+    Latch(fx, FX_FILTER);
+
+    // the key, then SHIFT + a knob the FX doesn't use (the tape stop's 4th): still a latch
+    fx.KeyPressed(FX_TAPESTOP, true, false);
+    fx.ShiftPressed();
+    fx.KnobTurned(3, 1.f, true);
+    fx.KnobPressed(3, true);
+    fx.KeyPressed(FX_TAPESTOP, false, true);
+    Check(fx.IsLatched(FX_TAPESTOP), "key, SHIFT + a dark knob turned or pressed: still latched");
+    Latch(fx, FX_TAPESTOP);
+
     // a release without its press (held through boot) does nothing
     fx.KeyPressed(FX_SLICER, false, false);
     Check(!e.on[FX_SLICER] && !fx.IsLatched(FX_SLICER), "a release without its press: nothing");

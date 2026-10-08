@@ -19,12 +19,17 @@
  *  Without a card the scenes still work, in RAM only, and are gone at power-off. A write that
  *  fails is reported (GetSaveState); the next save mounts the card again and tries again, so
  *  a card put in or back meanwhile is used.
+ *
+ *  A card first mounted after boot (LateCard) is read before anything is written to it: its
+ *  scenes fill the slots still empty in RAM. If one of its scenes would be overwritten, or
+ *  its file can't be read, the file goes to frizz_scenes.bak first, as an unreadable one does
+ *  at boot. Its master settings would change the sound mid-session, so the ones in RAM stay
+ *  and the card's file is kept as frizz_master.bak.
  */
 #pragma once
 #include "daisy.h"
 #include "fatfs.h"
 #include "FxScenes.h"
-#include "FxParams.h"
 #include "MasterSettings.h"
 
 namespace chompi
@@ -35,6 +40,7 @@ static const char kSceneTmpFile[] = "frizz_scenes.tmp";
 static const char kSceneBakFile[] = "frizz_scenes.bak";
 static const char kMasterFile[] = "frizz_master.txt";
 static const char kMasterTmpFile[] = "frizz_master.tmp";
+static const char kMasterBakFile[] = "frizz_master.bak";
 
 // FRIZZ's folder on the card, so it can share a card with other firmwares (the launcher at
 // github.com/sfaber02/CHOMPI gives each its own folder)
@@ -84,23 +90,11 @@ public:
         for (size_t s = 0; s < kNumScenes; s++)
             Saved()[s].used = false;
         master.Reset();
-        if (!Mount())
+        loaded_ = Mount();
+        if (!loaded_)
             return;
         LoadMaster();
-
-        // for the effects a saved scene leaves out
-        float defaults[kNumFx][kNumFxParams];
-        for (size_t fx = 0; fx < kNumFx; fx++)
-            for (size_t p = 0; p < kNumFxParams; p++)
-                defaults[fx][p] = kFxParams[fx].defaults[p];
-
-        if (Load(kSceneFile, defaults))
-            return;
-        const bool there = Exists(kSceneFile);
-        if (Load(kSceneTmpFile, defaults))
-            FinishRename(kSceneFile, kSceneTmpFile);
-        else if (there)
-            unreadable_ = true;
+        unreadable_ = !LoadScenes(Saved());
     }
 
     /** From the play page after a change: the next Process writes the file */
@@ -124,15 +118,16 @@ public:
         if (save_state_ == SaveState::PENDING)
         {
             Remount();
-            failed_ = !(mounted_ && Save());
+            failed_ = !(mounted_ && LateCard() && Save());
             save_state_ = failed_ ? SaveState::FAILED : SaveState::OK;
         }
         if (master_pending_)
         {
             master_pending_ = false;
             Remount();
+            failed_ = !(mounted_ && LateCard());
             const size_t len = FormatMaster(master, buf_, kMasterFileMax);
-            failed_ = !(mounted_ && len && WriteText(kMasterFile, kMasterTmpFile, len));
+            failed_ = failed_ || !(len && WriteText(kMasterFile, kMasterTmpFile, len));
             master_failed_ = failed_;
         }
     }
@@ -161,15 +156,17 @@ private:
         return f_stat(name, &info) == FR_OK;
     }
 
-    /** The file's text into buf_, terminated */
+    /** The file's text into buf_, terminated; false for one too long for it, which would be
+     *  read cut short */
     bool ReadText(const char* name)
     {
         if (f_open(&file_, name, FA_READ) != FR_OK)
             return false;
         UINT len = 0;
         const FRESULT res = f_read(&file_, buf_, kSceneFileMax - 1, &len);
+        const bool whole = f_eof(&file_);
         f_close(&file_);
-        if (res != FR_OK)
+        if (res != FR_OK || !whole)
             return false;
         buf_[len] = '\0';
         return true;
@@ -192,9 +189,63 @@ private:
         return f_rename(tmp, name) == FR_OK;
     }
 
-    bool Load(const char* name, const float (*defaults)[kNumFxParams])
+    bool Load(const char* name, const float (*defaults)[kNumFxParams], FxScene* into)
     {
-        return ReadText(name) && ParseScenes(buf_, defaults, Saved());
+        return ReadText(name) && ParseScenes(buf_, defaults, into);
+    }
+
+    /** The card's scenes into `into`, or a .tmp a save cut short before its rename, which it
+     *  finishes. False if a scene file is there but can't be read */
+    bool LoadScenes(FxScene* into)
+    {
+        // for the effects a saved scene leaves out
+        float defaults[kNumFx][kNumFxParams];
+        for (size_t fx = 0; fx < kNumFx; fx++)
+            for (size_t p = 0; p < kNumFxParams; p++)
+                defaults[fx][p] = kFxParams[fx].defaults[p];
+
+        if (Load(kSceneFile, defaults, into))
+            return true;
+        const bool there = Exists(kSceneFile);
+        if (Load(kSceneTmpFile, defaults, into))
+        {
+            FinishRename(kSceneFile, kSceneTmpFile);
+            return true;
+        }
+        return !there;
+    }
+
+    /** Before the first write to a card that wasn't there at boot: reads it as the boot
+     *  would, so a save can't overwrite what's on it (see the top). False if it couldn't be
+     *  made safe to write */
+    bool LateCard()
+    {
+        if (loaded_)
+            return true;
+
+        FxScene card[kNumScenes];
+        for (FxScene& scene : card)
+            scene.used = false; // a card without a file has none
+        bool clash = !LoadScenes(card);
+        for (size_t s = 0; s < kNumScenes; s++)
+        {
+            if (!card[s].used)
+                continue;
+            if (Saved()[s].used)
+                clash = true;
+            else
+                Saved()[s] = card[s];
+        }
+        unreadable_ = clash;
+
+        if (Exists(kMasterFile))
+        {
+            const FRESULT del = f_unlink(kMasterBakFile);
+            if ((del != FR_OK && del != FR_NO_FILE) || f_rename(kMasterFile, kMasterBakFile) != FR_OK)
+                return false;
+        }
+        loaded_ = true;
+        return true;
     }
 
     /** The master settings, or a .tmp a save cut short before its rename, which it finishes */
@@ -233,7 +284,9 @@ private:
             const FRESULT del = f_unlink(kSceneBakFile);
             if (del != FR_OK && del != FR_NO_FILE)
                 return false;
-            if (f_rename(kSceneFile, kSceneBakFile) != FR_OK)
+            // gone meanwhile (deleted, or the card swapped): nothing left to keep
+            const FRESULT moved = f_rename(kSceneFile, kSceneBakFile);
+            if (moved != FR_OK && moved != FR_NO_FILE)
                 return false;
             unreadable_ = false;
         }
@@ -243,7 +296,8 @@ private:
 
     FATFS* fs_ = nullptr;
     const char* path_ = nullptr;
-    bool unreadable_ = false; // a scene file is there that couldn't be read
+    bool unreadable_ = false; // a scene file is there that couldn't be read, or would be lost
+    bool loaded_ = false;     // the card was read: at boot, or before the first write (LateCard)
     bool failed_ = false;     // the last save failed
     FIL file_;
     // FatFs reads whole sectors straight into it by DMA, so on a cache line of its own

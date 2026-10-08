@@ -53,7 +53,22 @@ struct Smoothed
         fonepole(value, target, coeff);
         return value;
     }
+    /** For a value that's costly to apply: slews while it isn't at the target, and lands on
+     *  it once within 1e-5. True if it moved, so it needs applying */
+    bool Settle(float coeff = FxSlew::coeff)
+    {
+        if (value == target)
+            return false;
+        Process(coeff);
+        if (fabsf(value - target) < 1e-5f)
+            Snap();
+        return true;
+    }
 };
+
+// The level matches' envelope floor (LevelGuard, FxFolder.h): -70dB, so silence doesn't
+// read as a gain to make up
+static constexpr float kLevelEnvFloor = 1e-7f;
 
 /** An effect's key: on while held or latched, faded in and out over ~5ms so punching in
  *  doesn't click, and the press itself for the effects that react to it */
@@ -125,9 +140,6 @@ class FxBase
 public:
     virtual void SetOn(bool on) { gate_.SetOn(on); }
     virtual void SetParam(size_t param, float val) = 0;
-    /** The slewed parameters jump to their targets, at Init. An effect without slewed
-     *  parameters has nothing to do */
-    virtual void SnapParams() {}
 
     /** Off and faded out: its output is its input, and its meter isn't shown */
     inline bool Idle() const { return gate_.Silent(); }
@@ -297,7 +309,7 @@ struct StereoRing
  *  The crusher uses one, at 0dB. */
 struct LevelGuard
 {
-    static constexpr float kEnvFloor = 1e-7f; // -70dB: a buzz or ring on silence is held down too
+    static constexpr float kEnvFloor = kLevelEnvFloor; // a buzz or ring on silence is held down too
 
     void Init(float sample_rate, float headroom)
     {

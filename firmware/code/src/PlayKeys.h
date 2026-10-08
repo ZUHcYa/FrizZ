@@ -82,13 +82,8 @@ public:
         {
             Used();
             play_down_ = true;
-            play_combo_ = false;
             // SHIFT + PLAY: stops a morph, and only that; without one, PLAY as ever
-            if (Shift() && host_->FreezeMorph())
-            {
-                play_combo_ = true;
-                return;
-            }
+            play_combo_ = Shift() && host_->FreezeMorph();
             return;
         }
         if (!play_down_)
@@ -149,6 +144,7 @@ private:
         case Looper::State::PAUSED:
             if (stopped_ && host_->Now() - stop_time_ < kEraseLockMs)
                 break;
+            stopped_ = false; // the lock is over, also once the ms count wraps
             if (play_down_ && !host_->ErasePending())
                 host_->EraseAtEnd();
             else

@@ -25,7 +25,6 @@
 // -----------------------------------------------------------------------------
 
 #pragma once
-#include <stdlib.h>
 #include "daisysp.h"
 
 #define SLOPE(out, in, positive, negative)                \

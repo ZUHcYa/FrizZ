@@ -38,11 +38,11 @@ static const int kDefaultBpm = 120;
 // 2 bars plus the delay's stereo offset must fit in its 10s buffer, which needs > 48 BPM
 static const int kMinBpm = 50;
 static const int kMaxBpm = 300;
-static const uint32_t kTicksPerPulse = 2;   // 24 PPQN MIDI ticks -> 12 PPQN pulses
 static const uint32_t kPulsesPerBeat = 12;
-static const uint32_t kPulsesPer16th = 3;
-static const uint32_t kPulsesPerEdge = 6;   // 8th notes
-static const uint32_t kPulsesPerBar = 48;
+static const uint32_t kTicksPerPulse = kTicksPerBeat / kPulsesPerBeat; // 24 PPQN MIDI ticks -> 12 PPQN pulses
+static const uint32_t kPulsesPer16th = kPulsesPerBeat / 4;
+static const uint32_t kPulsesPerEdge = kPulsesPerBeat / 2; // 8th notes
+static const uint32_t kPulsesPerBar = kPulsesPerBeat * kBeatsPerBar;
 // The pulse position wraps every 4 bars, a multiple of every grid the effects use
 static const uint32_t kPulsesPerCycle = 4 * kPulsesPerBar;
 // An unquantized loop with no tempo set before it is guessed into this range
@@ -108,9 +108,7 @@ public:
     void ClearLoop()
     {
         // the free clock runs at the whole BPM the FX use, so their times stay on its grid
-        tempo_ = static_cast<int>(ClampBpm(loop_bpm_) + .5f);
-        bpm_ = static_cast<float>(tempo_);
-        tempo_set_ = true;
+        SetFreeTempo(loop_bpm_);
         loop_length_ = 0;
         paused_ = false;
         had_clock_ = false; // a running clock locks again, from here
@@ -131,15 +129,14 @@ public:
     {
         if (bpm <= 0.f || !CanTap())
             return;
-        tempo_set_ = true;
         if (HasLoop())
         {
+            tempo_set_ = true;
             SetLoopBeats(FitBeats(loop_length_, sample_rate_, bpm));
             loop_idx_ = free_idx_ = PulseIndex(loop_pos_);
             return;
         }
-        tempo_ = static_cast<int>(ClampBpm(bpm) + .5f);
-        bpm_ = static_cast<float>(tempo_);
+        SetFreeTempo(bpm);
         // the next pulse lands now and starts the nearest beat
         const uint32_t beat = (pulse_count_ + kPulsesPerBeat / 2) / kPulsesPerBeat * kPulsesPerBeat;
         pulse_count_ = (beat + kPulsesPerCycle - 1) % kPulsesPerCycle;
@@ -163,12 +160,7 @@ public:
             // 0 between the first and second tick of a new lock: keep the last tempo
             const float bpm = midi_clock_->GetBpm();
             if (bpm > 0.f)
-            {
-                const int rounded = static_cast<int>(bpm + .5f);
-                tempo_ = rounded < kMinBpm ? kMinBpm : (rounded > kMaxBpm ? kMaxBpm : rounded);
-                bpm_ = static_cast<float>(tempo_);
-                tempo_set_ = true;
-            }
+                SetFreeTempo(bpm);
 
             const uint32_t ticks = midi_clock_->GetTicks();
             if (!had_clock_)
@@ -179,9 +171,7 @@ public:
         }
         else
         {
-            phase_ += static_cast<float>(size) * bpm_ * 12.f / (60.f * sample_rate_);
-            pulses = static_cast<uint32_t>(phase_);
-            phase_ -= static_cast<float>(pulses);
+            pulses = FreePulses(size, bpm_);
         }
 
         had_clock_ = has_clock;
@@ -256,6 +246,23 @@ public:
     inline bool Reverse() const { return HasLoop() && !paused_ && dir_ < 0; }
 
 private:
+    /** Without a loop: the tempo, rounded to whole BPM so the FX's times don't wobble */
+    void SetFreeTempo(float bpm)
+    {
+        tempo_ = static_cast<int>(ClampBpm(bpm) + .5f);
+        bpm_ = static_cast<float>(tempo_);
+        tempo_set_ = true;
+    }
+
+    /** The internal phase advanced by a block at bpm: the pulses it crossed */
+    uint32_t FreePulses(size_t size, float bpm)
+    {
+        phase_ += static_cast<float>(size) * bpm * kPulsesPerBeat / (60.f * sample_rate_);
+        const uint32_t pulses = static_cast<uint32_t>(phase_);
+        phase_ -= static_cast<float>(pulses);
+        return pulses;
+    }
+
     void SetLoopBeats(uint32_t beats)
     {
         loop_beats_ = beats < 1 ? 1 : beats;
@@ -291,10 +298,7 @@ private:
                 const float at = pos * loop_pulses_;
                 phase_ = at - floorf(at);
             }
-            phase_ += static_cast<float>(size) * bpm * 12.f / (60.f * sample_rate_);
-            const uint32_t pulses = static_cast<uint32_t>(phase_);
-            phase_ -= static_cast<float>(pulses);
-            return pulses;
+            return FreePulses(size, bpm);
         }
         if (paused_)
         {
