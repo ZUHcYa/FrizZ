@@ -179,13 +179,18 @@ namespace chompi
         led_smt_data[index][2] = b / 4;
     }
 
+    /** 0..1 to 0..255; outside 0..1 the conversion to uint8_t would wrap (1.004 is dark) */
+    inline uint8_t LedByte(float v)
+    {
+        return static_cast<uint8_t>((v < 0.f ? 0.f : (v > 1.f ? 1.f : v)) * 255.f);
+    }
     void SetPthLedFloat(int index, float r, float g, float b)
     {
-        SetPthLed(index, r * 255, g * 255, b * 255);
+        SetPthLed(index, LedByte(r), LedByte(g), LedByte(b));
     }
     void SetSmtLedFloat(int index, float r, float g, float b)
     {
-        SetSmtLed(index, r * 255, g * 255, b * 255);
+        SetSmtLed(index, LedByte(r), LedByte(g), LedByte(b));
     }
 
     void EndOfLeds(void *context)
@@ -230,20 +235,13 @@ namespace chompi
 
     float color_quad_xfade(float start, float mid1, float mid2, float end, float idx)
     {
-        if(idx < .33f)
-        {
-            idx *= 3.f;
+        // thirds, so idx 1 lands on end rather than past it
+        idx = idx < 0.f ? 0.f : (idx > 1.f ? 1.f : idx) * 3.f;
+        if(idx < 1.f)
             return color_xfade(start, mid1, idx);
-        }
-        else if(idx < .66f)
-        {
-            idx = (idx - .33f) * 3.f;
-            return color_xfade(mid1, mid2, idx);
-        }
+        else if(idx < 2.f)
+            return color_xfade(mid1, mid2, idx - 1.f);
         else
-        {
-            idx = (idx - .66f) * 3.f;
-            return color_xfade(mid2, end, idx);
-        }
+            return color_xfade(mid2, end, idx - 2.f);
     }
 } // namespace chompi

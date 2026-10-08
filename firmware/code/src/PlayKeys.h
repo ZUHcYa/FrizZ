@@ -144,6 +144,7 @@ private:
         case Looper::State::PAUSED:
             if (stopped_ && host_->Now() - stop_time_ < kEraseLockMs)
                 break;
+            stopped_ = false; // the lock is over, also once the ms count wraps
             if (play_down_ && !host_->ErasePending())
                 host_->EraseAtEnd();
             else

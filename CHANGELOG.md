@@ -16,6 +16,8 @@ what FRIZZ does.
   overwrite is kept as `.bak`.
 - A failed write of the compressor's settings or the mono switch is tried again 3 times,
   as the manual says (it was twice, and not at all for a mono change after earlier failures).
+- LEDs at full brightness no longer flicker dark: a value a hair above full wrapped to off
+  (the transport's colours at full speed, the boot animation).
 - Holding an FX key, then SHIFT with a control that does nothing (the transport, or a knob the
   effect doesn't use) no longer cancels the latch or a pending confirm.
 
