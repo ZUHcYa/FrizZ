@@ -20,7 +20,8 @@
 
 using namespace daisysp;
 
-constexpr float delayDivs[9] = {1.f/8.f, 1.f/6.f, 1.f/4.f, 1.f/3.f, 3.f/8.f, 1.f/2.f, 3.f/4.f, 1.f, 2.f};
+constexpr float delayDivs[] = {1.f/8.f, 1.f/6.f, 1.f/4.f, 1.f/3.f, 3.f/8.f, 1.f/2.f, 3.f/4.f, 1.f, 2.f};
+constexpr size_t kNumDelayDivs = sizeof(delayDivs) / sizeof(delayDivs[0]);
 constexpr uint32_t kMaxCrossfadeSamps = 256;       // a division change
 constexpr uint32_t kMaxEventCrossfadeSamps = 1024; // a random event's fade in and out
 constexpr float kTempoJump = .02f; // a tempo change this much of the delay time crossfades
@@ -105,7 +106,6 @@ class delayVoice {
         buffer_size_ = buffer_size;
         write_head_ = 0;
         read_head_ = 0.f;
-        crossfade_env_ = 1.f;
         delay_samples_ = 0.f;
         curEvent = nextEvent = NONE;
         curPan = nextPan = 0.f;
@@ -116,7 +116,6 @@ class delayVoice {
         div_read_head_ = div_delay_samples_ = 0.f;
         div_crossfade_ = false;
         div_crossfade_counter_ = 0;
-        div_env_ = 1.f;
     }
 
     void updateTempo(float delay_samples, uint32_t write_head) {
@@ -185,8 +184,8 @@ class delayVoice {
             return;
         }
 
-        crossfade_env_ = 1.f;
-        div_env_ = 1.f;
+        float crossfade_env = 1.f;
+        float div_env = 1.f;
 
         float panL = chompi::fast_sqrt(0.5f * (1.f - curPan));
         float panR = chompi::fast_sqrt(0.5f * (1.f + curPan));
@@ -198,7 +197,7 @@ class delayVoice {
                 fading_in_ = false;
             }
             float phase = static_cast<float>(event_crossfade_counter_) / static_cast<float>(kMaxEventCrossfadeSamps);
-            crossfade_env_ = sinf(phase * PI_F * 0.5f);
+            crossfade_env = sinf(phase * PI_F * 0.5f);
         }
         else if (fading_out_) {
             event_crossfade_counter_--;
@@ -207,7 +206,7 @@ class delayVoice {
                 active_ = false;
             }
             float phase = static_cast<float>(event_crossfade_counter_) / static_cast<float>(kMaxEventCrossfadeSamps);
-            crossfade_env_ = sinf(phase * PI_F * 0.5f);
+            crossfade_env = sinf(phase * PI_F * 0.5f);
         }
 
         switch (curEvent) {
@@ -244,18 +243,18 @@ class delayVoice {
 
         if (div_crossfade_) {
             div_crossfade_counter_--;
-            div_env_ = static_cast<float>(div_crossfade_counter_) / static_cast<float>(kMaxCrossfadeSamps);
+            div_env = static_cast<float>(div_crossfade_counter_) / static_cast<float>(kMaxCrossfadeSamps);
             if (div_crossfade_counter_ == 0) {
                 read_head_ = div_read_head_;
                 delay_samples_ = div_delay_samples_;
                 div_crossfade_ = false;
-                div_env_ = 1.f;
+                div_env = 1.f;
             }
         }
 
         chompi::getSample(buffer_, read_head_, &sig_l, &sig_r, buffer_size_);
-        *out_l += sig_l * crossfade_env_ * div_env_ * panL;
-        *out_r += sig_r * crossfade_env_ * div_env_ * panR;
+        *out_l += sig_l * crossfade_env * div_env * panL;
+        *out_r += sig_r * crossfade_env * div_env * panR;
 
         if (div_crossfade_) {
 
@@ -291,8 +290,8 @@ class delayVoice {
             float c_sig_l = 0.f;
             float c_sig_r = 0.f;
             chompi::getSample(buffer_, div_read_head_, &c_sig_l, &c_sig_r, buffer_size_);
-            *out_l += c_sig_l * crossfade_env_ * (1.f - div_env_) * panL;
-            *out_r += c_sig_r * crossfade_env_ * (1.f - div_env_) * panR;
+            *out_l += c_sig_l * crossfade_env * (1.f - div_env) * panL;
+            *out_r += c_sig_r * crossfade_env * (1.f - div_env) * panR;
         }
     }
 
@@ -301,7 +300,6 @@ class delayVoice {
     uint32_t write_head_;
     
     float read_head_;
-    float crossfade_env_;
     float delay_samples_;
     delayEvent curEvent, nextEvent;
     float curPan, nextPan;
@@ -313,7 +311,6 @@ class delayVoice {
     float div_read_head_, div_delay_samples_;
     bool div_crossfade_;
     size_t div_crossfade_counter_;
-    float div_env_;
 };
 
 /** TEMPO's delay, without its freeze: one interleaved stereo buffer, two voices that crossfade
@@ -504,7 +501,7 @@ class granularDelay {
 
     /** Index into delayDivs: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars */
     void setDivision(size_t div) {
-        division_ = div < 9 ? div : 8;
+        division_ = div < kNumDelayDivs ? div : kNumDelayDivs - 1;
     }
 
     /** TEMPO's bipolar main knob, minus the division: 0..1, 0.5 = no random events.

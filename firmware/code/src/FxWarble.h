@@ -50,6 +50,7 @@ public:
             walk_[c].coeff = 0.f;
             lp_[c] = 0.f;
             phase_[c] = 0.f;
+            inc_[c] = kFlutterHz[c] / sample_rate_;
         }
 
         for (size_t i = 0; i < kNumFxParams; i++)
@@ -122,7 +123,8 @@ public:
     }
 
     /** The parameters land at once, no slew: at Init */
-    void SnapParams() override
+    /** The slewed parameters jump to their targets, at Init */
+    void SnapParams()
     {
         mix_.Snap();
         depth_.Snap();
@@ -154,8 +156,6 @@ public:
             break;
         }
         mix_.target = fmaxf(wow_val_, fminf(4.f * flutter_val_, 1.f));
-        for (size_t i = 0; i < 2; i++)
-            inc_[i] = kFlutterHz[i] / sample_rate_;
     }
 
 private:

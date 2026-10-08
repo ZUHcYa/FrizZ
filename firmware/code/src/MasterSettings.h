@@ -51,12 +51,7 @@ inline size_t FormatMaster(const MasterSettings& settings, char* buf, size_t siz
     size_t pos = 0;
     Put(buf, size, pos, masterfile::kHeader);
     Put(buf, size, pos, "\ncompressor");
-    for (size_t p = 0; p < kNumFxParams; p++)
-    {
-        const float val = fclamp(settings.comp[p], 0.f, 1.f);
-        Put(buf, size, pos, " ");
-        PutUint(buf, size, pos, static_cast<uint32_t>(val * kScale + .5f));
-    }
+    PutValues(buf, size, pos, settings.comp, kNumFxParams);
     Put(buf, size, pos, settings.mono ? "\nmono 1" : "\nmono 0");
     Put(buf, size, pos, "\n");
     buf[pos] = '\0';
@@ -70,20 +65,13 @@ inline bool ParseMaster(const char* text, MasterSettings& settings)
     using namespace scenefile;
     settings.Reset();
 
-    const size_t header_len = sizeof(masterfile::kHeader) - 1;
-    if (strncmp(text, masterfile::kHeader, header_len) != 0)
-        return false;
-    const char after = text[header_len];
-    if (after != '\0' && after != '\n' && after != '\r' && after != ' ' && after != '\t')
+    const char* p = AfterHeader(text, masterfile::kHeader);
+    if (!p)
         return false;
 
-    const char* p = text + header_len;
     while (*p)
     {
-        while (*p && *p != '\n')
-            p++;
-        if (*p == '\n')
-            p++;
+        NextLine(p);
 
         size_t len;
         const char* word = Word(p, len);
@@ -94,16 +82,8 @@ inline bool ParseMaster(const char* text, MasterSettings& settings)
                 settings.mono = strtol(num, nullptr, 10) != 0;
             continue;
         }
-        if (!word || !Is(word, len, "compressor"))
-            continue;
-        for (size_t i = 0; i < kNumFxParams; i++)
-        {
-            const char* num = Word(p, len);
-            if (!num)
-                break;
-            const float val = static_cast<float>(strtol(num, nullptr, 10)) / kScale;
-            settings.comp[i] = fclamp(val, 0.f, 1.f);
-        }
+        if (word && Is(word, len, "compressor"))
+            ReadValues(p, settings.comp, kNumFxParams);
     }
     return true;
 }

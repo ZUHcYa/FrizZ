@@ -98,7 +98,8 @@ public:
     }
 
     /** The parameters land at once, no slew: at Init */
-    void SnapParams() override
+    /** The slewed parameters jump to their targets, at Init */
+    void SnapParams()
     {
         depth_.Snap();
         mix_.Snap();

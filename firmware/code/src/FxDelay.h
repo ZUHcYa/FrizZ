@@ -22,7 +22,7 @@ public:
         LEVEL,
     };
 
-    static const size_t kNumDivisions = 9;
+    static const size_t kNumDivisions = kNumDelayDivs;
 
     void Init(float* buffer, size_t buffer_frames)
     {
@@ -53,13 +53,8 @@ public:
             return;
         const float level = level_.Process();
         // the feedback slews like the other knobs, so turning it doesn't zipper the repeats
-        if (feedback_.value != feedback_.target)
-        {
-            feedback_.Process();
-            if (fabsf(feedback_.value - feedback_.target) < 1e-5f)
-                feedback_.Snap();
+        if (feedback_.Settle())
             delay_.setFeedback(feedback_.value);
-        }
 
         float dl = 0.f, dr = 0.f;
         delay_.write(in_l * gate, in_r * gate);

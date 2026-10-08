@@ -340,7 +340,6 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
             uint8_t tx_buff[] = {0x11};
             i2c.TransmitBlocking(address, tx_buff, 1, 200);
 
-            read_ready = false;
             size_t buff_size = 0x06;
             i2c.ReceiveDma(address | 0B10000000, mp_buff_, buff_size, batteryCallback, this);
         }
@@ -354,7 +353,6 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
                 // nothing new: the debouncing keeps what it had, and a waiting reader goes on
                 self->level_read_ = false;
                 self->read_error = true;
-                self->read_ready = true;
                 return;
             }
             self->read_error = false;
@@ -370,7 +368,6 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
             {
                 self->level_low_ = batt_low_stat;
                 self->level_read_ = false;
-                self->read_ready = true;
                 return;
             }
 
@@ -394,12 +391,10 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
             {
                 self->batt_level = Hardware::BatteryLevel::HIGH;
             }
-            self->read_ready = true;
         }
 
         // the MP2722's status, received by DMA: in the uncached D2 RAM (mp_dma_buff)
         uint8_t* const mp_buff_ = mp_dma_buff;
-        volatile bool read_ready = false;
         volatile bool read_error = false; // the last read failed: mp_buff_ is older
         // the level check's own read (BMCMediumBattCheck): taken at the 3V3 threshold, so it
         // doesn't feed the lockout's debouncing
@@ -451,5 +446,8 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
         GPIO usb_sw, mpc_int, jack_detect; // mpc_int and jack_detect are set up, but not read
     private:
     };
+
+    // the transport's switch takes the chain's unused slot (ui.h)
+    static_assert(ENC_5_SW == static_cast<int>(Hardware::SwId::NC_6), "ENC_5_SW is NC_6's slot");
 
 } // namespace chompi

@@ -81,7 +81,8 @@ public:
     inline float Return() const { return ret_[0] + ret_[1]; }
 
     /** The parameters land at once, no slew: at Init */
-    void SnapParams() override
+    /** The slewed parameters jump to their targets, at Init */
+    void SnapParams()
     {
         for (size_t c = 0; c < 2; c++)
             delay_[c].Snap();

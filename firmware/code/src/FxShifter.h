@@ -137,7 +137,8 @@ public:
     }
 
     /** The parameters land at once, no slew: at Init */
-    void SnapParams() override
+    /** The slewed parameters jump to their targets, at Init */
+    void SnapParams()
     {
         dry_.Snap();
         feedback_.Snap();

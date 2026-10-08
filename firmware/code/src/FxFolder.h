@@ -100,7 +100,8 @@ public:
     }
 
     /** The parameters land at once, no slew: at Init */
-    void SnapParams() override
+    /** The slewed parameters jump to their targets, at Init */
+    void SnapParams()
     {
         drive_.Snap();
         shape_.Snap();
@@ -135,7 +136,7 @@ public:
 private:
     static constexpr float kMaxDrive = 32.f;
     static constexpr float kAdaaMinStep = 1e-3f;
-    static constexpr float kEnvFloor = 1e-7f; // -70dB: silence stays at about unity
+    static constexpr float kEnvFloor = kLevelEnvFloor; // silence stays at about unity
     static constexpr float kMaxMatch = 2.f;   // the most the level match turns up
 
     /** The fold: period 4, 0 at 0, 1 at 1, back through 0 at 2 to -1 at 3, so below 1 it's

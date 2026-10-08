@@ -55,15 +55,7 @@ public:
         // the knobs slew; what follows from them is worked out only while one moves
         bool moved = false;
         for (size_t p = 0; p < kNumFxParams; p++)
-        {
-            Smoothed& k = knobs_[p];
-            if (k.value == k.target)
-                continue;
-            k.Process(kFxParamCoeff);
-            if (fabsf(k.value - k.target) < 1e-5f)
-                k.Snap();
-            moved = true;
-        }
+            moved |= knobs_[p].Settle(kFxParamCoeff);
         if (moved)
             Update();
 

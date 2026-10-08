@@ -24,7 +24,6 @@
 #include "daisy.h"
 #include "fatfs.h"
 #include "FxScenes.h"
-#include "FxParams.h"
 #include "MasterSettings.h"
 
 namespace chompi
