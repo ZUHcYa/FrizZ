@@ -26,6 +26,7 @@
 #include "daisy.h"
 #include "fatfs.h"
 #include "passthroughEngine.h"
+#include "SceneStore.h"
 #include "temp_led_stuff.h"
 
 namespace chompi
@@ -374,7 +375,7 @@ private:
 
         if (f_mount(fs_, path_, 1) != FR_OK)
             return false;
-        f_mkdir("/FRIZZ"); // there already, as a rule (SceneStore.h)
+        EnterFrizzDir(); // a mount goes back to the root; SceneStore's paths are relative
         static FIL file;
         if (f_open(&file, "/FRIZZ/cpu.txt", FA_CREATE_ALWAYS | FA_WRITE) != FR_OK)
             return false;

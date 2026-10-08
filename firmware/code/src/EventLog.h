@@ -5,7 +5,9 @@
  *  card's FRIZZ files as they were at power-on, then the controls at the times they were
  *  used, so the twin plays the session again from power-on.
  *
- *  The audio callback adds the events (ui.h's GenerateEvents) to an append-only list in SDRAM,
+ *  The audio callback adds the events (ui.h's GenerateEvents) to an append-only list in SDRAM
+ *  (only the CPU touches it; the text going to and from the card stays in internal RAM, as
+ *  all FRIZZ's card buffers do),
  *  writing the slot before it counts it; MainLoop writes the file a chunk per pass, up to the
  *  count it saw at the press, so neither waits for the other. The list starts when main()
  *  enters its loop (Start: the SDRAM has been cleared, the card read); the times count from
@@ -24,6 +26,7 @@
 #include "hardware.h"
 #include "FxScenes.h"
 #include "MasterSettings.h"
+#include "SceneStore.h"
 #include "MidiClock.h"
 
 // once each and small, not inlined wherever they're used: FRIZZ's code space is tight
@@ -46,13 +49,10 @@ struct LoggedEvent
 static const size_t kEventLogSize = 1u << 18;
 static const size_t kEventLogText = 4096; // written a chunk this size at a time
 
-/** Its memory, in SDRAM (chompi_main.cpp) */
+/** Its list, in SDRAM (chompi_main.cpp) */
 struct EventLogMem
 {
     LoggedEvent events[kEventLogSize];
-    char scenes[kSceneFileMax]; // the card's files at power-on
-    char master[kMasterFileMax];
-    char text[kEventLogText + 128];
 };
 
 // Hardware::SwId's names, as the twin's scripts take them
@@ -89,8 +89,8 @@ public:
      *  and the card's FRIZZ files as SceneStore left them at boot */
     void Start(uint32_t now, bool toggle)
     {
-        Snapshot("/FRIZZ/frizz_scenes.txt", mem_->scenes, kSceneFileMax);
-        Snapshot("/FRIZZ/frizz_master.txt", mem_->master, kMasterFileMax);
+        Snapshot("/FRIZZ/frizz_scenes.txt", scenes_, kSceneFileMax);
+        Snapshot("/FRIZZ/frizz_master.txt", master_, kMasterFileMax);
         toggle_ = toggle_at_start_ = toggle;
         start_ = now;
         started_ = true;
@@ -247,11 +247,11 @@ private:
         to[res == FR_OK ? len : 0] = '\0';
     }
 
-    // the text being put together in mem_->text
+    // the text being put together in text_
     EVENT_LOG_ONCE void Put(const char* s)
     {
         const size_t len = strlen(s);
-        memcpy(mem_->text + pos_, s, len);
+        memcpy(text_ + pos_, s, len);
         pos_ += len;
     }
     EVENT_LOG_ONCE void PutNum(uint32_t n)
@@ -264,13 +264,13 @@ private:
             n /= 10;
         } while (n);
         while (i)
-            mem_->text[pos_++] = digits[--i];
+            text_[pos_++] = digits[--i];
     }
-    /** mem_->text so far to the file */
+    /** text_ so far to the file */
     EVENT_LOG_ONCE bool Flush()
     {
         UINT written = 0;
-        const FRESULT res = f_write(&file_, mem_->text, static_cast<UINT>(pos_), &written);
+        const FRESULT res = f_write(&file_, text_, static_cast<UINT>(pos_), &written);
         const bool ok = res == FR_OK && written == pos_;
         pos_ = 0;
         return ok;
@@ -289,12 +289,12 @@ private:
                 return false;
             if (*c == '\r')
                 continue;
-            mem_->text[pos_++] = *c;
+            text_[pos_++] = *c;
             if (*c == '\n' && c[1])
-                mem_->text[pos_++] = '|';
+                text_[pos_++] = '|';
         }
-        if (mem_->text[pos_ - 1] != '\n')
-            mem_->text[pos_++] = '\n';
+        if (text_[pos_ - 1] != '\n')
+            text_[pos_++] = '\n';
         return Flush();
     }
 
@@ -303,7 +303,8 @@ private:
     {
         if (f_mount(fs_, path_, 1) != FR_OK)
             return false;
-        f_mkdir("/FRIZZ"); // there already, as a rule (SceneStore.h)
+        // a mount goes back to the root, and SceneStore's paths are relative to /FRIZZ
+        EnterFrizzDir();
         char name[24];
         for (number_ = 1; number_ < 1000; number_++)
         {
@@ -311,7 +312,7 @@ private:
             Put("/FRIZZ/bug-");
             PutNum(number_);
             Put(".txt");
-            memcpy(name, mem_->text, pos_);
+            memcpy(name, text_, pos_);
             name[pos_] = '\0';
             FILINFO info;
             if (f_stat(name, &info) != FR_OK)
@@ -329,8 +330,8 @@ private:
             "# The audio in isn't in it: the replay plays a tone into AUX (the input line).\n");
         if (full_)
             Put("# The log was full: it ends early, and the replay too.\n");
-        if (!Flush() || !PutFile("/FRIZZ/frizz_scenes.txt", mem_->scenes)
-            || !PutFile("/FRIZZ/frizz_master.txt", mem_->master))
+        if (!Flush() || !PutFile("/FRIZZ/frizz_scenes.txt", scenes_)
+            || !PutFile("/FRIZZ/frizz_master.txt", master_))
             return false;
         Put("input sine 220 0.3\ntoggle ");
         PutNum(toggle_at_start_ ? 0 : 1);
@@ -390,6 +391,9 @@ private:
     }
 
     EventLogMem* mem_ = nullptr;
+    char scenes_[kSceneFileMax]; // the card's files at power-on
+    char master_[kMasterFileMax];
+    char text_[kEventLogText + 128];
     FATFS* fs_ = nullptr;
     const char* path_ = nullptr;
     FIL file_;

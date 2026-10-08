@@ -654,6 +654,16 @@ int main()
         Press("KEY_26", false);
         RunMs(1000);
         const std::string log = Card("/FRIZZ/bug-1.txt");
+        // the card goes on as before: a save and the compressor land in /FRIZZ
+        const std::string scenes = Card("/FRIZZ/frizz_scenes.txt");
+        const std::string master = Card("/FRIZZ/frizz_master.txt");
+        Save(4);
+        Tap("KEY_15");
+        Turn(4, 10);
+        RunMs(3000);
+        Check(Card("/FRIZZ/frizz_scenes.txt") != scenes && Card("/FRIZZ/frizz_master.txt") != master
+                  && Card("/frizz_scenes.txt").empty() && Card("/frizz_master.txt").empty(),
+              "bug log: saves after it still go to /FRIZZ");
         Check(log.rfind("# FRIZZ event log 1:", 0) == 0 && log.find("# written here") != std::string::npos,
               "bug log: SHIFT + transport press writes /FRIZZ/bug-1.txt");
         Check(white, "bug log: and the transport LEDs blink white");
