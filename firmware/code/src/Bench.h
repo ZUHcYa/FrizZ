@@ -421,7 +421,7 @@ private:
 
     struct Text
     {
-        alignas(32) char buf[6144]; // whole cache lines for the SD DMA, as SceneStore's
+        alignas(32) char buf[8192]; // whole cache lines for the SD DMA, as SceneStore's
         size_t pos = 0;
         void Put(const char* s)
         {
@@ -486,49 +486,59 @@ private:
         t.UInt(static_cast<uint32_t>(daisy::System::GetBootloaderVersion()));
 #endif
         t.Put("\n# where the mean goes, % of the block by the audio clock (BenchProfile.h);\n");
-        t.Put("# total: the whole callback so, to set against the mean above; fx/sample: the FX\n");
-        t.Put("# chain's cycles on a block's first sample and on the others\n");
+        t.Put("# total: the whole callback so, to set against the mean above\n");
         static const char* const kParts[] = {"midi", "ctrl", "events", "input", "looper", "tempo",
                                              "fx",   "comp", "output", "rest",   "total"};
-        t.Put("# segment         ");
-        for (const char* name : kParts)
-        {
-            const size_t col = t.pos;
-            t.Put(" ");
-            t.Pad(col + 7 - strlen(name));
-            t.Put(name);
-        }
-        t.Put("   fx/sample 1st  rest\n");
-        const size_t rest = BenchProfile::kNumParts; // the callback's cycles not in any part
+        const size_t fx = BenchProfile::FX0;
+        PartsHeader(t, kParts, sizeof(kParts) / sizeof(kParts[0]), 7);
         for (size_t s = 0; s < kNumSegments; s++)
         {
-            const size_t line = t.pos;
-            t.Put(kSegments[s].name);
-            t.Pad(line + 18);
-            float shown[BenchProfile::kNumParts + 1] = {};
+            const float period = period_[s];
+            float row[11] = {};
             float marked = 0.f;
             for (size_t p = 0; p < BenchProfile::kNumParts; p++)
                 marked += parts_[s][p];
-            for (size_t p = 0; p < BenchProfile::kNumParts; p++)
-                shown[p] = parts_[s][p];
-            shown[BenchProfile::FX] += parts_[s][BenchProfile::FX_FIRST];
-            shown[rest] = cycles_[s] - marked;
-            const float period = period_[s];
-            for (size_t p = 0; p <= rest; p++)
-            {
-                if (p == BenchProfile::FX_FIRST)
-                    continue;
-                t.Put(" ");
-                t.Load(period > 0.f ? shown[p] / period : 0.f);
-            }
-            t.Put(" ");
-            t.Load(period > 0.f ? cycles_[s] / period : 0.f);
-            t.Put("   ");
-            t.UInt(static_cast<uint32_t>(parts_[s][BenchProfile::FX_FIRST] + .5f), 13);
-            t.UInt(static_cast<uint32_t>(parts_[s][BenchProfile::FX] / (block_size_ - 1) + .5f),
-                   6);
-            t.Put("\n");
+            for (size_t p = 0; p < fx; p++)
+                row[p] = parts_[s][p];
+            for (size_t e = 0; e < kNumFx; e++)
+                row[fx] += parts_[s][fx + e];
+            row[fx + 1] = parts_[s][BenchProfile::COMP];
+            row[fx + 2] = parts_[s][BenchProfile::OUTPUT];
+            row[fx + 3] = cycles_[s] - marked; // the callback's cycles not in any part
+            row[fx + 4] = cycles_[s];
+            PartsRow(t, s, row, 11, period, 7);
         }
+        t.Put("\n# the FX chain by effect, % of the block, each with its meter\n");
+        PartsHeader(t, kFxNames, kNumFx, 10);
+        for (size_t s = 0; s < kNumSegments; s++)
+            PartsRow(t, s, &parts_[s][fx], kNumFx, period_[s], 10);
+    }
+
+    static void PartsHeader(Text& t, const char* const* names, size_t n, size_t width)
+    {
+        t.Put("# segment         ");
+        for (size_t i = 0; i < n; i++)
+        {
+            const size_t col = t.pos;
+            t.Put(" ");
+            t.Pad(col + width - strlen(names[i]));
+            t.Put(names[i]);
+        }
+        t.Put("\n");
+    }
+
+    static void PartsRow(Text& t, size_t s, const float* cycles, size_t n, float period,
+                         size_t width)
+    {
+        const size_t line = t.pos;
+        t.Put(kSegments[s].name);
+        t.Pad(line + 18);
+        for (size_t i = 0; i < n; i++)
+        {
+            t.Pad(t.pos + width - 6);
+            t.Load(period > 0.f ? cycles[i] / period : 0.f);
+        }
+        t.Put("\n");
     }
 
     bool Write()

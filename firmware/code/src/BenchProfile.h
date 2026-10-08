@@ -11,8 +11,11 @@
 
 #if FRIZZ_BENCH
 #define BENCH_MARK(part) chompi::bench_profile.Mark(chompi::BenchProfile::part)
+#define BENCH_MARK_FX(fx)                                                                  \
+    chompi::bench_profile.Mark(static_cast<chompi::BenchProfile::Part>(chompi::BenchProfile::FX0 + (fx)))
 #else
 #define BENCH_MARK(part)
+#define BENCH_MARK_FX(fx)
 #endif
 
 #if FRIZZ_BENCH
@@ -33,9 +36,8 @@ struct BenchProfile
         INPUT,    // the AUX input's gain and DC block
         LOOPER,
         TEMPO,    // the FX's tempo and clock, the scene morph
-        FX,       // the FX chain, all but each block's first sample
-        FX_FIRST, // the FX chain on each block's first sample
-        COMP,     // the master compressor
+        FX0,      // the FX chain, one part per effect in FxId's order (FxChain.h), with its meter
+        COMP = FX0 + 12, // the master compressor
         OUTPUT,   // the mix, the gains, the meter, the headphones' cue, the four limiters
         kNumParts
     };

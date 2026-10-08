@@ -135,13 +135,7 @@ public:
             // punch-in FX, on the mix so they work on the input, the loop or both, and
             // before the output gain so they don't change with the VOLUME knob
             BENCH_MARK(OUTPUT);
-            fx_.Process(&sigl, &sigr);
-#if FRIZZ_BENCH
-            if (i == 0)
-                BENCH_MARK(FX_FIRST);
-            else
-                BENCH_MARK(FX);
-#endif
+            fx_.Process(&sigl, &sigr); // marks each effect itself
             comp_.Process(&sigl, &sigr);
             BENCH_MARK(COMP);
 
