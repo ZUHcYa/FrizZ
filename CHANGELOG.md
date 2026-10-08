@@ -7,6 +7,16 @@ what FRIZZ does.
 
 ## Unreleased
 
+### Changed
+
+- Mono input (VOLUME's page 3) needs its 3 detents in one direction: turning back starts the
+  count over, so wiggling the knob doesn't switch it.
+- A flash on a key that's already lit nearly white (a select on a loud effect or on the
+  compressor working hard, a tap on LOOP near the loop's end) goes dark instead of white, so
+  it's seen.
+- LOOP's blink while a quantized recording closes or an erase waits for the loop's end is
+  slower, the same as a picked scene slot's, so it doesn't look like a refusal's 3 quick blinks.
+
 ### Fixed
 
 - Holding an FX key and tapping CHOMPI twice in a save, copy or delete mode confirmed the

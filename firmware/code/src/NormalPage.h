@@ -77,9 +77,12 @@ namespace chompi
     static const uint8_t kPlayLed = 7;
     static const uint8_t kLoopLed = 8;
     static const float kPausedDim = .3f;
-    static const uint32_t kClosingBlinkMs = 150;
-    static const uint32_t kTapFlashMs = 80;      // LOOP flashes white on a tempo tap
-    static const uint32_t kSelectFlashMs = 80;   // an FX key flashes white on a select
+    // waiting for something: a quantized record closing, an erase at the loop's end, a picked
+    // scene slot, the CHOMPI key armed to confirm. Slower than a refusal's 3 blinks (LedSignal)
+    static const uint32_t kPendingBlinkMs = 250;
+    static const uint32_t kTapFlashMs = 80;      // LOOP flashes on a tempo tap
+    static const uint32_t kSelectFlashMs = 80;   // an FX key flashes on a select
+    static const float kFlashDarkAbove = .5f;    // a flash goes dark on an LED this white (Flash)
     static const float kSpeedStepPerTurn = .25f; // 4 transport detents per speed step
 
     static const uint8_t kFxKnobLeds[kNumFxParams] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
@@ -128,7 +131,6 @@ namespace chompi
         {SceneMode::COPY, Hardware::SwId::KEY_24, 8, green},
         {SceneMode::DELETE, Hardware::SwId::KEY_23, 7, amber}, // red means refused
     };
-    static const uint32_t kSceneBlinkMs = 250;      // a picked slot, the armed CHOMPI key
     static const uint32_t kScenePulseMs = 1000;     // the active scene, edited
 
     // VOLUME held: the battery's level, by Hardware::BatteryLevel
@@ -225,7 +227,7 @@ namespace chompi
             // CHOMPI key: blinking in the mode's colour while a tap would confirm a scene
             // action, otherwise white while it is acting as SHIFT
             if (scene_ctl_.Armed() && !keys_.ShiftCombo())
-                PthLed(kChompiKeyLed, SceneModeColor(), BlinkOn(now, kSceneBlinkMs) ? 1.f : 0.f);
+                PthLed(kChompiKeyLed, SceneModeColor(), BlinkOn(now, kPendingBlinkMs) ? 1.f : 0.f);
             else
                 PthLed(kChompiKeyLed, white, Shift() ? 1.f : 0.f);
 
@@ -490,7 +492,10 @@ namespace chompi
             }
             else if (page_ == kMonoPage)
             {
-                // left: mono, right: stereo, after kMonoDetents so a nudge doesn't switch
+                // left: mono, right: stereo, after kMonoDetents in one direction so a nudge
+                // doesn't switch; turning back starts the count over
+                if (mono_chunk_ * detents < 0.f)
+                    mono_chunk_ = 0.f;
                 mono_chunk_ += detents;
                 if (mono_chunk_ <= -kMonoDetents || mono_chunk_ >= kMonoDetents)
                 {
@@ -590,7 +595,7 @@ namespace chompi
             for (const SceneModeKey& key : kSceneModeKeys)
                 SmtLed(key.led, key.color, mode == key.mode ? 1.f : kFxOffLevel);
 
-            const bool blink_on = BlinkOn(now, kSceneBlinkMs);
+            const bool blink_on = BlinkOn(now, kPendingBlinkMs);
             for (size_t slot = 0; slot < kNumSlots; slot++)
             {
                 const int s = static_cast<int>(slot);
@@ -673,24 +678,25 @@ namespace chompi
                     // a send's tail ringing out, from full down to off, in even steps to the eye
                     level = kFxOffLevel * powf(1.f / kFxOffLevel, meter);
                 }
-                // a select (SHIFT + the key): a white flash
+                float rgb[3];
+                for (int c = 0; c < 3; c++)
+                    rgb[c] = level * (color[c] + whiten * (1.f - color[c]));
+                // a select (SHIFT + the key): a flash
                 if (fx == selected && select_flash_.Active(now))
-                    level = whiten = 1.f;
-                SetSmtLedFloat(kFxSlots[fx].key_led,
-                               level * (color[0] + whiten * (1.f - color[0])),
-                               level * (color[1] + whiten * (1.f - color[1])),
-                               level * (color[2] + whiten * (1.f - color[2])));
+                    Flash(rgb);
+                SetSmtLedFloat(kFxSlots[fx].key_led, rgb[0], rgb[1], rgb[2]);
             }
 
             // the compressor's key: its gain reduction, from dim up to full; a select flashes
             const float reduced = -engine_->GetCompReduction() / kCompMeterDb;
-            float level = kFxOffLevel + (1.f - kFxOffLevel) * fclamp(reduced, 0.f, 1.f);
+            const float level = kFxOffLevel + (1.f - kFxOffLevel) * fclamp(reduced, 0.f, 1.f);
+            float rgb[3] = {level, level, level};
             if (comp && select_flash_.Active(now))
-                level = 1.f;
+                Flash(rgb);
             if (master_refused_.Active(now))
                 SmtLed(kCompKeyLed, red, master_refused_.BlinkLit(now) ? 1.f : 0.f);
             else
-                SmtLed(kCompKeyLed, white, level);
+                SetSmtLedFloat(kCompKeyLed, rgb[0], rgb[1], rgb[2]);
         }
 
         void DrawLooperLeds(uint32_t now)
@@ -703,7 +709,7 @@ namespace chompi
 
             if (state == Looper::State::RECORDING)
             {
-                const bool on = !looper.IsClosing() || BlinkOn(now, kClosingBlinkMs);
+                const bool on = !looper.IsClosing() || BlinkOn(now, kPendingBlinkMs);
                 loop[0] = on ? 1.f : 0.f;
             }
             else if (LoopExists())
@@ -715,14 +721,14 @@ namespace chompi
                 // an erase waiting for the loop's end: LOOP blinks red, as a closing record
                 if (looper.IsErasePending())
                 {
-                    loop[0] = BlinkOn(now, kClosingBlinkMs) ? 1.f : 0.f;
+                    loop[0] = BlinkOn(now, kPendingBlinkMs) ? 1.f : 0.f;
                     loop[1] = loop[2] = 0.f;
                 }
             }
 
-            // a tempo tap: a white flash, over whatever LOOP was showing
+            // a tempo tap: a flash, over whatever LOOP was showing
             if (tap_flash_.Active(now))
-                loop[0] = loop[1] = loop[2] = 1.f;
+                Flash(loop);
 
             // refused quantized record or tap: 3 red blinks, over whatever LOOP was showing
             if (loop_refused_.Active(now))
@@ -799,6 +805,15 @@ namespace chompi
         static void PthLed(uint8_t led, const float* color, float level)
         {
             SetPthLedFloat(led, level * color[0], level * color[1], level * color[2]);
+        }
+        /** A short flash over what an LED shows: white, or dark where it's already close to
+         *  white (a loud FX, the compressor working hard, LOOP near the loop's end), so it's
+         *  always seen */
+        static void Flash(float* rgb)
+        {
+            const float least = fminf(rgb[0], fminf(rgb[1], rgb[2]));
+            const float flash = least > kFlashDarkAbove ? 0.f : 1.f;
+            rgb[0] = rgb[1] = rgb[2] = flash;
         }
         static void Xfade(const float* a, const float* b, float t, float* rgb)
         {

@@ -64,7 +64,7 @@ compressor on the last one (below).
 - **Hold a key, then SHIFT:** latch the effect on. Do it again, or just tap the key, to turn
   it off.
 - **SHIFT, then a key:** pick the effect for the knobs without hearing it, to set it up
-  before you punch it in. The key flashes white.
+  before you punch it in. The key flashes.
 - **Knobs 1-4:** shape the effect whose key you pressed or picked last. Their LEDs show the
   settings; a dark knob does nothing for that effect. The knobs follow one pattern: 1 is the
   main control, 2 the feedback, 3 the tone or colour, 4 the stereo width or level (where an
