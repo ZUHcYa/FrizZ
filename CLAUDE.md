@@ -191,9 +191,11 @@ FRIZZ's audio callback has 0.5 ms per 24-sample block. Until effects that are of
 processing (`FxGate::Asleep`), a playing loop with the delay ran it at 90-100%. At that
 margin, a change that only shifts the memory layout (b5c658c, removing the randomizer) was
 enough to make it crackle on the device, while the host harness stayed bit-identical. The
-host can't measure this: on the device, the local branch `diag-cpu-load` (f38209f) shows the
-worst block's load on the 14th white key's LED. Keep effects that are off cheap, and suspect
-the CPU when crackles appear on hardware that the harness can't reproduce.
+host can't measure this. On the device, wrap `AudioCallback()` in libDaisy's `CpuLoadMeter`
+(`OnBlockStart`/`OnBlockEnd`, `Init(sample rate, 24)`) and show `GetMaxCpuLoad()` on a free
+key's LED, resetting it every 0.5 s. Many inserts on at once still cost as much as ever.
+Keep effects that are off cheap, and suspect the CPU when crackles appear on hardware that
+the harness can't reproduce.
 
 ## SRAM is the binding constraint, especially on TAPE
 
