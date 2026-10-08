@@ -7,9 +7,13 @@
 # The firmware (code/src) and libDaisy's UI, Switch, 4021 and MIDI code are copied unchanged
 # into build/tree, with host/ (the board's stand-ins) and test/host/fatfs.h (the card) beside
 # them, so every include resolves inside it.
+#
+# TWIN_FIRMWARE=DIR builds another firmware (a code/src from another commit, as compare.sh
+# does) and TWIN_BUILD=DIR builds into DIR instead of build/.
 source "$(dirname "$0")/../test/lib.sh"   # T, REPO, INC (DaisySP), the host DaisySP
 TW=$REPO/firmware/twin
-B=$TW/build
+B=${TWIN_BUILD:-$TW/build}
+FIRMWARE=${TWIN_FIRMWARE:-$REPO/firmware/code/src}
 TREE=$B/tree
 LIBDAISY=$REPO/firmware/code/libs/libDaisy/src
 mkdir -p "$B"
@@ -26,7 +30,7 @@ stage()
     done
     cp -r "$TW/host/." "$TREE.new/lib/"
     cp "$REPO/firmware/test/host/fatfs.h" "$TREE.new/lib/"
-    cp "$REPO/firmware/code/src"/*.h "$REPO/firmware/code/src"/*.cpp "$TREE.new/src/"
+    cp "$FIRMWARE"/*.h "$FIRMWARE"/*.cpp "$TREE.new/src/"
     cp "$TW"/*.cpp "$TW"/*.h "$TREE.new/src/"
 }
 

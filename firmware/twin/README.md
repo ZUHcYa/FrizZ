@@ -76,16 +76,40 @@ stdout): the time in ms, the 10 panel LEDs (`pth`, in `NormalPage.h`'s numbering
 
 `../test/ui.cpp` (`unit.sh ui`) uses the same twin through `twin.h`.
 
+## Two versions side by side
+
+```bash
+./compare.sh                 # HEAD against the working tree: a refactor must be bit-identical
+./compare.sh main HEAD       # what this branch changes for a player
+./compare.sh v0.10 main      # since a release
+./ui-at.sh main              # ../test/ui.cpp's checks on another version's firmware
+```
+
+`compare.sh` builds the twin on each version's firmware (once per commit, kept in
+`build/compare/`), plays every scenario in `scenarios/` on both and compares what came out:
+`bit-identical`, or from when the sound parts and how far below the signal the difference is,
+and which LEDs differ how often. The scenarios cover every effect on its own, effects latched
+together with coarse turns and resets, the compressor swept, the looper through every speed,
+scenes saved, recalled, morphed, copied and deleted, VOLUME's pages and the mix, and MIDI clock.
+A new one is just another `scenarios/NAME.txt`. Both versions run with the working tree's twin,
+so a firmware from before the twin compares too (back to the move from `firmware/frizz/`).
+
+For #7, `./compare.sh b9031c3 f866d6d` shows what it changed: the sound only in the compressor
+and the effects with fixes (79 to 97 dB below the signal), and the LEDs in the VOLUME meter, the
+transport and LOOP's blink.
+
 ## Scripts
 
 One command per line, `#` starts a comment. The device is switched on at the first command
-that needs it; time moves only with `wait` and `at`.
+that needs it; time moves only with `wait` and `at`. Keys debounce for about 7 ms, as on the
+device, so a script that lets go of SHIFT and turns a knob in the same millisecond has turned
+it with SHIFT held: leave the gaps a hand would.
 
 | Command | |
 |---|---|
 | `wait MS` / `at MS` | run for MS / until MS after power-on |
 | `down KEY` / `up KEY` / `tap KEY [MS]` | a key by its `Hardware::SwId` name: `KEY_1` .. `KEY_28` (white keys 1-15 are `KEY_1`-`KEY_15`; CHOMPI, PLAY, LOOP are `KEY_26`-`KEY_28`), `ENC_1_SW` .. `ENC_6_SW`. `tap` holds it 60 ms |
-| `turn ENC N` | encoder 1-6 (SW1-SW6: 4 is knob 1, 1-3 knobs 2-4, 5 the transport, 6 VOLUME) by N detents |
+| `turn ENC N` | encoder 1-6 (SW1-SW6: 4 is knob 1, 1-3 knobs 2-4, 5 the transport, 6 VOLUME) by N detents. They play out in the background, 8 ms each, as a hand turns: `wait` for them before the next key |
 | `toggle 0\|1` | the mode switch, as the 4021 reads it |
 | `input sine HZ AMP` / `input wav FILE` / `input off` | what goes into AUX (a WAV loops) |
 | `midi HEX...` / `clock BPM` | raw bytes into the MIDI jack / a running MIDI clock (`clock 0` stops it) |
@@ -107,3 +131,5 @@ that needs it; time moves only with `wait` and `at`.
   thread (`worklet.js`), the panel (`layout.json`), `serve.sh` / `serve.py` (the server that
   rebuilds on each page load).
 - `tools/board_layout.py`: makes `web/layout.json` from the board file.
+- `compare.sh` / `compare.py`, `ui-at.sh`, `ref.sh` (building another version's twin),
+  `scenarios/`: two versions side by side.

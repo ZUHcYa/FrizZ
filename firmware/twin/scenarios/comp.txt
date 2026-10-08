@@ -1,0 +1,19 @@
+# The master compressor: selected, every knob swept up and down on a loud input
+input sine 110 0.8
+at 6000
+tap KEY_15
+wait 200
+turn 4 60
+wait 1500
+turn 1 20
+wait 1000
+turn 1 -40
+wait 1000
+turn 2 40
+wait 1000
+turn 2 -30
+wait 800
+turn 3 -50
+wait 800
+turn 4 -30
+wait 2000

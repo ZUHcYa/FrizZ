@@ -35,7 +35,7 @@ units()
 
 # NAME.cpp's warnings are shown, the headers' only if it doesn't build: then every message is.
 # A check that includes twin.h runs on the virtual CHOMPI instead: the whole firmware, built by
-# ../twin/build.sh
+# ../twin/build.sh (TWIN_FIRMWARE and TWIN_BUILD pick another firmware, as there)
 unit_test()
 {
     local name=$1 dir log
@@ -45,7 +45,7 @@ unit_test()
         "$REPO/firmware/twin/build.sh"
         log=$dir/build.log
         if ! g++ -O2 -std=gnu++14 -Wall -I"$REPO/firmware/twin" "$T/$name.cpp" \
-            "$REPO/firmware/twin/build/libtwin.a" "$BUILD/libdaisysp_host.a" -o "$dir/$name" 2> "$log"; then
+            "${TWIN_BUILD:-$REPO/firmware/twin/build}/libtwin.a" "$BUILD/libdaisysp_host.a" -o "$dir/$name" 2> "$log"; then
             cat "$log"
             echo "$name.cpp didn't build"
             exit 1

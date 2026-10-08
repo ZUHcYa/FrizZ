@@ -1,0 +1,43 @@
+# VOLUME: output, its four pages, the mix, the battery check
+input sine 220 0.3
+at 6000
+turn 6 -10
+wait 500
+turn 6 10
+wait 500
+tap ENC_6_SW
+wait 400
+turn 6 -8
+wait 500
+tap ENC_6_SW
+wait 400
+turn 6 -1
+wait 100
+turn 6 -1
+wait 100
+turn 6 1
+wait 100
+turn 6 -1
+wait 100
+turn 6 -1
+wait 500
+turn 6 -3
+wait 800
+turn 6 3
+wait 500
+tap ENC_6_SW
+wait 400
+turn 6 -20
+wait 500
+turn 6 20
+wait 400
+tap ENC_6_SW
+wait 400
+down KEY_26
+turn 6 -10
+wait 400
+tap ENC_6_SW
+up KEY_26
+wait 400
+tap ENC_6_SW 1500
+wait 1500

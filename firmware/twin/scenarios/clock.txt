@@ -1,0 +1,25 @@
+# MIDI clock at 120 BPM: a quantized loop, the delay and the filter's LFO on its beat, a morph
+input sine 220 0.3
+clock 120
+at 6000
+down KEY_27
+tap KEY_28
+up KEY_27
+wait 3000
+tap KEY_28
+wait 2500
+down KEY_12
+wait 80
+tap KEY_26
+up KEY_12
+turn 3 20
+wait 2000
+down KEY_5
+turn 3 30
+wait 2000
+up KEY_5
+wait 1000
+clock 90
+wait 3000
+clock 0
+wait 2000

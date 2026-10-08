@@ -203,7 +203,30 @@ case on a freshly booted device:
 - below 3 V, the panel flashes amber and the device switches off after 15 s, but not on the
   charger.
 
-It can't see time on the chip: the CPU load, so not crackles either.
+And PR #7's hardware checklist, each of which fails on the firmware before it (`b9031c3`):
+
+- an FX key held, CHOMPI tapped twice while SAVE waits: the effect latches and nothing is saved;
+- an FX key held, CHOMPI held, the transport or a dark knob turned: still latched;
+- VOLUME page 3: left, left, right, left, left stays stereo, three lefts make it mono, which is
+  saved; VOLUME white for mono, light blue for stereo;
+- a select flashes a dim key white and a bright one (the compressor working hard) dark;
+- LOOP blinks quickly (100 ms) when a quantized record is refused and slowly (250 ms) while
+  one closes;
+- the transport LED stays lit at full speed both ways;
+- no click from a recall that takes the flanger's stereo back to 0 (after the LFOs have
+  drifted, in either channel), nor from the freezer pressed again in its release fade (8 ms
+  after letting go: a key takes 7 ms to count as let go);
+- a late card over four power cycles: a save without a card flashes the slot red; put in, the
+  next save keeps the card's scenes and adds its own, `frizz_master.bak` holds the card's
+  compressor; after a reboot both scenes are there; saving into a slot the card also has
+  keeps its file as `frizz_scenes.bak`.
+
+The flicker #7 fixed in the transport LED (a value just over 1 wrapping to dark) doesn't show
+on the twin before the fix either, so that check guards only what it can see.
+
+`../twin/ui-at.sh REF` runs these checks on another version's firmware: a new check should
+fail on the version before its fix. It can't see time on the chip: the CPU load, so not
+crackles either.
 
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample
 conversions), `MidiClock.h` (no clock, unless a test sets its fields, as `tempo.cpp`
