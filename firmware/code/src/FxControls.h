@@ -389,8 +389,8 @@ public:
     }
 
     /** The grid's next point from val in the direction dir, or val if there is none in
-     *  0-1. A value within a hair of a point (1% of the spacing) counts as on it, so it
-     *  moves a whole step */
+     *  0-1. A value within a hair of a point (1% of an even grid's spacing, .001 on a list
+     *  of points) counts as on it, so it moves a whole step */
     static float CoarseStep(const FxGrid& grid, float val, float dir)
     {
         if (grid.points)

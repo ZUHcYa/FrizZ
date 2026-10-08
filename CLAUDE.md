@@ -69,10 +69,10 @@ working on a branch:
   based on that branch. Merge an outside contributor's commit unchanged (no squash, rebase or
   cherry-pick) so GitHub marks their PR merged and credits them in the release notes.
 
-A build handed out for testing goes on GitHub as a **pre-release**, never as Latest, so v0.9
+A build handed out for testing goes on GitHub as a **pre-release**, never as Latest, so v0.10
 users aren't offered it:
 
-- Each test round gets a numbered one, `v<next>-beta.N` (now `v0.10-beta.N`), tagged on the
+- Each test round gets a numbered one, `v<next>-beta.N` (now `v0.11-beta.N`), tagged on the
   branch's pushed head, with that commit's `firmware/bin/FRIZZ.bin` attached and the notes
   taken from `CHANGELOG.md`'s Unreleased section plus a link to the branch's PR. The number
   never moves, so feedback can name the build.
