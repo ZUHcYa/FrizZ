@@ -34,12 +34,13 @@ public:
 
     /** Once per block: the tempo, plus one call per clock pulse in this block, with the
      *  clock's position (TempoClock::Pulse). Every 8th note is an edge, where the delay rolls
-     *  its random events. */
+     *  its random events, only while its key is on: the tail of one that's off is plain
+     *  echoes. */
     void SetTempo(int bpm) { delay_.SetTempo(bpm); }
     void ClockPulse(uint32_t pos)
     {
         if (pos % kPulsesPerEdge == 0)
-            delay_.setClockEdge();
+            delay_.setClockEdge(gate_.IsOn());
     }
 
     /** Feeds in_l / in_r into the delay (while on) and adds its return to *out_l / *out_r */

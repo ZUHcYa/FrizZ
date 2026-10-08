@@ -171,7 +171,8 @@ the delay and reverb two, and the compressor on the last key.)
   flanger and feeds it back in after the freezer, so it rings through the shifter, folder,
   crusher, filter and flanger whenever they're on.
 - **Sends** (delay, reverb): the key opens the effect's input, and its output is added to the
-  signal, so tails ring out after the key is released. The delay gets the inserts' output;
+  signal, so tails ring out after the key is released. The delay's tail rings out as plain
+  echoes: its random events only start while its key is on. The delay gets the inserts' output;
   the reverb gets that plus the delay's echoes, so the echoes are reverberated while both
   are on.
 

@@ -35,6 +35,8 @@ what FRIZZ does.
   feedback and the filter's resonance glide like every other knob. The sound changes slightly.
 - The filter's LFO follows a loop slowed below 50 BPM instead of running ahead.
 - The CHOMPI shows up as FrizZ over USB.
+- The delay's random events only start while its key is on: after you release it, or a
+  scene turns it off, its tail rings out as plain echoes instead of firing new grains.
 
 ### Fixed
 
