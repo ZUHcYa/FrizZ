@@ -87,6 +87,18 @@ public:
             if (phase_[i] >= 1.f)
                 phase_[i] -= 1.f;
         }
+        // off: the walk, the flutter's phases and the buffer go on, so a punch-in starts where
+        // it would have; the tone filter follows the dry signal, close to what it would hear
+        if (gate_.Asleep())
+        {
+            ring_.Write(0, *l);
+            ring_.Write(1, *r);
+            ring_.Advance();
+            lp_[0] = *l;
+            lp_[1] = *r;
+            return;
+        }
+
         float flutter[2];
         for (size_t c = 0; c < 2; c++)
         {

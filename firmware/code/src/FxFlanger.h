@@ -59,6 +59,15 @@ public:
         if (gate_.TakePress())
             phase_[0] = phase_[1] = 0.f;
 
+        // off: only the buffer goes on (a press restarts the LFOs anyway)
+        if (gate_.Asleep())
+        {
+            ring_.Write(0, SoftClip(*l));
+            ring_.Write(1, SoftClip(*r));
+            ring_.Advance();
+            return;
+        }
+
         // triangle LFOs, -1..1, starting at 0 going up
         float lfo[2];
         for (size_t c = 0; c < 2; c++)

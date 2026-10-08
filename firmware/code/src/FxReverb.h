@@ -39,6 +39,9 @@ public:
     void Process(float in_l, float in_r, float* out_l, float* out_r)
     {
         const float gate = gate_.Process();
+        const bool silent_in = gate_.Asleep();
+        if (tail_.Sleeping(silent_in, kSleepSamples))
+            return;
         const float level = level_.Process();
 
         reverb_->SetTime(decay_.Process());
@@ -48,10 +51,14 @@ public:
         float wl = in_l * gate;
         float wr = in_r * gate;
         reverb_->Process(&wl, &wr);
+        tail_.Track(silent_in, wl, wr);
 
         *out_l += wl * level;
         *out_r += wr * level;
     }
+
+    /** Off and its tail rung out: nothing to add, and its meter isn't needed */
+    inline bool Sleeping() const { return tail_.quiet >= kSleepSamples; }
 
     void SetParam(size_t param, float val) override
     {
@@ -77,7 +84,10 @@ public:
     }
 
 private:
+    // 2s: far longer than the reverb's delay lines, so nothing under -120dB can come back
+    static const uint32_t kSleepSamples = 96000;
     daisysp::Reverb* reverb_;
+    TailWatch tail_;
     Smoothed level_;
     Smoothed decay_;
     Smoothed tone_;

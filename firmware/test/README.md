@@ -93,6 +93,18 @@ grid points come back exactly, and foreign, unknown or partial files are read se
 mono line round-trips, a file without it reads as stereo, and the line of the removed
 randomizer is skipped and not written again. It doesn't touch the card or the play page.
 
+## Sleep check
+
+```bash
+./unit.sh sleep
+```
+
+Effects switched off stop costing time without changing what's heard (`FxGate::Asleep` and
+`TailWatch` in `FxCommon.h`): the shifter, flanger and warble, off and faded out, pass their
+input bit for bit and shape it again when switched back on; the delay and the reverb, off,
+keep ringing out, sleep only once their tail has stayed silent (the delay's whole buffer, the
+reverb's 2 s), add nothing while asleep, and come back on their key.
+
 ## Level check
 
 ```bash

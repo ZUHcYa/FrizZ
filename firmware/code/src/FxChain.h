@@ -145,36 +145,48 @@ public:
             FxSlew::coeff = kFxParamCoeff;
 
         freezer_.Process(l, r);
-        Meter(FX_FREEZER, *l + *r);
+        if (!freezer_.Idle())
+            Meter(FX_FREEZER, *l + *r);
         // the resonator's loop wraps everything from here to the flanger
         resonator_.Feed(l, r);
-        Meter(FX_RESONATOR, resonator_.Return());
+        if (!resonator_.Idle())
+            Meter(FX_RESONATOR, resonator_.Return());
         shifter_.Process(l, r);
-        Meter(FX_SHIFTER, *l + *r);
+        if (!shifter_.Idle())
+            Meter(FX_SHIFTER, *l + *r);
         folder_.Process(l, r);
-        Meter(FX_FOLDER, *l + *r);
+        if (!folder_.Idle())
+            Meter(FX_FOLDER, *l + *r);
         crusher_.Process(l, r);
-        Meter(FX_CRUSHER, *l + *r);
+        if (!crusher_.Idle())
+            Meter(FX_CRUSHER, *l + *r);
         filter_.Process(l, r);
-        Meter(FX_FILTER, *l + *r);
+        if (!filter_.Idle())
+            Meter(FX_FILTER, *l + *r);
         flanger_.Process(l, r);
-        Meter(FX_FLANGER, *l + *r);
+        if (!flanger_.Idle())
+            Meter(FX_FLANGER, *l + *r);
         resonator_.Tap(*l, *r);
         slicer_.Process(l, r);
-        Meter(FX_SLICER, *l + *r);
+        if (!slicer_.Idle())
+            Meter(FX_SLICER, *l + *r);
         warble_.Process(l, r);
-        Meter(FX_WARBLE, *l + *r);
+        if (!warble_.Idle())
+            Meter(FX_WARBLE, *l + *r);
         tapestop_.Process(l, r);
-        Meter(FX_TAPESTOP, *l + *r);
+        if (!tapestop_.Idle())
+            Meter(FX_TAPESTOP, *l + *r);
 
         // sends: the delay from the inserts' output, the reverb from that plus the delay's
         // return, so the echoes are reverberated. Both returns are added on top.
         const float sendl = *l, sendr = *r;
         delay_.Process(sendl, sendr, l, r);
         const float delayl = *l, delayr = *r;
-        Meter(FX_DELAY, delayl - sendl + delayr - sendr);
+        if (!delay_.Sleeping())
+            Meter(FX_DELAY, delayl - sendl + delayr - sendr);
         reverb_.Process(delayl, delayr, l, r);
-        Meter(FX_REVERB, *l - delayl + *r - delayr);
+        if (!reverb_.Sleeping())
+            Meter(FX_REVERB, *l - delayl + *r - delayr);
     }
 
     /** From the UI or the morph */

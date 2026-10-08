@@ -71,6 +71,15 @@ public:
             env_.Press();
         env_.Process(env_attack_inc_, env_decay_coeff_);
 
+        // off: only the buffer goes on, so a punch-in has the recent sound to shift
+        if (gate_.Asleep())
+        {
+            ring_.Write(0, SoftClip(*l));
+            ring_.Write(1, SoftClip(*r));
+            ring_.Advance();
+            return;
+        }
+
         // the speed per channel; recomputed every kSwoopUpdate samples while swooping (2
         // powf: every sample was ~6% of the CPU for the swoop's 1.3s), and once when it ends;
         // otherwise when a knob changed it (SetParam), so only the audio callback writes it
