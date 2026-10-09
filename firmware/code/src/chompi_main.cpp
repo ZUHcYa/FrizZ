@@ -81,9 +81,10 @@ volatile bool main_loop_running = false;
 // the audio callback leaves them alone: both bit-banging the same chain garbles it
 volatile bool main_reads_keys = false;
 
-bool booting = true;
+// both read by the audio callback, which keeps the outputs muted until they are done
+volatile bool booting = true;
 bool rainbow_done = false;
-bool loading_screen = true;
+volatile bool loading_screen = true;
 
 /** Clears the Daisy Seed's 64MB external SDRAM at boot. The loop's, delay's, freezer's and
  *  tape stop's buffers live there, and unlike internal-RAM statics they aren't zeroed by the startup code */
@@ -185,9 +186,11 @@ void MainLoop(void* data)
     // a bug report asked for: written a chunk per pass, also from MainLoop only
     event_log.Process(now, midi_clock);
 
-    // a restart asked for over MIDI (MidiClock.h), once no report is being written: the
-    // chip's reset, as the launcher hands over, so the bootloader starts what's in QSPI
-    if (midi_clock.RestartRequested() && !event_log.Writing())
+    // a restart asked for over MIDI (MidiClock.h), once no report is being written and the
+    // master settings that were waiting are on the card: the chip's reset, as the launcher
+    // hands over, so the bootloader starts what's in QSPI
+    if (midi_clock.RestartRequested() && !event_log.Writing() && ui.MasterSettled()
+        && !scene_store.Busy())
         NVIC_SystemReset();
 
 #if FRIZZ_BENCH

@@ -1,6 +1,7 @@
 // Host stand-in for FatFs: an SD card in memory, just enough for SceneStore.h. The card can be
-// taken out (card.present), filled and read back (card.files, keyed by full path), and made to
-// refuse writes (card.read_only).
+// taken out (card.present), filled and read back (card.files, keyed by full path), made to
+// refuse writes (card.read_only) or run full (card.space: bytes a write can still add), and it
+// counts the files open (card.open), so a check sees one left open.
 #pragma once
 #include <algorithm>
 #include <cstdint>
@@ -43,6 +44,8 @@ struct FakeCard
 {
     bool present = true;
     bool read_only = false;
+    size_t space = SIZE_MAX;
+    int open = 0;
     std::string cwd = "";
     std::map<std::string, std::string> files;
     std::map<std::string, bool> dirs;
@@ -125,9 +128,13 @@ inline FRESULT f_open(FIL* f, const char* name, BYTE mode)
         if (c.read_only)
             return FR_DENIED;
         c.files[f->path].clear();
+        c.open++;
         return FR_OK;
     }
-    return c.files.count(f->path) ? FR_OK : FR_NO_FILE;
+    if (!c.files.count(f->path))
+        return FR_NO_FILE;
+    c.open++;
+    return FR_OK;
 }
 inline FRESULT f_read(FIL* f, void* buf, UINT n, UINT* read)
 {
@@ -147,8 +154,12 @@ inline FRESULT f_read(FIL* f, void* buf, UINT n, UINT* read)
 static const size_t kSectorSize = 512;
 inline FRESULT f_write(FIL* f, const void* buf, UINT n, UINT* written)
 {
+    FakeCard& c = FakeCard::Get();
+    // a full card: FatFs writes what fits and says so in *written, with FR_OK
+    n = static_cast<UINT>(std::min<size_t>(n, c.space));
+    c.space -= n;
     const char* src = static_cast<const char*>(buf);
-    std::string& file = FakeCard::Get().files[f->path];
+    std::string& file = c.files[f->path];
     const size_t head = std::min<size_t>(n, (kSectorSize - f->fptr % kSectorSize) % kSectorSize);
     const size_t whole = (n - head) / kSectorSize * kSectorSize;
     file.append(src, head);
@@ -160,4 +171,9 @@ inline FRESULT f_write(FIL* f, const void* buf, UINT n, UINT* written)
     *written = n;
     return FR_OK;
 }
-inline FRESULT f_close(FIL*) { return FR_OK; }
+inline FRESULT f_close(FIL*)
+{
+    FakeCard& c = FakeCard::Get();
+    c.open -= c.open > 0;
+    return FR_OK;
+}

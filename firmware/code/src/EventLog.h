@@ -95,8 +95,9 @@ public:
      *  and the card's FRIZZ files as SceneStore left them at boot */
     void Start(uint32_t now, bool toggle)
     {
-        Snapshot("/FRIZZ/frizz_scenes.txt", scenes_, kSceneFileMax);
-        Snapshot("/FRIZZ/frizz_master.txt", master_, kMasterFileMax);
+        // relative, as SceneStore's: /FRIZZ, or the root on a card where it couldn't be made
+        Snapshot(kSceneFile, scenes_, kSceneFileMax);
+        Snapshot(kMasterFile, master_, kMasterFileMax);
         toggle_ = toggle_at_start_ = toggle;
         start_ = now;
         started_ = true;
@@ -319,22 +320,24 @@ private:
         Put("card file ");
         Put(path);
         Put("\n|");
+        char last = '|';
         for (const char* c = text; *c; c++)
         {
             if (pos_ >= kEventLogText && !Flush())
                 return false;
             if (*c == '\r')
                 continue;
-            text_[pos_++] = *c;
+            text_[pos_++] = last = *c;
             if (*c == '\n' && c[1])
                 text_[pos_++] = '|';
         }
-        if (text_[pos_ - 1] != '\n')
+        // by what was copied, not text_[pos_ - 1]: a Flush can have just emptied text_
+        if (last != '\n')
             text_[pos_++] = '\n';
         return Flush();
     }
 
-    /** Opens the next free /FRIZZ/bug-N.txt and writes the head of the script */
+    /** Opens the next free bug-N.txt (in /FRIZZ, as the scenes) and writes the head of the script */
     EVENT_LOG_ONCE bool Begin()
     {
         if (f_mount(fs_, path_, 1) != FR_OK)
@@ -345,7 +348,7 @@ private:
         for (number_ = 1; number_ < 1000; number_++)
         {
             pos_ = 0;
-            Put("/FRIZZ/bug-");
+            Put("bug-");
             PutNum(number_);
             Put(".txt");
             memcpy(name, text_, pos_);
@@ -367,13 +370,20 @@ private:
             "# Nor are scenes sent over MIDI: the replay has the card's.\n");
         if (full_)
             Put("# The log was full: it ends early, and the replay too.\n");
+        // the replay puts them where FRIZZ keeps them, /FRIZZ
         if (!Flush() || !PutFile("/FRIZZ/frizz_scenes.txt", scenes_)
             || !PutFile("/FRIZZ/frizz_master.txt", master_))
+        {
+            f_close(&file_); // open: a failed write mustn't leave it so
             return false;
+        }
         Put("input sine 220 0.3\ntoggle ");
         PutNum(toggle_at_start_ ? 0 : 1);
         Put("\nbooted\n");
-        return Flush();
+        if (Flush())
+            return true;
+        f_close(&file_);
+        return false;
     }
 
     /** The next chunk of events, as `at` and command lines */

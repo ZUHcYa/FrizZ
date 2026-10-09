@@ -102,6 +102,9 @@ public:
     /** From the play page, master changed: the next Process writes its file */
     inline void RequestMasterSave() { master_pending_ = true; }
 
+    /** A save requested and not yet written */
+    inline bool Busy() const { return save_state_ == SaveState::PENDING || master_pending_; }
+
     /** How the last requested save went, for the play page's confirmation */
     inline SaveState GetSaveState() const { return save_state_; }
     /** True once after a master save failed, so the play page can show it and try again */

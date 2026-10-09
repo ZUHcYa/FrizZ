@@ -184,6 +184,15 @@ namespace chompi
                 SetPthLed(i, 0, 0, 0);
         }
 
+        /** Before a restart: master settings still waiting for their kMasterSaveDelayMs go to
+         *  the card at once. True once there's nothing left to write (or no tries left) */
+        bool MasterSettled()
+        {
+            if (master_unsaved_)
+                master_changed_at_ = System::GetNow() - kMasterSaveDelayMs - 1;
+            return !master_unsaved_;
+        }
+
         void ResetSmtLeds()
         {
             for (int i = 0; i < kNumSmtLeds; i++)

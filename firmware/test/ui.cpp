@@ -655,6 +655,19 @@ int main()
         Check(Restarted(), "restart: F0 7D 43 48 10 F7 restarts it (the chip's reset)");
     }});
 
+    // a restart right after a setting changed: the master file waits 2 s for it to rest, but
+    // a restart doesn't, so the setting has to reach the card first
+    cases.push_back({"restart-saves", [] {
+        RunMs(kReadyMs);
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x13, 0, 5, 0xF7}); // the channel: 5
+        RunMs(100);
+        for (uint8_t b : {0xF0, 0x7D, 0x43, 0x48, 0x10, 0xF7})
+            Midi(b);
+        RunMs(200);
+        Check(Restarted() && Card("/FRIZZ/frizz_master.txt").find("midi_channel 5\n") != std::string::npos,
+              "restart: a setting changed just before is on the card when it restarts");
+    }});
+
     // the event log (EventLog.h): a session, SHIFT + transport press, its file on the card
     cases.push_back({"bug-log", [] {
         TakeCard(); // card-3's: scenes in slots 1 and 2
@@ -756,6 +769,48 @@ int main()
         Check(log.size() > 3 * 512 && bad == 0,
               "bug log: a file of several sectors comes out whole (the SD DMA's alignment)");
         KeepCard();
+    }});
+
+    // a bug report on a full card: the transport blinks red, and the file that couldn't be
+    // written isn't left open (EventLog::Begin closed it only when the head got written); with
+    // room again, the next one is written
+    cases.push_back({"bug-full", [] {
+        TakeCard(); // with scenes on it, so the file's head takes more than a sector
+        for (auto it = CardFiles().begin(); it != CardFiles().end();)
+            it = it->first.rfind("/FRIZZ/bug-", 0) == 0 ? CardFiles().erase(it) : std::next(it);
+        RunMs(kReadyMs);
+        Tap("KEY_6");
+        RunMs(500);
+        SetCardSpace(300); // the head of the file (the card's scenes) doesn't fit
+        auto combo = [] {
+            Press("KEY_26", true);
+            RunMs(100);
+            Press("ENC_5_SW", true);
+            bool red = false, white = false;
+            for (int i = 0; i < 1500; i++)
+            {
+                RunMs(1);
+                const Rgb rev = PthLedFull(kTransportRevLed);
+                red |= rev.r > 200 && rev.g < 80 && rev.b < 80;
+                white |= std::min({rev.r, rev.g, rev.b}) > 200;
+                if (i == 300)
+                {
+                    Press("ENC_5_SW", false);
+                    Press("KEY_26", false);
+                }
+            }
+            return std::make_pair(red, white);
+        };
+        const auto full = combo();
+        Check(full.first, "bug log, card full: the transport blinks red");
+        Check(CardOpenFiles() == 0, "bug log, card full: no file left open");
+        SetCardSpace(SIZE_MAX);
+        RunMs(1000);
+        const auto room = combo();
+        RunMs(1000);
+        Check(room.second && Card("/FRIZZ/bug-2.txt").find("# written here") != std::string::npos
+                  && CardOpenFiles() == 0,
+              "bug log, card full: with room again, the next one is written, and closed");
     }});
 
     // the log played back on a fresh twin: the same LEDs every ms up to the combo, and the

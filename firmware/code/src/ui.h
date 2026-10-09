@@ -146,6 +146,9 @@ namespace chompi
             ui.Process();
         }
 
+    /** Before a restart: true once the play page has nothing left for the card */
+        bool MasterSettled() { return normal_page_.MasterSettled(); }
+
     private:
         /** A key the hand pressed or let go, as its debouncing saw it */
         void Hand(int key, bool down)

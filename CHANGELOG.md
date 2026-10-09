@@ -64,6 +64,10 @@ what FRIZZ does.
 - The effects' tempo from a MIDI clock whose sender puts two ticks in one USB packet (some
   computers and hosts do) ran fast, about 5 % (126 instead of 120 BPM), and flapped. Ticks
   that arrive together now count as the time they share.
+- A bug report that couldn't be written (the card full) left its file open on the card; it's
+  now closed, so the card stays sound and the next report is written.
+- A restart over MIDI (the multi-firmware launcher's) right after a setting changed lost the
+  setting; it now goes to the card first.
 
 ## v0.10 (2026-10-08)
 

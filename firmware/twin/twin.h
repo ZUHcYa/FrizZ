@@ -27,6 +27,9 @@ static const int kNumSmtLeds = 25; // the keys' LEDs
  *  Fill it before Boot() for a card with state on it; read it back any time */
 std::map<std::string, std::string>& CardFiles();
 void SetCardPresent(bool present);
+/** Bytes the card can still take (a full card: 0; SIZE_MAX at first), and the files open on it */
+void SetCardSpace(size_t bytes);
+int CardOpenFiles();
 
 /** Power on: starts the firmware's main(). The card and any keys held should be set first */
 void Boot();
