@@ -12,6 +12,7 @@ unchanged with the host's `g++`. Only the board underneath is simulated (`host/`
 | MP2722 charger on I²C | a battery with a voltage, a charger plugged or not, shipping mode |
 | SAI audio, 24-sample blocks at 48 kHz | the same callback, block by block |
 | MIDI in over the TRS jack's UART | bytes fed to libDaisy's parser |
+| USB MIDI | bytes in to libDaisy's parser, what FRIZZ sends kept for the script (`usb`, `replies`) |
 | SD card | `test/host/fatfs.h`, a card in memory |
 | the 64 MB SDRAM, cleared at boot from its address | the buffers it holds are ordinary statics, zero from the start; that one `std::fill` at 0xc0000000 is skipped (`host/daisy_core.h`) |
 
@@ -118,6 +119,8 @@ it with SHIFT held: leave the gaps a hand would.
 | `toggle 0\|1` | the mode switch, as the 4021 reads it |
 | `input sine HZ AMP` / `input wav FILE` / `input off` | what goes into AUX (a WAV loops) |
 | `midi HEX...` / `clock BPM` | raw bytes into the MIDI jack / a running MIDI clock (`clock 0` stops it) |
+| `usb HEX...` | raw bytes into USB MIDI, as a computer sends them (FRIZZ's queries are answered only there) |
+| `replies` / `expect usb HEX...` | print what FRIZZ sent over USB since the last look / fail unless it's exactly that |
 | `battery V [plugged] [full]` | the battery's voltage and the charger |
 | `card put PATH FILE` / `card remove` / `card insert` / `card dump` | the SD card: put a file on it before power-on (`/FRIZZ/frizz_scenes.txt`), take it out, print it |
 | `card file PATH`, then lines starting with `\|` | a file on the card before power-on, its text in the script: each line after its `\|` |

@@ -212,6 +212,8 @@ public:
     inline bool FxMorphing() const { return morph_.Active(); }
     /** The FX clock's position, 0..TempoClock's kPulsesPerCycle - 1, for blinking on its beats */
     inline uint32_t FxClockPosition() const { return tempo_clock_.Position(); }
+    /** The tempo the effects follow, for MIDI's state query (MidiControl.h) */
+    inline float FxBpm() const { return tempo_clock_.GetFxBpm(); }
     /** 0..1, for the FX key LEDs: an insert's output, a send's return */
     inline float GetFxLevel(size_t fx) { return fx_.GetLevel(fx); }
     /** Off and costing no more than off (FxChain::Resting): for the CPU bench */

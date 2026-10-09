@@ -9,8 +9,17 @@ what FRIZZ does.
 
 ### Added
 
+- **MIDI control** over TRS or USB, on channel 16 (set in `FRIZZ/frizz_master.txt` or with
+  `firmware/remote.py`): notes from 48 up play the keys as a keyboard, with CHOMPI, PLAY,
+  LOOP and the knob presses below; CCs latch the effects (20-31), set every effect's knobs
+  (70-117, in 14 bits over NRPN), the compressor, the gains, the mix and mono (52-60), turn
+  the knobs relatively (14-19) and morph to a scene (61-63); program changes 0-4 are the scene
+  keys. MIDI Start and Stop can play and pause the loop (off at first). See MANUAL.md, "MIDI".
+- **Remote control over USB:** FRIZZ's SysEx presses keys, turns knobs, and answers the
+  state, the LEDs, the processing load and the scenes; `firmware/remote.py` uses it, and plays
+  the virtual CHOMPI's scenarios on the device.
 - **Bug reports:** SHIFT + press the transport knob writes what you did since switching on
-  (every key, knob, the mode switch and MIDI clock, with the card's scenes as they were at
+  (every key, knob, the mode switch, MIDI clock and the MIDI it acted on, with the card's scenes as they were at
   power-on) to `/FRIZZ/bug-1.txt` (then `bug-2.txt`, ...). Send it with a bug report: the
   virtual CHOMPI plays it back and shows what happened. The transport LEDs blink white while
   it's written, then 3 times white when it's on the card, red when it isn't.

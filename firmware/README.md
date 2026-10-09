@@ -148,6 +148,15 @@ launcher's web page (https://ugrossek.github.io/CHOMPI/, Chrome or Edge) does th
 launcher's key 15 is USB storage: the card shows up as a drive, for `cpu.txt` and bug reports.
 FRIZZ keeps its files in `/FRIZZ`, so it shares the card with the other firmwares.
 
+**Remote control over USB MIDI.** `./remote.py` talks to a running FRIZZ over its SysEx
+(`code/src/MidiControl.h`): `state`, `leds`, `load [--every S]`, `settings`, `channel N`,
+`transport on|off`, `scene get|put SLOT FILE`, and `play SCRIPT [--cpu]`, which plays a twin
+script (`twin/scenarios/`, a bug report) on the device: its keys and knobs over SysEx at the
+script's times, its MIDI and clock, its `expect led` lines checked against the device's LEDs.
+With `--cpu` it reports the worst load FRIZZ.bin itself had, measured in the audio callback as
+the bench does, so a scenario can be tried for crackles on the build that plays, not the
+bench's. Linux only, Python 3, no packages, like `flash.py`.
+
 **From the card:** copy `build/FRIZZ.bin` to the SD card and power on, as described in
 [`INSTALL.md`](../INSTALL.md). FRIZZ is a `BOOT_SRAM` app: CHOMPI's bootloader copies it from
 the card into QSPI flash and runs it from SRAM. Standard Daisy flashing advice doesn't apply.
@@ -270,7 +279,9 @@ TempoClock.h           the tempo and the shared 12 PPQN pulse position for the c
                        loop, MIDI clock, taps or free running
 TapTempo.h             tap tempo
 Looper.h               the looper: recording, quantized end, playback, speed, scrub
-MidiClock.h            MIDI clock input over TRS and USB
+MidiClock.h            MIDI clock input over TRS and USB; hands the rest to MidiControl.h
+MidiControl.h          MIDI control: notes as keys, CCs, program changes, FRIZZ's SysEx (keys,
+                       knobs, queries answered over USB for remote.py)
 NormalPage.h           the play page: routes the controls (VOLUME, PLAY/LOOP, transport, FX and scene keys) and draws the LEDs
 LedSignal.h            the play page's short LED signals: 3 red or white blinks, a flash
 ui.h                   page plumbing: events, page switching
@@ -289,8 +300,11 @@ chompi_sram.lds        linker script (the firmware runs from SRAM, placed there 
 - **No file I/O and no blocking calls in the audio callback.** FRIZZ reads the SD card once at
   boot (the FX scenes and the compressor's settings, after changing into `/FRIZZ`, which it
   creates on a new card) and writes it only from `MainLoop`, when a scene is saved, copied or
-  deleted, or 2 s after the compressor's knobs or the mono input were last changed
-  (`SceneStore.h`).
+  deleted, or 2 s after the compressor's knobs, the mono input or the MIDI settings were last
+  changed (`SceneStore.h`).
+- **MIDI is read in the audio callback, acted on in `MainLoop`.** `MidiControl.h` only notes
+  what came (keys, detents, a table of controller values); the play page takes the rest in
+  `MainLoop` and answers queries over USB from there, never from the interrupt.
 - **Card buffers:** FatFs hands the whole sectors of a read or write straight between your
   buffer and the SD card's DMA. So a buffer for the card lives in internal RAM (a global or a
   member of one: not on the stack, which is in DTCM, and not in SDRAM, neither of which the
