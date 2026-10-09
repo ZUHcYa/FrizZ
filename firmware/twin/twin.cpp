@@ -529,6 +529,41 @@ void MidiUsb(uint8_t byte) { usb_in.push_back(byte); }
 
 double BlockMs() { return block_ns / 1e6; }
 
+// Each value only if the firmware has it (0 otherwise), so an older firmware still builds
+#define TWIN_READ(name, expr)                                                                      \
+    template <typename T>                                                                          \
+    static auto name(const T& o, int)->decltype(expr)                                              \
+    {                                                                                              \
+        return expr;                                                                               \
+    }                                                                                              \
+    template <typename T>                                                                          \
+    static int name(const T&, long)                                                                \
+    {                                                                                              \
+        return 0;                                                                                  \
+    }
+TWIN_READ(ReadLocks, o.GetLocks())
+TWIN_READ(ReadTempo, o.GetTempo())
+TWIN_READ(ReadFxBpm, o.GetFxBpm())
+TWIN_READ(ReadPosition, o.Position())
+TWIN_READ(ReadLooper, &o.looper)
+TWIN_READ(ReadLoopState, static_cast<int>(o.GetState()))
+TWIN_READ(ReadLoopLength, o.GetLength())
+TWIN_READ(ReadLoopBeats, o.GetBeats())
+TWIN_READ(ReadLoopPos, o.GetPosition())
+TWIN_READ(ReadLoopSpeed, o.GetActualSpeed())
+#undef TWIN_READ
+
+template <typename L>
+static void ReadLoop(const L* looper, ClockState& c)
+{
+    c.loop_state = ReadLoopState(*looper, 0);
+    c.loop_length = ReadLoopLength(*looper, 0);
+    c.loop_beats = ReadLoopBeats(*looper, 0);
+    c.loop_pos = ReadLoopPos(*looper, 0);
+    c.loop_speed = ReadLoopSpeed(*looper, 0);
+}
+static void ReadLoop(int, ClockState&) {}
+
 ClockState Probe()
 {
     ClockState c = {};
@@ -537,18 +572,14 @@ ClockState Probe()
     c.midi_bpm = midi_clock.GetBpm();
     c.tick_period = midi_clock.GetTickPeriod();
     c.ticks = midi_clock.GetTicks();
-    c.locks = midi_clock.GetLocks();
+    c.locks = ReadLocks(midi_clock, 0);
 #ifdef TWIN_HAS_TEMPO
     const chompi::TempoClock& t = engine.*Reach(ReachTempo());
-    c.tempo = t.GetTempo();
-    c.fx_bpm = t.GetFxBpm();
-    c.position = t.Position();
+    c.tempo = ReadTempo(t, 0);
+    c.fx_bpm = ReadFxBpm(t, 0);
+    c.position = ReadPosition(t, 0);
 #endif
-    c.loop_state = static_cast<int>(engine.looper.GetState());
-    c.loop_length = engine.looper.GetLength();
-    c.loop_beats = engine.looper.GetBeats();
-    c.loop_pos = engine.looper.GetPosition();
-    c.loop_speed = engine.looper.GetActualSpeed();
+    ReadLoop(ReadLooper(engine, 0), c);
     return c;
 }
 
