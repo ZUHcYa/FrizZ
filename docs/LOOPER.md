@@ -48,7 +48,8 @@ TAPE's monitor-routing modes.
 
 - 4/4 fixed. One bar = **96 MIDI clock ticks** (24 PPQN).
 - **The start is not quantized.** The press that starts recording is the downbeat of bar 1.
-  MIDI Start / Stop / Song Position are ignored.
+  MIDI Start and Song Position neither start nor align a recording. (With transport following
+  switched on, Start/Continue and Stop play and pause a recorded loop: MANUAL.md, *Start and Stop*.)
 - **The end is quantized, strictly.** Pressing `LOOP` records to the end of the bar in progress.
   There's no grace window: a press one tick after a bar line records almost a full extra bar.
 - The loop is always a whole number of bars, minimum 1.
@@ -70,7 +71,8 @@ TAPE's monitor-routing modes.
 - Sources: **TRS** (UART) and **USB** (device mode, same USB-C port as charging).
 - **Lock to the first source that ticks.** Ticks from the other source are ignored until the
   locked source has been silent for 0.5 s, then whichever ticks next takes over.
-- Only clock ticks are used. Notes, CCs, Start/Stop/SPP are ignored. MIDI out is not needed.
+- For the looper, only clock ticks are used. (Since v0.11 FRIZZ also takes notes, CCs, program
+  changes and, optionally, Start/Stop: MANUAL.md, *MIDI*.) MIDI out is not needed.
 
 USB-MIDI implications (already shipped in WAVE/TAPE/TEMPO, so low risk):
 - CHOMPI is a USB *device*. It works with a computer/DAW or gear with a USB *host* port; a
