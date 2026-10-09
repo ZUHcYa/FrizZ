@@ -78,6 +78,36 @@ public:
             lfo_frac_ = .999f;
         else if (lfo_frac_ < -.999f)
             lfo_frac_ = -.999f;
+
+        // off and faded out: what's heard is the input, but the filter runs on, so a
+        // punch-in finds it where it would be; only its cutoff, LFO and all, is worked out
+        // once every kSleepRetune samples rather than every one
+        if (gate_.Asleep())
+        {
+            if (++sleep_samples_ >= kSleepRetune)
+            {
+                sleep_samples_ = 0;
+                filter_.SetControl(Control(cutoff, depth));
+                filter_.Retune();
+            }
+            float fl, fr;
+            filter_.Run(*l, *r, &fl, &fr);
+            return;
+        }
+        sleep_samples_ = 0;
+
+        filter_.SetControl(Control(cutoff, depth));
+
+        float fl, fr;
+        filter_.Process(*l, *r, &fl, &fr);
+
+        *l += gate * (fl - *l);
+        *r += gate * (fr - *r);
+    }
+
+    /** The cutoff with the LFO on it, 0..1 */
+    inline float Control(float cutoff, float depth) const
+    {
         float pos = static_cast<float>(lfo_pulses_ % lfo_div_pulses_) + lfo_frac_;
         if (pos < 0.f)
             pos += static_cast<float>(lfo_div_pulses_);
@@ -88,13 +118,7 @@ public:
         const float tri = 1.f - 4.f * fabsf(phase - .5f);
 
         // full depth sweeps +/-.5, the whole knob range from the centre
-        filter_.SetControl(fclamp(cutoff + depth * .5f * tri, 0.f, 1.f));
-
-        float fl, fr;
-        filter_.Process(*l, *r, &fl, &fr);
-
-        *l += gate * (fl - *l);
-        *r += gate * (fr - *r);
+        return fclamp(cutoff + depth * .5f * tri, 0.f, 1.f);
     }
 
     /** The parameters land at once, no slew: at Init */
@@ -139,6 +163,8 @@ private:
     uint32_t lfo_pulses_;     // the clock's position
     float lfo_frac_;          // progress towards the next pulse, negative in reverse
     bool lfo_reverse_ = false;
+    static const uint32_t kSleepRetune = 8;
+    uint32_t sleep_samples_ = 0; // asleep: samples since the cutoff was last worked out
     uint32_t lfo_div_pulses_; // pulses per LFO cycle
 };
 

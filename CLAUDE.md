@@ -227,7 +227,9 @@ sends last, waiting before each for what it doesn't use to rest (every effect al
 together, at their heaviest, a playing loop with the delay, PR #7's scene 4, ...). It times
 the whole audio callback but the tune (made after the measurement) by the system timer, as libDaisy's `CpuLoadMeter`
 does, and writes each segment's max and mean load to `/FRIZZ/cpu.txt`, with any effect still
-working outside its segment and whether the loop played. The key LEDs grade each segment;
+working outside its segment and whether the loop played, and where each mean goes: split into
+the callback's parts by the core's cycle counter (`BENCH_MARK`, `BenchProfile.h`, nothing in
+`FRIZZ.bin`), with the clock the chip ran at. The key LEDs grade each segment;
 the panel ends green or red.
 
 Its memory layout isn't `FRIZZ.bin`'s, and b5c658c crackled from layout alone: a bench run

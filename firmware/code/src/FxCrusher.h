@@ -58,6 +58,40 @@ public:
         const float rate_knob = rate_.Process();
         const float tone_coeff = tone_coeff_.Process();
 
+        // off and faded out: only what a punch-in starts from goes on: the reducer (so its
+        // grid runs on unbroken), the XOR's DC blockers (so its offset doesn't thump in) and
+        // the guard's ear on the input
+        if (gate_.Asleep())
+        {
+            srr_l_.SetFreq(rate_knob);
+            srr_r_.SetFreq(rate_knob);
+            srr_l_.Process(*l);
+            srr_r_.Process(*r);
+            if (xor_ > 0)
+            {
+                xor_dc_l_.Process(Xor(*l) - *l);
+                xor_dc_r_.Process(Xor(*r) - *r);
+            }
+            else
+            {
+                xor_dc_l_.Process(0.f);
+                xor_dc_r_.Process(0.f);
+            }
+            guard_.Listen(*l, *r);
+            asleep_samples_++;
+            return;
+        }
+        if (asleep_samples_ > 0)
+        {
+            // back: the dive where it would have decayed to, the tone's lowpass settled on
+            // the input, the guard measuring from the input's level
+            dive_.value *= powf(dive_decay_coeff_, static_cast<float>(asleep_samples_));
+            asleep_samples_ = 0;
+            lp_l_ = *l;
+            lp_r_ = *r;
+            guard_.Wake();
+        }
+
         if (gate_.TakePress())
             dive_.Press();
         const float dive = dive_.Process(dive_attack_inc_, dive_decay_coeff_);
@@ -172,6 +206,7 @@ private:
     daisysp::DcBlock xor_dc_l_, xor_dc_r_;
     LevelGuard guard_; // the output held to the input's level
     PressEnvelope dive_;
+    uint32_t asleep_samples_ = 0; // how long it hasn't run (FxGate::Asleep)
     float dive_attack_inc_, dive_decay_coeff_;
 };
 

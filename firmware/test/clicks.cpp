@@ -6,9 +6,12 @@
 //    hands over to the new capture, instead of dropping to the live signal at once
 //  - the filter's LFO division changed at full depth and high resonance: the cutoff jumps,
 //    the output steps no further than the sweep does (a guard; it never clicked)
+//  - the crusher and the filter punched in after they've gone to sleep (FxGate::Asleep), at
+//    their harshest: no step and no peak in the first 100ms beyond what they make settled
 #include <cmath>
 #include <vector>
 #include "FxFlanger.h"
+#include "FxCrusher.h"
 #include "FxFilter.h"
 #include "FxFreezer.h"
 #include "check.h"
@@ -115,10 +118,74 @@ static void TestFilter()
     Check(turned < 2.f * fmaxf(sweep, kMaxStep), "filter: a division change at full LFO depth doesn't jump");
 }
 
+/** On for 1s, off for 1s (asleep by then), on again: the first 100ms against 100ms once
+ *  settled, 0.5s later, or the dry input if that's more, by the largest step between two
+ *  samples and the peak */
+template <class Fx, class Pulse = void (*)(size_t)>
+static void PunchIn(Fx& fx, const char* name, float amp, Pulse pulse = NoPulse)
+{
+    size_t i = 0;
+    float step = 0.f, peak = 0.f, last = 0.f;
+    const auto Play = [&](size_t n) {
+        step = peak = 0.f;
+        for (size_t k = 0; k < n; k++, i++)
+        {
+            if (i % kPulseSamples == 0)
+                pulse(i / kPulseSamples);
+            float l = amp * Sine(i), r = amp * Sine(i);
+            fx.Process(&l, &r);
+            step = fmaxf(step, fabsf(l - last));
+            peak = fmaxf(peak, fabsf(l));
+            last = l;
+        }
+    };
+    fx.SetOn(true);
+    Play(48000);
+    fx.SetOn(false);
+    Play(48000);
+    const bool slept = fx.Idle();
+    fx.SetOn(true);
+    Play(4800);
+    const float first_step = step, first_peak = peak;
+    Play(24000);
+    Play(4800);
+    printf("      %s: punched in, largest step %.4f, peak %.4f; settled %.4f, %.4f\n", name,
+           first_step, first_peak, step, peak);
+    char what[96];
+    snprintf(what, sizeof what, "%s: a punch-in from asleep doesn't click or burst", name);
+    // the fade-in mixes the dry input out, so that's allowed too: the sine's peak and step
+    const float dry_peak = .5f * amp, dry_step = dry_peak * 2.f * static_cast<float>(M_PI) * 220.f / kSr;
+    Check(slept && first_step <= 1.5f * fmaxf(step, dry_step) + 1e-4f
+              && first_peak <= 1.25f * fmaxf(peak, dry_peak) + 1e-4f,
+          what);
+}
+
+static void TestPunchIns()
+{
+    // on a quiet input: the coarsest bits, the lowest rate, the XOR at the top
+    static chompi::Crusher crusher;
+    crusher.Init(kSr);
+    for (size_t p = 0; p < chompi::kNumFxParams; p++)
+        crusher.SetParam(p, 1.f);
+    PunchIn(crusher, "crusher", .04f);
+
+    // low, at full resonance and LFO depth
+    static chompi::Filter filter;
+    filter.Init(kSr);
+    filter.SetParam(chompi::Filter::CUTOFF, .2f);
+    filter.SetParam(chompi::Filter::RESONANCE, 1.f);
+    filter.SetParam(chompi::Filter::LFO_DEPTH, 1.f);
+    filter.SetParam(chompi::Filter::LFO_DIVISION, 2.f / 6.f);
+    filter.SetPulseSamples(static_cast<float>(kPulseSamples));
+    PunchIn(filter, "filter", 1.f,
+            [](size_t pos) { filter.ClockPulse(static_cast<uint32_t>(pos % 192)); });
+}
+
 int main()
 {
     TestFlanger();
     TestFreezer();
     TestFilter();
+    TestPunchIns();
     return Finish();
 }

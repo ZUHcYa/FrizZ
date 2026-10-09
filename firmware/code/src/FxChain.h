@@ -26,6 +26,7 @@
  *     freezer, so the filter is in the loop and the slicer outside it.
  */
 #pragma once
+#include "BenchProfile.h"
 #include "EnvFollower.h"
 #include "FxCrusher.h"
 #include "FxDelay.h"
@@ -60,6 +61,9 @@ enum FxId
     FX_REVERB,
     kNumFx,
 };
+#if FRIZZ_BENCH
+static_assert(BenchProfile::COMP - BenchProfile::FX0 == kNumFx, "a bench part per effect");
+#endif
 
 /** Their names in the scene file (FxScenes.h): fixed, so saved scenes survive new effects
  *  and a new order */
@@ -147,35 +151,46 @@ public:
         freezer_.Process(l, r);
         if (!freezer_.Idle())
             Meter(FX_FREEZER, *l + *r);
+        BENCH_MARK_FX(FX_FREEZER);
         // the resonator's loop wraps everything from here to the flanger
         resonator_.Feed(l, r);
         if (!resonator_.Idle())
             Meter(FX_RESONATOR, resonator_.Return());
+        BENCH_MARK_FX(FX_RESONATOR);
         shifter_.Process(l, r);
         if (!shifter_.Idle())
             Meter(FX_SHIFTER, *l + *r);
+        BENCH_MARK_FX(FX_SHIFTER);
         folder_.Process(l, r);
         if (!folder_.Idle())
             Meter(FX_FOLDER, *l + *r);
+        BENCH_MARK_FX(FX_FOLDER);
         crusher_.Process(l, r);
         if (!crusher_.Idle())
             Meter(FX_CRUSHER, *l + *r);
+        BENCH_MARK_FX(FX_CRUSHER);
         filter_.Process(l, r);
         if (!filter_.Idle())
             Meter(FX_FILTER, *l + *r);
+        BENCH_MARK_FX(FX_FILTER);
         flanger_.Process(l, r);
         if (!flanger_.Idle())
             Meter(FX_FLANGER, *l + *r);
+        BENCH_MARK_FX(FX_FLANGER);
         resonator_.Tap(*l, *r);
+        BENCH_MARK_FX(FX_RESONATOR);
         slicer_.Process(l, r);
         if (!slicer_.Idle())
             Meter(FX_SLICER, *l + *r);
+        BENCH_MARK_FX(FX_SLICER);
         warble_.Process(l, r);
         if (!warble_.Idle())
             Meter(FX_WARBLE, *l + *r);
+        BENCH_MARK_FX(FX_WARBLE);
         tapestop_.Process(l, r);
         if (!tapestop_.Idle())
             Meter(FX_TAPESTOP, *l + *r);
+        BENCH_MARK_FX(FX_TAPESTOP);
 
         // sends: the delay from the inserts' output, the reverb from that plus the delay's
         // return, so the echoes are reverberated. Both returns are added on top.
@@ -184,9 +199,11 @@ public:
         const float delayl = *l, delayr = *r;
         if (!delay_.Sleeping())
             Meter(FX_DELAY, delayl - sendl + delayr - sendr);
+        BENCH_MARK_FX(FX_DELAY);
         reverb_.Process(delayl, delayr, l, r);
         if (!reverb_.Sleeping())
             Meter(FX_REVERB, *l - delayl + *r - delayr);
+        BENCH_MARK_FX(FX_REVERB);
     }
 
     /** From the UI or the morph */
