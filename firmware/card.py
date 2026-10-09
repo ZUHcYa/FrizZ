@@ -112,13 +112,17 @@ def main():
     if a.cmd == "mount":
         print(root)
         return
-    if a.cmd == "get":
-        get(root, a.paths, a.out)
-    elif a.cmd == "put":
-        put(root, a.file, a.path)
-    elif a.cmd == "ls":
-        ls(root, a.path)
-    finish(a.then)
+    # whatever goes wrong, eject the card and start FRIZZ again: never leave the CHOMPI in
+    # the storage firmware with the card mounted
+    try:
+        if a.cmd == "get":
+            get(root, a.paths, a.out)
+        elif a.cmd == "put":
+            put(root, a.file, a.path)
+        elif a.cmd == "ls":
+            ls(root, a.path)
+    finally:
+        finish(a.then)
 
 
 if __name__ == "__main__":

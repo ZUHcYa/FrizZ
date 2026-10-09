@@ -18,8 +18,10 @@ bin/                      FRIZZ.bin (the latest build), FRIZZ-bench.bin (the CPU
                           reference/firmware/chompi-wave/code/Chompi_Bootloader/
 test/                     host-side checks: the engine against HEAD, and unit checks (unit.sh NAME)
 twin/                     the virtual CHOMPI: the whole firmware on the PC, on a simulated board
-flash.py, card.py, tools/ sending a build to the CHOMPI and reaching its card over USB, through the
+flash.py, card.py         sending a build to the CHOMPI and reaching its card over USB, through the
                           multi-firmware launcher
+remote.py                 playing and querying a running FRIZZ over USB MIDI
+tools/                    what those share (chompi.py, the launcher's midi_send.py), the git hooks
 ```
 
 Design notes live in [`../docs/`](../docs/): the looper spec (`LOOPER.md`) and an overview of
@@ -232,8 +234,10 @@ code costs; whether `FRIZZ.bin` crackles, only playing it tells.
 
 ## Before a pull request
 
-Work on a branch off `main`, never on `main` itself, and open a pull request for it (a draft
-is fine). Before each commit that touches `code/`, `test/` or `twin/`:
+Work on a branch off `main`, never on `main` itself, in a worktree of its own
+(`git worktree add ../FrizZ-<branch> -b <branch> origin/main`), and open a pull request for it
+(a draft is fine). `tools/install-hooks.sh` installs a pre-commit hook that refuses commits on
+`main` and reminds you of the binary and the changelog. Before each commit that touches `code/`, `test/` or `twin/`:
 
 1. **`test/all.sh` passes.** A check that fails is fixed, or, when the change is meant to
    alter what it checks, updated in the same commit, saying so in the commit message.
@@ -281,8 +285,8 @@ FxChain.h              the punch-in effects in their processing order, with a le
 FxParams.h             each effect's knobs: how many, defaults, steps, coarse grids; the compressor's too
 FxSlots.h              each effect's key, LED and colours; the compressor's key
 MasterComp.h           the master compressor: amount, ratio, speed, mix, stereo-linked
-MasterSettings.h       what's kept on the card outside the scenes (the compressor's knobs and the
-                       mono input), and its file format
+MasterSettings.h       what's kept on the card outside the scenes (the compressor's knobs, the
+                       mono input, the MIDI channel and transport following), and its file format
 SceneStore.h           the card: /FRIZZ, the scene file and the master file, written from MainLoop
 FxScenes.h             the FX scenes and their file format
 FxControls.h           the FX keys and knobs: latches, fine / stepped / coarse turns, scene snapshot and recall;
@@ -309,6 +313,10 @@ MidiControl.h          MIDI control: notes as keys, CCs, program changes, FRIZZ'
 NormalPage.h           the play page: routes the controls (VOLUME, PLAY/LOOP, transport, FX and scene keys) and draws the LEDs
 LedSignal.h            the play page's short LED signals: 3 red or white blinks, a flash
 ui.h                   page plumbing: events, page switching
+EventLog.h             the bug report: every key, knob and MIDI event since power-on, written as
+                       a twin script to /FRIZZ/bug-N.txt on SHIFT + transport press
+Bench.h, BenchProfile.h
+                       the CPU bench (only in FRIZZ-bench.bin, `make BENCH=1`) and its cycle marks
 limiter.h, EnvFollower.h
                        the safety limiter and the VU meter
 hardware.h             the CHOMPI hardware: encoders, keys, switches, LEDs, battery
@@ -322,10 +330,10 @@ chompi_sram.lds        linker script (the firmware runs from SRAM, placed there 
 ## Rules the code follows
 
 - **No file I/O and no blocking calls in the audio callback.** FRIZZ reads the SD card once at
-  boot (the FX scenes and the compressor's settings, after changing into `/FRIZZ`, which it
+  boot (the FX scenes and the master settings, after changing into `/FRIZZ`, which it
   creates on a new card) and writes it only from `MainLoop`, when a scene is saved, copied or
-  deleted, or 2 s after the compressor's knobs, the mono input or the MIDI settings were last
-  changed (`SceneStore.h`).
+  deleted, 2 s after the compressor's knobs, the mono input or the MIDI settings were last
+  changed (`SceneStore.h`), or for a bug report (`EventLog.h`).
 - **MIDI is read in the audio callback, acted on in `MainLoop`.** `MidiControl.h` only notes
   what came (keys, detents, a table of controller values); the play page takes the rest in
   `MainLoop` and answers queries over USB from there, never from the interrupt.
@@ -339,7 +347,9 @@ chompi_sram.lds        linker script (the firmware runs from SRAM, placed there 
 - Large buffers (the loop, the delay, the freezer, the tape stop) live in SDRAM (`DSY_SDRAM_BSS`) and are
   cleared at boot.
 - `__attribute__((optimize("-O0")))` and similar per-function overrides are deliberate
-  workarounds inherited from the stock firmware. Don't remove them as leftovers.
+  workarounds inherited from the stock firmware. Don't remove them as leftovers. Code that runs
+  rarely (`EVENT_LOG_ONCE`, `MIDI_CONTROL_ONCE`) is built for size (`-Os`, noinline): code
+  space is the tightest memory ([`docs/CAPACITY.md`](../docs/CAPACITY.md)).
 
 ## License
 

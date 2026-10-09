@@ -100,9 +100,6 @@ scenes saved, recalled, morphed, copied and deleted, VOLUME's pages and the mix,
 A new one is just another `scenarios/NAME.txt`. Both versions run with the working tree's twin,
 so a firmware from before the twin compares too (back to the move from `firmware/frizz/`).
 
-For #7, `./compare.sh b9031c3 f866d6d` shows what it changed: the sound only in the compressor
-and the effects with fixes (79 to 97 dB below the signal), and the LEDs in the VOLUME meter, the
-transport and LOOP's blink.
 
 ## Scripts
 

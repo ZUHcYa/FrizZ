@@ -1,0 +1,21 @@
+#!/bin/sh
+# FRIZZ's pre-commit hook (CLAUDE.md, Git workflow). Install: firmware/tools/install-hooks.sh
+# Refuses a commit on main; warns, without stopping it, when the firmware's source is staged
+# without its binary or without CHANGELOG.md (a comment-only change needs neither).
+
+branch=$(git symbolic-ref --short -q HEAD)
+if [ "$branch" = "main" ]; then
+    echo "pre-commit: no commits on main; start a branch in its own worktree:" >&2
+    echo "  git worktree add ../FrizZ-<branch> -b <branch> origin/main" >&2
+    echo "  (git commit --no-verify skips this check)" >&2
+    exit 1
+fi
+
+staged=$(git diff --cached --name-only)
+if echo "$staged" | grep -q '^firmware/code/'; then
+    echo "$staged" | grep -qx 'firmware/bin/FRIZZ.bin' ||
+        echo "pre-commit: firmware/code/ changed but firmware/bin/FRIZZ.bin isn't staged: rebuild (make, make BENCH=1) unless its md5 is unchanged" >&2
+    echo "$staged" | grep -qx 'CHANGELOG.md' ||
+        echo "pre-commit: firmware/code/ changed without CHANGELOG.md: does a player notice it?" >&2
+fi
+exit 0

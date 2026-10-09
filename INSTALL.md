@@ -23,7 +23,9 @@ tools or drivers, and the CHOMPI's bootloader is never touched.
 5. **Wait.** A slow rainbow LED pattern means the CHOMPI is writing FRIZZ into its memory.
    Don't switch it off while that runs. FRIZZ starts by itself when it's done.
 
-Leave the card in: FRIZZ keeps its FX scenes on it, in `FRIZZ/frizz_scenes.txt`. FRIZZ
+Leave the card in: FRIZZ keeps its FX scenes on it, in `FRIZZ/frizz_scenes.txt`, and its
+master settings (compressor, mono input, MIDI) in `FRIZZ/frizz_master.txt`; the `.bak` files
+next to them are the previous versions, and `bug-N.txt` are [bug reports](MANUAL.md#bug-reports). FRIZZ
 creates the `FRIZZ` folder the first time it starts, and moves a `frizz_scenes.txt` an older
 FRIZZ left in the top folder into it. Without a card FRIZZ still runs, but scenes you save are
 gone at power-off. A later FRIZZ update keeps your scenes as long as that folder stays on the
