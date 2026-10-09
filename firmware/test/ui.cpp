@@ -28,6 +28,7 @@ static const int kSlot1Led = 1, kCompKeyLed = 10, kTapeStopKeyLed = 15;
 // the settings page's (SettingsPage.h): F# of the upper octave, C and D# of the upper octave
 static const int kMonoKeyLed = 7, kChannel1Led = 24, kChannel3Led = 23, kChannel16Led = 6,
                  kTransportKeyLed = 14, kFactorKeyLed = 13, kBrightnessKeyLed = 8;
+static const int kSaveKeyLed = 9; // KEY_25, the play page's SAVE
 
 static bool sine = true;
 static float amp = .3f, freq = 220.f, phase = 0.f;
@@ -495,6 +496,24 @@ int main()
         Tap("KEY_28");
         RunMs(500);
         Check(Probe().loop_state == 0, "settings-flip: LOOP on the settings page doesn't record");
+    }});
+
+    // a scene mode is left as the switch goes up: CHOMPI back down doesn't confirm it
+    cases.push_back({"settings-save", [] {
+        RunMs(kReadyMs);
+        Latch("KEY_5");
+        Tap("KEY_25"); // SAVE, slot 1 picked
+        RunMs(100);
+        Tap("KEY_17");
+        RunMs(300);
+        SetToggle(true);
+        RunMs(300);
+        SetToggle(false);
+        RunMs(300);
+        Tap("KEY_26");
+        RunMs(2500);
+        Check(Card("/FRIZZ/frizz_scenes.txt").empty(), "settings-save: SAVE armed, a flip up and down: CHOMPI saves nothing");
+        Check(Max(SmtLedFull(kSaveKeyLed)) < 80, "settings-save: and SAVE's key is back to dim");
     }});
 
     // MIDI plays on with the switch up: its notes are the play page's keys

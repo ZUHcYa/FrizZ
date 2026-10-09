@@ -210,11 +210,15 @@ namespace chompi
             for (int i = 0; i < kNumPthLeds; i++)
                 SetPthLed(i, 0, 0, 0);
 
-            // the keys the play page doesn't draw would keep the settings page's colours
+            // the keys the play page doesn't draw would keep the settings page's colours; a
+            // scene mode (SAVE, COPY, DELETE) is left on the way up, so CHOMPI can't confirm
+            // it later
             if (show_settings_ != drew_settings_)
             {
                 drew_settings_ = show_settings_;
                 ResetSmtLeds();
+                if (show_settings_)
+                    scene_ctl_.Cancel();
             }
             if (show_settings_)
             {

@@ -17,7 +17,8 @@
  *
  *  Each key acts on its press. A key that went down on the play page stays the play page's
  *  until it's let go, and the other way round (ui.h), so flipping the switch with a key held
- *  doesn't let go of it. VOLUME's LED shows the battery's level throughout (Hardware's
+ *  doesn't let go of it. A scene mode (SAVE, COPY, DELETE) is left as the switch goes up.
+ *  VOLUME's LED shows the battery's level throughout (Hardware's
  *  BatteryLevel: white full or on the charger, green above 3.3 V, yellow below, red below
  *  3 V); the transport LEDs are purple, so the page is never taken for the play page.
  *

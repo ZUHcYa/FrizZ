@@ -74,6 +74,9 @@ A, A# and B of the upper octave and the top C do nothing.
 - A key you're holding when you flip the switch stays where it went down until you let go:
   an effect you hold keeps going, and the key doesn't also change a setting. The same the
   other way round.
+- Flipping up leaves a scene mode (SAVE, COPY, DELETE) waiting for its confirm: nothing is
+  saved, copied or deleted.
+- The low-battery warning dims with the LEDs too.
 - Every setting is saved on the card with the master compressor, 2 s after the last change,
   so it comes back at power-on. None is part of a scene.
 
