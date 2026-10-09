@@ -199,7 +199,10 @@ the refused quantized record. `unit.sh tempo` checks the FX's tempo: tap tempo (
 a loop's beats are fitted or guessed, the tempo clock locked to a loop (`TempoClock.h`: beat 1
 on the loop's start, counting down in reverse, standing still when paused, the tempo times the
 speed, a tap refitting the beats, the loop overriding MIDI clock) and the beats of a loop
-recorded quantized to a faked clock; then the bar lines (free, on 2-, 4- and 6-beat loops, in
+recorded quantized to a faked clock, and the looper's tick period (`Looper.h`'s line through the
+ticks): a bar from jittered USB-like ticks within 12 samples of its length, the end following a
+clock that slows after the press, and an end already passed when refitted closing at once,
+within the post-roll; then the bar lines (free, on 2-, 4- and 6-beat loops, in
 reverse) and a scene morph (`FxMorph.h`) on them: landing on the bar line, one per tap, the
 glide, held while SHIFT is down however long, fades in and out, stopping it halfway; and the
 delay (`granularDelay.h`): reverse events only where they fit, and a tempo jump crossfading
@@ -263,7 +266,8 @@ the launcher's PING or a longer message doesn't.
 The flicker #7 fixed in the transport LED (a value just over 1 wrapping to dark) doesn't show
 on the twin before the fix either, so that check guards only what it can see.
 
-`../twin/ui-at.sh REF` runs these checks on another version's firmware: a new check should
+`../twin/ui-at.sh REF [CHECK]` runs these checks (or another twin check: `midi`, `sync`) on
+another version's firmware: a new check should
 fail on the version before its fix. It can't see time on the chip: the CPU load, so not
 crackles either.
 
@@ -304,6 +308,11 @@ ms jitter). Each case prints what it measured; the limits are at the top of `syn
   their bars, their length against the bars the clock played, the drift of their loop point
   against the clock over 30 s (nothing pulls a loop back to the clock once it plays), 12 FX
   pulses a beat of the loop.
+- No click where a quantized 1-bar loop wraps, from every sender at 120 and 174 BPM (a sine
+  through it: the master out's largest step against the sine's own).
+- A song change behind a closed loop: the clock's tempo moved, stopped, restarted over USB and
+  joined by a second on the jack, while the loop's length, its beats, the FX's tempo and every
+  pass stay as they were.
 - The strict bar rule (a stop 12 ms after a bar line records another bar, 12 ms before doesn't),
   the clock lost and the jack switched to USB mid-recording (it closes, unquantized), a tempo
   change mid-recording (reported: no rule says what it should become), the loop ignoring the

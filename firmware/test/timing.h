@@ -4,6 +4,7 @@
 #pragma once
 #include <sys/wait.h>
 #include <unistd.h>
+#include <algorithm>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
@@ -26,13 +27,33 @@ static ClockGen trs, usb; // a sequencer on the jack and a DAW over USB
 // called after every block, to follow what the firmware does
 static std::function<void()> each_block;
 
+// a sine into AUX while sine_amp > 0, and the master out's largest step between two samples
+// (either channel) since max_step was last set to 0
+static float sine_amp = 0.f, sine_hz = 220.f, sine_phase = 0.f;
+static float max_step = 0.f, last_out[2] = {0.f, 0.f};
+
 static void RunBlocks(size_t n)
 {
+    float in[kBlockSize * kChannels] = {}, out[kBlockSize * kChannels];
     for (size_t b = 0; b < n; b++)
     {
         trs.Step(BlockMs());
         usb.Step(BlockMs());
-        Run(1, nullptr, nullptr);
+        for (size_t i = 0; i < kBlockSize; i++)
+        {
+            const float v = sine_amp * sinf(sine_phase);
+            sine_phase = fmodf(sine_phase + 2.f * float(M_PI) * sine_hz / kSampleRate,
+                               2.f * float(M_PI));
+            in[i * kChannels + 2] = in[i * kChannels + 3] = v;
+        }
+        Run(1, in, out);
+        for (size_t i = 0; i < kBlockSize; i++)
+            for (int c = 0; c < 2; c++)
+            {
+                const float v = out[i * kChannels + 2 + c];
+                max_step = std::max(max_step, fabsf(v - last_out[c]));
+                last_out[c] = v;
+            }
         if (each_block)
             each_block();
     }

@@ -85,6 +85,7 @@ stdout): the time in ms, the 10 panel LEDs (`pth`, in `NormalPage.h`'s numbering
 ./compare.sh origin/main HEAD   # what this branch changes for a player
 ./compare.sh v0.10 origin/main  # since a release
 ./ui-at.sh origin/main          # ../test/ui.cpp's checks on another version's firmware
+./ui-at.sh origin/main sync     # any other twin check (midi, sync, ...) the same way
 ```
 
 Any git ref works. Compare with `origin/main` after a `git fetch` rather than a local `main`,

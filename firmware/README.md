@@ -240,7 +240,7 @@ is fine). Before each commit that touches `code/`, `test/` or `twin/`:
 2. **A refactor changes nothing:** `test/check.sh` and `twin/compare.sh` print
    `bit-identical`.
 3. **What the twin can show, a check shows:** for a change to keys, LEDs, the card, levels or
-   clicks, add a case to `test/ui.cpp` and make sure `twin/ui-at.sh origin/main` fails it (it
+   clicks, add a case to `test/ui.cpp` and make sure `twin/ui-at.sh origin/main` (or `twin/ui-at.sh origin/main sync` for a timing check) fails it (it
    passes with your change). `git fetch` first: a stale local `main` compares with an old
    version.
 4. **The binaries match the source:** a change under `code/` rebuilds both and commits them

@@ -196,7 +196,11 @@ static void LoopCase(const Sender& s, double bpm, int bars)
     Check(c.loop_state == 2 && c.loop_beats == static_cast<uint32_t>(bars * 4),
           (base + "closes on its bars").c_str());
     Check(fabs(pulses.count - want_pulses) <= 2., (base + "12 pulses a beat of the loop").c_str());
-    Check(fabs(max_drift - per_min * 30000. / 60000.) <= 1.,
+    // the last wrap against where the length error puts it after as many passes; each wrap is
+    // seen to a block, so the two agree within two blocks
+    const size_t passes = watch.wraps.size() > 1 ? watch.wraps.size() - 1 : 0;
+    const double seen = passes ? watch.wraps[passes] - watch.wraps[0] - passes * ideal / 48. : 0.;
+    Check(passes > 0 && fabs(seen - passes * err / 48.) <= 1.,
           (base + "its loop point moves as its length says").c_str());
     Record(&s == &kExact ? "loop-error-exact" : "loop-error-real", err);
     Record("loop-drift", per_min);
@@ -403,6 +407,35 @@ int main()
         Check(watch.wraps.size() >= 9 && worst <= .5,
               "song change: and the loop keeps its pace, every pass its own length");
     }});
+
+    // the loop point of a quantized loop: its end now follows the ticks up to the close, and
+    // can land past the recording's write position by up to a block or more; the post-roll's
+    // crossfade must still take it over without a click (a sine through it, and the largest
+    // step between two samples against the sine's own)
+    for (const Sender* s : kSenders)
+        for (double bpm : {120., 174.})
+            cases.push_back({"loop-point", [s, bpm] {
+                sine_amp = .3f;
+                StartClock(*s, bpm);
+                RunMs(kReadyMs);
+                max_step = 0.f;
+                RunMs(1000);
+                const float sine_step = max_step;
+                const double bar_ms = 96. * Gen(*s).TickSamples(BlockMs()) / 48.;
+                StopAt(StartQuantized(), .5 * bar_ms);
+                RunUntil([] { return Probe().loop_state == 2; }, bar_ms + 500.);
+                RunMs(50); // the mix's jump to the loop
+                max_step = 0.f;
+                WrapWatch watch;
+                watch.Reset();
+                each_block = [&] { watch.Step(); };
+                RunMs(8000);
+                each_block = nullptr;
+                Report("%-9s %3.0f BPM, 1 bar: largest step %.4f over %zu loop points, the sine's %.4f",
+                       s->name, bpm, max_step, watch.wraps.size(), sine_step);
+                Check(watch.wraps.size() >= 3 && max_step <= 1.5f * sine_step,
+                      (Name("loop point", *s, bpm) + "no click where the loop wraps").c_str());
+            }});
 
     // the 2:45 limit, quantized: cut back to the last whole bar (LOOPER.md 1.3a)
     cases.push_back({"limit", [] {

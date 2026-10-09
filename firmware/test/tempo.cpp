@@ -4,6 +4,7 @@
 // clock's bar lines (FxMorph.h). Exits 0 when everything passes. Run by unit.sh tempo.
 #include <cmath>
 #include <cstdio>
+#include <functional>
 #include "check.h"
 #include <vector>
 #include "FxMorph.h"
@@ -228,6 +229,126 @@ static void TestQuantizedBeats()
     Check(looper.GetState() == chompi::Looper::State::PLAYING && looper.GetLength() > 4000,
           "quantized, stopped as the clock locks again: the recording is kept");
     midi.tick_period = period;
+}
+
+/** A faked clock into a looper, as MidiClock delivers it: each tick counted in the block it
+ *  came in and timed at that block's start. period(k) gives tick k's spacing in samples,
+ *  delay(k) how late it arrives (a USB frame, a sender's jitter) */
+struct FakedClock
+{
+    MidiClock midi;
+    chompi::Looper looper;
+    size_t now = 0;
+    double next = 0.;     // the next tick's ideal time
+    uint32_t k = 0;       // ticks sent
+    std::function<double(uint32_t)> period, delay;
+    float in[kBlock] = {}, out_l[kBlock], out_r[kBlock];
+
+    void Init(int16_t* mem, double first_period)
+    {
+        looper.Init(mem, &midi);
+        midi.has_clock = true;
+        midi.locks = 1;
+        midi.tick_period = static_cast<float>(first_period);
+        midi.bpm = kSr * 60.f / (midi.tick_period * kTicksPerBeat);
+    }
+    void Block()
+    {
+        now += kBlock;
+        // the ticks that arrived before this block's start
+        while (next + delay(k) < now)
+        {
+            midi.ticks++;
+            midi.last_tick_time = static_cast<uint32_t>(now);
+            next += period(k);
+            k++;
+        }
+        looper.Process(in, in, out_l, out_r, kBlock);
+    }
+    void Until(size_t t)
+    {
+        while (now < t)
+            Block();
+    }
+};
+
+/** The looper's tick period (Looper.h, LOOPER.md 2.2): a line through every tick, kept up to
+ *  where the loop closes */
+static void TestQuantizedFit()
+{
+    static int16_t mem[kLoopMemSize];
+    uint32_t seed = 7;
+    auto rnd = [&seed]() { // 0..1
+        seed = seed * 1664525u + 1013904223u;
+        return (seed >> 8) / double(1 << 24);
+    };
+
+    // a DAW over USB at 120 BPM: each tick up to a 1 ms frame late plus 0.3 ms of jitter; a bar
+    // stopped halfway, so most of it is measured after the press
+    {
+        FakedClock c;
+        c.period = [](uint32_t) { return 1000.; };
+        c.delay = [&rnd](uint32_t) { return 48. * rnd() + 14.4 * rnd(); };
+        c.Init(mem, 1000.);
+        c.Until(4800);
+        c.looper.StartRecording(true);
+        c.Block();
+        c.Until(c.now + 48000);
+        c.looper.StopRecording();
+        c.Until(c.now + 60000);
+        const long err = static_cast<long>(c.looper.GetLength()) - 96000;
+        printf("      USB-like ticks, 1 bar stopped halfway: %zu samples (%+ld)\n",
+               c.looper.GetLength(), err);
+        Check(c.looper.GetBeats() == 4 && labs(err) <= 12,
+              "quantized fit: a bar from jittered USB ticks within 12 samples of its length");
+    }
+
+    // the clock slows a little after the press: the loop's end follows the ticks that come in
+    // until it closes, not the period at the press
+    {
+        FakedClock c;
+        c.period = [](uint32_t k) { return k < 60 ? 1000. : 1010.; };
+        c.delay = [](uint32_t) { return 0.; };
+        c.Init(mem, 1000.);
+        c.Until(4800);
+        c.looper.StartRecording(true);
+        c.Block();
+        c.Until(c.now + 48000);
+        c.looper.StopRecording();
+        c.Until(c.now + 60000);
+        printf("      slower after the press: %zu samples (96000 at the press's tempo)\n",
+               c.looper.GetLength());
+        Check(c.looper.GetLength() > 96200 && c.looper.GetLength() < 97000,
+              "quantized fit: the end follows the ticks after the press, up to the close");
+    }
+
+    // the clock speeds up so much after the press that the bar's end, refitted, has already
+    // passed: it closes at once on that end, a whole bar; what was recorded past it is less than
+    // the post-roll the loop point crossfades from (kXfadeFrames), so it fades over cleanly
+    {
+        FakedClock c;
+        c.period = [](uint32_t k) { return k < 86 ? 1000. : 400.; };
+        c.delay = [](uint32_t) { return 0.; };
+        c.Init(mem, 1000.);
+        c.Until(4800);
+        c.looper.StartRecording(true);
+        c.Block();
+        const size_t start = c.now;
+        c.Until(start + 86400);
+        c.looper.StopRecording();
+        size_t written = 0;
+        while (c.looper.GetState() == chompi::Looper::State::RECORDING && c.now < start + 200000)
+        {
+            c.Block();
+            written = c.now - start;
+        }
+        printf("      much faster after the press: closed %zu samples in at %zu, %u beats\n",
+               written, c.looper.GetLength(), c.looper.GetBeats());
+        Check(c.looper.GetState() == chompi::Looper::State::PLAYING && c.looper.GetBeats() == 4
+                  && c.looper.GetLength() < written
+                  && written - c.looper.GetLength() < kXfadeFrames,
+              "quantized fit: an end that has already passed closes at once, on it");
+    }
 }
 
 /** Bar lines: the pulses Pulse() returns that IsBarLine, against PulsesToBarLine's estimate */
@@ -648,6 +769,7 @@ int main()
     TestLoopClock();
     TestMidiClock();
     TestQuantizedBeats();
+    TestQuantizedFit();
     TestBarLines();
     TestMorph();
     TestDelayReverse();
