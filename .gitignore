@@ -15,3 +15,7 @@ firmware/test/build/
 firmware/twin/build/
 firmware/twin/web/build/
 reference/firmware/*/code/src/build/
+
+# Python bytecode (flash.py imports tools/midi_send.py)
+__pycache__/
+*.pyc
