@@ -934,6 +934,8 @@ int main()
         for (int part = 0; part < 5; part++)
             all &= blank[part].size() == (part < 4 ? 26u : 5u);
         Check(all, "midi scenes: 30 answers a scene in 5 parts");
+        if (!all)
+            return;
         std::string ack;
         for (int part = 0; part < 5; part++)
         {
@@ -948,7 +950,8 @@ int main()
                 UsbMidi(static_cast<uint8_t>(c));
             Usb({0xF7});
             RunMs(20);
-            ack += TakeUsbOut().substr(5, 3);
+            const std::string out = TakeUsbOut();
+            ack += out.size() >= 9 ? out.substr(5, 3) : "";
         }
         Check(ack.size() == 15 && ack[14] == 0, "midi scenes: 31 stores one, part by part");
         RunMs(2500);
