@@ -192,6 +192,13 @@ static void Usb(std::initializer_list<int> bytes)
 static const int kNoteOn = 0x9F, kNoteOff = 0x8F, kCC = 0xBF, kPC = 0xCF;
 static const int kFilterNote = 55; // KEY_5, the 5th white key: G above the base note, 48
 static const int kFilterLatchCC = 24, kFilterCutoffCC = 86, kCompAmountCC = 52;
+/** 14 bits of an answer as a knob's 0-1 (MidiControl.h's MidiToKnob), and 7 bits of a CC */
+static float KnobOf(int hi, int lo)
+{
+    const float v = static_cast<float>((hi << 7) | lo);
+    return v <= 8192.f ? .5f * v / 8192.f : .5f + .5f * (v - 8192.f) / 8191.f;
+}
+static float KnobOf7(int v) { return v <= 64 ? .5f * v / 64.f : .5f + .5f * (v - 64) / 63.f; }
 /** A SysEx query over USB and its answer's data, or empty if none came */
 static std::string Ask(std::initializer_list<int> query)
 {
@@ -981,6 +988,27 @@ int main()
         RunMs(20);
         const std::string refused = TakeUsbOut();
         Check(refused.size() == 9 && refused[7] == 1, "midi scenes: never into the blank scene");
+
+        // CC 61 sets a morph's bars: the same morph 4 bars later (the same phase of the bar,
+        // 2 s each at 120 BPM) over 2 bars lands a bar later than over 1
+        auto morph_ms = [](int bars) {
+            Trs({kPC, 0});
+            RunMs(500);
+            Trs({kCC, 61, bars, kCC, 62, 1});
+            const uint32_t start = NowMs();
+            std::string state;
+            do
+                state = Ask({0x20}); // 20 ms each
+            while (NowMs() - start < 6000 && state.size() > 6 && (state[6] & 2));
+            return NowMs() - start;
+        };
+        const uint32_t t0 = NowMs();
+        const uint32_t one = morph_ms(1);
+        RunMs(t0 + 8000 - NowMs());
+        const uint32_t two = morph_ms(2);
+        printf("      morph over 1 bar: %u ms, over 2: %u ms\n", one, two);
+        Check(one <= 2100 && two > one + 1900 && two < one + 2100,
+              "midi scenes: CC 61 = 2 makes a CC 62 morph land a bar later");
     }});
 
     // MIDI Start / Stop play and pause the loop, once switched on
@@ -1002,6 +1030,65 @@ int main()
         Trs({0xFA});
         RunMs(300);
         Check(RunMs(300) > .05f, "midi transport: and Start plays it");
+        // kept on the card with the channel, for the next case's power-on
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x13, 0, 1, 0xF7});
+        RunMs(2500);
+        KeepCard();
+    }});
+
+    // the settings across a power cycle, and transport following switched off again
+    cases.push_back({"midi-kept", [] {
+        TakeCard();
+        RunMs(kReadyMs);
+        Check(Ask({0x24}) == std::string("\x01\x01", 2),
+              "midi kept: channel 1 and transport following are back after power-on");
+        Trs({0x90, kFilterNote, 100});
+        RunMs(100);
+        Check(Max(SmtLedFull(kFilterKeyLed)) > 80, "midi kept: a note on channel 1 holds its key");
+        Trs({0x80, kFilterNote, 0});
+        Tap("KEY_28");
+        RunMs(2000);
+        Tap("KEY_28");
+        sine = false;
+        RunMs(500);
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x13, 1, 0, 0xF7});
+        RunMs(20);
+        Trs({0xFC});
+        RunMs(300);
+        Check(RunMs(300) > .05f, "midi kept: transport following off again: Stop doesn't pause");
+    }});
+
+    // a DAW's automation: no harder steps than a hand's turn at the same speed, and a dense
+    // stream of controllers lands on its last value
+    cases.push_back({"midi-automation", [] {
+        RunMs(kReadyMs);
+        Latch("KEY_5"); // the filter, on the knobs
+        RunMs(300);
+        Turn(kKnob1Encoder, -50); // 0.5 down over 400 ms, 1% a detent
+        const float by_hand = StepMs(600);
+        Trs({kCC, kFilterCutoffCC, 64});
+        RunMs(500);
+        max_step = 0.f;
+        for (int v = 63; v >= 0; v--) // 0.5 down over 400 ms, 1/128 a message
+        {
+            Trs({kCC, kFilterCutoffCC, v});
+            RunMs(6);
+        }
+        RunMs(200);
+        const float by_midi = max_step;
+        printf("      largest step: turned %.4f, automated %.4f\n", by_hand, by_midi);
+        Check(by_midi <= by_hand * 1.25f, "midi automation: a CC sweep steps no harder than the knob turned as fast");
+        // 3000 controllers over USB in 1.5 s, twice a ms, then a last one
+        for (int i = 0; i < 1500; i++)
+        {
+            Usb({kCC, kFilterCutoffCC, (i * 37) % 128, kCC, kFilterCutoffCC + 1, (i * 11) % 128});
+            RunMs(1);
+        }
+        Usb({kCC, kFilterCutoffCC, 100});
+        RunMs(100);
+        const std::string params = Ask({0x21, 4});
+        Check(params.size() == 9 && fabsf(KnobOf(params[1], params[2]) - KnobOf7(100)) < 1e-3f,
+              "midi automation: 3000 CCs in 1.5 s, and the cutoff lands on the last one");
     }});
 
     char card_name[] = "/tmp/frizz-ui-card-XXXXXX";
