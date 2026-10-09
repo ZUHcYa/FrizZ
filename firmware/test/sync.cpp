@@ -358,6 +358,52 @@ int main()
               "after close: erased, a pulse every 2 ticks again");
     }});
 
+    // a song change behind a loop: whatever the clock does once the loop is closed (a tempo
+    // just off, another tempo, stopped, back over USB, a second clock on the jack), the loop and
+    // the FX keep the tempo it was recorded at, block for block, and the loop point its pace
+    cases.push_back({"song-change", [] {
+        StartUsb(Clock(120., .3));
+        RunMs(kReadyMs);
+        StopAt(StartQuantized(), 3000.);
+        RunUntil([] { return Probe().loop_state == 2; }, 3000);
+        const ClockState at_close = Probe();
+        int moved = 0;
+        WrapWatch watch;
+        watch.Reset();
+        each_block = [&] {
+            const ClockState c = Probe();
+            moved += c.tempo != at_close.tempo || c.fx_bpm != at_close.fx_bpm
+                     || c.loop_length != at_close.loop_length || c.loop_beats != at_close.loop_beats
+                     || c.loop_state != 2;
+            watch.Step();
+        };
+        StartUsb(Clock(120.3, .3)); // the next song, nearly the same tempo
+        RunMs(8000);
+        StartUsb(Clock(98., .3)); // another
+        RunMs(8000);
+        usb.Stop(); // stopped
+        RunMs(3000);
+        StartUsb(Clock(140., .3)); // started again, faster
+        RunMs(6000);
+        StartTrs(Clock(87.)); // and a sequencer on the jack as well
+        RunMs(6000);
+        usb.Stop(); // the jack's takes over
+        RunMs(6000);
+        each_block = nullptr;
+        double worst = 0.;
+        for (size_t k = 1; k < watch.wraps.size(); k++)
+            worst = std::max(worst, fabs(watch.wraps[k] - watch.wraps[k - 1]
+                                         - at_close.loop_length / 48.));
+        Report("song change behind a 2-bar loop: FX at %d (%.3f BPM), %zu samples; %d blocks of 37 s "
+               "changed anything; %zu passes, each within %.2f ms of the loop's length",
+               at_close.tempo, at_close.fx_bpm, at_close.loop_length, moved,
+               watch.wraps.size() ? watch.wraps.size() - 1 : 0, worst);
+        Check(moved == 0,
+              "song change: the clock's tempo, stop, restart and source don't touch the loop or the FX's tempo");
+        Check(watch.wraps.size() >= 9 && worst <= .5,
+              "song change: and the loop keeps its pace, every pass its own length");
+    }});
+
     // the 2:45 limit, quantized: cut back to the last whole bar (LOOPER.md 1.3a)
     cases.push_back({"limit", [] {
         StartTrs(Clock(120.));
