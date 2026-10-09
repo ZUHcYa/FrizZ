@@ -49,6 +49,19 @@ std::string LedLine()
     return s;
 }
 
+// bytes as " HH HH ..."
+static std::string UsbHex(const std::string& bytes)
+{
+    std::string s;
+    for (unsigned char c : bytes)
+    {
+        char hex[4];
+        snprintf(hex, sizeof(hex), " %02X", c);
+        s += hex;
+    }
+    return s;
+}
+
 static void LogLeds()
 {
     const std::string now = LedLine();
@@ -292,17 +305,22 @@ int PlayScript(std::istream& src_in, FILE* leds, std::vector<float>* out)
             in >> level;
             SetToggle(level);
         }
-        else if (cmd == "midi" || cmd == "usb")
+        else if (cmd == "midi")
         {
             std::string b;
             while (in >> b)
-            {
-                const uint8_t byte = static_cast<uint8_t>(strtol(b.c_str(), nullptr, 16));
-                if (cmd == "usb")
-                    MidiUsb(byte);
-                else
-                    Midi(byte);
-            }
+                Midi(static_cast<uint8_t>(strtol(b.c_str(), nullptr, 16)));
+        }
+        else if (cmd == "usb")
+        {
+            std::string b;
+            while (in >> b)
+                UsbMidi(static_cast<uint8_t>(strtol(b.c_str(), nullptr, 16)));
+        }
+        else if (cmd == "replies")
+        {
+            // what came back over USB since the last look, as hex
+            printf("%7u usb%s\n", NowMs(), UsbHex(TakeUsbOut()).c_str());
         }
         else if (cmd == "clock")
         {
@@ -347,6 +365,22 @@ int PlayScript(std::istream& src_in, FILE* leds, std::vector<float>* out)
                 if (got != want)
                     Fail(line_no, chain + " " + std::to_string(index) + " is " + got + ", not " +
                                       want);
+            }
+            else if (what == "usb")
+            {
+                // expect usb HEX...: what came back over USB since the last look, all of it
+                std::string b, want;
+                while (in >> b)
+                {
+                    char hex[4];
+                    snprintf(hex, sizeof(hex), " %02X",
+                             static_cast<unsigned>(strtol(b.c_str(), nullptr, 16)));
+                    want += hex;
+                }
+                const std::string got = UsbHex(TakeUsbOut());
+                if (got != want)
+                    Fail(line_no, "usb sent" + (got.empty() ? std::string(" nothing") : got) +
+                                      ", not" + want);
             }
             else if (what == "off" && Powered())
                 Fail(line_no, "still powered");

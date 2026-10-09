@@ -560,19 +560,101 @@ While it morphs:
   key pulses as edited, since the sound is now between two scenes: save it to keep it.
   Without a morph, SHIFT + PLAY plays and pauses like PLAY.
 
-## MIDI clock
+## MIDI
+
+FRIZZ takes MIDI from the TRS MIDI input and over USB (CHOMPI is a USB device, so USB MIDI
+comes from a computer or a host), both alike. It sends nothing over TRS; over USB it only
+answers FRIZZ's own queries (see [Remote control](#remote-control)).
+
+### MIDI clock
 
 Quantized recording, and the effects' tempo while there's no loop, follow MIDI clock
-(24 PPQN) from the TRS MIDI input or USB. CHOMPI is a
-USB device, so USB clock comes from a computer or a host. Whichever source ticks first is
-used, until it has been silent for 0.5 s. Only clock is read; there's no MIDI out.
+(24 PPQN). Whichever source ticks first is used, until it has been silent for 0.5 s. The clock
+is read on every channel.
+
+### Channel
+
+Notes, controllers and program changes count on one channel: **16** at first, the one a
+setup sending notes to other instruments over the same cable uses least. FRIZZ keeps it on
+the card, in `FRIZZ/frizz_master.txt` (`midi_channel 16`; 0 listens on every channel). Change
+it there, or from a computer with `firmware/remote.py channel N`.
+
+### Notes: the keys
+
+A note holds the key it lands on while it's on, as your finger would: an FX key punches its
+effect in, a scene key recalls, and so on. The 25 keys are a keyboard from **note 48** (C3,
+or C2 in Ableton Live): the white keys from 48 up, the dark keys on the sharps. Below them:
+
+| Note | Key |
+|---|---|
+| 36, 37, 38, 39 | Knob 1, 2, 3, 4 pressed |
+| 40 | The transport knob pressed |
+| 41 | VOLUME pressed |
+| 45 | CHOMPI (SHIFT) |
+| 46 | PLAY |
+| 47 | LOOP |
+
+- A key held by your hand and by a note is pressed once, and let go when both have let go.
+- The velocity doesn't matter; a note on at velocity 0 is a note off.
+- All Notes Off (CC 123) or All Sound Off (CC 120) lets go of every key MIDI holds, for a
+  note off that went missing.
+
+### Controllers
+
+| CC | Function |
+|---|---|
+| 14, 15, 16, 17 | Knob 1, 2, 3, 4 turned, relative: 1-63 turns that many detents right, 127-65 that many left (two's complement). SHIFT held turns coarsely, as by hand |
+| 18 | The transport knob turned, relative |
+| 19 | VOLUME turned, relative, on the page it's on |
+| 20-31 | An effect's latch, by its key left to right (20 the freezer, 30 the delay, 31 the reverb): 64 and above latched, below off |
+| 52, 53, 54, 55 | The master compressor's amount, ratio, speed and mix |
+| 56 | Output gain |
+| 57 | Input gain |
+| 58 | Input/loop mix |
+| 59 | Headphone feed: 0 the master out, 127 the AUX input on its own |
+| 60 | Mono input: 64 and above mono, below stereo |
+| 61 | How many bars a morph over CC 62 takes, 1-8 (1 at first) |
+| 62 | Morph to scene 0-4 (0 the blank one): as SHIFT + its key, landing on the bar line |
+| 63 | 64 and above: stops a morph where it is |
+| 70-117 | An effect's knob, set outright: 70 + 4 × the effect + the knob − 1, the effects counted from 0 by their keys: the freezer 70-73, shifter 74-77, folder 78-81, crusher 82-85, filter 86-89, flanger 90-93, resonator 94-97, slicer 98-101, wow & flutter 102-105, tape stop 106-109, delay 110-113, reverb 114-117 |
+
+- **Set outright** (CC 20-117), a value does what the knob or key would: the LEDs follow, the
+  scene key pulses as edited, a morph lands where the CC put the parameter, a send ringing out
+  takes it when its key next comes on. The knobs stay on the effect you picked. 64 is a knob's
+  centre exactly (the filter's flat cutoff, a delay's random off), 127 its top. Stepped
+  parameters take the nearest step.
+- **14 bits:** NRPN with the CC's number as the parameter (NRPN MSB 0, LSB the CC) sets it
+  in 16,384 steps (8192 the centre): CC 99 0, CC 98 the CC number, CC 6 the value's top 7
+  bits, CC 38 its bottom 7.
+- Mod wheel, pitch bend, aftertouch and other controllers are ignored.
+
+### Program changes
+
+Program change 0-4 presses scene key 0-4 (0 the blank scene): a recall, or in a save, copy or
+delete mode the slot. 5 and above are ignored.
+
+### Start and Stop
+
+With transport following on, MIDI Start and Continue play the loop and Stop pauses it, so
+a DAW's play button starts and stops the loop with the song. It's off at first; switch it on
+with `firmware/remote.py transport on`, or `midi_transport 1` in `FRIZZ/frizz_master.txt`.
+Start plays on from where the loop is, as Continue does: the loop doesn't jump to its start.
+
+### Remote control
+
+FRIZZ's own SysEx (`F0 7D 43 48 ...`, documented in `firmware/code/src/MidiControl.h`) presses
+keys, turns knobs and sets the channel on every channel, and over USB answers what the play
+page shows, every LED, the processing load, and sends and receives scenes. `firmware/remote.py`
+uses it from a Linux computer: `state`, `leds`, `load`, `scene get 2 my.json`, `scene put 3
+my.json`, and `play SCRIPT --cpu`, which plays a scenario of the virtual CHOMPI on the device
+and reports the worst load.
 
 ## Bug reports
 
 SHIFT + press the transport knob writes everything you did since switching on to the card,
 as `/FRIZZ/bug-1.txt` (the next one `bug-2.txt`, and so on): every key, knob detent and
-mode-switch flip with its time, the MIDI clock's tempo, and the scenes and compressor the card
-held at power-on. Do it right after something went wrong and send the file with your report:
+mode-switch flip with its time, the MIDI clock's tempo, every MIDI message FRIZZ acted on, and
+the scenes and compressor the card held at power-on. Do it right after something went wrong and send the file with your report:
 FRIZZ's developers play it on a virtual CHOMPI on their computer, which then does what yours
 did, key for key.
 
@@ -580,7 +662,8 @@ did, key for key.
   it's on the card, red when it isn't (no card, or a full one). A long session takes a moment,
   and the keys answer late until it's done; the sound plays on.
 - It doesn't hold the audio you played in, so a problem that depends on the sound itself
-  needs a description too. It holds about 260,000 events, hours of playing; a session longer
+  needs a description too, nor scenes sent over MIDI. Dense MIDI automation fills it
+  faster: each controller message is an event. It holds about 260,000 events, hours of playing; a session longer
   than that is cut off at the end.
 - It doesn't send anything anywhere and costs nothing while you play.
 

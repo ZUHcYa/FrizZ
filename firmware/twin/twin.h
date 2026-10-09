@@ -55,9 +55,11 @@ void SetToggle(bool raw_level);
 /** A byte into the MIDI jack (TRS, the UART) */
 void Midi(uint8_t byte);
 
-/** A byte over USB MIDI. Like the jack's, the bytes queued reach the firmware at the next
- *  block; a USB-MIDI sender's 1 ms frames are up to the caller (clockgen.h does them) */
-void MidiUsb(uint8_t byte);
+/** A byte into USB MIDI, as a computer sends it */
+void UsbMidi(uint8_t byte);
+
+/** What the firmware sent out over USB MIDI since the last call, taken */
+std::string TakeUsbOut();
 
 /** The start of the current block in ms, to the block (NowMs() is whole ms) */
 double BlockMs();

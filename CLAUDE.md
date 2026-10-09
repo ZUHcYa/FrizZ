@@ -194,7 +194,7 @@ The exception is FRIZZ: `firmware/test/` compiles its audio engine on the host a
 script of key presses and knob turns through it (3 s per effect plus four combined segments).
 `./all.sh` runs everything. `./check.sh` compares HEAD with the working tree; a refactor must
 come out `bit-identical`. `./unit.sh NAME` runs one unit check, `NAME.cpp`: `pitch`, `tape`,
-`scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`, `comp`, `level`, `sleep`, `ui`, `bench`, `midi`, `sync`; a new check is just a new
+`scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`, `comp`, `level`, `sleep`, `ui`, `remote`, `bench`, `midi`, `sync`; a new check is just a new
 `.cpp`. What each covers is in `firmware/test/README.md`.
 
 `firmware/twin/` is the **virtual CHOMPI**: the whole firmware (`chompi_main.cpp` down, with
@@ -232,7 +232,9 @@ the panel ends green or red.
 
 Its memory layout isn't `FRIZZ.bin`'s, and b5c658c crackled from layout alone: a bench run
 shows what the code costs, not that `FRIZZ.bin` itself won't crackle, which only playing it
-shows. Every commit that rebuilds `FRIZZ.bin` also rebuilds `firmware/bin/FRIZZ-bench.bin`
+shows. `FRIZZ.bin` times its own callback too (`MidiControl.h`): `firmware/remote.py load`
+reads its max and mean over USB, and `remote.py play SCRIPT --cpu` plays a twin scenario on
+the device and reports the worst, so a heavy scene can be tried on the build that plays. Every commit that rebuilds `FRIZZ.bin` also rebuilds `firmware/bin/FRIZZ-bench.bin`
 (`make BENCH=1`), so the two always match their source. A branch that touches the engine,
 the effects or the memory layout asks for a bench run in its hardware checklist; its
 `cpu.txt` goes into the PR and is compared with the last one there. `unit.sh bench` checks on
@@ -288,8 +290,10 @@ as `FileRequest`s to a queue; large writes are chunked across many `SDCallback()
 committed by writing a temp file then renaming it.
 
 **FRIZZ is simpler:** it builds `FRIZZ.bin`, has no `SDCallback()`, `FileStreamingManager`,
-NoSDPage or MenuPage, and no MIDI out; it does take MIDI clock in (`MidiClock.h` →
-`TempoClock.h`, with `TapTempo.h` as the fallback). It reads the card once at boot and writes it
+NoSDPage or MenuPage, and no MIDI out but its SysEx answers over USB; it takes MIDI clock in
+(`MidiClock.h` → `TempoClock.h`, with `TapTempo.h` as the fallback) and is played over MIDI
+(`MidiControl.h`: notes as keys, CCs, program changes, SysEx keys, knobs and queries, which
+`firmware/remote.py` uses to play twin scripts on the device and read its LEDs and load). It reads the card once at boot and writes it
 only from `MainLoop()` when an FX scene is saved, copied or deleted, or when the master
 compressor's knobs or the mono input setting have rested 2 s (`SceneStore.h`,
 `MasterSettings.h`), or a bug report is asked for (`EventLog.h`). Its files live in

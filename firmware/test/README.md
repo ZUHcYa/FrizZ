@@ -20,7 +20,8 @@ STRESS=1 ./run.sh work out.bin
 | `pitch`, `tape`, `delay`, `comp`, `clicks`, `level`, `sleep` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up events, the master compressor, moves that used to click, the level guard (an effect no louder than its input), effects that are off costing no time |
 | `scenes`, `store` | the scene and master files and the card: formats, a late card, backups |
 | `controls`, `keys`, `looper`, `tempo` | the play page's logic classes on their own: FX keys and knobs, SHIFT and the confirm, the looper, the tempo clock |
-| `ui` | the whole firmware from power-on on the virtual CHOMPI: keys through the 4021s, LEDs, the card, bug reports; each case on a fresh device |
+| `ui` | the whole firmware from power-on on the virtual CHOMPI: keys through the 4021s, LEDs, the card, bug reports, MIDI (notes, CCs, NRPN, program changes, Start/Stop, the SysEx and its USB answers); each case on a fresh device |
+| `remote` | `../remote.py` itself against the virtual CHOMPI: the twin's USB MIDI on a pseudo-terminal, remote.py run as it is (`--device`) while the twin keeps the wall clock's pace: state, LEDs, load, settings, scenes there and back, a script played with its `expect led` lines; needs `python3` |
 | `bench` | the CPU bench's firmware on the twin: it runs through and writes its file (the loads themselves need the device) |
 | `midi`, `sync` | MIDI in on the twin: ticks among and inside other messages, the jack and USB, which clock locks; and timing against a clock with a real sender's jitter: the FX's tempo, quantized loops' length and drift, the clock lost or switched mid-recording, the 2:45 limit, tap tempo |
 
