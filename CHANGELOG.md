@@ -61,6 +61,9 @@ what FRIZZ does.
   (the transport's colours at full speed, the boot animation).
 - Holding an FX key, then SHIFT with a control that does nothing (the transport, or a knob the
   effect doesn't use) no longer cancels the latch or a pending confirm.
+- The effects' tempo from a MIDI clock whose sender puts two ticks in one USB packet (some
+  computers and hosts do) ran fast, about 5 % (126 instead of 120 BPM), and flapped. Ticks
+  that arrive together now count as the time they share.
 
 ## v0.10 (2026-10-08)
 

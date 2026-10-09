@@ -13,22 +13,25 @@ static const double kMaxDriftPerMin = 1.; // ms a minute against the clock, once
 static const double kMaxRampLagMs = 500.; // the FX at a ramp's end tempo this soon after it
 
 // the senders: exact; a hardware sequencer (its timer's jitter, its crystal 50 ppm slow); a DAW
-// over USB (1 ms frames, its scheduling's jitter)
+// over USB (1 ms frames, its scheduling's jitter); a host that sends its ticks in pairs, so two
+// arrive in one block
 struct Sender
 {
     const char* name;
     double jitter_ms;
     bool usb;
     double drift_ppm;
+    bool pairs;
 };
-static const Sender kExact = {"exact", 0., false, 0.};
-static const Sender kSequencer = {"sequencer", .2, false, 50.};
-static const Sender kDaw = {"DAW", .3, true, 0.};
-static const Sender* const kSenders[] = {&kExact, &kSequencer, &kDaw};
+static const Sender kExact = {"exact", 0., false, 0., false};
+static const Sender kSequencer = {"sequencer", .2, false, 50., false};
+static const Sender kDaw = {"DAW", .3, true, 0., false};
+static const Sender kPairs = {"pairs", .3, true, 0., true};
+static const Sender* const kSenders[] = {&kExact, &kSequencer, &kDaw, &kPairs};
 
 static void StartClock(const Sender& s, double bpm)
 {
-    const ClockGen::Config c = Clock(bpm, s.jitter_ms, s.usb, s.drift_ppm);
+    const ClockGen::Config c = Clock(bpm, s.jitter_ms, s.usb, s.drift_ppm, s.pairs);
     if (s.usb)
         StartUsb(c);
     else

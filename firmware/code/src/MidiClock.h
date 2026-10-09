@@ -66,6 +66,7 @@ public:
         ticks_ = 0;
         locks_ = 0;
         period_ = 0.f;
+        pending_ = 0;
     }
 
     /** Drains both MIDI inputs. Call once per audio block from the audio callback.
@@ -83,6 +84,22 @@ public:
 
         while (usb_midi.HasEvents())
             HandleEvent(usb_midi.PopEvent(), Source::USB, now);
+
+        // the period from this block's ticks: all of them carry this block's time, so two
+        // that came in one block (a host batching its USB packets, a late tick catching up)
+        // share the time since the last block with a tick instead of giving it to the first
+        // and 0 to the second, which pulled the tempo up and down by a tenth
+        if (pending_ > 0)
+        {
+            if (now != last_tick_)
+            {
+                const float interval = static_cast<float>(now - last_tick_) / pending_;
+                // smooth out block-granularity and USB-frame jitter
+                period_ = period_ > 0.f ? period_ + .1f * (interval - period_) : interval;
+                last_tick_ = now;
+            }
+            pending_ = 0;
+        }
     }
 
     /** True while a source is locked, i.e. a tick arrived within the timeout */
@@ -140,10 +157,13 @@ private:
 
         if (source_ == Source::NONE)
         {
-            // new lock: the first tick only gives a timestamp, no period yet
+            // new lock: the first tick only gives a timestamp, no period yet; another in the
+            // same block has no time of its own to measure from, so it adds none either
             source_ = from;
             period_ = 0.f;
             locks_++;
+            last_tick_ = now;
+            pending_ = 0;
         }
         else if (from != source_)
         {
@@ -151,13 +171,10 @@ private:
         }
         else
         {
-            const float interval = static_cast<float>(now - last_tick_);
-            // smooth out block-granularity and USB-frame jitter
-            period_ = period_ > 0.f ? period_ + .1f * (interval - period_) : interval;
+            pending_++; // its period at the end of the block (Process)
         }
 
         ticks_++;
-        last_tick_ = now;
     }
 
     MidiUartHandler uart_midi;
@@ -169,6 +186,7 @@ private:
     uint32_t locks_;
     uint32_t last_tick_;
     float period_;
+    uint32_t pending_ = 0; // ticks this block, from the locked source, after its first
     volatile bool restart_ = false;
     Listener listener_ = nullptr;
     void* listener_context_ = nullptr;

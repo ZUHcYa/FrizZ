@@ -80,9 +80,10 @@ __attribute__((unused)) static void Tap(const char* key, uint32_t ms = 60)
 }
 
 static ClockGen::Config Clock(double bpm, double jitter_ms = 0., bool on_usb = false,
-                              double drift_ppm = 0.)
+                              double drift_ppm = 0., bool pairs = false)
 {
     ClockGen::Config c;
+    c.pairs = pairs;
     c.bpm = bpm;
     c.jitter_ms = jitter_ms;
     c.usb = on_usb;
