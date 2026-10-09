@@ -30,6 +30,10 @@ what FRIZZ does.
   off, which leaves more room for the effects that are on.
 - Turning the master compressor's knobs takes far less processing time while they glide,
   so it no longer adds to crackles on busy scenes.
+- The reverb and the delay take less processing time while they play: the reverb's slow
+  modulation no longer computes two cosines a sample, the delay no longer divides by the
+  tempo every sample. The delay sounds the same; the reverb's modulation is within a
+  thousandth of what it was.
 - Mono input (VOLUME's page 3) needs its 3 detents in one direction: turning back starts the
   count over, so wiggling the knob doesn't switch it.
 - A flash on a key that's already lit nearly white (a select on a loud effect or on the

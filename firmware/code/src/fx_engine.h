@@ -344,7 +344,7 @@ class FxEngine
                                     ? lfo_phase_[index] - 1.f
                                     : lfo_phase_[index];
 
-            offset += amplitude * cosf(lfo_phase_[index] * TWOPI_F);
+            offset += amplitude * Cos2Pi(lfo_phase_[index]);
 
             int32_t offset_integral = static_cast<int32_t>(offset);
             float   offset_fractional
@@ -360,6 +360,16 @@ class FxEngine
         }
 
       private:
+        /** cos(2 pi phase) for a phase of 0..1, within 0.001: a parabola with one correction
+         *  step, for the reverb's slow LFOs, where cosf twice a sample was a noticeable cost */
+        static inline float Cos2Pi(float phase)
+        {
+            float x = phase + .25f; // cos is sin a quarter on
+            x = 2.f * (x - static_cast<float>(static_cast<int32_t>(x))) - 1.f; // -1..1
+            const float y = -4.f * x * (1.f - fabsf(x));
+            return y + .225f * (y * fabsf(y) - y);
+        }
+
         float   accumulator_;
         float   previous_read_;
         T*      buffer_;

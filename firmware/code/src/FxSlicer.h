@@ -138,7 +138,7 @@ private:
     float attack_inc_;
     PressEnvelope env_[2];
     uint32_t pattern_pos_; // pulses into the pattern, kNumSteps 16ths
-    volatile bool step_;
+    bool step_; // ClockPulse and Process both run in the audio callback
     Rng rng_;
     size_t pattern_ = 0;
     size_t stereo_ = 0;

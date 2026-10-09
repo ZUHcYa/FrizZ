@@ -331,7 +331,7 @@ private:
     float* buf_[2];
     size_t frames_;
     volatile State state_;
-    volatile bool start_;
+    bool start_; // ClockPulse and Process both run in the audio callback
     volatile bool rearmed_;   // pressed again while running: a new capture at the next 16th
     size_t handover_;         // samples of the crossfade from the old loop left
     size_t old_len_[2] = {0, 0}; // the old loop, per channel (0: nothing to fade from)
