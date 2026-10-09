@@ -348,6 +348,8 @@ MidiClock.h            MIDI clock input over TRS and USB; hands the rest to Midi
 MidiControl.h          MIDI control: notes as keys, CCs, program changes, FRIZZ's SysEx (keys,
                        knobs, queries answered over USB for remote.py)
 NormalPage.h           the play page: routes the controls (VOLUME, PLAY/LOOP, transport, FX and scene keys) and draws the LEDs
+SettingsPage.h         the settings page (the mode switch up): MIDI channel and transport, mono,
+                       the clock factor, the LED brightness, the battery on VOLUME
 LedSignal.h            the play page's short LED signals: 3 red or white blinks, a flash
 ui.h                   page plumbing: events, page switching
 EventLog.h             the bug report: every key, knob and MIDI event since power-on, written as

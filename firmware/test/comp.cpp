@@ -264,6 +264,17 @@ static void TestFile()
     Check(ParseMaster("FRIZZ master 1\nmidi_channel 17\n", b) && b.midi_channel == 16
               && !b.midi_transport,
           "file: one from before MIDI, or a channel past 16: channel 16, no transport");
+
+    // the settings page's clock factor and LED brightness (SettingsPage.h)
+    a.Reset();
+    a.clock_factor = 200;
+    a.led_brightness = 50;
+    FormatMaster(a, buf, sizeof(buf));
+    Check(ParseMaster(buf, b) && b.clock_factor == 200 && b.led_brightness == 50,
+          "file: the clock factor and the LED brightness round-trip");
+    Check(ParseMaster("FRIZZ master 1\nclock_factor 300\nled_brightness 10\n", b)
+              && b.clock_factor == 100 && b.led_brightness == 100,
+          "file: one from before them, or values they can't take: x1, full");
 }
 
 /** The gain's ripple, dB, on a steady sine of freq Hz at 0dB: max minus min reduction

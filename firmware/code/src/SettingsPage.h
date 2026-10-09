@@ -1,0 +1,225 @@
+/** @file SettingsPage.h
+ *  @brief The settings page, while the mode switch is up: what is set once rather than played.
+ *  The play page (NormalPage.h) owns it, routes the hand's keys here while the switch is up
+ *  (ui.h) and draws it instead of itself; the loop, the effects and MIDI play on meanwhile.
+ *  MANUAL.md describes it for players.
+ *
+ *  The keys, chromatically from the lowest (C, the first white key), each in its group's
+ *  colour, the setting in force lit fully, the others dimly:
+ *
+ *    C .. D# of the upper octave (16 keys)  MIDI channel 1-16       light blue
+ *    E   all channels                                                light blue
+ *    F   MIDI transport following, on / off                          green
+ *    F#  mono input, on / off                                        white
+ *    G, G#, A  the clock's tempo factor: x1/2, x1, x2                yellow
+ *    A#, B, top C  the LEDs' brightness: 100, 75, 50 %               purple
+ *
+ *  Each key acts on its press. A key that went down on the play page stays the play page's
+ *  until it's let go, and the other way round (ui.h), so flipping the switch with a key held
+ *  doesn't let go of it. VOLUME's LED shows the battery's level throughout (Hardware's
+ *  BatteryLevel: white full or on the charger, green above 3.3 V, yellow below, red below
+ *  3 V); the transport LEDs are purple, so the page is never taken for the play page.
+ *
+ *  Each setting goes to the card as the master settings do (MasterSettings.h).
+ */
+#pragma once
+#include "hardware.h"
+#include "LedColors.h"
+#include "MasterSettings.h"
+#include "MidiClock.h"
+#include "MidiControl.h"
+#include "passthroughEngine.h"
+#include "temp_led_stuff.h"
+
+namespace chompi
+{
+
+class SettingsPage
+{
+public:
+    void Init(PassthroughEngine* engine, MidiControl* midi, Hardware* hw,
+              const MasterSettings& master)
+    {
+        engine_ = engine;
+        midi_ = midi;
+        hw_ = hw;
+        mono_ = master.mono;
+        engine_->SetMonoInput(mono_);
+        factor_ = master.clock_factor == 50    ? ClockFactor::HALF
+                  : master.clock_factor == 200 ? ClockFactor::DOUBLE
+                                               : ClockFactor::ONE;
+        midi_->SetClockFactor(factor_);
+        quarters_ = master.led_brightness / 25;
+        SetLedQuarters(quarters_);
+    }
+
+    /** A key going down on the page. True if it changed a setting, which then goes to the card */
+    bool Key(int key)
+    {
+        using S = Hardware::SwId;
+        for (uint8_t ch = 0; ch < kNumChannels; ch++)
+        {
+            if (key == static_cast<int>(kChannelKeys[ch]))
+                return SetChannel(ch + 1);
+        }
+        if (key == static_cast<int>(S::KEY_10))
+            return SetChannel(0);
+        if (key == static_cast<int>(S::KEY_11))
+        {
+            midi_->SetTransport(!midi_->Transport());
+            return true;
+        }
+        if (key == static_cast<int>(S::KEY_23))
+            return SetMono(!mono_);
+        for (uint8_t f = 0; f < 3; f++)
+        {
+            if (key == static_cast<int>(kFactorKeys[f]))
+            {
+                const ClockFactor factor = static_cast<ClockFactor>(f);
+                if (factor == factor_)
+                    return false;
+                factor_ = factor;
+                midi_->SetClockFactor(factor_);
+                return true;
+            }
+        }
+        for (uint8_t b = 0; b < 3; b++)
+        {
+            if (key == static_cast<int>(kBrightnessKeys[b]))
+            {
+                const uint8_t quarters = 4 - b;
+                if (quarters == quarters_)
+                    return false;
+                quarters_ = quarters;
+                SetLedQuarters(quarters_);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The mono input, from its key or MIDI (CC 60). True if it changed */
+    bool SetMono(bool mono)
+    {
+        if (mono == mono_)
+            return false;
+        mono_ = mono;
+        engine_->SetMonoInput(mono_);
+        return true;
+    }
+    inline bool Mono() const { return mono_; }
+
+    /** Its settings into the master settings, for the card */
+    void Store(MasterSettings& master) const
+    {
+        master.mono = mono_;
+        master.midi_channel = midi_->Channel();
+        master.midi_transport = midi_->Transport();
+        master.clock_factor = factor_ == ClockFactor::HALF     ? 50
+                              : factor_ == ClockFactor::DOUBLE ? 200
+                                                               : 100;
+        master.led_brightness = quarters_ * 25;
+    }
+
+    /** Every LED; the panel's were cleared */
+    void Draw()
+    {
+        for (int i = 0; i < kNumSmtLeds; i++)
+            SetSmtLed(i, 0, 0, 0);
+
+        const uint8_t channel = midi_->Channel();
+        for (uint8_t ch = 0; ch < kNumChannels; ch++)
+            KeyLed(kChannelKeys[ch], med_blue, channel == ch + 1);
+        KeyLed(Hardware::SwId::KEY_10, med_blue, channel == 0);
+        KeyLed(Hardware::SwId::KEY_11, green, midi_->Transport());
+        KeyLed(Hardware::SwId::KEY_23, white, mono_);
+        for (uint8_t f = 0; f < 3; f++)
+            KeyLed(kFactorKeys[f], yellow, static_cast<ClockFactor>(f) == factor_);
+        for (uint8_t b = 0; b < 3; b++)
+            KeyLed(kBrightnessKeys[b], purple, 4 - b == quarters_);
+
+        const unsigned level = hw_->GetBatteryLevel();
+        const float* battery = level < 4 ? kBatteryColors[level] : green;
+        SetPthLedFloat(kVolumeLed, battery[0], battery[1], battery[2]);
+        SetPthLedFloat(kTransportLedRev, purple[0], purple[1], purple[2]);
+        SetPthLedFloat(kTransportLedFwd, purple[0], purple[1], purple[2]);
+    }
+
+private:
+    bool SetChannel(uint8_t channel)
+    {
+        if (channel == midi_->Channel())
+            return false;
+        midi_->SetChannel(channel);
+        return true;
+    }
+
+    /** A key's LED in its group's colour: full when it's the setting in force, else dim */
+    static void KeyLed(Hardware::SwId key, const float* color, bool on)
+    {
+        const float level = on ? 1.f : kOffLevel;
+        SetSmtLedFloat(KeyLedOf(key), level * color[0], level * color[1], level * color[2]);
+    }
+
+    /** A key's SMT LED: the white keys right to left from 24, the dark keys left to right
+     *  from 0 (FxSlots.h, NormalPage.h's scene keys) */
+    static uint8_t KeyLedOf(Hardware::SwId key)
+    {
+        const int k = static_cast<int>(key);
+        for (uint8_t w = 0; w < 15; w++)
+            if (k == static_cast<int>(kWhiteKeys[w]))
+                return 24 - w;
+        for (uint8_t d = 0; d < 10; d++)
+            if (k == static_cast<int>(kDarkKeys[d]))
+                return d;
+        return 0;
+    }
+
+    static const uint8_t kNumChannels = 16;
+    static const uint8_t kVolumeLed = 9, kTransportLedRev = 5, kTransportLedFwd = 6;
+    static constexpr float kOffLevel = .15f; // as an FX key that's off (NormalPage.h)
+
+    // the 16 lowest keys, chromatically: C C# D D# E F F# G G# A A# B, then C C# D D#
+    static constexpr Hardware::SwId kChannelKeys[kNumChannels] = {
+        Hardware::SwId::KEY_1,  Hardware::SwId::KEY_16, Hardware::SwId::KEY_2,
+        Hardware::SwId::KEY_17, Hardware::SwId::KEY_3,  Hardware::SwId::KEY_4,
+        Hardware::SwId::KEY_18, Hardware::SwId::KEY_5,  Hardware::SwId::KEY_19,
+        Hardware::SwId::KEY_6,  Hardware::SwId::KEY_20, Hardware::SwId::KEY_7,
+        Hardware::SwId::KEY_8,  Hardware::SwId::KEY_21, Hardware::SwId::KEY_9,
+        Hardware::SwId::KEY_22};
+    // G, G#, A: x1/2, x1, x2 (ClockFactor's order)
+    static constexpr Hardware::SwId kFactorKeys[3] = {
+        Hardware::SwId::KEY_12, Hardware::SwId::KEY_24, Hardware::SwId::KEY_13};
+    // A#, B, top C: 100, 75, 50 %
+    static constexpr Hardware::SwId kBrightnessKeys[3] = {
+        Hardware::SwId::KEY_25, Hardware::SwId::KEY_14, Hardware::SwId::KEY_15};
+    static constexpr Hardware::SwId kWhiteKeys[15] = {
+        Hardware::SwId::KEY_1,  Hardware::SwId::KEY_2,  Hardware::SwId::KEY_3,
+        Hardware::SwId::KEY_4,  Hardware::SwId::KEY_5,  Hardware::SwId::KEY_6,
+        Hardware::SwId::KEY_7,  Hardware::SwId::KEY_8,  Hardware::SwId::KEY_9,
+        Hardware::SwId::KEY_10, Hardware::SwId::KEY_11, Hardware::SwId::KEY_12,
+        Hardware::SwId::KEY_13, Hardware::SwId::KEY_14, Hardware::SwId::KEY_15};
+    static constexpr Hardware::SwId kDarkKeys[10] = {
+        Hardware::SwId::KEY_16, Hardware::SwId::KEY_17, Hardware::SwId::KEY_18,
+        Hardware::SwId::KEY_19, Hardware::SwId::KEY_20, Hardware::SwId::KEY_21,
+        Hardware::SwId::KEY_22, Hardware::SwId::KEY_23, Hardware::SwId::KEY_24,
+        Hardware::SwId::KEY_25};
+    // the battery's level, by Hardware::BatteryLevel
+    static constexpr const float* kBatteryColors[4] = {white, green, yellow, red};
+
+    PassthroughEngine* engine_ = nullptr;
+    MidiControl* midi_ = nullptr;
+    Hardware* hw_ = nullptr;
+    bool mono_ = false;
+    ClockFactor factor_ = ClockFactor::ONE;
+    uint8_t quarters_ = 4;
+};
+
+constexpr Hardware::SwId SettingsPage::kChannelKeys[];
+constexpr Hardware::SwId SettingsPage::kFactorKeys[];
+constexpr Hardware::SwId SettingsPage::kBrightnessKeys[];
+constexpr Hardware::SwId SettingsPage::kWhiteKeys[];
+constexpr Hardware::SwId SettingsPage::kDarkKeys[];
+constexpr const float* SettingsPage::kBatteryColors[];
+
+} // namespace chompi

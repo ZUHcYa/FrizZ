@@ -214,9 +214,9 @@ private:
      *  once, dated back to its last tick; a tempo change of a running clock once it settles */
     EVENT_LOG_ONCE void FollowClock(uint32_t now, const MidiClock& clock)
     {
-        if (clock.GetLocks() != locks_seen_)
+        if (clock.SenderLocks() != locks_seen_)
         {
-            locks_seen_ = clock.GetLocks();
+            locks_seen_ = clock.SenderLocks();
             locked_at_ = now;
             clock_logged_ = 0;
             clock_last_ = 0;
@@ -231,7 +231,7 @@ private:
         if (now - clock_checked_ < kClockCheckMs)
             return;
         clock_checked_ = now;
-        const int16_t tenths = static_cast<int16_t>(clock.GetBpm() * 10.f + .5f);
+        const int16_t tenths = static_cast<int16_t>(clock.SenderBpm() * 10.f + .5f);
         const bool steady = tenths > 0 && abs(tenths - clock_last_) <= kClockSteady;
         clock_last_ = tenths;
         if (steady && (clock_logged_ == 0 || abs(tenths - clock_logged_) > kClockChange))

@@ -1,6 +1,7 @@
 /** @file MasterSettings.h
  *  @brief What the play page keeps on the card outside the scenes: the master compressor's
- *  knobs (MasterComp.h), the mono input and the MIDI settings (MidiControl.h), and their text
+ *  knobs (MasterComp.h), the settings page's (SettingsPage.h: the mono input, the MIDI
+ *  settings, the clock's tempo factor, the LEDs' brightness), and their text
  *  format (SceneStore.h writes it). No
  *  hardware here, so the format can be tested on the host.
  *
@@ -12,7 +13,12 @@
  *    mono 0
  *    midi_channel 16
  *    midi_transport 0
+ *    clock_factor 100
+ *    led_brightness 100
  *
+ *  clock_factor is how FRIZZ follows a MIDI clock, in percent of its tempo: 50, 100 or 200;
+ *  led_brightness the LEDs' in percent of FRIZZ's full: 100, 75 or 50. Another value keeps the
+ *  default.
  *  Reading, unknown lines are skipped and a setting the file leaves out keeps its default, so
  *  more settings can join later. A file from before the randomizer was removed still has its
  *  line; it's skipped, and the next write leaves it out.
@@ -33,6 +39,8 @@ struct MasterSettings
     bool mono;  // the AUX input's left channel to both sides, for a mono (TS) cable
     uint8_t midi_channel; // the channel FRIZZ listens on, 1-16, or 0 for all
     bool midi_transport;  // MIDI Start, Continue and Stop play and pause the loop
+    uint8_t clock_factor;   // percent of the clock's tempo FRIZZ follows: 50, 100, 200
+    uint8_t led_brightness; // percent: 100, 75, 50
 
     /** Every setting on its default */
     void Reset()
@@ -42,6 +50,8 @@ struct MasterSettings
         mono = false;
         midi_channel = kDefaultMidiChannel;
         midi_transport = false;
+        clock_factor = 100;
+        led_brightness = 100;
     }
 
     // the last channel, which a setup sending notes to other instruments uses least
@@ -66,6 +76,10 @@ inline size_t FormatMaster(const MasterSettings& settings, char* buf, size_t siz
     Put(buf, size, pos, "\nmidi_channel ");
     PutUint(buf, size, pos, settings.midi_channel);
     Put(buf, size, pos, settings.midi_transport ? "\nmidi_transport 1" : "\nmidi_transport 0");
+    Put(buf, size, pos, "\nclock_factor ");
+    PutUint(buf, size, pos, settings.clock_factor);
+    Put(buf, size, pos, "\nled_brightness ");
+    PutUint(buf, size, pos, settings.led_brightness);
     Put(buf, size, pos, "\n");
     buf[pos] = '\0';
     return pos + 1 < size ? pos : 0;
@@ -108,6 +122,22 @@ inline bool ParseMaster(const char* text, MasterSettings& settings)
             const char* num = Word(p, len);
             if (num)
                 settings.midi_transport = strtol(num, nullptr, 10) != 0;
+            continue;
+        }
+        if (word && Is(word, len, "clock_factor"))
+        {
+            const char* num = Word(p, len);
+            const long v = num ? strtol(num, nullptr, 10) : -1;
+            if (v == 50 || v == 100 || v == 200)
+                settings.clock_factor = static_cast<uint8_t>(v);
+            continue;
+        }
+        if (word && Is(word, len, "led_brightness"))
+        {
+            const char* num = Word(p, len);
+            const long v = num ? strtol(num, nullptr, 10) : -1;
+            if (v == 50 || v == 75 || v == 100)
+                settings.led_brightness = static_cast<uint8_t>(v);
             continue;
         }
         if (word && Is(word, len, "compressor"))

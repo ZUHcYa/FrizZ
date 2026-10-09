@@ -13,6 +13,11 @@
  *
  *  The UART/USB setup is from WAVE's MidiManager.h. See LOOPER.md 1.4.
  *
+ *  The tempo factor (the settings page, SettingsPage.h) makes FRIZZ follow the clock at half
+ *  or double its tempo: what the looper and TempoClock read (the ticks, their period, the
+ *  tempo) counts every tick twice, or every other one. The event log keeps what was sent
+ *  (SenderBpm, SenderLocks), since a bug report's card carries the factor.
+ *
  *  One other message is read: the SysEx F0 7D 43 48 10 F7 asks for a restart, so a computer
  *  can get the CHOMPI back to the multi-firmware launcher without the power switch
  *  (firmware/flash.py). The header is the launcher's (7D, non-commercial, then "CH";
@@ -35,6 +40,14 @@ static const uint32_t kTicksPerBeat = 24;
 static const uint32_t kBeatsPerBar = 4;                 // 4/4 fixed
 static const uint32_t kTicksPerBar = kTicksPerBeat * kBeatsPerBar;
 static const uint32_t kClockTimeoutSamples = 24000;     // 0.5s at 48kHz
+
+// How FRIZZ follows the clock: at half its tempo, as sent, or at double
+enum class ClockFactor : uint8_t
+{
+    HALF,
+    ONE,
+    DOUBLE,
+};
 
 class MidiClock
 {
@@ -65,6 +78,9 @@ public:
         source_ = Source::NONE;
         ticks_ = 0;
         locks_ = 0;
+        changes_ = 0;
+        counted_at_ = 0;
+        factor_ = ClockFactor::ONE;
         period_ = 0.f;
         held_ = 0.f;
     }
@@ -89,25 +105,44 @@ public:
     /** True while a source is locked, i.e. a tick arrived within the timeout */
     inline bool HasClock() const { return source_ != Source::NONE; }
 
-    /** How many times a source has locked: a change means the clock was lost and found again,
-     *  maybe within one block, so a count of ticks across it means nothing */
-    inline uint32_t GetLocks() const { return locks_; }
+    /** How many times a source has locked, or the factor changed: a change means the clock
+     *  was lost and found again, maybe within one block, or counts differently now, so a
+     *  count of ticks across it means nothing */
+    inline uint32_t GetLocks() const { return locks_ + changes_; }
 
-    /** Running count of ticks from the locked source. Only differences are meaningful:
-     *  the looper snapshots it at the record press and counts from there. */
+    /** Running count of ticks from the locked source, by the factor. Only differences are
+     *  meaningful: the looper snapshots it at the record press and counts from there. */
     inline uint32_t GetTicks() const { return ticks_; }
 
-    /** Sample count of the most recent tick */
-    inline uint32_t GetLastTickTime() const { return last_tick_; }
+    /** Sample count of the most recent tick counted */
+    inline uint32_t GetLastTickTime() const { return counted_at_; }
 
-    /** Smoothed tick period in samples, 0 until two ticks have arrived from one source */
-    inline float GetTickPeriod() const { return period_; }
-
-    /** Smoothed tempo, 0 when there's no period yet */
-    inline float GetBpm() const
+    /** Smoothed tick period in samples, by the factor, 0 until two ticks have arrived from one
+     *  source */
+    inline float GetTickPeriod() const
     {
-        return period_ > 0.f ? sample_rate_ * 60.f / (period_ * kTicksPerBeat) : 0.f;
+        return factor_ == ClockFactor::HALF     ? 2.f * period_
+               : factor_ == ClockFactor::DOUBLE ? .5f * period_
+                                                : period_;
     }
+
+    /** Smoothed tempo, by the factor, 0 when there's no period yet */
+    inline float GetBpm() const { return Bpm(GetTickPeriod()); }
+
+    /** The tempo and the locks as sent, whatever the factor: for the event log */
+    inline float SenderBpm() const { return Bpm(period_); }
+    inline uint32_t SenderLocks() const { return locks_; }
+
+    /** From MainLoop: the factor, from the next tick on */
+    void SetFactor(ClockFactor factor)
+    {
+        if (factor == factor_)
+            return;
+        ScopedIrqBlocker irq;
+        factor_ = factor;
+        changes_++;
+    }
+    inline ClockFactor Factor() const { return factor_; }
 
     /** True once a restart was asked for over MIDI, from either input */
     inline bool RestartRequested() const { return restart_; }
@@ -124,6 +159,11 @@ public:
     void SendUsb(uint8_t* bytes, size_t size) { usb_midi.SendMessage(bytes, size); }
 
 private:
+    inline float Bpm(float period) const
+    {
+        return period > 0.f ? sample_rate_ * 60.f / (period * kTicksPerBeat) : 0.f;
+    }
+
     /** One step of the period's smoothing, against block-granularity and USB-frame jitter.
      *  A pair of ticks sent close together (in one USB packet, or a late one catching up)
      *  comes in as a long interval and a short one: smoothed one by one, they pulled the
@@ -156,6 +196,7 @@ private:
             period_ = 0.f;
             locks_++;
             held_ = 0.f;
+            skipped_ = true; // at half, the first tick counts
         }
         else if (from != source_)
         {
@@ -184,8 +225,16 @@ private:
                 Smooth(interval);
         }
 
-        ticks_++;
         last_tick_ = now;
+        // counted twice, as it came, or every other one
+        if (factor_ == ClockFactor::HALF)
+        {
+            skipped_ = !skipped_;
+            if (skipped_)
+                return;
+        }
+        ticks_ += factor_ == ClockFactor::DOUBLE ? 2 : 1;
+        counted_at_ = now;
     }
 
     MidiUartHandler uart_midi;
@@ -193,9 +242,13 @@ private:
 
     float sample_rate_;
     Source source_;
-    uint32_t ticks_;
+    uint32_t ticks_;      // counted, by the factor
     uint32_t locks_;
-    uint32_t last_tick_;
+    uint32_t changes_;    // of the factor
+    uint32_t last_tick_;  // the last tick that came
+    uint32_t counted_at_; // the last tick counted
+    volatile ClockFactor factor_;
+    bool skipped_ = false; // at half: the last tick wasn't counted
     float period_;
     float held_ = 0.f; // a long interval waiting for the next tick, 0 for none
     volatile bool restart_ = false;

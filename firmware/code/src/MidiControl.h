@@ -209,6 +209,12 @@ public:
     inline uint8_t Channel() const { return channel_; }
     inline bool Transport() const { return transport_; }
 
+    /** The settings page's (SettingsPage.h): the channel (0 all), transport following, and
+     *  how the clock is followed */
+    inline void SetChannel(uint8_t channel) { channel_ = channel; }
+    inline void SetTransport(bool on) { transport_ = on; }
+    inline void SetClockFactor(ClockFactor factor) { clock_->SetFactor(factor); }
+
     /** The load since the last call, max and mean, in 1/1000 of a block */
     void TakeLoad(uint16_t& max, uint16_t& mean)
     {

@@ -3,7 +3,8 @@
 Every control in FRIZZ. For a first session, start with the [quick guide](QUICKSTART.md).
 
 **SHIFT** means holding the CHOMPI key. The CHOMPI key lights white while it acts as SHIFT.
-The mode switch does nothing in play mode (a [bug report](#bug-reports) notes its flips, though).
+The mode switch picks the page: **down** is the play page, everything below; **up** is the
+[settings page](#settings-page), for what you set once rather than play.
 
 ## Overview
 
@@ -20,14 +21,12 @@ white key, sits after the effects. The built-in microphone is not used.
 |---|---|---|
 | Turn (page 1, default) | Output gain, headphone + master (default 75%) | VU meter of the master, scaled by gain |
 | Press, then turn (page 2) | Input gain, AUX (default 75%) | blue (0%) to red (100%) |
-| Press twice, then turn (page 3) | [Mono input](#mono-input): 3 detents left = mono, 3 right = stereo (default: stereo) | light blue (stereo), white (mono) |
-| Press three times, then turn (page 4) | Headphone feed: left towards the AUX input on its own, right back to the master out (default: the master out) | white (master) to green (input) |
+| Press twice, then turn (page 3) | Headphone feed: left towards the AUX input on its own, right back to the master out (default: the master out) | white (master) to green (input) |
 | SHIFT + turn | Input/loop mix: input only to looper only | green (input) to purple (loop) |
 | SHIFT + press | Resets the mix: the loop only while there is one, otherwise the input only | |
-| Press and hold 1.25 s | Battery check | white: full, on the charger; green: above 3.3 V; yellow: below; red: below 3 V, about to switch off unless charging |
 
-Turning moves the gains 2% per detent, the mix (SHIFT + turn) 4% and the headphone feed 1%;
-page 3 switches after 3 detents. Pressing again on page 4 returns to page 1.
+Turning moves the gains 2% per detent, the mix (SHIFT + turn) 4% and the headphone feed 1%.
+Pressing again on page 3 returns to page 1.
 Picking a page blinks its number in white: once for page 1, twice for 2, and so on. Whether a press
 is SHIFT + press is decided when it goes down, so letting go of CHOMPI first doesn't also
 change the page. The mix starts
@@ -35,7 +34,7 @@ on the input only, jumps to the loop only when a recording finishes and back to 
 when the loop is erased; SHIFT + press puts it back there. The punch-in FX come after this mix,
 so they act on the input as well as the loop.
 
-**Headphone feed (page 4):** the master out always carries the full signal. Turned left, the
+**Headphone feed (page 3):** the master out always carries the full signal. Turned left, the
 headphones carry the AUX input on its own instead, after input gain and VOLUME: no loop, no
 effects, no mix, no compressor. Use it when the master goes to a PA, mixer or recorder and the
 headphones are your monitor; with headphones alone, leave it at the master. It's back on the
@@ -43,25 +42,50 @@ master at every power-on.
 
 (Page 3 used to be the master compressor, which has its own key now, see
 [Master compressor](#master-compressor). The headphone feed used to be on the mode switch,
-then on page 3.)
+then on page 4. Mono and the battery check moved to the [settings page](#settings-page).)
 
-## Mono input
+## Settings page
 
-VOLUME's page 3 switches the AUX input between stereo and mono. Mono is for a mono (TS)
-cable, such as one from a Lyra-8 or a guitar pedal: the plug grounds the right channel, so in
-stereo the source is heard on the left only. In mono the left channel feeds both sides, and the
-effects' stereo knobs spread it from there.
+From v0.11. With the mode switch **up**, the keys set what you'd set once for a setup rather
+than play: the MIDI channel, MIDI transport following, the mono input, how FRIZZ follows a
+MIDI clock and how bright its LEDs are. The loop, the effects and MIDI play on meanwhile;
+only your hands are on this page. Switch back down to play.
 
-| On VOLUME's page 3 | Result |
-|---|---|
-| Turn left 3 detents | Mono |
-| Turn right 3 detents | Stereo |
+Each key sets one thing on its press. They're in groups, by colour: the setting in force is
+lit fully, the others in its group dimly. Counted from the lowest key, chromatically (white and
+dark keys in turn, as on a keyboard):
 
-- LED: VOLUME is white while mono, light blue while stereo, on page 3.
-- It takes 3 detents in one direction, so a nudge doesn't switch it; turning back or
-  picking another page starts the count over.
-- It's saved on the card with the master compressor, so it comes back at
-  power-on. It isn't part of a scene.
+| Keys | Setting | Colour |
+|---|---|---|
+| The 16 lowest: C up to D# of the upper octave | [MIDI channel](#channel) 1 to 16 (default 16: the D# of the upper octave) | light blue |
+| E of the upper octave | MIDI on every channel | light blue |
+| F | [MIDI transport following](#start-and-stop): on (lit) / off (dim) | green |
+| F# | [Mono input](#mono-input): mono (lit) / stereo (dim) | white |
+| G, G#, A | [Clock factor](#midi-clock): half, as sent (default), double | yellow |
+| A#, B, the top C | LED brightness: 100 % (default), 75 %, 50 % | purple |
+
+- **VOLUME's LED** shows the battery all the time: white full or on the charger, green above
+  3.3 V, yellow below, red below 3 V (about to switch off unless charging). It's read every
+  30 s.
+- The transport LEDs are purple, so the page can't be mistaken for the play page.
+- The knobs, CHOMPI, PLAY and LOOP do nothing here.
+- A key you're holding when you flip the switch stays where it went down until you let go:
+  an effect you hold keeps going, and the key doesn't also change a setting. The same the
+  other way round.
+- Every setting is saved on the card with the master compressor, 2 s after the last change,
+  so it comes back at power-on. None is part of a scene.
+
+### Mono input
+
+Mono is for a mono (TS) cable, such as one from a Lyra-8 or a guitar pedal: the plug grounds
+the right channel, so in stereo the source is heard on the left only. In mono the left channel
+feeds both sides, and the effects' stereo knobs spread it from there. Its key (F#) toggles it;
+MIDI CC 60 sets it too.
+
+### LED brightness
+
+At 75 % or 50 % every LED is dimmer by that much, for a dark stage. The dim colours keep their
+hue, and nothing lit at 100 % goes dark. Full is as bright as FRIZZ has always been.
 
 ## Looper
 
@@ -573,12 +597,19 @@ Quantized recording, and the effects' tempo while there's no loop, follow MIDI c
 (24 PPQN). Whichever source ticks first is used, until it has been silent for 0.5 s. The clock
 is read on every channel.
 
+The **clock factor** on the [settings page](#settings-page) makes FRIZZ follow the clock at
+half its tempo or at double: a DAW at 70 BPM with FRIZZ thinking in 140, or the other way
+round. It counts for everything that follows the clock: the bars of a quantized recording and
+the effects' tempo. A loop, once there is one, keeps its own tempo. Changing it while a
+quantized recording ends that recording where it is, as a lost clock does.
+
 ### Channel
 
 Notes, controllers and program changes count on one channel: **16** at first, the one a
 setup sending notes to other instruments over the same cable uses least. FRIZZ keeps it on
 the card, in `FRIZZ/frizz_master.txt` (`midi_channel 16`; 0 listens on every channel). Change
-it there, or from a computer with `firmware/remote.py channel N`.
+it on the [settings page](#settings-page), in the file, or from a computer with
+`firmware/remote.py channel N`.
 
 ### Notes: the keys
 
@@ -638,7 +669,8 @@ delete mode the slot. 5 and above are ignored.
 
 With transport following on, MIDI Start and Continue play the loop and Stop pauses it, so
 a DAW's play button starts and stops the loop with the song. It's off at first; switch it on
-with `firmware/remote.py transport on`, or `midi_transport 1` in `FRIZZ/frizz_master.txt`.
+on the [settings page](#settings-page) (F of the upper octave), with `firmware/remote.py
+transport on`, or `midi_transport 1` in `FRIZZ/frizz_master.txt`.
 Start plays on from where the loop is, as Continue does: the loop doesn't jump to its start.
 
 ### Remote control
@@ -674,6 +706,8 @@ did, key for key.
   and LOOP LEDs flash amber for 15 s, then the CHOMPI switches itself off. Plugging in power
   during those 15 s stops it.
   On a charger too weak to run it with a low battery, it goes dark until it has charged.
+- **Battery check:** the [settings page](#settings-page) shows the battery's level on VOLUME's
+  LED.
 - **Shipping mode:** hold CHOMPI, PLAY and LOOP while switching on: the battery is
   disconnected until the CHOMPI is plugged into power again. Use it to store it for weeks.
 - **Hardware test:** FRIZZ has no self-test of its own. To check keys, knobs and LEDs, put the
