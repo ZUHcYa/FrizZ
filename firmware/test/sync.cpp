@@ -486,9 +486,9 @@ int main()
         Check(Worst(r, "tempo-to-120") == 0.,
               "tempo: a clock at whole BPM up to 120, from every sender: the FX's tempo holds still");
         Known(Worst(r, "tempo-above-120") == 0.,
-              "tempo: a clock at 174 or 300 BPM, from every sender: the FX's tempo holds still");
+              "tempo: a clock at 174 or 300 BPM, from every sender: the FX's tempo holds still (#19)");
         Known(Worst(r, "tempo-between") == 0.,
-              "tempo: a clock between two whole BPM (120.4), from every sender: the FX's tempo holds still");
+              "tempo: a clock between two whole BPM (120.4), from every sender: the FX's tempo holds still (#19)");
         Report("loop length error, worst: %.1f samples from an exact clock, %.1f from a sequencer or "
                "DAW, %.1f from a host catching up; drift, worst: %.2f ms a minute",
                Worst(r, "loop-error-exact"), Worst(r, "loop-error-real"), Worst(r, "loop-error-catch-up"),
@@ -497,11 +497,11 @@ int main()
               "loop: from an exact clock, every quantized loop within a block of its bars");
         Check(Worst(r, "loop-error-real") <= kMaxLoopError,
               "loop: from a sequencer or a DAW, every quantized loop within a block of its bars");
-        // found 2026-10-09: every other tick a frame early throws the looper's fit (Looper.h,
+        // #17, found 2026-10-09: every other tick a frame early throws the looper's fit (Looper.h,
         // TrackRecordingClock) off by up to 56 samples on a 1-bar loop, on main as well
         Known(Worst(r, "loop-error-catch-up") <= kMaxLoopError,
-              "loop: from a host catching up late ticks, every quantized loop within a block of its bars");
+              "loop: from a host catching up late ticks, every quantized loop within a block of its bars (#17)");
         Known(Worst(r, "loop-drift") <= kMaxDriftPerMin,
-              "loop: every quantized loop drifts under 1 ms a minute against the clock");
+              "loop: every quantized loop drifts under 1 ms a minute against the clock (#20, not planned)");
     });
 }
