@@ -165,11 +165,21 @@ static void StopAt(double start, double at_ms)
     Tap("KEY_28");
 }
 
-static void LoopCase(const Sender& s, double bpm, int bars)
+/** factor: the settings page's clock factor (SettingsPage.h), 2 or .5 counting the clock's
+ *  ticks twice or every other one, so its bars are half or twice as long */
+static void LoopCase(const Sender& s, double bpm, int bars, double factor = 1.)
 {
     StartClock(s, bpm);
     RunMs(kReadyMs);
-    const double tick = Gen(s).TickSamples(BlockMs());
+    if (factor != 1.)
+    {
+        SetToggle(true);
+        RunMs(200);
+        Tap(factor > 1. ? "KEY_13" : "KEY_12");
+        SetToggle(false);
+        RunMs(1000);
+    }
+    const double tick = Gen(s).TickSamples(BlockMs()) / factor;
     const double bar_ms = 96. * tick / 48.;
     StopAt(StartQuantized(), (bars - .5) * bar_ms);
     RunUntil([] { return Probe().loop_state == 2; }, bar_ms + 500.);
@@ -197,7 +207,9 @@ static void LoopCase(const Sender& s, double bpm, int bars)
            "(%+.1f ms after 100 passes), measured %+.2f ms in 30 s; %llu pulses for %.0f",
            s.name, bpm, bars, bars > 1 ? "s" : " ", c.loop_length, ideal, err, c.loop_beats,
            per_min, err * 100. / 48., max_drift, (unsigned long long)pulses.count, want_pulses);
-    const std::string base = Name("loop", s, bpm) + std::to_string(bars) + (bars > 1 ? " bars, " : " bar, ");
+    std::string base = Name("loop", s, bpm) + std::to_string(bars) + (bars > 1 ? " bars, " : " bar, ");
+    if (factor != 1.)
+        base += factor > 1. ? "x2, " : "x1/2, ";
     Check(c.loop_state == 2 && c.loop_beats == static_cast<uint32_t>(bars * 4),
           (base + "closes on its bars").c_str());
     Check(fabs(pulses.count - want_pulses) <= 2., (base + "12 pulses a beat of the loop").c_str());
@@ -207,6 +219,8 @@ static void LoopCase(const Sender& s, double bpm, int bars)
     const double seen = passes ? watch.wraps[passes] - watch.wraps[0] - passes * ideal / 48. : 0.;
     Check(passes > 0 && fabs(seen - passes * err / 48.) <= 1.,
           (base + "its loop point moves as its length says").c_str());
+    if (factor != 1.)
+        return; // the summary's figures are the clock as sent
     Record(&s == &kExact ? "loop-error-exact" : &s == &kCatchUp ? "loop-error-catch-up" : "loop-error-real", err);
     Record("loop-drift", per_min);
 }
@@ -271,6 +285,12 @@ int main()
         for (double bpm : {90., 120., 174.})
             for (int bars : {1, 4})
                 cases.push_back({"loop", [s, bpm, bars] { LoopCase(*s, bpm, bars); }});
+
+    // the same at the clock factor's x2 and x1/2: a pair, or a late tick catching up, counts
+    // four ticks at one time at x2
+    for (const Sender* s : {&kExact, &kPairs, &kCatchUp})
+        for (double factor : {2., .5})
+            cases.push_back({"loop-factor", [s, factor] { LoopCase(*s, 120., 1, factor); }});
 
     // the strict rule: a stop just after a bar line records another bar, just before doesn't
     for (double off : {-12., 12.})

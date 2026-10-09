@@ -26,7 +26,8 @@ static const int kVolumeEncoder = 6, kKnob1Encoder = 4; // SW6, SW4
 static const int kTransportRevLed = 5, kTransportFwdLed = 6, kVolumeLed = 9;
 static const int kSlot1Led = 1, kCompKeyLed = 10, kTapeStopKeyLed = 15;
 // the settings page's (SettingsPage.h): F# of the upper octave, C and D# of the upper octave
-static const int kMonoKeyLed = 7, kChannel1Led = 24, kChannel16Led = 6, kTransportKeyLed = 14;
+static const int kMonoKeyLed = 7, kChannel1Led = 24, kChannel3Led = 23, kChannel16Led = 6,
+                 kTransportKeyLed = 14;
 
 static bool sine = true;
 static float amp = .3f, freq = 220.f, phase = 0.f;
@@ -607,6 +608,48 @@ int main()
         Check(fabsf(held - dry) < dry * .05f,
               "settings-boot: switched on with the switch up, the keys set: the tape stop's doesn't stop");
         Check(Max(PthLedFull(kTransportRevLed)) > 0, "settings-boot: and the page shows");
+    }});
+
+    // PLAY held through the flip acts on its release as ever; LOOP up there doesn't erase
+    cases.push_back({"settings-play", [] {
+        RunMs(kReadyMs);
+        Tap("KEY_28");
+        RunMs(1500);
+        Tap("KEY_28");
+        RunMs(500);
+        Check(Probe().loop_state == 2, "settings-play: a loop plays");
+        Press("KEY_27", true);
+        RunMs(100);
+        SetToggle(true);
+        RunMs(500);
+        Press("KEY_27", false);
+        RunMs(300);
+        Check(Probe().loop_state == 3, "settings-play: PLAY held through the flip up pauses on its release");
+        Tap("KEY_28");
+        Tap("KEY_27");
+        RunMs(500);
+        Check(Probe().loop_state == 3, "settings-play: LOOP and PLAY up there neither erase nor play");
+    }});
+
+    // a card with every setting on: in force from power-on
+    cases.push_back({"settings-kept", [] {
+        CardFiles()["/FRIZZ/frizz_master.txt"]
+            = "FRIZZ master 1\nmono 1\nmidi_channel 3\nmidi_transport 1\nclock_factor 200\nled_brightness 50\n";
+        clock_bpm = 120.f;
+        RunMs(kReadyMs);
+        RunMs(2000);
+        Check(Probe().tempo == 240, "settings-kept: the clock factor x2 from the card: 120 BPM followed at 240");
+        const int filter = Max(SmtLed(kFilterKeyLed));
+        Check(filter >= 3 && filter <= 5, "settings-kept: the LEDs at half from the card (an off FX key's 9 at 4)");
+        const std::string state = Ask({0x20});
+        Check(state.size() > 6 && (state[6] & 32), "settings-kept: mono from the card");
+        const std::string settings = Ask({0x24});
+        Check(settings.size() == 2 && settings[0] == 3 && settings[1] == 1,
+              "settings-kept: channel 3 and transport following from the card");
+        SetToggle(true);
+        RunMs(300);
+        Check(Max(SmtLed(kMonoKeyLed)) > 0 && Max(SmtLed(kChannel3Led)) > Max(SmtLed(kChannel1Led)),
+              "settings-kept: and the page shows them");
     }});
 
     // the clock's tempo factor: x1/2, x1, x2 of a 120 BPM clock

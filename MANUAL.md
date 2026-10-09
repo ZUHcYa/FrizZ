@@ -4,7 +4,8 @@ Every control in FRIZZ. For a first session, start with the [quick guide](QUICKS
 
 **SHIFT** means holding the CHOMPI key. The CHOMPI key lights white while it acts as SHIFT.
 The mode switch picks the page: **down** is the play page, everything below; **up** is the
-[settings page](#settings-page), for what you set once rather than play.
+[settings page](#settings-page), for what you set once rather than play. Until v0.11 the switch
+did nothing, so if the keys don't play after updating, flip it down.
 
 ## Overview
 

@@ -31,6 +31,8 @@ what FRIZZ does.
 
 ### Changed
 
+- **The mode switch now matters:** down is the play page, up the settings page. If the keys
+  don't play after updating, flip it down.
 - The mono input moved from VOLUME's page 3 to the settings page (F# of the upper octave), and
   the battery check from holding VOLUME to the settings page's VOLUME LED. VOLUME has three
   pages now: output, input, headphones.
