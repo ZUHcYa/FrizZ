@@ -696,6 +696,30 @@ int main()
               "restart: a setting changed just before is on the card when it restarts");
     }});
 
+    // a restart while a DAW's automation keeps changing the compressor: it waits for the card
+    // once, not for the automation to stop
+    cases.push_back({"restart-automation", [] {
+        RunMs(kReadyMs);
+        bool asked = false;
+        uint32_t asked_at = 0;
+        for (int i = 0; i < 300 && !Restarted(); i++) // 3 s of a CC every 10 ms
+        {
+            Usb({kCC, kCompAmountCC, static_cast<uint8_t>(i % 128)});
+            RunMs(10);
+            if (i == 50)
+            {
+                for (uint8_t b : {0xF0, 0x7D, 0x43, 0x48, 0x10, 0xF7})
+                    Midi(b);
+                asked = true;
+                asked_at = NowMs();
+            }
+        }
+        const uint32_t took = NowMs() - asked_at;
+        printf("      restarted %u ms after it was asked for\n", took);
+        Check(asked && Restarted() && took <= 1200,
+              "restart: under a stream of compressor CCs, within a second of being asked");
+    }});
+
     // the event log (EventLog.h): a session, SHIFT + transport press, its file on the card
     cases.push_back({"bug-log", [] {
         TakeCard(); // card-3's: scenes in slots 1 and 2

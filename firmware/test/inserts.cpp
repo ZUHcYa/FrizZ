@@ -58,8 +58,10 @@ static void TestFolder()
     printf("  folder: %+.1fdB at -30dBFS, %+.1fdB at -6dBFS (full drive), %+.1fdB at no drive\n", quiet,
            loud, low);
     Check(fabsf(quiet) < 3.f && fabsf(low) < 3.f, "folder: on, level-matched to its input within 3dB");
-    // a loud input at full drive folds most of it into harmonics the tone takes out: the
-    // match turns up by at most kMaxMatch (6dB), so it may come out quieter, never louder
+    // a loud input at full drive with the tone at its darkest (the effect's Init, not the
+    // panel's open default) folds most of it into harmonics the tone takes out: the match
+    // turns up by at most kMaxMatch (6dB), so it comes out up to 4dB quieter, never louder;
+    // with the tone half open or more it matches to 0.1dB
     Check(loud < 1.f && loud > -6.5f, "folder: full drive on a loud input: no louder, at most 6dB down");
 }
 

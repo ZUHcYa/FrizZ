@@ -70,8 +70,9 @@ what FRIZZ does.
   and flapped. A pair now counts as two ticks of the right length.
 - A bug report that couldn't be written (the card full) left its file open on the card; it's
   now closed, so the card stays sound and the next report is written.
-- A restart over MIDI (the multi-firmware launcher's) right after a setting changed lost the
-  setting; it now goes to the card first.
+- A restart over MIDI (FRIZZ's own SysEx, which `flash.py`, `card.py` and `remote.py` send to
+  get back to the multi-firmware launcher) right after a setting changed lost the setting; it
+  now goes to the card first (waiting a second at most).
 
 ## v0.10 (2026-10-08)
 

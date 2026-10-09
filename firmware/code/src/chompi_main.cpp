@@ -86,6 +86,10 @@ volatile bool booting = true;
 bool rainbow_done = false;
 volatile bool loading_screen = true;
 
+// a restart over MIDI waits this long at most for the card (MainLoop)
+static const uint32_t kRestartWaitMs = 1000;
+static uint32_t restart_asked = 0;
+
 /** Clears the Daisy Seed's 64MB external SDRAM at boot. The loop's, delay's, freezer's and
  *  tape stop's buffers live there, and unlike internal-RAM statics they aren't zeroed by the startup code */
 void ZeroSDRAM()
@@ -187,11 +191,16 @@ void MainLoop(void* data)
     event_log.Process(now, midi_clock);
 
     // a restart asked for over MIDI (MidiClock.h), once no report is being written and the
-    // master settings that were waiting are on the card: the chip's reset, as the launcher
-    // hands over, so the bootloader starts what's in QSPI
-    if (midi_clock.RestartRequested() && !event_log.Writing() && ui.MasterSettled()
-        && !scene_store.Busy())
-        NVIC_SystemReset();
+    // master settings that were waiting are on the card, or a second after it was asked for
+    // whatever still comes in (a DAW's automation): the chip's reset, as the launcher hands
+    // over, so the bootloader starts what's in QSPI
+    if (midi_clock.RestartRequested() && !event_log.Writing())
+    {
+        if (!restart_asked)
+            restart_asked = now | 1; // 0 is "not yet"
+        if ((ui.MasterSettled() && !scene_store.Busy()) || now - restart_asked > kRestartWaitMs)
+            NVIC_SystemReset();
+    }
 
 #if FRIZZ_BENCH
     bench.Process();
