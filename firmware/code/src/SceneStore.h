@@ -25,10 +25,16 @@
  *  its file can't be read, the file goes to frizz_scenes.bak first, as an unreadable one does
  *  at boot. Its master settings would change the sound mid-session, so the ones in RAM stay
  *  and the card's file is kept as frizz_master.bak.
+ *
+ *  A card swapped for another while FRIZZ runs is taken as a late one too. The new card isn't
+ *  set up yet, so the first write after the swap fails; the next mounts it again (Remount) and
+ *  compares its volume serial number, which formatting a card sets anew, with the card read
+ *  before. Two cards copied sector by sector share one and look like the same card.
  */
 #pragma once
 #include "daisy.h"
 #include "fatfs.h"
+#include "diskio.h"
 #include "FxScenes.h"
 #include "MasterSettings.h"
 
@@ -93,6 +99,7 @@ public:
         loaded_ = Mount();
         if (!loaded_)
             return;
+        serial_ = Serial();
         LoadMaster();
         unreadable_ = !LoadScenes(Saved());
     }
@@ -240,6 +247,7 @@ private:
                 Saved()[s] = card[s];
         }
         unreadable_ = clash;
+        serial_ = Serial();
 
         if (Exists(kMasterFile))
         {
@@ -268,11 +276,23 @@ private:
             f_rename(tmp, name);
     }
 
-    /** After a failure, or without a card at boot: mount again, the card may be back */
+    /** After a failure, or without a card at boot: mount again, the card may be back. If
+     *  it's another card than the one read, it's read before a write, as a late one */
     void Remount()
     {
-        if (!mounted_ || failed_)
-            Mount();
+        if ((!mounted_ || failed_) && Mount() && loaded_ && Serial() != serial_)
+            loaded_ = false;
+    }
+
+    /** The mounted card's volume serial number, from its boot sector into buf_; 0 if it
+     *  can't be read, which takes it for another card */
+    uint32_t Serial()
+    {
+        BYTE* sector = reinterpret_cast<BYTE*>(buf_);
+        if (disk_read(fs_->drv, sector, fs_->volbase, 1) != RES_OK)
+            return 0;
+        const BYTE* id = sector + (fs_->fs_type == FS_FAT32 ? 67 : 39); // BS_VolID(32)
+        return id[0] | id[1] << 8 | id[2] << 16 | static_cast<uint32_t>(id[3]) << 24;
     }
 
     bool Save()
@@ -301,6 +321,7 @@ private:
     const char* path_ = nullptr;
     bool unreadable_ = false; // a scene file is there that couldn't be read, or would be lost
     bool loaded_ = false;     // the card was read: at boot, or before the first write (LateCard)
+    uint32_t serial_ = 0;     // the volume serial number of the card read
     bool failed_ = false;     // the last save failed
     FIL file_;
     // FatFs reads whole sectors straight into it by DMA, so on a cache line of its own

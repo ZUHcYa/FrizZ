@@ -30,7 +30,7 @@ stage()
         cp "$LIBDAISY/$f" "$TREE.new/lib/$f"
     done
     cp -r "$TW/host/." "$TREE.new/lib/"
-    cp "$REPO/firmware/test/host/fatfs.h" "$TREE.new/lib/"
+    cp "$REPO/firmware/test/host/fatfs.h" "$REPO/firmware/test/host/diskio.h" "$TREE.new/lib/"
     cp "$FIRMWARE"/*.h "$FIRMWARE"/*.cpp "$TREE.new/src/"
     cp "$TW"/*.cpp "$TW"/*.h "$TREE.new/src/"
 }
