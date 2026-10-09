@@ -19,6 +19,9 @@
 #include "chompi_main.cpp"
 #undef main
 
+// ZeroSDRAM's range, empty (host/daisy_core.h)
+extern "C" uint32_t _ssdram_bss = 0;
+
 #include "twin.h"
 
 // The engine's tempo clock and the MIDI clock's source are private. An explicit template

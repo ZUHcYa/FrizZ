@@ -14,7 +14,7 @@ unchanged with the host's `g++`. Only the board underneath is simulated (`host/`
 | MIDI in over the TRS jack's UART | bytes fed to libDaisy's parser, at the next block |
 | USB MIDI | bytes in to libDaisy's parser, at the next block; what FRIZZ sends kept for the script (`usb`, `replies`) |
 | SD card | `test/host/fatfs.h`, a card in memory |
-| the 64 MB SDRAM, cleared at boot from its address | the buffers it holds are ordinary statics, zero from the start; that one `std::fill` at 0xc0000000 is skipped (`host/daisy_core.h`) |
+| the SDRAM buffers, cleared at boot | ordinary statics, zero from the start; the linker script's range to clear is empty, and an older firmware's `std::fill` at 0xc0000000 is skipped (`host/daisy_core.h`) |
 
 The firmware's `main()` runs as a coroutine: each 0.5 ms block runs the audio callback, then
 `main()` until it has used up the block (its time moves with `System::Delay*` and `GetNow`).

@@ -90,15 +90,16 @@ volatile bool loading_screen = true;
 static const uint32_t kRestartWaitMs = 1000;
 static uint32_t restart_asked = 0;
 
-/** Clears the Daisy Seed's 64MB external SDRAM at boot. The loop's, delay's, freezer's and
- *  tape stop's buffers live there, and unlike internal-RAM statics they aren't zeroed by the startup code */
+// where the SDRAM's buffers (DSY_SDRAM_BSS) begin and end: chompi_sram.lds's .sdram_bss
+extern "C" uint32_t _ssdram_bss;
+extern "C" uint32_t _esdram_bss;
+
+/** Clears the buffers in the Daisy Seed's external SDRAM at boot. The loop's, delay's,
+ *  freezer's and tape stop's buffers live there, and unlike internal-RAM statics they aren't
+ *  zeroed by the startup code. Only the ~43 of the 64 MB they take, which shortens the boot */
 void ZeroSDRAM()
 {
-    uint32_t *beg, *end;
-    size_t    size_in_words = (1024 * 1024 * 64) / sizeof(uint32_t);
-    beg                     = (uint32_t*)0xc0000000;
-    end                     = (uint32_t*)(beg + size_in_words);
-    std::fill(beg, end, 0);
+    std::fill(&_ssdram_bss, &_esdram_bss, 0);
 }
 
 /** breakdown:

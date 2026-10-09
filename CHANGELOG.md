@@ -42,6 +42,9 @@ what FRIZZ does.
 - LOOP's blink while a quantized recording closes or an erase waits for the loop's end is
   slower, the same as a picked scene slot's, so it doesn't look like a refusal's 3 quick blinks.
 
+- Switching on is a little quicker: FRIZZ clears only the part of its sample memory it
+  uses (43 of 64 MB), not all of it.
+
 ### Fixed
 
 - A quantized loop is now as long as its bars to a fraction of a millisecond, so it stays with
