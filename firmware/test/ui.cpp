@@ -31,12 +31,13 @@ static float amp = .3f, freq = 220.f, phase = 0.f;
 static float clock_bpm = 0.f; // a MIDI clock into the jack while > 0
 static double clock_next = 0.;
 static float last_out[2] = {0.f, 0.f}, max_step = 0.f; // the master out's largest step, L or R
+static float hp_rms = 0.f; // the headphones' (left) RMS over the last RunMs
 
 /** Runs ms with a sine (or silence) into AUX; the master out's RMS over the time */
 static float RunMs(uint32_t ms)
 {
     float in[kBlockSize * kChannels] = {}, out[kBlockSize * kChannels];
-    double sum = 0.;
+    double sum = 0., hp_sum = 0.;
     for (uint32_t b = 0; b < ms * 2; b++)
     {
         while (clock_bpm > 0.f && clock_next <= NowMs())
@@ -55,6 +56,7 @@ static float RunMs(uint32_t ms)
         {
             const float o = out[i * kChannels + 2];
             sum += o * o;
+            hp_sum += out[i * kChannels] * out[i * kChannels];
             for (int c = 0; c < 2; c++)
             {
                 const float v = out[i * kChannels + 2 + c];
@@ -63,6 +65,7 @@ static float RunMs(uint32_t ms)
             }
         }
     }
+    hp_rms = ms ? sqrtf(hp_sum / (ms * 2 * kBlockSize)) : 0.f;
     return ms ? sqrtf(sum / (ms * 2 * kBlockSize)) : 0.f;
 }
 
@@ -192,6 +195,7 @@ static void Usb(std::initializer_list<int> bytes)
 static const int kNoteOn = 0x9F, kNoteOff = 0x8F, kCC = 0xBF, kPC = 0xCF;
 static const int kFilterNote = 55; // KEY_5, the 5th white key: G above the base note, 48
 static const int kFilterLatchCC = 24, kFilterCutoffCC = 86, kCompAmountCC = 52;
+static const int kHpCueCC = 59; // the headphone feed: 0 the master out, 127 the input alone
 /** 14 bits of an answer as a knob's 0-1 (MidiControl.h's MidiToKnob), and 7 bits of a CC */
 static float KnobOf(int hi, int lo)
 {
@@ -638,6 +642,30 @@ int main()
         RunMs(2500);
         Check(Card("/FRIZZ/frizz_scenes.bak") == old_scenes, "card: saving into a slot the card also has keeps the card's scenes as frizz_scenes.bak");
         Check(SavedLatch(Card("/FRIZZ/frizz_scenes.txt"), 2, "shifter") == 1, "card: and frizz_scenes.txt has the new one");
+    }});
+
+    // the headphone outputs (passthroughEngine.h): the master out at first, the dry input
+    // alone with the cue all the way up (VOLUME's page 4, here CC 59)
+    cases.push_back({"headphones", [] {
+        RunMs(kReadyMs);
+        const float master = RunMs(500), hp = hp_rms;
+        // at their own level: kHpGain .2 to the line out's .3
+        Check(master > .05f && fabsf(hp - master * 2.f / 3.f) < .01f * master,
+              "headphones: carry the master out at first, at 2/3 of its level");
+        Latch("KEY_10"); // the tape stop: silence on the master
+        RunMs(3000);
+        const float stopped = RunMs(500), hp_stopped = hp_rms;
+        Check(stopped < .01f * master && hp_stopped < .01f * master,
+              "headphones: a latched tape stop silences them with the master");
+        Usb({kCC, kHpCueCC, 127});
+        RunMs(300);
+        const float cued = RunMs(500), hp_cued = hp_rms;
+        Check(cued < .01f * master && hp_cued > .5f * master,
+              "headphones: with the cue up, the input alone, while the master stays silent");
+        Usb({kCC, kHpCueCC, 0});
+        RunMs(300);
+        RunMs(500);
+        Check(hp_rms < .01f * master, "headphones: the cue back down, the master out again");
     }});
 
     // a restart over MIDI (MidiClock.h), for the launcher: only on FRIZZ's own SysEx

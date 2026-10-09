@@ -43,7 +43,7 @@ if [ "$1" = wasm ]; then
         || { echo "no Emscripten: install emsdk to ~/opt/emsdk"; exit 1; }
     WEB=$TW/web/build
     VERSION=$(git -C "$REPO" rev-parse --short HEAD)$(git -C "$REPO" diff --quiet HEAD -- firmware/code firmware/twin || echo "+changes")
-    FLAGS="-O3 -std=gnu++14 -I$TREE/lib -I$TREE/src $INC"
+    FLAGS="-O3 -std=gnu++14 -funsigned-char -I$TREE/lib -I$TREE/src $INC"
     STAMP=$( (em++ --version; echo "$FLAGS $VERSION"; find "$TREE.new" -type f | sort | xargs cat) | md5sum | cut -d' ' -f1)
     if [ -f "$WEB/frizz-twin.wasm" ] && [ "$(cat "$WEB/twin.stamp" 2>/dev/null)" = "$STAMP" ]; then
         rm -rf "$TREE.new"
@@ -77,7 +77,8 @@ if [ "$1" = wasm ]; then
     exit 0
 fi
 
-FLAGS="-O2 -g -std=gnu++14 $TWIN_DEFINES -I$TREE/lib -I$TREE/src $INC"
+# -funsigned-char: char is unsigned on the CHOMPI, signed on x86
+FLAGS="-O2 -g -std=gnu++14 -funsigned-char $TWIN_DEFINES -I$TREE/lib -I$TREE/src $INC"
 STAMP=$( (g++ --version; echo "$FLAGS"; find "$TREE.new" -type f | sort | xargs cat) | md5sum | cut -d' ' -f1)
 if [ -f "$B/frizz-twin" ] && [ "$(cat "$B/twin.stamp" 2>/dev/null)" = "$STAMP" ]; then
     rm -rf "$TREE.new"

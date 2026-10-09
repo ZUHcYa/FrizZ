@@ -2,7 +2,9 @@
 # lib.sh: what the test scripts share; sourced, not run. Sets T (this folder), REPO, INC (the
 # DaisySP include flags) and BUILD, builds DaisySP for the host when needed, and provides
 # units (the unit checks' names) and unit_test NAME: builds NAME.cpp against the working tree's headers, with the host
-# MidiClock in place of the real one (it opens MIDI), and runs it.
+# MidiClock in place of the real one (it opens MIDI), and runs it. FRIZZ's code is built with
+# -funsigned-char, as on the CHOMPI, where char is unsigned (on x86 it's signed); DaisySP
+# needn't be, it doesn't depend on it.
 set -e -o pipefail
 T=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(git -C "$T" rev-parse --show-toplevel)
@@ -50,7 +52,7 @@ unit_test()
         [ -z "$defines" ] || twin=$REPO/firmware/twin/build/$name
         TWIN_DEFINES="$defines" TWIN_BUILD="$twin" "$REPO/firmware/twin/build.sh"
         log=$dir/build.log
-        if ! g++ -O2 -std=gnu++14 -Wall -I"$REPO/firmware/twin" "$T/$name.cpp" \
+        if ! g++ -O2 -std=gnu++14 -funsigned-char -Wall -I"$REPO/firmware/twin" "$T/$name.cpp" \
             "$twin/libtwin.a" "$BUILD/libdaisysp_host.a" -o "$dir/$name" 2> "$log"; then
             cat "$log"
             echo "$name.cpp didn't build"
@@ -63,7 +65,7 @@ unit_test()
     cp "$REPO/firmware/code/src"/*.h "$dir/"
     cp "$T/host/MidiClock.h" "$dir/"
     log=$dir/build.log
-    if ! g++ -O2 -std=gnu++14 -Wall -Wno-unused-function -Wno-unused-variable -I"$dir" \
+    if ! g++ -O2 -std=gnu++14 -funsigned-char -Wall -Wno-unused-function -Wno-unused-variable -I"$dir" \
         -I"$T/host" $INC "$T/$name.cpp" "$BUILD/libdaisysp_host.a" -o "$dir/$name" 2> "$log"; then
         cat "$log"
         echo "$name.cpp didn't build"
