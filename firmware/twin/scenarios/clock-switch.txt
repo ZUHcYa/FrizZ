@@ -1,0 +1,21 @@
+# Two clocks: a sequencer on the jack (0.2 ms jitter, 50 ppm slow), then a DAW over USB at another
+# tempo while the jack's still runs (ignored), the jack stopped (USB takes over), MIDI traffic
+# around the ticks, and the delay listening throughout
+input sine 220 0.3
+clock 120 jitter 0.2 drift 50
+at 6000
+down KEY_12
+wait 80
+tap KEY_26
+up KEY_12
+turn 3 20
+wait 3000
+clock 100 usb jitter 0.3
+usb 90 3C 64
+wait 2000
+midi B0 07 7F F0 7E 00 06 01 F7 FE
+wait 2000
+clock 0
+wait 4000
+clock 0 usb
+wait 2000

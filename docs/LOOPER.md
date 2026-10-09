@@ -135,9 +135,14 @@ period **T** in samples (averaged over the recording), and close the loop at exa
 the error.
 
 Notes for implementing this against `MidiClock.h`:
-- **T is the tick span over the recording:** (last tick time − first tick time after the press)
-  ÷ (ticks − 1), snapshotted by the looper. Don't use `GetTickPeriod()` for the loop length.
-  Its smoothing only weights the last ~10 ticks and lags drift; it's for display.
+- **T is the slope of a least-squares line through the ticks since the press:** one point
+  (tick count, tick time) per block a tick came in, kept up to where the loop closes, not only
+  to the end press: a loop of one bar stopped halfway would be measured over half a bar. A tick's
+  time is only as precise as the block it came in (0.5 ms) and over USB the 1 ms frame it was
+  sent in; the span from the first tick to the last kept both ends' error (up to 82 samples a
+  loop from a DAW, 50 ms a minute of drift), the line averages it out over every tick (a few
+  samples). Until a beat of ticks is in, `GetTickPeriod()` stands in. Its smoothing only weights
+  the last ~10 ticks and lags drift; it's for display. `unit.sh sync` measures all this.
 - **The start and end are timed in the engine, not the UI.** `OnButton` runs from `MainLoop`,
   which isn't sample-aligned, so it only posts a command. The looper picks it up at the start of
   the next audio block, and from then on the number of recorded frames *is* the elapsed time

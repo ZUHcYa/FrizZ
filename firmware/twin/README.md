@@ -11,8 +11,8 @@ unchanged with the host's `g++`. Only the board underneath is simulated (`host/`
 | 35 WS2812 LEDs fed by timer PWM + DMA | the DMA's buffer decoded back to the bytes each LED latches |
 | MP2722 charger on I²C | a battery with a voltage, a charger plugged or not, shipping mode |
 | SAI audio, 24-sample blocks at 48 kHz | the same callback, block by block |
-| MIDI in over the TRS jack's UART | bytes fed to libDaisy's parser |
-| USB MIDI | bytes in to libDaisy's parser, what FRIZZ sends kept for the script (`usb`, `replies`) |
+| MIDI in over the TRS jack's UART | bytes fed to libDaisy's parser, at the next block |
+| USB MIDI | bytes in to libDaisy's parser, at the next block; what FRIZZ sends kept for the script (`usb`, `replies`) |
 | SD card | `test/host/fatfs.h`, a card in memory |
 | the 64 MB SDRAM, cleared at boot from its address | the buffers it holds are ordinary statics, zero from the start; that one `std::fill` at 0xc0000000 is skipped (`host/daisy_core.h`) |
 
@@ -85,6 +85,7 @@ stdout): the time in ms, the 10 panel LEDs (`pth`, in `NormalPage.h`'s numbering
 ./compare.sh origin/main HEAD   # what this branch changes for a player
 ./compare.sh v0.10 origin/main  # since a release
 ./ui-at.sh origin/main          # ../test/ui.cpp's checks on another version's firmware
+./ui-at.sh origin/main sync     # any other twin check (midi, sync, ...) the same way
 ```
 
 Any git ref works. Compare with `origin/main` after a `git fetch` rather than a local `main`,
@@ -118,8 +119,9 @@ it with SHIFT held: leave the gaps a hand would.
 | `turn ENC N` | encoder 1-6 (SW1-SW6: 4 is knob 1, 1-3 knobs 2-4, 5 the transport, 6 VOLUME) by N detents. They play out in the background, 8 ms each, as a hand turns: `wait` for them before the next key |
 | `toggle 0\|1` | the mode switch, as the 4021 reads it |
 | `input sine HZ AMP` / `input wav FILE` / `input off` | what goes into AUX (a WAV loops) |
-| `midi HEX...` / `clock BPM` | raw bytes into the MIDI jack / a running MIDI clock (`clock 0` stops it) |
+| `midi HEX...` | raw bytes into the MIDI jack |
 | `usb HEX...` | raw bytes into USB MIDI, as a computer sends them (FRIZZ's queries are answered only there) |
+| `clock BPM [jitter MS] [drift PPM] [usb] [ramp BPM MS] [seed N]` | a running MIDI clock into the jack, or with `usb` over USB (one of each can run): each tick up to MS early or late, the sender's clock PPM slow, USB's 1 ms frames, a ramp to another tempo over MS (`clockgen.h`). `clock 0 [usb]` stops it |
 | `replies` / `expect usb HEX...` | print what FRIZZ sent over USB since the last look / fail unless it's exactly that |
 | `battery V [plugged] [full]` | the battery's voltage and the charger |
 | `card put PATH FILE` / `card remove` / `card insert` / `card dump` | the SD card: put a file on it before power-on (`/FRIZZ/frizz_scenes.txt`), take it out, print it |
@@ -155,6 +157,13 @@ in `test/ui.cpp`.
 - `twin.h` / `twin.cpp`: the API and the simulated board; `twin.cpp` includes `chompi_main.cpp`.
 - `host/`: what replaces libDaisy's hardware layer (`daisy.h`, `daisy_seed.h`, `per/`, `sys/`, ...).
 - `script.cpp` / `script.h`: the script player; `cli.cpp`: `frizz-twin`, around it.
+- `clockgen.h`: a MIDI clock out of a virtual sequencer, with a real sender's jitter, drift, USB
+  frames and ramps, for the scripts and `../test/sync.cpp`.
+- `twin.h`'s `Probe()` reads what the firmware makes of the clock (MidiClock, the engine's
+  TempoClock, the looper) for the checks of timing that the LEDs and audio can't show. The
+  tempo clock is private in the engine; `twin.cpp` reaches it without a getter in the firmware,
+  and reads each value only if the firmware has it (0 otherwise), so `Probe()` doesn't keep an
+  older firmware from building (`compare.sh`, `ui-at.sh`).
 - `build.sh`: copies the firmware, the libDaisy files it uses and `host/` into `build/tree` and
   builds there, so every include resolves to either the real file or its stand-in. `build.sh
   wasm` builds the browser's `web/build/frizz-twin.{js,wasm}` the same way.

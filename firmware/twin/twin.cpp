@@ -21,6 +21,30 @@
 
 #include "twin.h"
 
+// The engine's tempo clock and the MIDI clock's source are private. An explicit template
+// instantiation may name a private member, so Probe() reads them this way, without a getter
+// in the firmware: compare.sh and ui-at.sh build older firmwares with this twin too
+template <typename Tag, typename Tag::type M>
+struct TwinReach
+{
+    friend typename Tag::type Reach(Tag) { return M; }
+};
+struct ReachSource
+{
+    typedef MidiClock::Source MidiClock::*type;
+    friend type Reach(ReachSource);
+};
+template struct TwinReach<ReachSource, &MidiClock::source_>;
+#if __has_include("TempoClock.h")
+#define TWIN_HAS_TEMPO 1
+struct ReachTempo
+{
+    typedef chompi::TempoClock PassthroughEngine::*type;
+    friend type Reach(ReachTempo);
+};
+template struct TwinReach<ReachTempo, &PassthroughEngine::tempo_clock_>;
+#endif
+
 // the firmware's restart (chompi_main.cpp): the chip would reset; here it's noted
 static bool restarted = false;
 void NVIC_SystemReset() { restarted = true; }
@@ -375,6 +399,16 @@ void UsbTx(const uint8_t* data, size_t size)
 {
     usb_out.append(reinterpret_cast<const char*>(data), size);
 }
+// what arrived since the last block, handed over at its start, as the UART's DMA and the USB
+// interrupt do before the audio callback polls them
+static void Deliver(std::deque<uint8_t>& q, void (*rx)(uint8_t*, size_t, void*), void* context)
+{
+    if (!rx || q.empty())
+        return;
+    std::vector<uint8_t> bytes(q.begin(), q.end());
+    q.clear();
+    rx(bytes.data(), bytes.size(), context);
+}
 
 // ======== the API (twin.h) ========
 std::map<std::string, std::string>& CardFiles() { return FakeCard::Get().files; }
@@ -421,21 +455,8 @@ void Run(size_t blocks, const float* in, float* out)
             StepEncoders();
             StepLedDma();
 
-            // the UART's DMA hands over what arrived since the last block
-            if (uart_rx && !midi_in.empty())
-            {
-                std::vector<uint8_t> bytes(midi_in.begin(), midi_in.end());
-                midi_in.clear();
-                uart_rx(bytes.data(), bytes.size(), uart_context);
-            }
-
-            // and USB's, what came in the last frame
-            if (usb_rx && !usb_in.empty())
-            {
-                std::vector<uint8_t> bytes(usb_in.begin(), usb_in.end());
-                usb_in.clear();
-                usb_rx(bytes.data(), bytes.size(), usb_context);
-            }
+            Deliver(midi_in, uart_rx, uart_context);
+            Deliver(usb_in, usb_rx, usb_context);
 
             if (audio_cb)
                 audio_cb(in_ptr, out_ptr, kBlockSize);
@@ -508,6 +529,62 @@ void SetToggle(bool raw_level)
 }
 
 void Midi(uint8_t byte) { midi_in.push_back(byte); }
+
+double BlockMs() { return block_ns / 1e6; }
+
+// Each value only if the firmware has it (0 otherwise), so an older firmware still builds
+#define TWIN_READ(name, expr)                                                                      \
+    template <typename T>                                                                          \
+    static auto name(const T& o, int)->decltype(expr)                                              \
+    {                                                                                              \
+        return expr;                                                                               \
+    }                                                                                              \
+    template <typename T>                                                                          \
+    static int name(const T&, long)                                                                \
+    {                                                                                              \
+        return 0;                                                                                  \
+    }
+TWIN_READ(ReadLocks, o.GetLocks())
+TWIN_READ(ReadTempo, o.GetTempo())
+TWIN_READ(ReadFxBpm, o.GetFxBpm())
+TWIN_READ(ReadPosition, o.Position())
+TWIN_READ(ReadLooper, &o.looper)
+TWIN_READ(ReadLoopState, static_cast<int>(o.GetState()))
+TWIN_READ(ReadLoopLength, o.GetLength())
+TWIN_READ(ReadLoopBeats, o.GetBeats())
+TWIN_READ(ReadLoopPos, o.GetPosition())
+TWIN_READ(ReadLoopSpeed, o.GetActualSpeed())
+#undef TWIN_READ
+
+template <typename L>
+static void ReadLoop(const L* looper, ClockState& c)
+{
+    c.loop_state = ReadLoopState(*looper, 0);
+    c.loop_length = ReadLoopLength(*looper, 0);
+    c.loop_beats = ReadLoopBeats(*looper, 0);
+    c.loop_pos = ReadLoopPos(*looper, 0);
+    c.loop_speed = ReadLoopSpeed(*looper, 0);
+}
+static void ReadLoop(int, ClockState&) {}
+
+ClockState Probe()
+{
+    ClockState c = {};
+    c.has_clock = midi_clock.HasClock();
+    c.source = static_cast<int>(midi_clock.*Reach(ReachSource()));
+    c.midi_bpm = midi_clock.GetBpm();
+    c.tick_period = midi_clock.GetTickPeriod();
+    c.ticks = midi_clock.GetTicks();
+    c.locks = ReadLocks(midi_clock, 0);
+#ifdef TWIN_HAS_TEMPO
+    const chompi::TempoClock& t = engine.*Reach(ReachTempo());
+    c.tempo = ReadTempo(t, 0);
+    c.fx_bpm = ReadFxBpm(t, 0);
+    c.position = ReadPosition(t, 0);
+#endif
+    ReadLoop(ReadLooper(engine, 0), c);
+    return c;
+}
 
 void UsbMidi(uint8_t byte) { usb_in.push_back(byte); }
 

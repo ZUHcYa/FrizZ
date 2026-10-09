@@ -23,6 +23,11 @@ STRESS=1 ./run.sh work out.bin
 | `ui` | the whole firmware from power-on on the virtual CHOMPI: keys through the 4021s, LEDs, the card, bug reports, MIDI (notes, CCs, NRPN, program changes, Start/Stop, the SysEx and its USB answers); each case on a fresh device |
 | `remote` | `../remote.py` itself against the virtual CHOMPI: the twin's USB MIDI on a pseudo-terminal, remote.py run as it is (`--device`) while the twin keeps the wall clock's pace: state, LEDs, load, settings, scenes there and back, a script played with its `expect led` lines; needs `python3` |
 | `bench` | the CPU bench's firmware on the twin: it runs through and writes its file (the loads themselves need the device) |
+| `midi`, `sync` | MIDI in on the twin: ticks among and inside other messages, the jack and USB, which clock locks; and timing against a clock with a real sender's jitter: the FX's tempo, quantized loops' length and drift, the clock lost or switched mid-recording, the 2:45 limit, tap tempo |
+
+A check prints `KNOWN` for a fault it has found in the firmware that isn't fixed yet (`Known()` in
+`check.h`): that doesn't fail it, so `all.sh` stays green while the faults are listed. Once one
+passes it prints `FIXED` and fails the run, and becomes a plain `Check()` with the fix.
 
 `all.sh` takes about 1.5 minutes; the first run longer, as it builds DaisySP and the twin for the
 host (into `build/` here and `../twin/build/`, both ignored by git).
@@ -194,7 +199,10 @@ the refused quantized record. `unit.sh tempo` checks the FX's tempo: tap tempo (
 a loop's beats are fitted or guessed, the tempo clock locked to a loop (`TempoClock.h`: beat 1
 on the loop's start, counting down in reverse, standing still when paused, the tempo times the
 speed, a tap refitting the beats, the loop overriding MIDI clock) and the beats of a loop
-recorded quantized to a faked clock; then the bar lines (free, on 2-, 4- and 6-beat loops, in
+recorded quantized to a faked clock, and the looper's tick period (`Looper.h`'s line through the
+ticks): a bar from jittered USB-like ticks within 12 samples of its length, the end following a
+clock that slows after the press, and an end already passed when refitted closing at once,
+within the post-roll; then the bar lines (free, on 2-, 4- and 6-beat loops, in
 reverse) and a scene morph (`FxMorph.h`) on them: landing on the bar line, one per tap, the
 glide, held while SHIFT is down however long, fades in and out, stopping it halfway; and the
 delay (`granularDelay.h`): reverse events only where they fit, and a tempo jump crossfading
@@ -258,9 +266,70 @@ the launcher's PING or a longer message doesn't.
 The flicker #7 fixed in the transport LED (a value just over 1 wrapping to dark) doesn't show
 on the twin before the fix either, so that check guards only what it can see.
 
-`../twin/ui-at.sh REF` runs these checks on another version's firmware: a new check should
+`../twin/ui-at.sh REF [CHECK]` runs these checks (or another twin check: `midi`, `sync`) on
+another version's firmware: a new check should
 fail on the version before its fix. It can't see time on the chip: the CPU load, so not
 crackles either.
+
+## MIDI in check
+
+```bash
+./unit.sh midi
+```
+
+Plays MIDI into the virtual CHOMPI's jack and over USB (`../twin/`: `MidiClock.h` and libDaisy's
+parser and handlers as on the device) and counts what `MidiClock` makes of it (`twin::Probe()`):
+every tick of a 120 BPM clock on either input; ticks between notes (with and without running
+status), CCs, pressure, program changes, active sensing and SysEx; ticks in the middle of a note
+or a CC, as MIDI allows; Start, Stop, Continue and Song Position changing nothing; stray data
+bytes, undefined status bytes, cut messages and a SysEx longer than the parser's buffer. Then two
+clocks: the first to tick is kept and the other's ticks ignored, the other takes over 0.5 s
+after it stopped, with a new lock; two started in the same block; and no clock 0.5 s after the
+last tick, the FX keeping its tempo, a new clock locking again.
+
+Known: a tick inside a SysEx is lost (the parser keeps it as SysEx data), so a DAW's SysEx
+during the clock costs ticks and misreads the tempo; and the restart SysEx with a tick inside
+doesn't restart.
+
+## Timing check
+
+```bash
+./unit.sh sync
+```
+
+FRIZZ against a MIDI clock (`../twin/clockgen.h`) from three senders: exact; a hardware
+sequencer on the jack (0.2 ms jitter, its crystal 50 ppm slow); a DAW over USB (1 ms frames, 0.3
+ms jitter). Each case prints what it measured; the limits are at the top of `sync.cpp`.
+
+- The FX's tempo from the clock, no loop, for 30 s at 60, 90, 120, 174 and 300 BPM and at 120.4:
+  how often it changes (it should hold still), and a pulse every 2 ticks. A ramp from 100 to
+  140 BPM: the tempo there within 0.5 s of its end.
+- Quantized loops (PLAY + LOOP from the panel) of 1 and 4 bars at 90, 120 and 174 BPM: closed on
+  their bars, their length against the bars the clock played, the drift of their loop point
+  against the clock over 30 s (nothing pulls a loop back to the clock once it plays), 12 FX
+  pulses a beat of the loop.
+- No click where a quantized 1-bar loop wraps, from every sender at 120 and 174 BPM (a sine
+  through it: the master out's largest step against the sine's own).
+- A song change behind a closed loop: the clock's tempo moved, stopped, restarted over USB and
+  joined by a second on the jack, while the loop's length, its beats, the FX's tempo and every
+  pass stay as they were.
+- The strict bar rule (a stop 12 ms after a bar line records another bar, 12 ms before doesn't),
+  the clock lost and the jack switched to USB mid-recording (it closes, unquantized), a tempo
+  change mid-recording (reported: no rule says what it should become), the loop ignoring the
+  clock's tempo once closed and an erase following it again, a quantized recording cut to 82
+  bars at 2:45, and tap tempo from SHIFT + LOOP: without a clock, refused with one, refitting a
+  free loop's beats.
+
+The limits that depend on the sender's luck (a tempo's changes, a loop's length and drift) are
+checked over all cases together, after them, so one case just inside a limit by chance doesn't
+pass for a fix. Known: the FX's tempo keeps jumping by 1-2 BPM at 174 and 300 BPM, and at a
+tempo between two whole BPM (MidiClock's smoothing against the blocks' and USB's jitter, and
+the rounding without hysteresis); and a quantized loop, though within a few samples of its bars
+(the looper fits a line through every tick of the recording, `Looper.h`), still drifts up to 5.5
+ms a minute against the clock when it's short and fast (1 bar at 174 BPM from a DAW): a bar of
+ticks can't measure the tempo closer, and nothing follows the clock once the loop plays. The
+drift is worked out from the length's error; the loop point's moves, measured only to a block,
+have to agree with it.
 
 ## CPU bench check
 
@@ -277,6 +346,10 @@ bench's tune reaches the output throughout. Without a card, the panel blinks red
 loads are 0 there (no time passes on the twin while the callback runs): the numbers come from
 the device only. A check asks for a twin with defines of its own with a
 `// twin defines: ...` line, which builds it into `../twin/build/NAME`.
+
+`timing.h` is what `midi.cpp` and `sync.cpp` share: two clocks into the twin (the jack's and
+USB's), `twin::Probe()` block by block, each case on a fresh device, and `Record()`, a
+measurement handed back to `main()` for a check over all cases.
 
 `host/` holds the stand-ins for the parts of libDaisy the engine touches: `daisy.h` (two sample
 conversions), `MidiClock.h` (no clock, unless a test sets its fields, as `tempo.cpp`

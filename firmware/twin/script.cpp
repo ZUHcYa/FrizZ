@@ -3,6 +3,7 @@
  *  played into the virtual CHOMPI from power-on. README.md lists the commands.
  */
 #include "script.h"
+#include "clockgen.h"
 #include "twin.h"
 #include <cmath>
 #include <cstdio>
@@ -27,9 +28,8 @@ static float sine_freq = 220.f, sine_amp = .3f, sine_phase = 0.f;
 static std::vector<float> wav_in; // interleaved L R
 static size_t wav_pos = 0;
 
-// MIDI clock out of a virtual sequencer: 24 ticks a beat
-static float clock_bpm = 0.f;
-static double clock_next_ms = 0.;
+// MIDI clock out of a virtual sequencer on the jack and a DAW over USB (clockgen.h)
+static ClockGen clock_trs, clock_usb;
 
 static std::string Hex(const Rgb& c)
 {
@@ -78,11 +78,8 @@ static void RunMs(uint32_t ms)
     float in[kBlockSize * kChannels], out[kBlockSize * kChannels];
     for (size_t b = 0; b < blocks; b++)
     {
-        while (clock_bpm > 0.f && clock_next_ms <= NowMs() + .5)
-        {
-            Midi(0xF8);
-            clock_next_ms += 60000. / (clock_bpm * 24.);
-        }
+        clock_trs.Step(BlockMs());
+        clock_usb.Step(BlockMs());
         for (size_t i = 0; i < kBlockSize; i++)
         {
             float l = 0.f, r = 0.f;
@@ -327,8 +324,31 @@ int PlayScript(std::istream& src_in, FILE* leds, std::vector<float>* out)
         }
         else if (cmd == "clock")
         {
-            in >> clock_bpm;
-            clock_next_ms = NowMs();
+            // clock BPM [jitter MS] [drift PPM] [usb] [ramp BPM MS] [seed N]: the jack's, or
+            // with usb USB's; clock 0 [usb] stops it
+            ClockGen::Config c;
+            in >> c.bpm;
+            std::string opt;
+            while (in >> opt)
+            {
+                if (opt == "jitter")
+                    in >> c.jitter_ms;
+                else if (opt == "drift")
+                    in >> c.drift_ppm;
+                else if (opt == "usb")
+                    c.usb = true;
+                else if (opt == "ramp")
+                    in >> c.ramp_to >> c.ramp_ms;
+                else if (opt == "seed")
+                    in >> c.seed;
+                else
+                    Fail(line_no, "clock: no option " + opt);
+            }
+            ClockGen& gen = c.usb ? clock_usb : clock_trs;
+            if (c.bpm > 0.)
+                gen.Start(c, BlockMs());
+            else
+                gen.Stop();
         }
         else if (cmd == "leds")
             printf("%7u %s\n", NowMs(), LedLine().c_str());
