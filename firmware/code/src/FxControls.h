@@ -211,6 +211,36 @@ public:
         chunk_[knob] = 0.f;
     }
 
+    /** A parameter set outright (MIDI, MidiControl.h), as a knob turned there would: a stepped
+     *  one on its nearest step. Doesn't change which FX the knobs edit */
+    void SetParamTo(size_t fx, size_t param, float val)
+    {
+        const FxParams& fxp = kFxParams[fx];
+        if (param >= fxp.num_params)
+            return;
+        if (fxp.steps[param])
+        {
+            const float step = 1.f / (fxp.steps[param] - 1);
+            val = roundf(fclamp(val, 0.f, 1.f) / step) * step;
+        }
+        SetParam(fx, param, val);
+    }
+
+    /** A latch set outright (MIDI): as the key's latch toggled, without the key. A key held
+     *  meanwhile keeps the effect on, and its release leaves the latch as set */
+    void SetLatch(size_t fx, bool on)
+    {
+        if (latched_[fx] != on)
+        {
+            edited_ = true;
+            TouchedInMorph(fx);
+        }
+        latched_[fx] = on;
+        if (held_[fx])
+            on_release_[fx] = OnRelease::KEEP;
+        SendOn(fx);
+    }
+
     /** The parameters and latches into scene, which is then what the controls match */
     void Snapshot(FxScene& scene)
     {

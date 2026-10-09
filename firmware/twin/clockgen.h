@@ -62,7 +62,7 @@ public:
         while (running_ && send_ <= now_ms)
         {
             if (cfg_.usb)
-                MidiUsb(0xF8);
+                UsbMidi(0xF8);
             else
                 Midi(0xF8);
             sent_++;

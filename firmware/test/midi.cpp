@@ -20,7 +20,7 @@ static uint32_t Feed(bool on_usb, double period_ms, int count,
         {
             f8 += b == 0xF8;
             if (on_usb)
-                MidiUsb(b);
+                UsbMidi(b);
             else
                 Midi(b);
         }

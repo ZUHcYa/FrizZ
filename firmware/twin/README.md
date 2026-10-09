@@ -11,7 +11,8 @@ unchanged with the host's `g++`. Only the board underneath is simulated (`host/`
 | 35 WS2812 LEDs fed by timer PWM + DMA | the DMA's buffer decoded back to the bytes each LED latches |
 | MP2722 charger on I²C | a battery with a voltage, a charger plugged or not, shipping mode |
 | SAI audio, 24-sample blocks at 48 kHz | the same callback, block by block |
-| MIDI in over the TRS jack's UART and USB | bytes fed to libDaisy's parser, each input's at the next block |
+| MIDI in over the TRS jack's UART | bytes fed to libDaisy's parser, at the next block |
+| USB MIDI | bytes in to libDaisy's parser, at the next block; what FRIZZ sends kept for the script (`usb`, `replies`) |
 | SD card | `test/host/fatfs.h`, a card in memory |
 | the 64 MB SDRAM, cleared at boot from its address | the buffers it holds are ordinary statics, zero from the start; that one `std::fill` at 0xc0000000 is skipped (`host/daisy_core.h`) |
 
@@ -117,8 +118,10 @@ it with SHIFT held: leave the gaps a hand would.
 | `turn ENC N` | encoder 1-6 (SW1-SW6: 4 is knob 1, 1-3 knobs 2-4, 5 the transport, 6 VOLUME) by N detents. They play out in the background, 8 ms each, as a hand turns: `wait` for them before the next key |
 | `toggle 0\|1` | the mode switch, as the 4021 reads it |
 | `input sine HZ AMP` / `input wav FILE` / `input off` | what goes into AUX (a WAV loops) |
-| `midi HEX...` / `usb HEX...` | raw bytes into the MIDI jack / over USB |
+| `midi HEX...` | raw bytes into the MIDI jack |
+| `usb HEX...` | raw bytes into USB MIDI, as a computer sends them (FRIZZ's queries are answered only there) |
 | `clock BPM [jitter MS] [drift PPM] [usb] [ramp BPM MS] [seed N]` | a running MIDI clock into the jack, or with `usb` over USB (one of each can run): each tick up to MS early or late, the sender's clock PPM slow, USB's 1 ms frames, a ramp to another tempo over MS (`clockgen.h`). `clock 0 [usb]` stops it |
+| `replies` / `expect usb HEX...` | print what FRIZZ sent over USB since the last look / fail unless it's exactly that |
 | `battery V [plugged] [full]` | the battery's voltage and the charger |
 | `card put PATH FILE` / `card remove` / `card insert` / `card dump` | the SD card: put a file on it before power-on (`/FRIZZ/frizz_scenes.txt`), take it out, print it |
 | `card file PATH`, then lines starting with `\|` | a file on the card before power-on, its text in the script: each line after its `\|` |

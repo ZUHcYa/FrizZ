@@ -386,15 +386,19 @@ void UartListen(UartRx rx, void* context)
     uart_context = context;
 }
 
-static UsbMidiRx usb_rx = nullptr;
+static UartRx usb_rx = nullptr;
 static void* usb_context = nullptr;
 static std::deque<uint8_t> usb_in;
-void UsbMidiListen(UsbMidiRx rx, void* context)
+static std::string usb_out;
+void UsbListen(UartRx rx, void* context)
 {
     usb_rx = rx;
     usb_context = context;
 }
-
+void UsbTx(const uint8_t* data, size_t size)
+{
+    usb_out.append(reinterpret_cast<const char*>(data), size);
+}
 // what arrived since the last block, handed over at its start, as the UART's DMA and the USB
 // interrupt do before the audio callback polls them
 static void Deliver(std::deque<uint8_t>& q, void (*rx)(uint8_t*, size_t, void*), void* context)
@@ -525,7 +529,6 @@ void SetToggle(bool raw_level)
 }
 
 void Midi(uint8_t byte) { midi_in.push_back(byte); }
-void MidiUsb(uint8_t byte) { usb_in.push_back(byte); }
 
 double BlockMs() { return block_ns / 1e6; }
 
@@ -581,6 +584,15 @@ ClockState Probe()
 #endif
     ReadLoop(ReadLooper(engine, 0), c);
     return c;
+}
+
+void UsbMidi(uint8_t byte) { usb_in.push_back(byte); }
+
+std::string TakeUsbOut()
+{
+    std::string out;
+    out.swap(usb_out);
+    return out;
 }
 
 void SetBattery(float volts, bool plugged, bool full)
