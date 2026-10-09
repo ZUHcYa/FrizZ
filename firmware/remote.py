@@ -74,19 +74,21 @@ class Frizz:
         if not device:
             sys.exit("no CHOMPI on USB MIDI")
         self.link = midi_send.Link(device)
-        self.lock = threading.Lock()
+        # one write at a time, so messages don't interleave; one query at a time, whose wait
+        # for the answer doesn't hold up the clock's ticks or a script's keys
+        self.write_lock = threading.Lock()
+        self.query_lock = threading.Lock()
 
     def send(self, cmd, payload=b""):
-        with self.lock:
-            self.link.send(cmd, bytes(payload))
+        self.raw(midi_send.HEADER + bytes([cmd]) + bytes(payload) + b"\xF7")
 
     def raw(self, data):
-        with self.lock:
+        with self.write_lock:
             os.write(self.link.fd, bytes(data))
 
     def ask(self, cmd, payload=b""):
-        with self.lock:
-            self.link.send(cmd, bytes(payload))
+        with self.query_lock:
+            self.send(cmd, payload)
             reply = self.link.recv(cmd, 0.5)
         if reply is None:
             sys.exit("no answer to 0x%02X: is FRIZZ running, with MIDI (v0.11 or later)?" % cmd)

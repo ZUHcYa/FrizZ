@@ -232,7 +232,9 @@ the panel ends green or red.
 
 Its memory layout isn't `FRIZZ.bin`'s, and b5c658c crackled from layout alone: a bench run
 shows what the code costs, not that `FRIZZ.bin` itself won't crackle, which only playing it
-shows. Every commit that rebuilds `FRIZZ.bin` also rebuilds `firmware/bin/FRIZZ-bench.bin`
+shows. `FRIZZ.bin` times its own callback too (`MidiControl.h`): `firmware/remote.py load`
+reads its max and mean over USB, and `remote.py play SCRIPT --cpu` plays a twin scenario on
+the device and reports the worst, so a heavy scene can be tried on the build that plays. Every commit that rebuilds `FRIZZ.bin` also rebuilds `firmware/bin/FRIZZ-bench.bin`
 (`make BENCH=1`), so the two always match their source. A branch that touches the engine,
 the effects or the memory layout asks for a bench run in its hardware checklist; its
 `cpu.txt` goes into the PR and is compared with the last one there. `unit.sh bench` checks on

@@ -6,7 +6,7 @@
  *
  *  MidiClock.h reads both inputs in the audio callback and hands every message but the clock
  *  to Event(), which only notes what came: the keys MIDI holds (Keys(), merged with the hand's
- *  in ui.h, so a key held by both is pressed once), detents (TakeTurns(), ui.h), and for the
+ *  in ui.h, so a key held by both is pressed once), detents (TakeTurn(), ui.h), and for the
  *  play page, which takes them in MainLoop (NormalPage::Remote): the latest value of every
  *  absolute controller, marked as changed (so a DAW's dense automation is a table, never a
  *  queue that fills), a program change, the transport and a query to answer. The answer goes
@@ -125,12 +125,15 @@ public:
     /** The keys MIDI holds, by Hardware::SwId */
     inline uint64_t Keys() const { return keys_; }
 
-    /** Detents MIDI turned knob 0-5 (the knobs' order: 1-4, transport, VOLUME), taken */
-    inline int TakeTurns(size_t knob)
+    /** A detent MIDI turned knob 0-5 (the knobs' order: 1-4, transport, VOLUME), taken: +-1,
+     *  or 0. One a block, as a hand's come: the play page counts stepped knobs and the
+     *  transport's speed steps detent by detent */
+    inline int TakeTurn(size_t knob)
     {
         const int t = turns_[knob];
-        turns_[knob] = 0;
-        return t;
+        const int one = t > 0 ? 1 : (t < 0 ? -1 : 0);
+        turns_[knob] = t - one;
+        return one;
     }
 
     /** The callback's own time in system ticks, for kCmdLoad */

@@ -116,12 +116,12 @@ namespace chompi
                     log_->Add(EventLog::TURN, i + 1, inc);
                 }
             }
-            // MIDI's, in the knobs' order already
+            // MIDI's, in the knobs' order already, one detent a block
             for (uint16_t knob = 0; knob < midimap::kNumKnobs; knob++)
             {
-                const int turns = midi_->TakeTurns(knob);
-                if (turns)
-                    event_queue.AddEncoderTurned(knob, static_cast<int16_t>(turns), 0);
+                const int turn = midi_->TakeTurn(knob);
+                if (turn)
+                    event_queue.AddEncoderTurned(knob, static_cast<int16_t>(turn), 0);
             }
         }
 

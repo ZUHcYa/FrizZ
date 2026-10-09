@@ -888,9 +888,19 @@ int main()
         Usb({0xF0, 0x7D, 0x43, 0x48, 0x12, 4, 0x7F - 39, 0xF7}); // knob 1 (SW4), -40
         RunMs(500);
         Check(RunMs(300) < dry * .5f, "midi sysex: 12 turns a knob by its SWn: the cutoff");
+        // several detents at once count each, as the hand's: 6 on a stepped knob are 2 steps
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x11, 25, 1, 0xF7}); // KEY_12: the delay
+        RunMs(80);
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x11, 25, 0, 0xF7});
+        RunMs(80);
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x12, 4, 6, 0xF7});
+        RunMs(100);
+        const std::string delay = Ask({0x21, 10});
+        Check(delay.size() == 9 && delay[1] == 64 && delay[2] == 0,
+              "midi sysex: 12 turning 6 detents moves the delay's division 2 steps, 1/4 to 1/4.");
         const std::string state = Ask({0x20});
-        Check(state.size() >= 12 && state[0] == 0 && state[4] == 4 && (state[11] >> 4 & 1),
-              "midi sysex: 20 answers the state: no loop, the filter selected, on");
+        Check(state.size() >= 12 && state[0] == 0 && state[4] == 10 && (state[11] >> 4 & 1),
+              "midi sysex: 20 answers the state: no loop, the delay selected, the filter on");
         bool leds_ok = true;
         for (int part = 0; part < 4; part++)
         {
