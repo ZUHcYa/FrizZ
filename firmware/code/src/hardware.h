@@ -200,11 +200,6 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
         uint8_t legacy_cable_bounce = 0;
         uint8_t iindpm_stat_bounce = 0;
 
-        void BMCPerformCheck()
-        {
-            MpReadAll();
-        }
-
         /* Ported from TEMPO hardware.h: non-blocking battery check. Reads the battery IC without
         blocking so MIDI and UI don't lag */
         uint8_t batt_check_state = 0;
@@ -267,7 +262,7 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
 
             // not during the level check, whose threshold is raised to 3V3 (BMCMediumBattCheck)
             if(batt_check_state == 0)
-                BMCPerformCheck();
+                MpReadAll();
 
             if(batt_low_bounce == 0xff && vin_gd_bounce == 0x00) // unplugged and low battery
             {
@@ -284,7 +279,7 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
                     {
                         last_update = now;
 
-                        BMCPerformCheck(); // re-check battery status
+                        MpReadAll(); // re-check battery status
 
                         if(!(batt_low_bounce == 0xff && vin_gd_bounce == 0x00))
                             return; // break out early if battery status changed

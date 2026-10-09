@@ -30,6 +30,10 @@ what FRIZZ does.
   off, which leaves more room for the effects that are on.
 - Turning the master compressor's knobs takes far less processing time while they glide,
   so it no longer adds to crackles on busy scenes.
+- The reverb and the delay take less processing time while they play: the reverb's slow
+  modulation no longer computes two cosines a sample, the delay no longer divides by the
+  tempo every sample. The delay sounds the same; the reverb's modulation is within a
+  thousandth of what it was.
 - Mono input (VOLUME's page 3) needs its 3 detents in one direction: turning back starts the
   count over, so wiggling the knob doesn't switch it.
 - A flash on a key that's already lit nearly white (a select on a loud effect or on the
@@ -61,6 +65,14 @@ what FRIZZ does.
   (the transport's colours at full speed, the boot animation).
 - Holding an FX key, then SHIFT with a control that does nothing (the transport, or a knob the
   effect doesn't use) no longer cancels the latch or a pending confirm.
+- The effects' tempo from a MIDI clock whose ticks come in pairs (two at once, or a late one
+  catching up just before the next, as a busy computer can send them) was off by up to 5 %
+  and flapped. A pair now counts as two ticks of the right length.
+- A bug report that couldn't be written (the card full) left its file open on the card; it's
+  now closed, so the card stays sound and the next report is written.
+- A restart over MIDI (FRIZZ's own SysEx, which `flash.py`, `card.py` and `remote.py` send to
+  get back to the multi-firmware launcher) right after a setting changed lost the setting; it
+  now goes to the card first (waiting a second at most).
 
 ## v0.10 (2026-10-08)
 

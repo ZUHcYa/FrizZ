@@ -200,6 +200,7 @@ public:
     /** The settings changed over SysEx since last asked: they go to the card */
     inline bool TakeSettingsChanged()
     {
+        daisy::ScopedIrqBlocker irq;
         const bool c = settings_changed_;
         settings_changed_ = false;
         return c;
@@ -213,8 +214,9 @@ public:
     {
         daisy::ScopedIrqBlocker irq;
         max = static_cast<uint16_t>(load_max_ * 1000.f + .5f);
-        mean = load_blocks_ ? static_cast<uint16_t>(load_sum_ / load_blocks_ * 1000.f + .5f) : 0;
-        load_max_ = load_sum_ = 0.f;
+        mean = load_blocks_ ? static_cast<uint16_t>(load_sum_ / load_blocks_ * 1000. + .5) : 0;
+        load_max_ = 0.f;
+        load_sum_ = 0.;
         load_blocks_ = 0;
     }
 
@@ -479,7 +481,8 @@ private:
     volatile bool query_pending_ = false;
 
     float ticks_per_block_ = 1.f;
-    float load_max_ = 0.f, load_sum_ = 0.f;
+    float load_max_ = 0.f;
+    double load_sum_ = 0.; // a float stops adding ~0.45 a block after a few hours unread
     uint32_t load_blocks_ = 0;
 };
 

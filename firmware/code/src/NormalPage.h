@@ -184,6 +184,17 @@ namespace chompi
                 SetPthLed(i, 0, 0, 0);
         }
 
+        /** Before a restart: master settings waiting out their kMasterSaveDelayMs go to the
+         *  card at once, the first time it's asked (a change after that, automation still
+         *  coming, waits as usual). True once there's nothing left to write */
+        bool MasterSettled()
+        {
+            if (master_unsaved_ && !master_hurried_)
+                master_changed_at_ = System::GetNow() - kMasterSaveDelayMs - 1;
+            master_hurried_ = true;
+            return !master_unsaved_;
+        }
+
         void ResetSmtLeds()
         {
             for (int i = 0; i < kNumSmtLeds; i++)
@@ -1141,6 +1152,7 @@ namespace chompi
         bool master_unsaved_ = false;     // the compressor's knobs or mono,
                                           // not yet on the card
         uint32_t master_changed_at_ = 0;  // when they last changed
+        bool master_hurried_ = false;     // a restart pulled the save forward (MasterSettled)
         uint32_t master_tries_ = 0;       // failed writes since
         LedSignal master_refused_;        // a failed write, on the compressor's key
 

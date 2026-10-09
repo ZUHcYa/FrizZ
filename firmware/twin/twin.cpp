@@ -413,6 +413,8 @@ static void Deliver(std::deque<uint8_t>& q, void (*rx)(uint8_t*, size_t, void*),
 // ======== the API (twin.h) ========
 std::map<std::string, std::string>& CardFiles() { return FakeCard::Get().files; }
 void SetCardPresent(bool present) { FakeCard::Get().present = present; }
+void SetCardSpace(size_t bytes) { FakeCard::Get().space = bytes; }
+int CardOpenFiles() { return FakeCard::Get().open; }
 
 void Boot()
 {

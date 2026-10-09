@@ -31,12 +31,13 @@ static float amp = .3f, freq = 220.f, phase = 0.f;
 static float clock_bpm = 0.f; // a MIDI clock into the jack while > 0
 static double clock_next = 0.;
 static float last_out[2] = {0.f, 0.f}, max_step = 0.f; // the master out's largest step, L or R
+static float hp_rms = 0.f; // the headphones' (left) RMS over the last RunMs
 
 /** Runs ms with a sine (or silence) into AUX; the master out's RMS over the time */
 static float RunMs(uint32_t ms)
 {
     float in[kBlockSize * kChannels] = {}, out[kBlockSize * kChannels];
-    double sum = 0.;
+    double sum = 0., hp_sum = 0.;
     for (uint32_t b = 0; b < ms * 2; b++)
     {
         while (clock_bpm > 0.f && clock_next <= NowMs())
@@ -55,6 +56,7 @@ static float RunMs(uint32_t ms)
         {
             const float o = out[i * kChannels + 2];
             sum += o * o;
+            hp_sum += out[i * kChannels] * out[i * kChannels];
             for (int c = 0; c < 2; c++)
             {
                 const float v = out[i * kChannels + 2 + c];
@@ -63,6 +65,7 @@ static float RunMs(uint32_t ms)
             }
         }
     }
+    hp_rms = ms ? sqrtf(hp_sum / (ms * 2 * kBlockSize)) : 0.f;
     return ms ? sqrtf(sum / (ms * 2 * kBlockSize)) : 0.f;
 }
 
@@ -192,6 +195,7 @@ static void Usb(std::initializer_list<int> bytes)
 static const int kNoteOn = 0x9F, kNoteOff = 0x8F, kCC = 0xBF, kPC = 0xCF;
 static const int kFilterNote = 55; // KEY_5, the 5th white key: G above the base note, 48
 static const int kFilterLatchCC = 24, kFilterCutoffCC = 86, kCompAmountCC = 52;
+static const int kHpCueCC = 59; // the headphone feed: 0 the master out, 127 the input alone
 /** 14 bits of an answer as a knob's 0-1 (MidiControl.h's MidiToKnob), and 7 bits of a CC */
 static float KnobOf(int hi, int lo)
 {
@@ -640,6 +644,30 @@ int main()
         Check(SavedLatch(Card("/FRIZZ/frizz_scenes.txt"), 2, "shifter") == 1, "card: and frizz_scenes.txt has the new one");
     }});
 
+    // the headphone outputs (passthroughEngine.h): the master out at first, the dry input
+    // alone with the cue all the way up (VOLUME's page 4, here CC 59)
+    cases.push_back({"headphones", [] {
+        RunMs(kReadyMs);
+        const float master = RunMs(500), hp = hp_rms;
+        // at their own level: kHpGain .2 to the line out's .3
+        Check(master > .05f && fabsf(hp - master * 2.f / 3.f) < .01f * master,
+              "headphones: carry the master out at first, at 2/3 of its level");
+        Latch("KEY_10"); // the tape stop: silence on the master
+        RunMs(3000);
+        const float stopped = RunMs(500), hp_stopped = hp_rms;
+        Check(stopped < .01f * master && hp_stopped < .01f * master,
+              "headphones: a latched tape stop silences them with the master");
+        Usb({kCC, kHpCueCC, 127});
+        RunMs(300);
+        const float cued = RunMs(500), hp_cued = hp_rms;
+        Check(cued < .01f * master && hp_cued > .5f * master,
+              "headphones: with the cue up, the input alone, while the master stays silent");
+        Usb({kCC, kHpCueCC, 0});
+        RunMs(300);
+        RunMs(500);
+        Check(hp_rms < .01f * master, "headphones: the cue back down, the master out again");
+    }});
+
     // a restart over MIDI (MidiClock.h), for the launcher: only on FRIZZ's own SysEx
     cases.push_back({"restart", [] {
         RunMs(kReadyMs);
@@ -653,6 +681,43 @@ int main()
             Midi(b);
         RunMs(50);
         Check(Restarted(), "restart: F0 7D 43 48 10 F7 restarts it (the chip's reset)");
+    }});
+
+    // a restart right after a setting changed: the master file waits 2 s for it to rest, but
+    // a restart doesn't, so the setting has to reach the card first
+    cases.push_back({"restart-saves", [] {
+        RunMs(kReadyMs);
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x13, 0, 5, 0xF7}); // the channel: 5
+        RunMs(100);
+        for (uint8_t b : {0xF0, 0x7D, 0x43, 0x48, 0x10, 0xF7})
+            Midi(b);
+        RunMs(200);
+        Check(Restarted() && Card("/FRIZZ/frizz_master.txt").find("midi_channel 5\n") != std::string::npos,
+              "restart: a setting changed just before is on the card when it restarts");
+    }});
+
+    // a restart while a DAW's automation keeps changing the compressor: it waits for the card
+    // once, not for the automation to stop
+    cases.push_back({"restart-automation", [] {
+        RunMs(kReadyMs);
+        bool asked = false;
+        uint32_t asked_at = 0;
+        for (int i = 0; i < 300 && !Restarted(); i++) // 3 s of a CC every 10 ms
+        {
+            Usb({kCC, kCompAmountCC, static_cast<uint8_t>(i % 128)});
+            RunMs(10);
+            if (i == 50)
+            {
+                for (uint8_t b : {0xF0, 0x7D, 0x43, 0x48, 0x10, 0xF7})
+                    Midi(b);
+                asked = true;
+                asked_at = NowMs();
+            }
+        }
+        const uint32_t took = NowMs() - asked_at;
+        printf("      restarted %u ms after it was asked for\n", took);
+        Check(asked && Restarted() && took <= 1200,
+              "restart: under a stream of compressor CCs, within a second of being asked");
     }});
 
     // the event log (EventLog.h): a session, SHIFT + transport press, its file on the card
@@ -756,6 +821,48 @@ int main()
         Check(log.size() > 3 * 512 && bad == 0,
               "bug log: a file of several sectors comes out whole (the SD DMA's alignment)");
         KeepCard();
+    }});
+
+    // a bug report on a full card: the transport blinks red, and the file that couldn't be
+    // written isn't left open (EventLog::Begin closed it only when the head got written); with
+    // room again, the next one is written
+    cases.push_back({"bug-full", [] {
+        TakeCard(); // with scenes on it, so the file's head takes more than a sector
+        for (auto it = CardFiles().begin(); it != CardFiles().end();)
+            it = it->first.rfind("/FRIZZ/bug-", 0) == 0 ? CardFiles().erase(it) : std::next(it);
+        RunMs(kReadyMs);
+        Tap("KEY_6");
+        RunMs(500);
+        SetCardSpace(300); // the head of the file (the card's scenes) doesn't fit
+        auto combo = [] {
+            Press("KEY_26", true);
+            RunMs(100);
+            Press("ENC_5_SW", true);
+            bool red = false, white = false;
+            for (int i = 0; i < 1500; i++)
+            {
+                RunMs(1);
+                const Rgb rev = PthLedFull(kTransportRevLed);
+                red |= rev.r > 200 && rev.g < 80 && rev.b < 80;
+                white |= std::min({rev.r, rev.g, rev.b}) > 200;
+                if (i == 300)
+                {
+                    Press("ENC_5_SW", false);
+                    Press("KEY_26", false);
+                }
+            }
+            return std::make_pair(red, white);
+        };
+        const auto full = combo();
+        Check(full.first, "bug log, card full: the transport blinks red");
+        Check(CardOpenFiles() == 0, "bug log, card full: no file left open");
+        SetCardSpace(SIZE_MAX);
+        RunMs(1000);
+        const auto room = combo();
+        RunMs(1000);
+        Check(room.second && Card("/FRIZZ/bug-2.txt").find("# written here") != std::string::npos
+                  && CardOpenFiles() == 0,
+              "bug log, card full: with room again, the next one is written, and closed");
     }});
 
     // the log played back on a fresh twin: the same LEDs every ms up to the combo, and the

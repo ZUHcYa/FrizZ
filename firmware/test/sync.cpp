@@ -13,22 +13,27 @@ static const double kMaxDriftPerMin = 1.; // ms a minute against the clock, once
 static const double kMaxRampLagMs = 500.; // the FX at a ramp's end tempo this soon after it
 
 // the senders: exact; a hardware sequencer (its timer's jitter, its crystal 50 ppm slow); a DAW
-// over USB (1 ms frames, its scheduling's jitter)
+// over USB (1 ms frames, its scheduling's jitter); a host that sends its ticks in pairs, so two
+// arrive in one block; one that catches up, every other tick late, a frame before the next
 struct Sender
 {
     const char* name;
     double jitter_ms;
     bool usb;
     double drift_ppm;
+    bool pairs;
+    double pair_gap_ms;
 };
-static const Sender kExact = {"exact", 0., false, 0.};
-static const Sender kSequencer = {"sequencer", .2, false, 50.};
-static const Sender kDaw = {"DAW", .3, true, 0.};
-static const Sender* const kSenders[] = {&kExact, &kSequencer, &kDaw};
+static const Sender kExact = {"exact", 0., false, 0., false, 0.};
+static const Sender kSequencer = {"sequencer", .2, false, 50., false, 0.};
+static const Sender kDaw = {"DAW", .3, true, 0., false, 0.};
+static const Sender kPairs = {"pairs", .3, true, 0., true, 0.};
+static const Sender kCatchUp = {"catch-up", .3, true, 0., true, 1.};
+static const Sender* const kSenders[] = {&kExact, &kSequencer, &kDaw, &kPairs, &kCatchUp};
 
 static void StartClock(const Sender& s, double bpm)
 {
-    const ClockGen::Config c = Clock(bpm, s.jitter_ms, s.usb, s.drift_ppm);
+    const ClockGen::Config c = Clock(bpm, s.jitter_ms, s.usb, s.drift_ppm, s.pairs, s.pair_gap_ms);
     if (s.usb)
         StartUsb(c);
     else
@@ -202,7 +207,7 @@ static void LoopCase(const Sender& s, double bpm, int bars)
     const double seen = passes ? watch.wraps[passes] - watch.wraps[0] - passes * ideal / 48. : 0.;
     Check(passes > 0 && fabs(seen - passes * err / 48.) <= 1.,
           (base + "its loop point moves as its length says").c_str());
-    Record(&s == &kExact ? "loop-error-exact" : "loop-error-real", err);
+    Record(&s == &kExact ? "loop-error-exact" : &s == &kCatchUp ? "loop-error-catch-up" : "loop-error-real", err);
     Record("loop-drift", per_min);
 }
 
@@ -481,17 +486,22 @@ int main()
         Check(Worst(r, "tempo-to-120") == 0.,
               "tempo: a clock at whole BPM up to 120, from every sender: the FX's tempo holds still");
         Known(Worst(r, "tempo-above-120") == 0.,
-              "tempo: a clock at 174 or 300 BPM, from every sender: the FX's tempo holds still");
+              "tempo: a clock at 174 or 300 BPM, from every sender: the FX's tempo holds still (#19)");
         Known(Worst(r, "tempo-between") == 0.,
-              "tempo: a clock between two whole BPM (120.4), from every sender: the FX's tempo holds still");
+              "tempo: a clock between two whole BPM (120.4), from every sender: the FX's tempo holds still (#19)");
         Report("loop length error, worst: %.1f samples from an exact clock, %.1f from a sequencer or "
-               "DAW; drift, worst: %.2f ms a minute",
-               Worst(r, "loop-error-exact"), Worst(r, "loop-error-real"), Worst(r, "loop-drift"));
+               "DAW, %.1f from a host catching up; drift, worst: %.2f ms a minute",
+               Worst(r, "loop-error-exact"), Worst(r, "loop-error-real"), Worst(r, "loop-error-catch-up"),
+               Worst(r, "loop-drift"));
         Check(Worst(r, "loop-error-exact") <= kMaxLoopError,
               "loop: from an exact clock, every quantized loop within a block of its bars");
         Check(Worst(r, "loop-error-real") <= kMaxLoopError,
               "loop: from a sequencer or a DAW, every quantized loop within a block of its bars");
+        // #17, found 2026-10-09: every other tick a frame early throws the looper's fit (Looper.h,
+        // TrackRecordingClock) off by up to 56 samples on a 1-bar loop, on main as well
+        Known(Worst(r, "loop-error-catch-up") <= kMaxLoopError,
+              "loop: from a host catching up late ticks, every quantized loop within a block of its bars (#17)");
         Known(Worst(r, "loop-drift") <= kMaxDriftPerMin,
-              "loop: every quantized loop drifts under 1 ms a minute against the clock");
+              "loop: every quantized loop drifts under 1 ms a minute against the clock (#20, not planned)");
     });
 }

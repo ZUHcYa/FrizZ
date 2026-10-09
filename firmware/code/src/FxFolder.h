@@ -99,7 +99,6 @@ public:
         *r += gate * (wet[1] * match - *r);
     }
 
-    /** The parameters land at once, no slew: at Init */
     /** The slewed parameters jump to their targets, at Init */
     void SnapParams()
     {

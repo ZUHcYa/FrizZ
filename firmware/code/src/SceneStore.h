@@ -4,8 +4,8 @@
  *  boot; written only when the play page saves, copies or deletes one, never on a recall, so a
  *  performance doesn't touch the card.
  *
- *  Next to it, frizz_master.txt holds the master compressor's knobs and the mono input
- *  (MasterSettings.h): read at boot, written when the play page asks, a while after they were
+ *  Next to it, frizz_master.txt holds the master compressor's knobs, the mono input and the
+ *  MIDI settings (MasterSettings.h): read at boot, written when the play page asks, a while after they were
  *  last turned. It goes through the same .tmp; one that can't be read is simply replaced, it
  *  holds little.
  *
@@ -101,6 +101,9 @@ public:
     inline void RequestSave() { save_state_ = SaveState::PENDING; }
     /** From the play page, master changed: the next Process writes its file */
     inline void RequestMasterSave() { master_pending_ = true; }
+
+    /** A save requested and not yet written */
+    inline bool Busy() const { return save_state_ == SaveState::PENDING || master_pending_; }
 
     /** How the last requested save went, for the play page's confirmation */
     inline SaveState GetSaveState() const { return save_state_; }

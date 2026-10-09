@@ -33,7 +33,6 @@ public:
 
     void Init(float sample_rate)
     {
-        sample_rate_ = sample_rate;
         filter_.Init(sample_rate);
         filter_.SetSlew(1.f); // the cutoff is slewed here, so the LFO isn't smoothed away
         gate_.Init();
@@ -121,7 +120,6 @@ public:
         return fclamp(cutoff + depth * .5f * tri, 0.f, 1.f);
     }
 
-    /** The parameters land at once, no slew: at Init */
     /** The slewed parameters jump to their targets, at Init */
     void SnapParams()
     {
@@ -154,7 +152,6 @@ public:
     }
 
 private:
-    float sample_rate_;
     DjFilter filter_;
     Smoothed cutoff_;
     Smoothed depth_;

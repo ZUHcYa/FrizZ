@@ -9,6 +9,9 @@
  *    faster (-) than CHOMPI's crystal says;
  *  - USB: the ticks go out in the host's 1 ms USB frames, each at the start of the frame after
  *    it was due, so up to 1 ms late and sometimes two in a frame;
+ *  - pairs: a host that sends its ticks two at a time, every other one held back until the
+ *    next is due, so both go out together (in one USB frame, so in one block of FRIZZ's), or,
+ *    with a pair gap, the held one that many ms before the next (a host catching up);
  *  - a ramp: the tempo moves linearly to another over some ms.
  *
  *  Deterministic: the jitter comes from a seeded generator of its own.
@@ -29,6 +32,8 @@ public:
         double jitter_ms = 0.;
         double drift_ppm = 0.;
         bool usb = false;
+        bool pairs = false;
+        double pair_gap_ms = 0.;
         double ramp_to = 0.; // a tempo to move to, 0 for none
         double ramp_ms = 0.;
         uint32_t seed = 1;
@@ -90,7 +95,15 @@ private:
     {
         const double ideal = next_ideal_;
         next_ideal_ += 60000. / (Bpm(ideal) * 24.);
-        double t = ideal + cfg_.jitter_ms * Uniform();
+        // pairs: every other tick waits for the next one, which then goes out with it
+        if (cfg_.pairs && sent_ % 2 == 1)
+        {
+            send_ = last_send_ + cfg_.pair_gap_ms;
+            last_send_ = send_;
+            return;
+        }
+        const double due = cfg_.pairs ? next_ideal_ - cfg_.pair_gap_ms : ideal;
+        double t = due + cfg_.jitter_ms * Uniform();
         if (cfg_.usb)
             t = start_ms_ + kFramePhase + std::ceil((t - start_ms_ - kFramePhase) / 1.) * 1.;
         send_ = t < last_send_ ? last_send_ : t;

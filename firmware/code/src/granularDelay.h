@@ -110,6 +110,7 @@ class delayVoice {
         delay_samples_ = 0.f;
         curEvent = nextEvent = NONE;
         curPan = nextPan = 0.f;
+        SetPanGains();
         event_crossfade_counter_ = 0;
         active_ = active;
         fading_in_ = fading_out_ = false;
@@ -136,6 +137,7 @@ class delayVoice {
         curEvent = nextEvent;
         nextEvent = NONE; // Until otherwise changed
         curPan = nextPan;
+        SetPanGains();
         nextPan = 0.f;
         if (curEvent == delayEvent::PITCH_UP && div_pos_ < 5) {
 
@@ -188,8 +190,7 @@ class delayVoice {
         float crossfade_env = 1.f;
         float div_env = 1.f;
 
-        float panL = chompi::fast_sqrt(0.5f * (1.f - curPan));
-        float panR = chompi::fast_sqrt(0.5f * (1.f + curPan));
+        const float panL = pan_l_, panR = pan_r_;
 
         if (fading_in_) {
             event_crossfade_counter_++;
@@ -216,7 +217,7 @@ class delayVoice {
             }
             break;
             case RETRIG: {
-                read_head_ = static_cast<float>(write_head_) - delay_samples_ - delay_samples_ * .125; // Might have to do target
+                read_head_ = static_cast<float>(write_head_) - delay_samples_ - delay_samples_ * .125f; // Might have to do target
             }
             break;
             case REVERSE: {
@@ -304,6 +305,12 @@ class delayVoice {
     float delay_samples_;
     delayEvent curEvent, nextEvent;
     float curPan, nextPan;
+    float pan_l_ = 0.f, pan_r_ = 0.f; // curPan's equal-power gains, set with it
+
+    void SetPanGains() {
+        pan_l_ = chompi::fast_sqrt(0.5f * (1.f - curPan));
+        pan_r_ = chompi::fast_sqrt(0.5f * (1.f + curPan));
+    }
     uint32_t event_crossfade_counter_;
     bool active_;
     bool fading_in_, fading_out_;
@@ -474,10 +481,7 @@ class granularDelay {
     }
 
     /** The longest an event runs: an 8th note at the tempo, plus a fade */
-    uint32_t EventSamples() const {
-        return static_cast<uint32_t>(60.f * 48000.f / (tempo_ * 2.f))
-               + kMaxEventCrossfadeSamps;
-    }
+    uint32_t EventSamples() const { return event_samples_; }
 
     float randomPan() {
         float effective_range = 0.5f + (alt_control_ * 0.5f); // Range: [0.5, 1.0]
@@ -493,12 +497,14 @@ class granularDelay {
      *  it in the range where 2 bars fit the buffer */
     void SetTempo(float bpm) {
         tempo_ = bpm;
+        // read every sample: divided here, once a tempo
+        bar_samples_ = 4.f * 60.f * 48000.f / tempo_;
+        event_samples_ = static_cast<uint32_t>(60.f * 48000.f / (tempo_ * 2.f))
+                         + kMaxEventCrossfadeSamps;
     }
 
     /** A bar of 4 beats at the tempo, in samples */
-    float BarSamples() const {
-        return 4.f * 60.f * 48000.f / tempo_;
-    }
+    float BarSamples() const { return bar_samples_; }
 
     /** Index into delayDivs: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars */
     void setDivision(size_t div) {
@@ -531,6 +537,8 @@ class granularDelay {
     float delay_feedback_amt_;
 
     float tempo_;
+    float bar_samples_;
+    uint32_t event_samples_;
     size_t division_;
     bool shimmer_;
     float alt_control_;

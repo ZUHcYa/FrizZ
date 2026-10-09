@@ -36,6 +36,10 @@
 #include "SceneStore.h"
 #include "temp_led_stuff.h"
 
+#ifndef FRIZZ_BENCH_SOURCE // the Makefile passes a checksum of the source; the host builds don't
+#define FRIZZ_BENCH_SOURCE "host"
+#endif
+
 namespace chompi
 {
 
@@ -545,7 +549,7 @@ private:
     {
         static Text t;
         t.pos = 0;
-        t.Put("FRIZZ cpu bench, built " __DATE__ " " __TIME__ "\n");
+        t.Put("FRIZZ cpu bench, source " FRIZZ_BENCH_SOURCE "\n");
         t.Put("# of the 0.5 ms a block has; measured in FRIZZ-bench.bin, whose memory layout\n");
         t.Put("# isn't FRIZZ.bin's\n");
         t.Put("# segment           max %  mean %  still working\n");

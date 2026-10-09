@@ -221,12 +221,14 @@ public:
 
     /** Off and doing no more than it does off: an insert faded out, a send whose tail has gone
      *  quiet (TailWatch). For the CPU bench (Bench.h), which reports what was still working */
-    inline bool Resting(size_t fx) const
+    __attribute__((noinline)) bool Resting(size_t fx) const // the bench calls it in many places
     {
         if (fx == FX_DELAY)
             return delay_.Sleeping();
         if (fx == FX_REVERB)
             return reverb_.Sleeping();
+        if (fx == FX_TAPESTOP)
+            return tapestop_.Resting();
         return fx_[fx]->Idle();
     }
 

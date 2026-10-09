@@ -105,7 +105,7 @@ int main()
             if (k % 4 == 0)
                 return std::vector<uint8_t>{0xF0, 0x7E, 0x00, 0xF8, 0x06, 0x01, 0xF7};
             return std::vector<uint8_t>{0xF8};
-        }, true, "inside SysEx: a tick in the middle of a SysEx counted");
+        }, true, "inside SysEx: a tick in the middle of a SysEx counted (#18)");
     }});
 
     cases.push_back({"restart-tick", [] {
@@ -115,7 +115,7 @@ int main()
         for (uint8_t b : {0xF0, 0x7D, 0x43, 0xF8, 0x48, 0x10, 0xF7})
             Midi(b);
         RunMs(50);
-        Known(Restarted(), "restart: FRIZZ's restart SysEx with a clock tick inside it still restarts");
+        Known(Restarted(), "restart: FRIZZ's restart SysEx with a clock tick inside it still restarts (#18)");
     }});
 
     // Start, Stop, Continue and Song Position are ignored (LOOPER.md 1.4): they don't reset or

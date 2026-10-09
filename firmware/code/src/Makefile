@@ -5,7 +5,10 @@ TARGET = FRIZZ
 # apart in build-bench/ so it never mixes with the normal build's objects
 ifeq ($(BENCH),1)
 TARGET = FRIZZ-bench
-C_DEFS = -DFRIZZ_BENCH=1
+# cpu.txt names the source it was built from by a checksum of it, not by the time, so a
+# rebuild of the same source gives the same FRIZZ-bench.bin
+BENCH_SOURCE := $(shell cat $(sort $(wildcard *.h *.cpp)) | cksum | cut -d' ' -f1)
+C_DEFS = -DFRIZZ_BENCH=1 -DFRIZZ_BENCH_SOURCE='"$(BENCH_SOURCE)"'
 override BUILD_DIR = build-bench
 endif
 

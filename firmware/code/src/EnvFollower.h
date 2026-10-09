@@ -1,7 +1,7 @@
 /** @file EnvFollower.h
  *  @brief A simple asymmetric peak/envelope follower for the meters: VOLUME's VU meter
- *  (PassthroughEngine::GetVUSample, read by NormalPage) and the FX keys' levels. Not in the
- *  audio path.
+ *  (PassthroughEngine::GetVUSample, read by NormalPage) and the FX keys' levels. It runs per
+ *  sample in the audio callback, but only measures: nothing it computes reaches the outputs.
  */
 #pragma once
 #include "daisysp.h"

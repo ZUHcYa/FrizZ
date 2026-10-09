@@ -153,6 +153,10 @@ public:
         }
     }
 
+    /** Doing no more than it does off: its key's fade done and the tape back on the live
+     *  signal, which a spin-up after a release reaches only up to a bar later (the bench) */
+    inline bool Resting() const { return Idle() && state_ == State::IDLE; }
+
 private:
     enum class State
     {

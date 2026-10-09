@@ -294,6 +294,13 @@ struct StereoRing
     /** This sample's frame, one channel at a time; Advance once both are written */
     inline void Write(size_t c, float x) { buf[c][pos] = x; }
     inline void Advance() { pos = (pos + 1) & kMask; }
+    /** Both channels of this sample's frame, and Advance */
+    inline void WriteFrame(float l, float r)
+    {
+        buf[0][pos] = l;
+        buf[1][pos] = r;
+        Advance();
+    }
     /** The index of the last frame written, for reads of their own (& kMask) */
     inline size_t Last() const { return pos - 1; }
 

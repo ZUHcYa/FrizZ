@@ -66,6 +66,7 @@ public:
         ticks_ = 0;
         locks_ = 0;
         period_ = 0.f;
+        held_ = 0.f;
     }
 
     /** Drains both MIDI inputs. Call once per audio block from the audio callback.
@@ -123,6 +124,16 @@ public:
     void SendUsb(uint8_t* bytes, size_t size) { usb_midi.SendMessage(bytes, size); }
 
 private:
+    /** One step of the period's smoothing, against block-granularity and USB-frame jitter.
+     *  A pair of ticks sent close together (in one USB packet, or a late one catching up)
+     *  comes in as a long interval and a short one: smoothed one by one, they pulled the
+     *  tempo a tenth up and down, and it was read mostly after the short one, 5% fast. So a
+     *  long interval waits for the next tick (HandleEvent) */
+    inline void Smooth(float interval)
+    {
+        period_ = period_ > 0.f ? period_ + .1f * (interval - period_) : interval;
+    }
+
     void HandleEvent(const MidiEvent& event, Source from, uint32_t now)
     {
         if (event.type == SystemCommon && event.sc_type == SystemExclusive)
@@ -144,6 +155,7 @@ private:
             source_ = from;
             period_ = 0.f;
             locks_++;
+            held_ = 0.f;
         }
         else if (from != source_)
         {
@@ -152,8 +164,24 @@ private:
         else
         {
             const float interval = static_cast<float>(now - last_tick_);
-            // smooth out block-granularity and USB-frame jitter
-            period_ = period_ > 0.f ? period_ + .1f * (interval - period_) : interval;
+            if (held_ > 0.f)
+            {
+                // a long interval waited for this one: far shorter, they were a pair (two
+                // ticks sent together, or a late one catching up), so their mean is the
+                // period; otherwise the long one was real, a tempo change or a lost tick
+                if (interval < .5f * period_)
+                    Smooth(.5f * (held_ + interval));
+                else
+                {
+                    Smooth(held_);
+                    Smooth(interval);
+                }
+                held_ = 0.f;
+            }
+            else if (period_ > 0.f && interval > 1.5f * period_)
+                held_ = interval; // waits for the next tick (above)
+            else
+                Smooth(interval);
         }
 
         ticks_++;
@@ -169,6 +197,7 @@ private:
     uint32_t locks_;
     uint32_t last_tick_;
     float period_;
+    float held_ = 0.f; // a long interval waiting for the next tick, 0 for none
     volatile bool restart_ = false;
     Listener listener_ = nullptr;
     void* listener_context_ = nullptr;

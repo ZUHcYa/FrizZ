@@ -17,10 +17,10 @@ STRESS=1 ./run.sh work out.bin
 | Check | What it looks at |
 |---|---|
 | `check.sh` | the engine harness (below): every output sample and FX meter of a fixed script, two versions compared; a refactor must be `bit-identical` |
-| `pitch`, `tape`, `delay`, `comp`, `clicks`, `level`, `sleep` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up events, the master compressor, moves that used to click, the level guard (an effect no louder than its input), effects that are off costing no time |
+| `pitch`, `tape`, `delay`, `comp`, `clicks`, `level`, `sleep`, `inserts` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up events, the master compressor, moves that used to click, the level guard (an effect no louder than its input), effects that are off costing no time, the folder's bypass and level match and the slicer's patterns, chance and stereo |
 | `scenes`, `store` | the scene and master files and the card: formats, a late card, backups |
 | `controls`, `keys`, `looper`, `tempo` | the play page's logic classes on their own: FX keys and knobs, SHIFT and the confirm, the looper, the tempo clock |
-| `ui` | the whole firmware from power-on on the virtual CHOMPI: keys through the 4021s, LEDs, the card, bug reports, MIDI (notes, CCs, NRPN, program changes, Start/Stop, the SysEx and its USB answers); each case on a fresh device |
+| `ui` | the whole firmware from power-on on the virtual CHOMPI: keys through the 4021s, LEDs, the headphones and the master out, the card (full too), bug reports, MIDI (notes, CCs, NRPN, program changes, Start/Stop, the SysEx and its USB answers); each case on a fresh device |
 | `remote` | `../remote.py` itself against the virtual CHOMPI: the twin's USB MIDI on a pseudo-terminal, remote.py run as it is (`--device`) while the twin keeps the wall clock's pace: state, LEDs, load, settings, scenes there and back, a script played with its `expect led` lines; needs `python3` |
 | `bench` | the CPU bench's firmware on the twin: it runs through and writes its file (the loads themselves need the device) |
 | `midi`, `sync` | MIDI in on the twin: ticks among and inside other messages, the jack and USB, which clock locks; and timing against a clock with a real sender's jitter: the FX's tempo, quantized loops' length and drift, the clock lost or switched mid-recording, the 2:45 limit, tap tempo |
@@ -29,7 +29,7 @@ A check prints `KNOWN` for a fault it has found in the firmware that isn't fixed
 `check.h`): that doesn't fail it, so `all.sh` stays green while the faults are listed. Once one
 passes it prints `FIXED` and fails the run, and becomes a plain `Check()` with the fix.
 
-`all.sh` takes about 1.5 minutes; the first run longer, as it builds DaisySP and the twin for the
+`all.sh` takes about 2 minutes; the first run longer, as it builds DaisySP and the twin for the
 host (into `build/` here and `../twin/build/`, both ignored by git).
 
 ## Engine harness
@@ -210,6 +210,19 @@ to the new delay time while a 1 BPM step slides, and on a loop whose tempo isn't
 exactly the loop's beat. These run the classes on their own; `unit.sh ui` below runs them
 behind the play page.
 
+## Folder and slicer check
+
+```bash
+./unit.sh inserts
+```
+
+The two effects with no check of their own before: the folder off passes its input bit for
+bit; on, its level match holds a quiet input and an undriven one within 3 dB, and a loud one
+at full drive no louder and at most 6 dB down (the match turns up by 6 dB at most, and the
+tone takes out much of what the folds add). The slicer on a steady input, at 120 BPM: every
+pattern hits on its own steps of the clock's 16ths, on both channels; chance at full flips
+steps at random, both channels alike; stereo plays different patterns left and right.
+
 ## Whole-device check
 
 ```bash
@@ -260,8 +273,18 @@ address, as the device's SD DMA does (found in the first report from a device). 
 fresh twin (`script.h`), the LEDs are the session's every millisecond up to the combo, and the
 replay writes the same events again.
 
+A bug report on a full card (the twin's card can run full, `SetCardSpace`, and counts the
+files open, `CardOpenFiles`): the transport blinks red, the file isn't left open, and with
+room again the next one is written.
+
 And a restart over MIDI (`MidiClock.h`, for `flash.py`): FRIZZ's own SysEx resets the chip,
-the launcher's PING or a longer message doesn't.
+the launcher's PING or a longer message doesn't, and a setting changed just before it is on
+the card first.
+
+The headphones (outputs 0/1, which the other cases don't look at): the master out at 2/3 of
+its level at first (`kHpGain` .2 to the line out's .3), silent with it under a latched tape
+stop, the input alone with the cue up (CC 59, VOLUME's page 4) while the master stays silent,
+and the master again with the cue down.
 
 The flicker #7 fixed in the transport LED (a value just over 1 wrapping to dark) doesn't show
 on the twin before the fix either, so that check guards only what it can see.
@@ -297,9 +320,10 @@ doesn't restart.
 ./unit.sh sync
 ```
 
-FRIZZ against a MIDI clock (`../twin/clockgen.h`) from three senders: exact; a hardware
+FRIZZ against a MIDI clock (`../twin/clockgen.h`) from five senders: exact; a hardware
 sequencer on the jack (0.2 ms jitter, its crystal 50 ppm slow); a DAW over USB (1 ms frames, 0.3
-ms jitter). Each case prints what it measured; the limits are at the top of `sync.cpp`.
+ms jitter); one that sends its ticks in pairs, both in one USB frame; and one catching up, every
+other tick late, a frame before the next. Each case prints what it measured; the limits are at the top of `sync.cpp`.
 
 - The FX's tempo from the clock, no loop, for 30 s at 60, 90, 120, 174 and 300 BPM and at 120.4:
   how often it changes (it should hold still), and a pulse every 2 ticks. A ramp from 100 to
@@ -329,7 +353,8 @@ the rounding without hysteresis); and a quantized loop, though within a few samp
 ms a minute against the clock when it's short and fast (1 bar at 174 BPM from a DAW): a bar of
 ticks can't measure the tempo closer, and nothing follows the clock once the loop plays. The
 drift is worked out from the length's error; the loop point's moves, measured only to a block,
-have to agree with it.
+have to agree with it. And from the catching-up sender, the looper's fit misses a short loop's
+length by up to 56 samples (1 bar at 90 BPM), a drift up to 26 ms a minute.
 
 ## CPU bench check
 
@@ -360,7 +385,9 @@ which is ignored.
 
 Every script sources `lib.sh`, which builds DaisySP for the host into `build/` (again when its
 sources or `g++` change) and has `unit_test NAME`: it copies the working tree's headers next
-to the host `MidiClock.h`, builds `NAME.cpp` with warnings on and runs it. A test's own
+to the host `MidiClock.h`, builds `NAME.cpp` with warnings on and runs it. FRIZZ's code is
+built with `-funsigned-char` here and in the twin, as char is unsigned on the CHOMPI and signed
+on x86. A test's own
 warnings are shown; if it doesn't build, so is every message, including the headers'. The
 `.cpp` checks share `check.h` (`Check()`, `Finish()`). A new check is just a `NAME.cpp`:
 `unit.sh NAME` runs it and `all.sh` picks it up. A check that includes `twin.h` is linked

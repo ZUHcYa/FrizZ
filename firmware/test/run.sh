@@ -30,6 +30,6 @@ cp "$T/host/MidiClock.h" "$D/"
 # the working tree: an old ref's are history
 WARN=-w
 [ "$1" = work ] && WARN="-Wall -Wno-unused-function -Wno-unused-variable"
-g++ -O2 -std=gnu++14 -ffp-contract=off $WARN -I"$D" -I"$T/host" $INC "$HARNESS" \
+g++ -O2 -std=gnu++14 -ffp-contract=off -funsigned-char $WARN -I"$D" -I"$T/host" $INC "$HARNESS" \
     "$BUILD/libdaisysp_host.a" -o "$D/harness"
 "$D/harness" "$2"
