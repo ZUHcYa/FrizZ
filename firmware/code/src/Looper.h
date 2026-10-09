@@ -409,13 +409,29 @@ private:
             first_tick_count_ = ticks;
             fit_ticks_ = ticks;
             fit_.Add(0., 0.);
+            last_x_ = last_y_ = 0.;
+            last_late_ = false;
         }
         else if (have_first_tick_ && ticks != fit_ticks_)
         {
             // one point a block: ticks that came in one block share its time
             fit_ticks_ = ticks;
-            fit_.Add(static_cast<double>(ticks - first_tick_count_),
-                     static_cast<double>(midi_clock_->GetLastTickTime() - first_tick_time_));
+            const double x = static_cast<double>(ticks - first_tick_count_);
+            const double y = static_cast<double>(midi_clock_->GetLastTickTime() - first_tick_time_);
+            // the last point came far later than its ticks take, and this one far sooner after
+            // it: that one was late, catching up just before this one (a host after a stall),
+            // so its time is off by most of a tick and it goes. Only both together: a clock
+            // that's merely early once (restarted) or late once (a lost tick) is fitted as before.
+            // The first point has no time before it to tell: followed this soon, it goes too
+            const float period = midi_clock_->GetTickPeriod();
+            const double ticks_in = .5 * period * (x - last_x_);
+            const bool soon = period > 0.f && y - last_y_ < ticks_in;
+            if (soon && (last_late_ || x - last_x_ == x))
+                fit_.Remove(last_x_, last_y_);
+            last_late_ = period > 0.f && y - last_y_ > 3. * ticks_in; // over 1.5 ticks' time a tick
+            fit_.Add(x, y);
+            last_x_ = x;
+            last_y_ = y;
         }
 
         if (closing_ && TickPeriod() > 0.f)
@@ -450,6 +466,21 @@ private:
             mean_y += (y - mean_y) / n;
             sxx += dx * (x - mean_x);
             sxy += dx * (y - mean_y);
+        }
+        /** Takes back a point Add() took, the last one (Add backwards) */
+        void Remove(double x, double y)
+        {
+            if (n <= 1.)
+            {
+                *this = TickFit();
+                return;
+            }
+            const double mx = mean_x, my = mean_y;
+            n -= 1.;
+            mean_x = (mx * (n + 1.) - x) / n;
+            mean_y = (my * (n + 1.) - y) / n;
+            sxx -= (x - mean_x) * (x - mx);
+            sxy -= (x - mean_x) * (y - my);
         }
         inline bool Ready() const { return n >= 2. && sxx > 0.; }
         inline double Slope() const { return sxy / sxx; }
@@ -658,6 +689,8 @@ private:
     uint32_t first_tick_count_;
     bool have_first_tick_;
     TickFit fit_;          // the ticks since the press, for TickPeriod()
+    double last_x_ = 0., last_y_ = 0.; // the fit's last point (ticks, samples since the first)
+    bool last_late_ = false;           // and it came over 1.5 ticks' time after the one before
     uint32_t fit_ticks_ = 0; // the clock's tick count at the last point
 };
 

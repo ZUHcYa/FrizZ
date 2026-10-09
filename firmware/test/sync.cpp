@@ -497,9 +497,9 @@ int main()
               "loop: from an exact clock, every quantized loop within a block of its bars");
         Check(Worst(r, "loop-error-real") <= kMaxLoopError,
               "loop: from a sequencer or a DAW, every quantized loop within a block of its bars");
-        // #17, found 2026-10-09: every other tick a frame early throws the looper's fit (Looper.h,
-        // TrackRecordingClock) off by up to 56 samples on a 1-bar loop, on main as well
-        Known(Worst(r, "loop-error-catch-up") <= kMaxLoopError,
+        // #17: every other tick late, a frame before the next, threw the looper's fit off by up
+        // to 56 samples on a 1-bar loop, until the late ones were dropped from it
+        Check(Worst(r, "loop-error-catch-up") <= kMaxLoopError,
               "loop: from a host catching up late ticks, every quantized loop within a block of its bars (#17)");
         Known(Worst(r, "loop-drift") <= kMaxDriftPerMin,
               "loop: every quantized loop drifts under 1 ms a minute against the clock (#20, not planned)");
