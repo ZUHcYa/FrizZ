@@ -146,7 +146,7 @@ checks need only `g++` and `python3`; the browser twin needs Emscripten in `~/op
 `firmware/test/all.sh` runs everything (a few minutes): `check.sh` (the engine against HEAD;
 a refactor must come out `bit-identical`) and every unit check, `./unit.sh NAME` for one:
 `pitch`, `tape`, `scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`,
-`comp`, `level`, `sleep`, `ui`, `remote`, `bench`, `midi`, `sync`. A new check is just a new
+`comp`, `level`, `sleep`, `inserts`, `ui`, `remote`, `bench`, `midi`, `sync` (`inserts` arrives with #16). A new check is just a new
 `NAME.cpp`; [`firmware/test/README.md`](firmware/test/README.md) says what each covers.
 `check.h`'s `Known()` marks a fault found and not yet fixed: it reports, doesn't fail.
 
