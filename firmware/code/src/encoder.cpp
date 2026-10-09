@@ -2,6 +2,9 @@
 
 using namespace chompi;
 
+/** False for Pin(), which libDaisy uses for a pin that isn't there */
+static bool Exists(dsy_gpio_pin p) { return p.port != DSY_GPIOX && p.pin < 16; }
+
 void ChompiEncoder::Init(dsy_gpio_pin a, dsy_gpio_pin b, dsy_gpio_pin click)
 {
     last_update_ = daisy::System::GetNow();
@@ -14,10 +17,17 @@ void ChompiEncoder::Init(dsy_gpio_pin a, dsy_gpio_pin b, dsy_gpio_pin click)
     hw_b_.pin  = b;
     hw_b_.mode = DSY_GPIO_MODE_INPUT;
     hw_b_.pull = DSY_GPIO_PULLUP;
-    dsy_gpio_init(&hw_a_);
-    dsy_gpio_init(&hw_b_);
+    // a pin that isn't there (Pin(): the A and B on the shift register, no click) is left
+    // alone: libDaisy's C GPIO calls don't check it, and would set up port NULL with a pin
+    // read from past the end of their table
+    if (Exists(a))
+        dsy_gpio_init(&hw_a_);
+    if (Exists(b))
+        dsy_gpio_init(&hw_b_);
     // Default Initialization for Switch
-    sw_.Init(click);
+    click_ = Exists(click);
+    if (click_)
+        sw_.Init(click);
     // Set initial states, etc.
     inc_ = 0;
     a_ = b_ = 0xff;
@@ -54,7 +64,8 @@ void ChompiEncoder::Debounce()
     }
 
     // Debounce built-in switch
-    sw_.Debounce();
+    if (click_)
+        sw_.Debounce();
 }
 
 void ChompiEncoder::Debounce(bool a_state, bool b_state)
