@@ -13,6 +13,7 @@
 #include "RainbowWavePage.h"
 #include "passthroughEngine.h"
 #include "EventLog.h"
+#include "MidiControl.h"
 
 namespace chompi
 {
@@ -27,10 +28,12 @@ namespace chompi
     class UserInterface
     {
     public:
-        void Init(PassthroughEngine *engine, Hardware *hw, SceneStore *scenes, EventLog *log)
+        void Init(PassthroughEngine *engine, Hardware *hw, SceneStore *scenes, EventLog *log,
+                  MidiControl *midi)
         {
             hw_ = hw;
             log_ = log;
+            midi_ = midi;
 
             /** Describe UI special controls - if any */
             daisy::UI::SpecialControlIds specialControlIds; /**< None here */
@@ -48,7 +51,7 @@ namespace chompi
                     {ledDisplayDescriptor},
                     canvasLedDisplay);
 
-            normal_page_.Init(engine, hw_, scenes, log);
+            normal_page_.Init(engine, hw_, scenes, log, midi);
             ui.OpenPage(normal_page_);
 
             boot_page_.Init();
@@ -67,7 +70,10 @@ namespace chompi
         }
 
         // Translates raw debounced hardware state into daisy::UiEventQueue events
-        // for whatever page is active, and logs each for a bug report (EventLog.h)
+        // for whatever page is active, and logs each for a bug report (EventLog.h). A key
+        // is down while the hand or MIDI holds it (MidiControl.h), so one held by both is
+        // pressed once and let go once both have; only the hand's are logged here, MIDI's as
+        // the messages that came
         void GenerateEvents()
         {
             for (int i = 0; i < static_cast<int>(Hardware::SwId::SR_LAST); i++)
@@ -77,16 +83,27 @@ namespace chompi
                 if (i == ENC_5_SW || i == static_cast<int>(Hardware::SwId::SW_TOG))
                     continue;
                 else if (hw_->button_sr.FallingEdge(i))
-                    Released(i);
+                    Hand(i, false);
                 else if (hw_->button_sr.RisingEdge(i))
-                    Pressed(i);
+                    Hand(i, true);
             }
 
             if (hw_->enc[4].FallingEdge())
-                Released(ENC_5_SW);
+                Hand(ENC_5_SW, false);
             else if (hw_->enc[4].RisingEdge())
-                Pressed(ENC_5_SW);
+                Hand(ENC_5_SW, true);
             log_->Toggle(hw_->GetToggleState());
+
+            const uint64_t down = hand_ | midi_->Keys();
+            for (uint64_t changed = down ^ told_; changed; changed &= changed - 1)
+            {
+                const int key = __builtin_ctzll(changed);
+                if ((down >> key) & 1)
+                    event_queue.AddButtonPressed(key, 1);
+                else
+                    event_queue.AddButtonReleased(key);
+            }
+            told_ = down;
 
             // encoder_map remaps the encoders' wiring order to the knobs' order; one event per
             // detent
@@ -99,12 +116,20 @@ namespace chompi
                     log_->Add(EventLog::TURN, i + 1, inc);
                 }
             }
+            // MIDI's, in the knobs' order already
+            for (uint16_t knob = 0; knob < midimap::kNumKnobs; knob++)
+            {
+                const int turns = midi_->TakeTurns(knob);
+                if (turns)
+                    event_queue.AddEncoderTurned(knob, static_cast<int16_t>(turns), 0);
+            }
         }
 
         /** Closes the finished rainbow page, then dispatches the events and draws. Runs in
          *  one context at a time (chompi_main.cpp), so the page stack is only changed here;
-         *  GenerateEvents only adds to the IRQ-safe event queue */
-        void DoEvents()
+         *  GenerateEvents only adds to the IRQ-safe event queue. What came over MIDI for the
+         *  play page waits for MainLoop (from_main), which may answer over USB */
+        void DoEvents(bool from_main = true)
         {
             if(rainbow_page_.IsClosable() && rainbow_page_.IsActive())
             {
@@ -112,20 +137,25 @@ namespace chompi
                 normal_page_.ResetSmtLeds();
             }
 
+            if (from_main)
+                normal_page_.Remote();
             ui.Process();
         }
 
     private:
-        void Pressed(int key)
+        /** A key the hand pressed or let go, as its debouncing saw it */
+        void Hand(int key, bool down)
         {
-            event_queue.AddButtonPressed(key, 1);
-            log_->Add(EventLog::KEY, key, 1);
+            if (down)
+                hand_ |= 1ull << key;
+            else
+                hand_ &= ~(1ull << key);
+            log_->Add(EventLog::KEY, key, down ? 1 : 0);
         }
-        void Released(int key)
-        {
-            event_queue.AddButtonReleased(key);
-            log_->Add(EventLog::KEY, key, 0);
-        }
+
+        MidiControl *midi_ = nullptr;
+        uint64_t hand_ = 0; // the keys the hand holds, by Hardware::SwId
+        uint64_t told_ = 0; // the keys the pages were told are down
 
         BootPage boot_page_;
         NormalPage normal_page_;

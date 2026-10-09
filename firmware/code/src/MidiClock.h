@@ -1,7 +1,8 @@
 /** @file MidiClock.h
  *  @brief MIDI clock input over TRS (UART) and USB, used to quantize looper recordings.
  *
- *  Only TimingClock ticks (24 PPQN) are used; every other message is drained and dropped.
+ *  Only TimingClock ticks (24 PPQN) are used here; every other message goes to the listener,
+ *  MidiControl.h, which plays the panel from it.
  *  The first source that ticks gets locked, and ticks from the other source are ignored
  *  until the locked one has been silent for kClockTimeoutSamples, after which whichever
  *  source ticks next takes over.
@@ -110,6 +111,17 @@ public:
     /** True once a restart was asked for over MIDI, from either input */
     inline bool RestartRequested() const { return restart_; }
 
+    /** Who gets every message but the clock, as it's read: in the audio callback */
+    typedef void (*Listener)(void* context, const MidiEvent& event, bool usb);
+    void SetListener(Listener listener, void* context)
+    {
+        listener_ = listener;
+        listener_context_ = context;
+    }
+
+    /** A message out over USB. From MainLoop only: the transport waits for the bus */
+    void SendUsb(uint8_t* bytes, size_t size) { usb_midi.SendMessage(bytes, size); }
+
 private:
     void HandleEvent(const MidiEvent& event, Source from, uint32_t now)
     {
@@ -118,10 +130,13 @@ private:
             restart_ = restart_
                        || (event.sysex_message_len == sizeof(kRestartSysEx)
                            && memcmp(event.sysex_data, kRestartSysEx, sizeof(kRestartSysEx)) == 0);
-            return;
         }
         if (event.type != SystemRealTime || event.srt_type != TimingClock)
+        {
+            if (listener_)
+                listener_(listener_context_, event, from == Source::USB);
             return;
+        }
 
         if (source_ == Source::NONE)
         {
@@ -155,6 +170,8 @@ private:
     uint32_t last_tick_;
     float period_;
     volatile bool restart_ = false;
+    Listener listener_ = nullptr;
+    void* listener_context_ = nullptr;
 };
 
 } // namespace chompi

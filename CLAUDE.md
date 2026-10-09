@@ -288,8 +288,10 @@ as `FileRequest`s to a queue; large writes are chunked across many `SDCallback()
 committed by writing a temp file then renaming it.
 
 **FRIZZ is simpler:** it builds `FRIZZ.bin`, has no `SDCallback()`, `FileStreamingManager`,
-NoSDPage or MenuPage, and no MIDI out; it does take MIDI clock in (`MidiClock.h` →
-`TempoClock.h`, with `TapTempo.h` as the fallback). It reads the card once at boot and writes it
+NoSDPage or MenuPage, and no MIDI out but its SysEx answers over USB; it takes MIDI clock in
+(`MidiClock.h` → `TempoClock.h`, with `TapTempo.h` as the fallback) and is played over MIDI
+(`MidiControl.h`: notes as keys, CCs, program changes, SysEx keys, knobs and queries, which
+`firmware/remote.py` uses to play twin scripts on the device and read its LEDs and load). It reads the card once at boot and writes it
 only from `MainLoop()` when an FX scene is saved, copied or deleted, or when the master
 compressor's knobs or the mono input setting have rested 2 s (`SceneStore.h`,
 `MasterSettings.h`), or a bug report is asked for (`EventLog.h`). Its files live in

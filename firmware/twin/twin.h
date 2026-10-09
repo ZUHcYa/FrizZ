@@ -55,6 +55,12 @@ void SetToggle(bool raw_level);
 /** A byte into the MIDI jack (TRS, the UART) */
 void Midi(uint8_t byte);
 
+/** A byte into USB MIDI, as a computer sends it */
+void UsbMidi(uint8_t byte);
+
+/** What the firmware sent out over USB MIDI since the last call, taken */
+std::string TakeUsbOut();
+
 /** Whether the firmware's main() has entered its loop (after about 1 s): a bug report's times
  *  count from there */
 bool MainLoopRunning();

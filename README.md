@@ -14,7 +14,8 @@ box and looper for whatever you plug into its AUX input.
 - **An input/loop mix** between the live input and the loop, plus input gain, output gain and a
   headphone feed that can carry the dry input alone, all on the VOLUME knob.
 - **A master compressor** on its own key, and a safety limiter on every output.
-- **MIDI clock** over TRS or USB, for quantized loops and the tempo-synced effects.
+- **MIDI** over TRS or USB: clock for quantized loops and the tempo-synced effects; notes
+  play the keys, CCs set every parameter, program changes recall scenes.
 
 FRIZZ is installed from the SD card like any CHOMPI firmware. It doesn't touch the bootloader,
 and you can go back to the stock firmware the same way.

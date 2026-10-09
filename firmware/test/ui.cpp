@@ -178,6 +178,35 @@ static void Save(int slot)
 }
 static bool Same(const Rgb& a, const Rgb& b) { return a.r == b.r && a.g == b.g && a.b == b.b; }
 
+// MIDI (MidiControl.h): bytes into the jack, or over USB; FRIZZ listens on channel 16 at first
+static void Trs(std::initializer_list<int> bytes)
+{
+    for (int b : bytes)
+        Midi(static_cast<uint8_t>(b));
+}
+static void Usb(std::initializer_list<int> bytes)
+{
+    for (int b : bytes)
+        UsbMidi(static_cast<uint8_t>(b));
+}
+static const int kNoteOn = 0x9F, kNoteOff = 0x8F, kCC = 0xBF, kPC = 0xCF;
+static const int kFilterNote = 55; // KEY_5, the 5th white key: G above the base note, 48
+static const int kFilterLatchCC = 24, kFilterCutoffCC = 86, kCompAmountCC = 52;
+/** A SysEx query over USB and its answer's data, or empty if none came */
+static std::string Ask(std::initializer_list<int> query)
+{
+    TakeUsbOut();
+    Usb({0xF0, 0x7D, 0x43, 0x48});
+    Usb(query);
+    Usb({0xF7});
+    RunMs(20);
+    const std::string out = TakeUsbOut();
+    if (out.size() < 7 || out.compare(0, 4, "\xF0\x7D\x43\x48") != 0
+        || static_cast<uint8_t>(out[4]) != (*query.begin() | 0x40))
+        return "";
+    return out.substr(5, out.size() - 6);
+}
+
 // boot, the rainbow, and the play page ready
 static const uint32_t kReadyMs = 6000;
 
@@ -653,6 +682,14 @@ int main()
         run(300);
         Tap("KEY_6");
         run(1000);
+        // MIDI: a note holding the filter, a CC, FRIZZ's SysEx key, all played in again
+        Trs({kNoteOn, kFilterNote, 100, kCC, kFilterCutoffCC, 20});
+        run(300);
+        Trs({kNoteOff, kFilterNote, 0});
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x11, 15, 1, 0xF7});
+        run(300);
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x11, 15, 0, 0xF7});
+        run(300);
         // a long sweep of knob 1: the file runs over several sectors, written in pieces
         for (int i = 0; i < 6; i++)
         {
@@ -694,6 +731,10 @@ int main()
               "bug log: with the card's scenes as they were at power-on, not as saved since");
         Check(log.find("\nturn 5 1\n") != std::string::npos && log.find("\nup KEY_28\n") != std::string::npos,
               "bug log: and the session's keys and knobs");
+        Check(log.find("\nmidi 9F 37 64\n") != std::string::npos
+                  && log.find("\nmidi BF 56 14\n") != std::string::npos
+                  && log.find("\nmidi F0 7D 43 48 11 0F 01 F7\n") != std::string::npos,
+              "bug log: and the MIDI that came, as it came");
         // every line one the twin reads, over all its sectors
         std::istringstream lines(log);
         std::string line;
@@ -703,6 +744,7 @@ int main()
                      || line.rfind("down ", 0) == 0 || line.rfind("up ", 0) == 0
                      || line.rfind("turn ", 0) == 0 || line.rfind("card file ", 0) == 0
                      || line.rfind("toggle ", 0) == 0 || line.rfind("input ", 0) == 0
+                     || line.rfind("midi ", 0) == 0
                      || line == "booted");
         Check(log.size() > 3 * 512 && bad == 0,
               "bug log: a file of several sectors comes out whole (the SD DMA's alignment)");
@@ -766,6 +808,187 @@ int main()
         Check(again.find("booted\n") != std::string::npos && events(again) == events(log),
               "bug log: and the replay writes the same log again");
         unlink((card_file + ".leds").c_str());
+    }});
+
+    // notes press the keys, on FRIZZ's channel only, and a key held by the hand and by MIDI
+    // is one press
+    cases.push_back({"midi-notes", [] {
+        RunMs(kReadyMs);
+        const float dry = RunMs(300);
+        const int off = Max(SmtLedFull(kFilterKeyLed));
+        Trs({0x90, kFilterNote, 100}); // channel 1
+        RunMs(100);
+        Check(Max(SmtLedFull(kFilterKeyLed)) == off, "midi notes: a note on another channel does nothing");
+        Trs({kNoteOn, kFilterNote, 100});
+        RunMs(100);
+        Check(Max(SmtLedFull(kFilterKeyLed)) > 2 * off, "midi notes: a note on channel 16 holds its key: the filter");
+        Trs({kCC, kFilterCutoffCC, 0});
+        RunMs(500);
+        Check(RunMs(300) < dry * .5f, "midi notes: and a CC closes its cutoff");
+        Press("KEY_5", true);
+        RunMs(100);
+        Trs({kNoteOn, kFilterNote, 0}); // a note on at velocity 0 is a note off
+        RunMs(200);
+        Check(RunMs(300) < dry * .5f, "midi notes: the hand holds it on after the note's off");
+        Press("KEY_5", false);
+        RunMs(300);
+        Check(fabsf(RunMs(300) - dry) < dry * .05f, "midi notes: and lets go of it");
+        Trs({kNoteOn, kFilterNote, 100});
+        Trs({kCC, 123, 0}); // all notes off
+        RunMs(300);
+        Check(fabsf(RunMs(300) - dry) < dry * .05f, "midi notes: all notes off lets go of every key MIDI holds");
+        // notes 45-47: CHOMPI, PLAY, LOOP; LOOP records
+        Trs({kNoteOn, 47, 100});
+        RunMs(60);
+        Trs({kNoteOff, 47, 0});
+        RunMs(100);
+        Check(PthLedFull(kLoopLed).r > 100, "midi notes: note 47 is LOOP");
+    }});
+
+    // controllers: latches, parameters, knob turns, the compressor, the mix
+    cases.push_back({"midi-cc", [] {
+        RunMs(kReadyMs);
+        const float dry = RunMs(300);
+        Trs({kCC, kFilterCutoffCC, 10, kCC, kFilterLatchCC, 127});
+        RunMs(500);
+        Check(RunMs(300) < dry * .5f, "midi cc: CC 24 latches the filter, CC 86 sets its cutoff");
+        Check(Max(SmtLedFull(kFilterKeyLed)) > 80, "midi cc: its key lit");
+        Trs({kCC, kFilterLatchCC, 0});
+        RunMs(300);
+        Check(fabsf(RunMs(300) - dry) < dry * .05f, "midi cc: CC 24 at 0 unlatches it");
+        // relative: CC 14 turns knob 1 as its detents do, here the filter's
+        Tap("KEY_5");
+        RunMs(200);
+        const Rgb before = PthLedFull(kKnob1Led);
+        Trs({kCC, 14, 127, kCC, 14, 127, kCC, 14, 127}); // -1, three times
+        RunMs(100);
+        Check(!Same(PthLedFull(kKnob1Led), before), "midi cc: CC 14 turns knob 1");
+        // NRPN: CC 86 in 14 bits, the cutoff's centre exactly
+        Trs({kCC, 99, 0, kCC, 98, kFilterCutoffCC, kCC, 6, 64, kCC, 38, 0});
+        RunMs(50);
+        const std::string params = Ask({0x21, 4});
+        Check(params.size() == 9 && params[1] == 64 && params[2] == 0,
+              "midi cc: NRPN 86 sets the cutoff in 14 bits, 8192 its centre");
+        Trs({kCC, kCompAmountCC, 127});
+        RunMs(50);
+        const std::string comp = Ask({0x21, 12});
+        Check(comp.size() == 9 && comp[1] == 127, "midi cc: CC 52 is the compressor's amount");
+        Trs({kCC, 56, 0}); // output gain
+        RunMs(300);
+        Check(RunMs(300) < .001f, "midi cc: CC 56 sets the output gain");
+    }});
+
+    // FRIZZ's SysEx: keys, detents and the settings in, the state, LEDs, load out over USB
+    cases.push_back({"midi-sysex", [] {
+        RunMs(kReadyMs);
+        const float dry = RunMs(300);
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x11, 11, 1, 0xF7}); // KEY_5's SwId: the filter
+        RunMs(100);
+        Check(Max(SmtLedFull(kFilterKeyLed)) > 80, "midi sysex: 11 holds a key by its SwId");
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x12, 4, 0x7F - 39, 0xF7}); // knob 1 (SW4), -40
+        RunMs(500);
+        Check(RunMs(300) < dry * .5f, "midi sysex: 12 turns a knob by its SWn: the cutoff");
+        const std::string state = Ask({0x20});
+        Check(state.size() >= 12 && state[0] == 0 && state[4] == 4 && (state[11] >> 4 & 1),
+              "midi sysex: 20 answers the state: no loop, the filter selected, on");
+        bool leds_ok = true;
+        for (int part = 0; part < 4; part++)
+        {
+            const std::string leds = Ask({0x22, part});
+            static const int kFirst[] = {0, 0, 9, 17}, kCount[] = {10, 9, 8, 8};
+            leds_ok &= leds.size() == 1u + 3 * kCount[part] && leds[0] == part;
+            for (int i = 0; leds_ok && i < kCount[part]; i++)
+            {
+                const Rgb c = part == 0 ? PthLed(i) : SmtLed(kFirst[part] + i);
+                leds_ok &= leds[1 + 3 * i] == c.r && leds[2 + 3 * i] == c.g && leds[3 + 3 * i] == c.b;
+            }
+        }
+        Check(leds_ok, "midi sysex: 22 answers every LED as it's lit");
+        Check(Ask({0x23}).size() == 4, "midi sysex: 23 answers the load");
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x11, 11, 0, 0xF7});
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x13, 0, 1, 0xF7}); // channel 1
+        RunMs(300);
+        Check(fabsf(RunMs(300) - dry) < dry * .05f, "midi sysex: 11 lets go of it");
+        Trs({0x90, kFilterNote, 100});
+        RunMs(100);
+        Check(Max(SmtLedFull(kFilterKeyLed)) > 80, "midi sysex: 13 sets the channel: now 1");
+        Check(Ask({0x24}) == std::string("\x01\x00", 2), "midi sysex: 24 answers the settings");
+        RunMs(2500);
+        Check(Card("/FRIZZ/frizz_master.txt").find("midi_channel 1\n") != std::string::npos,
+              "midi sysex: the channel goes to the card");
+        // queries come over USB only, where the answer goes: none over the jack
+        TakeUsbOut();
+        Trs({0xF0, 0x7D, 0x43, 0x48, 0x20, 0xF7});
+        RunMs(20);
+        Check(TakeUsbOut().empty(), "midi sysex: a query over the jack isn't answered");
+    }});
+
+    // scenes over SysEx and program changes, morphs over CC
+    cases.push_back({"midi-scenes", [] {
+        RunMs(kReadyMs);
+        const float dry = RunMs(300);
+        // the blank scene, with the filter latched and closed, into slot 1
+        const std::string blank[5] = {Ask({0x30, 0, 0}), Ask({0x30, 0, 1}), Ask({0x30, 0, 2}),
+                                      Ask({0x30, 0, 3}), Ask({0x30, 0, 4})};
+        bool all = true;
+        for (int part = 0; part < 5; part++)
+            all &= blank[part].size() == (part < 4 ? 26u : 5u);
+        Check(all, "midi scenes: 30 answers a scene in 5 parts");
+        std::string ack;
+        for (int part = 0; part < 5; part++)
+        {
+            std::string data = blank[part].substr(2);
+            if (part == 1)
+                data[8] = data[9] = 0; // the filter (FX 4, the 2nd in part 1): cutoff 0
+            if (part == 4)
+                data[2] = 1 << 4;              // latched: the filter
+            TakeUsbOut();
+            Usb({0xF0, 0x7D, 0x43, 0x48, 0x31, 1, part});
+            for (char c : data)
+                UsbMidi(static_cast<uint8_t>(c));
+            Usb({0xF7});
+            RunMs(20);
+            ack += TakeUsbOut().substr(5, 3);
+        }
+        Check(ack.size() == 15 && ack[14] == 0, "midi scenes: 31 stores one, part by part");
+        RunMs(2500);
+        Check(SavedLatch(Card("/FRIZZ/frizz_scenes.txt"), 1, "filter") == 1, "midi scenes: on the card");
+        Trs({kPC, 1});
+        RunMs(500);
+        Check(RunMs(300) < dry * .5f, "midi scenes: program change 1 recalls it");
+        Trs({kPC, 0});
+        RunMs(500);
+        Check(fabsf(RunMs(300) - dry) < dry * .05f, "midi scenes: program change 0, the blank scene");
+        Trs({kCC, 62, 1}); // morph to it: over a bar at 120 BPM, 2 s
+        RunMs(200);
+        const float midway = RunMs(100);
+        RunMs(3000);
+        Check(midway > dry * .5f && RunMs(300) < dry * .5f, "midi scenes: CC 62 morphs to it, landing on the bar");
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x31, 0, 4, 1, 0, 0, 0xF7});
+        RunMs(20);
+        const std::string refused = TakeUsbOut();
+        Check(refused.size() == 9 && refused[7] == 1, "midi scenes: never into the blank scene");
+    }});
+
+    // MIDI Start / Stop play and pause the loop, once switched on
+    cases.push_back({"midi-transport", [] {
+        RunMs(kReadyMs);
+        Tap("KEY_28");
+        RunMs(2000);
+        Tap("KEY_28");
+        sine = false;
+        RunMs(500);
+        Trs({0xFC});
+        RunMs(300);
+        Check(RunMs(300) > .05f, "midi transport: off at first: Stop doesn't pause the loop");
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x13, 1, 1, 0xF7});
+        RunMs(20);
+        Trs({0xFC});
+        RunMs(300);
+        Check(RunMs(300) < .001f, "midi transport: switched on, Stop pauses it");
+        Trs({0xFA});
+        RunMs(300);
+        Check(RunMs(300) > .05f, "midi transport: and Start plays it");
     }});
 
     char card_name[] = "/tmp/frizz-ui-card-XXXXXX";

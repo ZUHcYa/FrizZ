@@ -362,6 +362,20 @@ void UartListen(UartRx rx, void* context)
     uart_context = context;
 }
 
+static UartRx usb_rx = nullptr;
+static void* usb_context = nullptr;
+static std::deque<uint8_t> usb_in;
+static std::string usb_out;
+void UsbListen(UartRx rx, void* context)
+{
+    usb_rx = rx;
+    usb_context = context;
+}
+void UsbTx(const uint8_t* data, size_t size)
+{
+    usb_out.append(reinterpret_cast<const char*>(data), size);
+}
+
 // ======== the API (twin.h) ========
 std::map<std::string, std::string>& CardFiles() { return FakeCard::Get().files; }
 void SetCardPresent(bool present) { FakeCard::Get().present = present; }
@@ -413,6 +427,14 @@ void Run(size_t blocks, const float* in, float* out)
                 std::vector<uint8_t> bytes(midi_in.begin(), midi_in.end());
                 midi_in.clear();
                 uart_rx(bytes.data(), bytes.size(), uart_context);
+            }
+
+            // and USB's, what came in the last frame
+            if (usb_rx && !usb_in.empty())
+            {
+                std::vector<uint8_t> bytes(usb_in.begin(), usb_in.end());
+                usb_in.clear();
+                usb_rx(bytes.data(), bytes.size(), usb_context);
             }
 
             if (audio_cb)
@@ -486,6 +508,15 @@ void SetToggle(bool raw_level)
 }
 
 void Midi(uint8_t byte) { midi_in.push_back(byte); }
+
+void UsbMidi(uint8_t byte) { usb_in.push_back(byte); }
+
+std::string TakeUsbOut()
+{
+    std::string out;
+    out.swap(usb_out);
+    return out;
+}
 
 void SetBattery(float volts, bool plugged, bool full)
 {
