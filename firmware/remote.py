@@ -18,6 +18,9 @@ skipped, and `booted` is when the script starts. With --cpu it asks for the load
 and prints the worst, the way to try a scenario for crackles on FRIZZ.bin itself rather than on
 the bench's build. A bug report (/FRIZZ/bug-N.txt) plays too, from where the device is.
 
+FRIZZ is started first if the CHOMPI is elsewhere: at the launcher's picker, in its USB storage
+firmware, or in the bench (tools/chompi.py); --no-start leaves it be, as --device does.
+
 Linux only (ALSA's raw MIDI), Python 3 without packages, like flash.py.
 """
 import argparse
@@ -29,6 +32,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "tools"))
+import chompi  # noqa: E402
 import midi_send  # noqa: E402
 
 KEY, TURN, SETTING = 0x11, 0x12, 0x13
@@ -272,6 +276,8 @@ def play(f, path, cpu):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--device", help="the raw MIDI node, if not the first CHOMPI")
+    ap.add_argument("--no-start", action="store_true",
+                    help="don't start FRIZZ if the CHOMPI is elsewhere")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("state")
     sub.add_parser("leds")
@@ -291,6 +297,8 @@ def main():
     p.add_argument("--cpu", action="store_true")
     a = ap.parse_args()
 
+    if not a.device and not a.no_start:
+        a.device = chompi.to_frizz()
     f = Frizz(a.device)
     if a.cmd == "state":
         show_state(f)

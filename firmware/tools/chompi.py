@@ -1,0 +1,228 @@
+"""chompi.py: where the CHOMPI on USB is, and getting it from there to where it's wanted.
+
+It is in one of four states, as the computer sees it:
+
+    frizz      FRIZZ, which answers its own SysEx (code/src/MidiControl.h)
+    launcher   the multi-firmware launcher's picker, which answers its PING
+    storage    the USB storage firmware: the card is a drive labelled CHOMPI-SD
+    other      a CHOMPI MIDI device that is neither (an older FRIZZ, TAPE, ...)
+
+and None for nothing on USB. Every way between them goes through the launcher: FRIZZ restarts
+into it on its SysEx F0 7D 43 48 10 F7 (MidiClock.h), the storage firmware on an eject, and
+the launcher starts a slot on its RUN (05). Launchers and storage firmwares from before those
+two need a hand instead, and this says which.
+
+Linux only: ALSA's raw MIDI and udisks, Python 3 without packages.
+"""
+import os
+import re
+import subprocess
+import sys
+import time
+
+import midi_send
+
+FRIZZ_SLOT = int(os.environ.get("FRIZZ_SLOT", 10))
+BENCH_SLOT = int(os.environ.get("BENCH_SLOT", 11))
+STORAGE_SLOT = int(os.environ.get("STORAGE_SLOT", 15))
+STORAGE_LABEL = "CHOMPI-SD"
+
+RESTART = midi_send.HEADER + bytes([0x10, 0xF7])  # FRIZZ's (MidiClock.h)
+SETTINGS = 0x24  # FRIZZ's kCmdSettings: two bytes back; the launcher's BAD_MESSAGE is one
+RUN = 0x05
+BAD_MESSAGE, BAD_SLOT = 1, 8
+
+
+def say(*args):
+    print(*args, file=sys.stderr, flush=True)
+
+
+# ---- MIDI ---------------------------------------------------------------------------------
+
+def ask_midi(device):
+    """frizz, launcher or other, by one query to the device"""
+    try:
+        link = midi_send.Link(device)
+    except OSError:
+        return None
+    try:
+        reply = link.call(SETTINGS, timeout=0.3, retries=2, required=False)
+    except OSError:
+        return None  # it went away mid-way
+    finally:
+        os.close(link.fd)
+    if reply is None:
+        return "other"
+    return "frizz" if len(reply) >= 2 else "launcher"
+
+
+def restart(device):
+    """Asks a running FRIZZ to restart into the launcher; the launcher ignores it"""
+    try:
+        fd = os.open(device, os.O_WRONLY | os.O_NONBLOCK)
+        try:
+            os.write(fd, RESTART)
+        finally:
+            os.close(fd)
+        return True
+    except OSError:
+        return False
+
+
+# ---- the card, as a drive -----------------------------------------------------------------
+
+def storage_partition():
+    """/dev/sdXN of the CHOMPI-SD file system, if it is there"""
+    link = "/dev/disk/by-label/" + STORAGE_LABEL
+    return os.path.realpath(link) if os.path.exists(link) else None
+
+
+def storage_disk(part):
+    """The whole disk the file system is on: /dev/sdX (a card without partitions: itself)"""
+    parent = subprocess.run(["lsblk", "-no", "PKNAME", part], capture_output=True,
+                            text=True).stdout.strip()
+    return "/dev/" + parent if parent else part
+
+
+def mountpoint(part):
+    with open("/proc/mounts") as mounts:
+        for line in mounts:
+            fields = line.split()
+            if os.path.realpath(fields[0]) == part:
+                return fields[1].replace("\\040", " ")
+    return None
+
+
+def udisks(*args, check=True):
+    """udisksctl's output; None if it failed and check is off"""
+    quiet = [] if args[0] == "info" else ["--no-user-interaction"]  # info takes no such
+    result = subprocess.run(["udisksctl", *args, *quiet], capture_output=True, text=True)
+    if result.returncode == 0:
+        return result.stdout
+    if check:
+        sys.exit("udisksctl %s: %s" % (" ".join(args), result.stderr.strip()))
+    return None
+
+
+def mount(part, tries=20):
+    """Where the card is mounted, mounting it if needed. The drive appears a moment before
+    its file system can be mounted, so this tries for a while"""
+    for attempt in range(tries):
+        point = mountpoint(part)
+        if point:
+            return point
+        out = udisks("mount", "-b", part, check=attempt == tries - 1)
+        if out:
+            m = re.search(r" at (.+?)\.?$", out.strip())
+            return m.group(1) if m else mountpoint(part)
+        time.sleep(0.5)
+
+
+def eject(part):
+    """Unmounts the card and ejects the drive, which restarts the storage firmware"""
+    os.sync()
+    # the desktop looks into a freshly mounted card for a moment (busy): try for a while
+    for attempt in range(20):
+        if not mountpoint(part) or udisks("unmount", "-b", part, check=attempt == 19):
+            break
+        time.sleep(0.5)
+    disk = storage_disk(part)
+    # udisks' Eject runs eject(1) as root: START STOP UNIT with LoEj, what the firmware waits for
+    info = udisks("info", "-b", disk)
+    m = re.search(r"Drive:\s+'(/org/freedesktop/UDisks2/drives/[^']+)'", info)
+    if not m:
+        sys.exit("udisks doesn't know the drive behind %s" % disk)
+    result = subprocess.run(["gdbus", "call", "--system", "--dest", "org.freedesktop.UDisks2",
+                             "--object-path", m.group(1), "--method",
+                             "org.freedesktop.UDisks2.Drive.Eject", "{}"],
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        sys.exit("ejecting %s: %s" % (disk, result.stderr.strip()))
+
+
+# ---- the state, and the ways between ------------------------------------------------------
+
+def state(device=None):
+    """(state, the raw MIDI node or the drive's partition), or (None, None)"""
+    part = storage_partition()
+    if part:
+        return "storage", part
+    device = device or midi_send.find_device()
+    if device:
+        found = ask_midi(device)
+        if found:
+            return found, device
+    return None, None
+
+
+def wait_for(wanted, timeout, device=None, hint=None, hint_after=8):
+    """The node (or partition) once the CHOMPI is in the wanted state; exits after timeout"""
+    deadline = time.monotonic() + timeout
+    hint_at = time.monotonic() + hint_after
+    while time.monotonic() < deadline:
+        now, where = state(device)
+        if now == wanted:
+            return where
+        if hint and time.monotonic() > hint_at:
+            say(hint)
+            hint = None
+        time.sleep(0.5)
+    sys.exit("the CHOMPI didn't get to %s within %d s" % (wanted, timeout))
+
+
+def to_launcher(timeout=120, device=None):
+    """The launcher's raw MIDI node, from wherever the CHOMPI is"""
+    now, where = state(device)
+    if now == "launcher":
+        return where
+    if now == "frizz":
+        say("restarting FRIZZ into the launcher ...")
+        restart(where)
+        hint = "no launcher yet: switch the CHOMPI off and on"
+    elif now == "storage":
+        say("ejecting the card, which restarts the CHOMPI into the launcher ...")
+        eject(where)
+        hint = ("still no launcher: this USB storage firmware doesn't restart on an eject; "
+                "press overdub, then the CHOMPI key")
+    elif now == "other":
+        say("a CHOMPI that can't be restarted from here: switch it off and on")
+        hint = None
+    else:
+        say("no CHOMPI on USB: switch it on (and connect it)")
+        hint = None
+    return wait_for("launcher", timeout, device, hint, hint_after=10)
+
+
+def run(slot, wanted, timeout=120, device=None):
+    """Starts slot SLOT from wherever the CHOMPI is and waits for state WANTED (None: don't)"""
+    node = to_launcher(timeout, device)
+    link = midi_send.Link(node)
+    try:
+        reply = link.call(RUN, bytes([slot]), timeout=1.0, retries=2, required=False)
+    finally:
+        os.close(link.fd)
+    if reply and reply[0] == BAD_SLOT:
+        sys.exit("the launcher has nothing in slot %d" % slot)
+    if reply and reply[0] == BAD_MESSAGE:
+        say("this launcher can't start a slot from here (no RUN): press key %d" % slot)
+    elif reply and reply[0] != 0:
+        sys.exit("the launcher refused to start slot %d: status %d" % (slot, reply[0]))
+    else:
+        say("starting slot %d ..." % slot)
+    if wanted:
+        return wait_for(wanted, timeout, device)
+    return None
+
+
+def to_frizz(slot=FRIZZ_SLOT, timeout=120, device=None):
+    """FRIZZ's raw MIDI node, starting it from the launcher if it isn't running"""
+    now, where = state(device)
+    if now == "frizz":
+        return where
+    return run(slot, "frizz", timeout, device)
+
+
+def to_storage(timeout=120):
+    """The card's mount point, with the CHOMPI in its USB storage firmware"""
+    part = storage_partition() or run(STORAGE_SLOT, "storage", timeout)
+    return mount(part), part
