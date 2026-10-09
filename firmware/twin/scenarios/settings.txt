@@ -1,0 +1,24 @@
+# the settings page (mode switch up): an FX held through the flip, channel, mono, clock
+# factor, brightness, the battery on VOLUME; then back down to play
+input sine 220 0.3
+at 6000
+down KEY_5
+wait 300
+toggle 1
+wait 500
+up KEY_5
+wait 300
+tap KEY_1
+wait 300
+tap KEY_11
+wait 300
+tap KEY_23
+wait 300
+tap KEY_13
+wait 300
+tap KEY_14
+wait 1000
+toggle 0
+wait 1000
+tap KEY_5
+wait 1000

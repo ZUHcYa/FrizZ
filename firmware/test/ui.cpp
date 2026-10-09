@@ -26,7 +26,7 @@ static const int kVolumeEncoder = 6, kKnob1Encoder = 4; // SW6, SW4
 static const int kTransportRevLed = 5, kTransportFwdLed = 6, kVolumeLed = 9;
 static const int kSlot1Led = 1, kCompKeyLed = 10, kTapeStopKeyLed = 15;
 // the settings page's (SettingsPage.h): F# of the upper octave, C and D# of the upper octave
-static const int kMonoKeyLed = 7, kChannel1Led = 24, kChannel16Led = 6;
+static const int kMonoKeyLed = 7, kChannel1Led = 24, kChannel16Led = 6, kTransportKeyLed = 14;
 
 static bool sine = true;
 static float amp = .3f, freq = 220.f, phase = 0.f;
@@ -526,6 +526,12 @@ int main()
         RunMs(300);
         Check(Max(SmtLedFull(kChannel1Led)) > 2 * Max(SmtLedFull(kChannel16Led)),
               "settings-channel: C picks channel 1");
+        SetToggle(false);
+        RunMs(300);
+        Check(Max(SmtLedFull(kChannel16Led)) == 0 && Max(SmtLedFull(kTransportKeyLed)) == 0,
+              "settings-channel: back on the play page, the keys it doesn't use are dark");
+        SetToggle(true);
+        RunMs(300);
         Tap("KEY_11"); // F: transport following
         RunMs(3000);
         const std::string master = Card("/FRIZZ/frizz_master.txt");

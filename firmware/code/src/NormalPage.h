@@ -210,6 +210,12 @@ namespace chompi
             for (int i = 0; i < kNumPthLeds; i++)
                 SetPthLed(i, 0, 0, 0);
 
+            // the keys the play page doesn't draw would keep the settings page's colours
+            if (show_settings_ != drew_settings_)
+            {
+                drew_settings_ = show_settings_;
+                ResetSmtLeds();
+            }
             if (show_settings_)
             {
                 settings_.Draw();
@@ -1119,6 +1125,7 @@ namespace chompi
         float speed_chunk_ = 0.f;   // transport detents towards the next speed step
         SettingsPage settings_;
         volatile bool show_settings_ = false; // the mode switch is up (ui.h)
+        bool drew_settings_ = false;          // the last frame was the settings page's
         bool master_unsaved_ = false;     // the compressor's knobs or a setting,
                                           // not yet on the card
         uint32_t master_changed_at_ = 0;  // when they last changed

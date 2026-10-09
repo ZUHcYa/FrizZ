@@ -52,7 +52,7 @@ FX_NAMES = ["freezer", "shifter", "folder", "crusher", "filter", "flanger", "res
             "slicer", "warble", "tapestop", "delay", "reverb"]
 LOOPER = ["empty", "recording", "playing", "paused"]
 MODES = ["none", "save", "copy", "delete"]
-PAGES = ["output gain", "input gain", "mono", "headphone feed"]
+PAGES = ["output gain", "input gain", "headphone feed"]
 # the LED parts kCmdLeds answers: (panel?, first, count)
 LED_PARTS = [(True, 0, 10), (False, 0, 9), (False, 9, 8), (False, 17, 8)]
 
@@ -129,7 +129,7 @@ def show_state(f):
     print("on         %s" % " ".join(n for i, n in enumerate(FX_NAMES) if on >> i & 1))
     print("latched    %s" % " ".join(n for i, n in enumerate(FX_NAMES) if latched >> i & 1))
     print("VOLUME     page %s, mix %.2f, out %.2f, in %.2f, headphones %.2f%s" % (
-        PAGES[d[12]] if d[12] < 4 else d[12], knob(get14(d[13], d[14])),
+        PAGES[d[12]] if d[12] < len(PAGES) else d[12], knob(get14(d[13], d[14])),
         knob(get14(d[15], d[16])), knob(get14(d[17], d[18])), knob(get14(d[19], d[20])),
         ", mono" if flags & 32 else ""))
     print("tempo      %.1f BPM%s%s" % (get14(d[21], d[22]) / 10,
