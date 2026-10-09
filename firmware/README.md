@@ -18,7 +18,8 @@ bin/                      FRIZZ.bin (the latest build), FRIZZ-bench.bin (the CPU
                           reference/firmware/chompi-wave/code/Chompi_Bootloader/
 test/                     host-side checks: the engine against HEAD, and unit checks (unit.sh NAME)
 twin/                     the virtual CHOMPI: the whole firmware on the PC, on a simulated board
-flash.py, tools/          sending a build to the CHOMPI over USB, through the multi-firmware launcher
+flash.py, card.py, tools/ sending a build to the CHOMPI and reaching its card over USB, through the
+                          multi-firmware launcher
 ```
 
 Design notes live in [`../docs/`](../docs/): the looper spec (`LOOPER.md`) and an overview of
@@ -136,17 +137,40 @@ cd firmware
 ./flash.py            # builds FRIZZ.bin, restarts the CHOMPI into the launcher, sends it to slot 10
 ./flash.py --bench    # FRIZZ-bench.bin to slot 11
 ./flash.py --no-build # bin/FRIZZ.bin as committed
+./flash.py --run 11   # starts what's in slot 11 already, sending nothing
 ```
 
 Sending replaces whatever is in that slot, so set yours (`FRIZZ_SLOT=4 ./flash.py`,
-`BENCH_SLOT`, or `--slot`) if FRIZZ isn't on key 10. A running FRIZZ restarts into the
-launcher when asked over USB MIDI (the SysEx `F0 7D 43 48 10 F7`, `MidiClock.h`), so
-nothing needs touching; with an older FRIZZ or another firmware running, switch the CHOMPI
-off and on when it says so (it waits up to 2 minutes). Linux only (ALSA), Python 3, no
+`BENCH_SLOT`, or `--slot`) if FRIZZ isn't on key 10. Linux only (ALSA), Python 3, no
 packages; it uses the launcher's own client, `tools/midi_send.py`. On macOS or Windows, the
-launcher's web page (https://ugrossek.github.io/CHOMPI/, Chrome or Edge) does the same. The
-launcher's key 15 is USB storage: the card shows up as a drive, for `cpu.txt` and bug reports.
+launcher's web page (https://ugrossek.github.io/CHOMPI/, Chrome or Edge) does the same.
 FRIZZ keeps its files in `/FRIZZ`, so it shares the card with the other firmwares.
+
+**The card over USB.** The launcher's key 15 is lnetzel's USB storage firmware: the card shows
+up as a drive. `./card.py` uses it with no hands at the panel:
+
+```bash
+./card.py get                  # FRIZZ/cpu.txt and every bug report, into card/
+./card.py get FRIZZ/x.txt -o . # any file
+./card.py put FILE FRIZZ/      # a file onto the card
+./card.py ls FRIZZ             # a folder
+./card.py mount                # just mounts it and prints where; ./card.py done ends it
+```
+
+Each brings the CHOMPI into the storage firmware, mounts the card, does its part, ejects it and
+starts FRIZZ again (`--then N` another slot, `--then none` stays at the picker), about 30 s in
+all. `remote.py` likewise starts FRIZZ if the CHOMPI is elsewhere, and `flash.py` sends from
+wherever it is.
+
+All of them go through the launcher (`tools/chompi.py`): a running FRIZZ restarts into it over
+USB MIDI (the SysEx `F0 7D 43 48 10 F7`, `MidiClock.h`), the storage firmware restarts on an
+eject, and the launcher starts a slot on its `RUN` command. The last two are in
+[launcher/run-slot](https://github.com/ZUHcYa/FrizZ/tree/launcher/run-slot) and
+[usb-storage/restart-on-eject](https://github.com/ZUHcYa/FrizZ/tree/usb-storage/restart-on-eject),
+offered upstream; with the released launcher v1.3 the tools still work, but say which key to
+press (15 for the card, overdub then CHOMPI to leave it, 10 for FRIZZ). With an older FRIZZ or
+another firmware running, switch the CHOMPI off and on when they say so (they wait up to 2
+minutes). Mounting needs udisks, as any desktop has.
 
 **Remote control over USB MIDI.** `./remote.py` talks to a running FRIZZ over its SysEx
 (`code/src/MidiControl.h`): `state`, `leds`, `load [--every S]`, `settings`, `channel N`,
@@ -185,7 +209,7 @@ make BENCH=1      # build-bench/FRIZZ-bench.bin; the normal build is untouched
    per segment, green below 80% load, amber below 95%, red above; the one running blinks white.
 3. At the end every panel LED is green (all below 95%) or red. Blinking red: `cpu.txt`
    couldn't be written (no card?).
-4. On the computer (with the launcher: its USB storage on key 15), `FRIZZ/cpu.txt` has every segment's highest and mean load, any effect
+4. On the computer (with the launcher: `./card.py get`), `FRIZZ/cpu.txt` has every segment's highest and mean load, any effect
    still working outside its segment (a tail), and whether the loop played. Below, where each
    segment's mean goes: the clock the chip ran at, and the mean split into the callback's
    parts (MIDI, the controls, the UI's events, the input, the looper, the tempo, the FX chain,
