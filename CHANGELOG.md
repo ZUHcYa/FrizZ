@@ -77,6 +77,9 @@ what FRIZZ does.
 - A restart over MIDI (FRIZZ's own SysEx, which `flash.py`, `card.py` and `remote.py` send to
   get back to the multi-firmware launcher) right after a setting changed lost the setting; it
   now goes to the card first (waiting a second at most).
+- A single MIDI clock tick that came a little late (a few ms, a sender's hiccup) moved the
+  effects' tempo for a moment: 10 ms late at 120 BPM showed 114. A late tick and the next one
+  now count together, so the tempo holds.
 
 ## v0.10 (2026-10-08)
 

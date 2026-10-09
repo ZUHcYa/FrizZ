@@ -35,6 +35,7 @@ static const uint32_t kTicksPerBeat = 24;
 static const uint32_t kBeatsPerBar = 4;                 // 4/4 fixed
 static const uint32_t kTicksPerBar = kTicksPerBeat * kBeatsPerBar;
 static const uint32_t kClockTimeoutSamples = 24000;     // 0.5s at 48kHz
+static const float kHold = .125f; // an interval off the period by more waits for the next
 
 class MidiClock
 {
@@ -127,8 +128,9 @@ private:
     /** One step of the period's smoothing, against block-granularity and USB-frame jitter.
      *  A pair of ticks sent close together (in one USB packet, or a late one catching up)
      *  comes in as a long interval and a short one: smoothed one by one, they pulled the
-     *  tempo a tenth up and down, and it was read mostly after the short one, 5% fast. So a
-     *  long interval waits for the next tick (HandleEvent) */
+     *  tempo a tenth up and down, and it was read mostly after the short one, 5% fast. A lone
+     *  late tick does the same in smaller steps (10 ms late at 120 BPM: the FX at 114). So an
+     *  interval off by more than kHold waits for the next tick (HandleEvent) */
     inline void Smooth(float interval)
     {
         period_ = period_ > 0.f ? period_ + .1f * (interval - period_) : interval;
@@ -166,10 +168,11 @@ private:
             const float interval = static_cast<float>(now - last_tick_);
             if (held_ > 0.f)
             {
-                // a long interval waited for this one: far shorter, they were a pair (two
-                // ticks sent together, or a late one catching up), so their mean is the
-                // period; otherwise the long one was real, a tempo change or a lost tick
-                if (interval < .5f * period_)
+                // an interval off the period waited for this one: if together they come
+                // closer to two periods than it alone to one, they were a pair (two ticks
+                // sent together, a late or early one, one catching up), so their mean is the
+                // period; otherwise the held one was real, a tempo change or a lost tick
+                if (fabsf(held_ + interval - 2.f * period_) < fabsf(held_ - period_))
                     Smooth(.5f * (held_ + interval));
                 else
                 {
@@ -178,7 +181,7 @@ private:
                 }
                 held_ = 0.f;
             }
-            else if (period_ > 0.f && interval > 1.5f * period_)
+            else if (period_ > 0.f && fabsf(interval - period_) > kHold * period_)
                 held_ = interval; // waits for the next tick (above)
             else
                 Smooth(interval);
@@ -197,7 +200,7 @@ private:
     uint32_t locks_;
     uint32_t last_tick_;
     float period_;
-    float held_ = 0.f; // a long interval waiting for the next tick, 0 for none
+    float held_ = 0.f; // an interval waiting for the next tick, 0 for none
     volatile bool restart_ = false;
     Listener listener_ = nullptr;
     void* listener_context_ = nullptr;
