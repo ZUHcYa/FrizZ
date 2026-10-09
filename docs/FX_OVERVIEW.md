@@ -151,7 +151,7 @@ one-pole filter, a noise source or a soft clip; **moderate** = a buffer or porte
 |---|---|---|---|---|
 | Freezer | Mix: the live signal under the repeats (cheap) | Gate: each repeat's length, a stutter (cheap) | Darken: the repeats lose highs each pass (small) | Capture: on the next 16th (now), 8th, beat, bar or at once (cheap, now fixed at 1/16) |
 | Shifter | Mix: dry + shifted, a harmony (cheap) | Grain: the 30 ms window shorter (glitchy) or longer (smooth) (cheap, `kWindowFrames`, within the 4096 buffer) | Fine: ±50 cents (cheap) | Swoop time: the 1 s fall (cheap, now fixed) |
-| Folder | Mix: parallel folding (cheap) | — | Low pass-through: a highpass before the fold, the lows stay clean (small) | — |
+| Folder | Mix: parallel folding (cheap) | — | Low pass-through: a highpass before the fold, the lows stay clean (small) | Level: a trim after the level match, about −12 to +6 dB (cheap; see *Level and mix*) |
 | Crusher | Mix (cheap; the SP's BALANCE) | Jitter: the rate wobbles at random (small) | Pre-filter before the reduction (small; the SP's FILTER) | Dive depth: now 10x over 0.1 s (cheap, fixed) |
 | Filter | Mix (cheap) | LFO shape: triangle, square, sample and hold (cheap) | Drive into the filter (small) | Press restarts the LFO: on or off (cheap) |
 | Flanger | Polarity: negative feedback (hollow) to positive (metallic) (cheap). Not a Mix: page 1's Amount already sets depth and mix together | Sync: the rate as tempo divisions (cheap, `TempoClock.h`; the SP's SYNC) | Manual: the sweep's centre, 11.6 ms now (cheap, `kCentreFrames`) | Press restarts the sweep: on or off (cheap) |
@@ -162,7 +162,35 @@ one-pole filter, a noise source or a soft clip; **moderate** = a buffer or porte
 | Delay | Low cut in the feedback (small; the SP's L DAMP) | Ducking: the echoes duck under the input (moderate, TEMPO's `SimpleCompressor.h`) | High cut in the feedback, darker each repeat (small; the SP's H DAMP) | Freeze while the key is held: the buffer loops (moderate, TEMPO's buffer lock, dropped in FRIZZ, `granularDelay.h`) |
 | Reverb | Low cut (small; the SP's LOW CUT) | Pre-delay (moderate: a buffer in SDRAM; the SP's PRE DELAY) | Ducking, as the delay's (moderate) | Freeze while the key is held (cheap: Rings' freeze, taken out in FRIZZ, `reverb.h`) |
 
-The master compressor has its own key and knobs and isn't part of this.
+The master compressor has its own key and knobs and isn't part of this (but see *Level and
+mix*).
+
+### Level and mix
+
+Two effects hold their output to their input's level, so punching one in changes the sound,
+not the loudness:
+
+- **Folder:** a real level match, up and down, by up to +6 dB (`FxFolder.h`). A folder's
+  output is about full scale whatever goes in, so without it the folder would mostly be a
+  volume jump.
+- **Crusher:** a ceiling only (`LevelGuard`, 0 dB headroom): never louder than its input,
+  never turned up. It stops XOR and coarse bits on a quiet signal from blasting.
+
+What the player can't do today is set the level themselves: both are fully wet and their four
+knobs are taken. Page 2 fixes that without dropping the match:
+
+- **Mix needs the match.** A Mix blends two signals at the same level, as the SP-404's
+  BALANCE does; without the match, a folder at 32x against a quiet dry signal would make
+  Mix mostly a volume knob.
+- **Level is the way out.** A trim after the match, on the folder's free knob 4, is the
+  usual hardware pattern: drive and level side by side (Elektron puts AMP VOL on the same page
+  as overdrive and bit reduction; a drive pedal has Drive and Level). The crusher keeps its
+  ceiling; its Mix is enough there.
+- **The folder's tone should get quieter when darker,** as the crusher's does: its level
+  match measures after the tone lowpass today (#37), a fix independent of page 2.
+- **The master compressor's makeup** is fixed by its knobs, up to +14 dB at full amount and
+  20:1, and can't be turned off (#38). A page 2 for the compressor, with a Makeup knob (auto,
+  or a fixed amount), would settle it the same way; not for the first round.
 
 ### Recommendation
 
