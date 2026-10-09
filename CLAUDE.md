@@ -80,6 +80,13 @@ what it checks, updated in the same commit, saying so in the commit message and 
 refactor must leave `firmware/test/check.sh` and `firmware/twin/compare.sh` at
 `bit-identical`.
 
+**Open topics are GitHub issues** (`gh issue`): a bug, a fault found by a check, a decision
+the user still has to make, a test gap, an idea for later. A new finding becomes an issue (the
+repo is public: no private details), with the labels `known fault`, `timing`, `cpu`,
+`test gap`, `decision` or `parked` where they fit; a PR that settles one says `Fixes #N`, and
+a `Known()` check names its issue in its message. Don't keep open topics only in PR texts or
+notes.
+
 Two artifacts track every branch; keep both current with each change, and read them before
 working on a branch:
 
@@ -131,6 +138,9 @@ build), make sure no other test is running on it, or simply ask the user. Sendin
 launcher slot's file: never send to a slot the user didn't name (FRIZZ is on key 10, the bench
 on 11, USB storage on 15). The tools reach the device over USB through the multi-firmware
 launcher (`firmware/README.md`, *Put it on the CHOMPI*); while it is switched off, they can't.
+`firmware/tools/measure.py` measures timing and sound there (a MIDI clock in pairs, a loop's
+drift against a TRS clock, an effect's A/B between builds): `firmware/README.md`, *Measure
+timing and sound on the device*.
 
 ## Toolchain: GCC 10.3, and the pin matters
 

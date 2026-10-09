@@ -21,7 +21,8 @@ twin/                     the virtual CHOMPI: the whole firmware on the PC, on a
 flash.py, card.py         sending a build to the CHOMPI and reaching its card over USB, through the
                           multi-firmware launcher
 remote.py                 playing and querying a running FRIZZ over USB MIDI
-tools/                    what those share (chompi.py, the launcher's midi_send.py), the git hooks
+tools/                    what those share (chompi.py, the launcher's midi_send.py), the git hooks,
+                          and measure.py: timing and sound measured on the device
 ```
 
 Design notes live in [`../docs/`](../docs/): the looper spec (`LOOPER.md`) and an overview of
@@ -190,6 +191,42 @@ the card into QSPI flash and runs it from SRAM. Standard Daisy flashing advice d
 Every CHOMPI already has the bootloader, and an SD update never touches it. Only a blank or
 erased Daisy Seed needs it installed. To do that, hold BOOT and tap RESET to enter DFU mode,
 then run `bin/install_bootloader.sh`.
+
+## Measure timing and sound on the device
+
+`tools/measure.py` measures what the twin can't, on the real CHOMPI, with no hands at the
+panel. It needs an audio interface: one of its outputs into AUX, the CHOMPI's line out into
+its input 1, its MIDI out into the TRS jack (found by name; `FRIZZ_AUX_SINK`,
+`FRIZZ_LINE_SOURCE`, `FRIZZ_TRS_MIDI` set them). Python 3 with numpy (a venv:
+`python3 -m venv ~/.venvs/frizz && ~/.venvs/frizz/bin/pip install numpy`).
+
+```bash
+cd firmware/tools
+~/.venvs/frizz/bin/python measure.py clock --mode pairs --bpm 120     # FRIZZ's tempo from a USB clock
+~/.venvs/frizz/bin/python measure.py drift --bpm 174 --seconds 180    # a 1-bar loop against a TRS clock
+~/.venvs/frizz/bin/python measure.py material --music a.wav b.wav --out music.wav
+~/.venvs/frizz/bin/python measure.py fx KEY_13 --level 117 --material music.wav --out rev-main
+~/.venvs/frizz/bin/python measure.py compare rev-main.f32 rev-branch.f32
+```
+
+- `clock` paces a MIDI clock over USB by the computer's clock (to about 0.1 ms) and reads
+  FRIZZ's tempo every 50 ms: single ticks, `pairs` (two in one USB packet) or `catchup` (every
+  other tick late, a frame before the next).
+- `drift` plays generated material into AUX, records a quantized loop with PLAY + LOOP over
+  SysEx against a clock on the TRS jack, records the line out, and finds the loop's length
+  by cross-correlating every pass with the first. The computer's and the interface's clocks
+  are matched by a line through the recording's packet arrivals. Pace the clock by the
+  computer, never by the recording: PipeWire delivers it in packets, ~21 ms of jitter.
+  Measure 3 minutes or more: a 1-bar loop is good to about ±1.5 ms a minute. The generated
+  material never repeats, so a pass can't be matched to the wrong place (real music loops
+  can be).
+- `fx` latches an effect and sets its level (the sends' level knobs start at 0: CC 113 the
+  delay, 117 the reverb), plays material into AUX and records the line out; `compare` gives
+  two recordings' level and octave bands, for an A/B of two builds. Real music
+  (`material --music`) is the better test here.
+
+For an A/B, send each build to slot 10 in turn (`flash.py FILE --slot 10`) and measure from a
+fresh start each time; `remote.py load` and `remote.py play SCRIPT --cpu` give the load.
 
 ## Measure the CPU load
 
