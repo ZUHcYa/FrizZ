@@ -3,7 +3,7 @@
 Every control in FRIZZ. For a first session, start with the [quick guide](QUICKSTART.md).
 
 **SHIFT** means holding the CHOMPI key. The CHOMPI key lights white while it acts as SHIFT.
-The mode switch does nothing in play mode.
+The mode switch does nothing in play mode (a [bug report](#bug-reports) notes its flips, though).
 
 ## Overview
 
@@ -387,10 +387,11 @@ Delay details:
   counted from when the clock locked (or from power-on, or the last tap, without clock), not
   from the DAW's beat 1. Echo spacing is unaffected.
 
-Reverb details:
-- LEDs: the key is blue; the knobs go light blue through blue to purple.
 - LEDs: the key is green; division green (short) through white to light blue (long); random
   green (events) through white to light blue (shimmer).
+
+Reverb details:
+- LEDs: the key is blue; the knobs go light blue through blue to purple.
 
 ## Master compressor
 
@@ -562,7 +563,7 @@ While it morphs:
 
 ## MIDI
 
-FRIZZ takes MIDI from the TRS MIDI input and over USB (CHOMPI is a USB device, so USB MIDI
+From v0.11 (until its release, the [test build](https://github.com/ZUHcYa/FrizZ/releases/tag/beta); v0.10 takes MIDI clock only). FRIZZ takes MIDI from the TRS MIDI input and over USB (CHOMPI is a USB device, so USB MIDI
 comes from a computer or a host), both alike. It sends nothing over TRS; over USB it only
 answers FRIZZ's own queries (see [Remote control](#remote-control)).
 
@@ -651,7 +652,7 @@ and reports the worst load.
 
 ## Bug reports
 
-SHIFT + press the transport knob writes everything you did since switching on to the card,
+From v0.11. SHIFT + press the transport knob writes everything you did since switching on to the card,
 as `/FRIZZ/bug-1.txt` (the next one `bug-2.txt`, and so on): every key, knob detent and
 mode-switch flip with its time, the MIDI clock's tempo, every MIDI message FRIZZ acted on, and
 the scenes and compressor the card held at power-on. Do it right after something went wrong and send the file with your report:

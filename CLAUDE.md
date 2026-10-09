@@ -9,24 +9,33 @@ CHOMPI Club / Chase Bliss), forked from CHOMPI's WAVE firmware. Bare-metal C++ f
 DFM (STM32H750). It is built on top of CHOMPI's archival open-source release (`upstream` remote),
 which will not receive updates.
 
+**[`firmware/README.md`](firmware/README.md) is the developer guide**: toolchain, build, host
+checks, the virtual CHOMPI, flashing over USB, the CPU bench, where things are in `code/src`
+and the rules the code follows. Read it before changing firmware; this file keeps only the
+workflow and what bites. Free memory and how to make room: [`docs/CAPACITY.md`](docs/CAPACITY.md).
+The stock firmwares, bootloader and hardware files under `reference/`:
+[`docs/STOCK_FIRMWARES.md`](docs/STOCK_FIRMWARES.md).
+
 ## Repo layout: user-facing at the root, everything else below it
 
 | Path | What | Audience |
 |---|---|---|
 | `README.md`, `INSTALL.md`, `QUICKSTART.md`, `MANUAL.md`, `CHANGELOG.md` | what FRIZZ is, install, quick guide, full controls, what changed since the last release | users |
-| `firmware/` | FRIZZ source (`code/`, `bin/`, `test/`, `twin/`); `firmware/README.md` is the developer guide | developers |
-| `docs/` | our design notes: `LOOPER.md` (looper spec), `FX_OVERVIEW.md` | developers |
-| `reference/` | the original CHOMPI release, unchanged except for links: `reference/firmware/{chompi-tape,chompi-tempo,chompi-wave,chompi-bootloader-v6.4-beta,card-profiles}`, `reference/hardware/`, CHOMPI's README | reference only |
+| `firmware/` | FRIZZ source (`code/`, `bin/`, `test/`, `twin/`, `flash.py`, `card.py`, `remote.py`, `tools/`) | developers |
+| `docs/` | design notes: `LOOPER.md`, `FX_OVERVIEW.md`, `CAPACITY.md`, `STOCK_FIRMWARES.md` | developers |
+| `reference/` | the original CHOMPI release, unchanged except for links | reference only |
 | `LICENSE`, `THIRD_PARTY.md`, `TRADEMARKS.md`, `CLAUDE.md` | legal, this file | — |
 
 Keep the root user-facing: anything that only helps development goes in `docs/` or
 `firmware/`. When a control changes, update `MANUAL.md` (and `QUICKSTART.md` if it's covered
-there). FRIZZ was moved from `firmware/frizz/` to `firmware/`; commits before that use the old
-path (`firmware/test/run.sh` handles both).
+there). The panel artwork and CHOMPI logos are deliberately absent for copyright reasons, and
+the CHOMPI name/marks are excluded from the MIT license (`TRADEMARKS.md`). Don't reintroduce
+branding into derived hardware files.
 
-The panel artwork and CHOMPI logos are deliberately absent for copyright reasons, and the CHOMPI
-name/marks are excluded from the MIT license (`TRADEMARKS.md`). Don't reintroduce branding into
-derived hardware files.
+Hand-written source is `firmware/code/src/` (~60 files). Everything under `libs/`,
+`cube_dfu/`, `Drivers/`, `Middlewares/` and any `build/` directory is vendored or generated:
+exclude it from greps. `reference/` holds three more independent copies of a similar tree, so
+scope searches to `firmware/`.
 
 ## Git workflow: branches first, main only after testing
 
@@ -34,29 +43,42 @@ Never commit development work to `main`. Start every change (feature, fix, refac
 its own branch off `main`, named for what it does (e.g. `loop-length`, `fix-crusher-level`),
 and commit and push there. Merge into `main` only after the user has tested the branch (on
 hardware where it touches the firmware) and said so; passing `firmware/test/` or a clean build
-is not that approval. If you find yourself on `main` with changes to make, create the branch
-before the first commit.
+is not that approval.
+
+**One worktree per branch.** Several sessions work on this repo at once, so never switch
+branches in the main checkout (`~/git-projects/FrizZ` stays on `main`). Work on a branch in its
+own worktree next to it:
+
+```bash
+git fetch && git worktree add ../FrizZ-<branch> -b <branch> origin/main
+```
+
+and remove it (`git worktree remove`, `git branch -d`, delete the remote branch) once it's
+merged. A tool that sends a build (`flash.py --no-build`) sends that worktree's
+`firmware/bin/`: run it from the branch's worktree, or name the file.
 
 Keep **one untested firmware branch at a time**: test it, merge it, and start the next one off
-the new `main`. A branch still open when another reaches `main` merges `main` in, so it's
-tested against what's there. Stack a branch on an unmerged one only when it really builds on
-it (or would conflict heavily without it), and say so in its PR; the top branch's build is
-then the test build for the whole stack, its PRs merge bottom-up once it passes, and a fix
-goes on the branch it belongs to, merged upwards. Don't start a third level: get the stack
-tested and merged first.
+the new `main`. A branch with no firmware change (docs, tooling) doesn't count. A branch still
+open when another reaches `main` merges `main` in, so it's tested against what's there. Stack
+a branch on an unmerged one only when it really builds on it (or would conflict heavily
+without it), and say so in its PR; the top branch's build is then the test build for the
+whole stack, its PRs merge bottom-up once it passes, and a fix goes on the branch it belongs
+to, merged upwards. Don't start a third level: get the stack tested and merged first.
 
 The branch always carries a built firmware for the user to test: every commit that changes
-`firmware/code/` rebuilds with `make` in `firmware/code/src` (GCC 10.3, see below) and
-includes the fresh `build/FRIZZ.bin` copied to `firmware/bin/FRIZZ.bin`, in the same commit,
-so the binary always matches its source. On a merge conflict over it, rebuild rather than pick a
-side. It reaches `main` with the merge, so `main` holds the last tested build; releases for
-users stay on GitHub's Releases page.
+the bytes of `FRIZZ.bin` rebuilds with `make` and `make BENCH=1` in `firmware/code/src` (GCC
+10.3, below) and includes both fresh binaries (`build/FRIZZ.bin`, `build-bench/FRIZZ-bench.bin`)
+in `firmware/bin/`, in the same commit. A comment-only commit may leave them, saying in its
+message that the md5 is unchanged. On a merge conflict over a binary, rebuild rather than pick
+a side. `main` holds the last tested build; releases for users are on GitHub's Releases page.
+`firmware/tools/install-hooks.sh` installs a pre-commit hook that refuses commits on `main` and
+warns when `firmware/code/` is staged without the binary or `CHANGELOG.md`.
 
-Every such commit, and every one that changes `firmware/test/` or `firmware/twin/`, first
-passes `firmware/test/all.sh`: the engine against HEAD, every unit check, and `ui`, which runs
-the whole firmware from power-on on the virtual CHOMPI. A check that fails is fixed, or, when
-the change is meant to alter what it checks, updated in the same commit, saying so in the
-commit message. Say in the PR when a commit changed what a check expects.
+Every commit that changes `firmware/code/`, `firmware/test/` or `firmware/twin/` first passes
+`firmware/test/all.sh`. A check that fails is fixed, or, when the change is meant to alter
+what it checks, updated in the same commit, saying so in the commit message and in the PR. A
+refactor must leave `firmware/test/check.sh` and `firmware/twin/compare.sh` at
+`bit-identical`.
 
 Two artifacts track every branch; keep both current with each change, and read them before
 working on a branch:
@@ -70,316 +92,110 @@ working on a branch:
   pushed. Its description lists what changed and carries a **hardware test checklist**
   (`- [ ]` items, one per thing the user should try on the CHOMPI, with what to expect).
   Update the description (`gh pr edit`) whenever a commit adds or changes something to test.
-  The user ticks the list while testing; merging the PR is the approval to reach `main`. A
-  branch built on another unmerged branch either gets a PR covering both or a stacked PR
-  based on that branch. Merge an outside contributor's commit unchanged (no squash, rebase or
-  cherry-pick) so GitHub marks their PR merged and credits them in the release notes.
+  The user ticks the list while testing; merging the PR is the approval to reach `main`.
+  **Before merging, every box is ticked or struck through with why** (`~~item~~ deferred by
+  the user to …`), so the PR records what was tested. A branch built on another unmerged
+  branch either gets a PR covering both or a stacked PR based on that branch (retarget the
+  upper PR to `main` before deleting the lower branch, or GitHub closes it). Merge an outside
+  contributor's commit unchanged (no squash, rebase or cherry-pick) so GitHub credits them.
 - **What the virtual CHOMPI can show, it checks, not the user** (`firmware/twin/`). For each
-  thing to test that is about keys, LEDs, the card, levels or clicks, the branch adds a case
-  to `firmware/test/ui.cpp`, and `firmware/twin/ui-at.sh origin/main` shows it failing without
-  the change (it passes with it). `firmware/twin/compare.sh origin/main HEAD` goes into the PR
-  with every difference it reports explained. `git fetch` first: the local `main` can lag. The PR lists those under **Checked on the twin** (no
+  thing to test that is about keys, LEDs, the card, levels, clicks or MIDI timing, the branch
+  adds a case to `firmware/test/ui.cpp` (or `sync.cpp`/`midi.cpp`), and
+  `firmware/twin/ui-at.sh origin/main` shows it failing without the change. `git fetch`
+  first: the local `main` can lag. `firmware/twin/compare.sh origin/main HEAD` goes into the
+  PR with every difference explained. The PR lists those under **Checked on the twin** (no
   boxes); the hardware checklist keeps what only the device can show: the CPU load and
   crackles, sound judged by ear, the codec, real MIDI, USB and card hardware.
 
-A build handed out for testing goes on GitHub as a **pre-release**, never as Latest, so v0.10
-users aren't offered it:
+### Test builds
 
-- Each test round gets a numbered one, `v<next>-beta.N` (now `v0.11-beta.N`), tagged on the
+A build handed out for testing goes on GitHub as a **pre-release**, never as Latest:
+
+- Each test round gets a numbered one, `v<next>-beta.N` (next: `v0.11-beta.1`), tagged on the
   branch's pushed head, with that commit's `firmware/bin/FRIZZ.bin` attached and the notes
   taken from `CHANGELOG.md`'s Unreleased section plus a link to the branch's PR. The number
   never moves, so feedback can name the build.
-- The pre-release **`beta`** always carries the newest numbered one, and moves only with a
-  new one, never with a plain push, at a fixed link
-  (`https://github.com/ZUHcYa/FrizZ/releases/download/beta/FRIZZ.bin`). Moving it: `git tag
-  -f beta <commit> && git push -f origin beta`, then `gh release upload beta
-  firmware/bin/FRIZZ.bin --clobber` and `gh release edit beta` with the new title and notes
-  naming the numbered build.
-- Cut a new one only when the user asks for a test build; a release for everyone stays a
-  normal release on `main`.
+- The pre-release **`beta`** always carries the newest numbered one (until v0.11-beta.1: v0.10
+  itself), and moves only with a new one, at a fixed link
+  (`https://github.com/ZUHcYa/FrizZ/releases/download/beta/FRIZZ.bin`): `git tag -f beta
+  <commit> && git push -f origin beta`, `gh release upload beta firmware/bin/FRIZZ.bin
+  --clobber`, and `gh release edit beta` with a title and notes naming the numbered build.
+- Cut one only when the user asks for a test build; a release for everyone is a normal
+  release on `main`.
 
-## Orientation: ~14.6k files, ~200 of them are source
+## The CHOMPI is shared: ask first
 
-Of about 14,600 tracked files, about 14,100 are vendored third-party code. Hand-written
-`.c/.cpp/.h/.lds` source is about 200 files; most of the rest is factory card audio (211
-`.wav`), EAGLE/fabrication files, READMEs, and committed build artifacts. The source lives in exactly two kinds of place:
+There is one CHOMPI, and other sessions test on it too. **Before anything that uses the real
+device** (`flash.py`, `card.py`, `remote.py`, a bench run, or asking the user to try a
+build), make sure no other test is running on it, or simply ask the user. Sending replaces a
+launcher slot's file: never send to a slot the user didn't name (FRIZZ is on key 10, the bench
+on 11, USB storage on 15). The tools reach the device over USB through the multi-firmware
+launcher (`firmware/README.md`, *Put it on the CHOMPI*); while it is switched off, they can't.
 
-- `firmware/code/src/` — FRIZZ
-- `reference/firmware/{chompi-tape,chompi-tempo,chompi-wave}/code/src/` — ~30-40 files each
-- `reference/firmware/chompi-bootloader-v6.4-beta/bootloader/` — plus `shared/` (Electrosmith's v6.4 source)
+## Toolchain: GCC 10.3, and the pin matters
 
-Everything under `libs/`, `cube_dfu/`, `Drivers/`, `Middlewares/`, and any `build/` directory is
-vendored or generated. Exclude those from greps or results are unusable. `.gitattributes` already
-marks them `linguist-vendored`.
+FRIZZ builds with **GNU Arm Embedded 10.3-2021.10** (GCC 10.3.1): newer GCC intermittently
+breaks SD-card communication. On this machine it is at `~/opt/gcc-arm-none-eabi-10.3-2021.10/`,
+on `PATH` via `~/.bashrc`; non-interactive shells may not read it, so prepend it explicitly:
+`PATH=~/opt/gcc-arm-none-eabi-10.3-2021.10/bin:$PATH make`. Run `make` in
+`firmware/code/src`, never from the repo root, and read the memory table it prints. The host
+checks need only `g++` and `python3`; the browser twin needs Emscripten in `~/opt/emsdk`.
 
-## The three firmwares are independent forks, not a shared core
+## Tests: the host checks and the virtual CHOMPI
 
-TAPE 2.0, TEMPO 1.0 and WAVE 1.0 each ship a full private copy of the source tree and the vendored
-libraries, and these have diverged. (The exception is `code/Chompi_Bootloader/` — the shipped v6.2
-bootloader source, byte-identical in all three.) They share ~20 filenames (`hardware.h`, `ui.h`, `NormalPage.h`,
-`MenuPage.h`, `temp_led_stuff.h`, `encoder.cpp`, `chompi_sram.lds`, `Makefile`, …) and **every one
-of those files differs between firmwares**. Consequences:
+`firmware/test/all.sh` runs everything (a few minutes): `check.sh` (the engine against HEAD;
+a refactor must come out `bit-identical`) and every unit check, `./unit.sh NAME` for one:
+`pitch`, `tape`, `scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`,
+`comp`, `level`, `sleep`, `ui`, `remote`, `bench`, `midi`, `sync`. A new check is just a new
+`NAME.cpp`; [`firmware/test/README.md`](firmware/test/README.md) says what each covers.
+`check.h`'s `Known()` marks a fault found and not yet fixed: it reports, doesn't fail.
 
-- A fix in one firmware does not propagate. Changing shared behavior means three edits.
-- Every grep hit appears three times. Always scope searches to one firmware folder.
-- Never assume a same-named file matches the one you already read.
+`firmware/twin/` is the **virtual CHOMPI**: the whole firmware compiled unchanged for the host
+on a simulated board, deterministic and 13-20x real time. `./run.sh -o out.wav -l - SCRIPT`
+plays a script of keys, knobs, MIDI and audio from power-on; `web/serve.sh` plays it in the
+browser. A bug the user hits comes as such a script (SHIFT + transport writes
+`/FRIZZ/bug-N.txt`, `EventLog.h`); once it shows the bug, it becomes a case in `ui.cpp`. The
+twin can't show the CPU load, the codec, races between the audio interrupt and `main()`, or
+anything else about the chip ([`firmware/twin/README.md`](firmware/twin/README.md)).
 
-Card profiles and preset formats are also not interchangeable between firmwares.
+## The audio callback is CPU-bound
 
-## Toolchain — pinned per target, and the pins matter
-
-| Target | Compiler | Why |
-|---|---|---|
-| TAPE, WAVE, custom firmware | GNU Arm Embedded **10.3-2021.10** (GCC 10.3.1) | Newer GCC intermittently breaks SD-card communication; on TAPE it also overflows SRAM at the link step |
-| TEMPO | Arm GNU Toolchain **13.3.rel1** (GCC 13.3.1) | What the released firmware was built with |
-| Bootloader v6.4 | Arm GNU Toolchain **13.3.rel1** | Reproduces the released binary byte-for-byte |
-
-Switch by putting the right `bin/` first on `PATH`; verify with `arm-none-eabi-gcc --version`
-before building. Do not use Homebrew's `arm-none-eabi-gcc` for the bootloader (compiler only, no
-newlib). `firmware/README.md` is FRIZZ's build guide (Linux and macOS);
-`reference/firmware/README.md` is CHOMPI's original macOS-only one — its
-`/Applications/ArmGNUToolchain/...` paths are examples, not real locations on a Linux box.
-
-On this machine, GNU Arm Embedded 10.3-2021.10 is installed at
-`~/opt/gcc-arm-none-eabi-10.3-2021.10/` (ARM's official Linux tarball) and prepended to `PATH` in
-`~/.bashrc`, so FRIZZ, TAPE and WAVE build with a plain `make`. Non-interactive shells may not read
-`.bashrc`; prepend its `bin/` explicitly there:
-`PATH=~/opt/gcc-arm-none-eabi-10.3-2021.10/bin:$PATH make`. 13.3.rel1 is **not** installed, so TEMPO and the
-bootloader can't be built yet. Homebrew can't supply either version: its `arm-none-eabi-gcc`
-formula is GCC 16 without newlib, and the `gcc-arm-embedded` cask is macOS-only.
-
-## Build
-
-Application firmware — run `make` from the firmware's `code/src`, never from the repo root:
-
-```bash
-cd firmware/code/src                   # FRIZZ; stock: reference/firmware/chompi-wave/code/src
-make              # output: build/FRIZZ.bin (flashable) and build/FRIZZ.elf (gdb); stock firmwares: CHOMPI.*
-make clean
-make -j4
-```
-
-Prebuilt `libdaisy.a`, `libdaisysp.a` and their object files are **committed** under
-`code/libs/*/build/`, so rebuilding the libraries is not normally necessary. If you change a
-vendored library — or if make decides to rebuild one — do it with `make` in `code/libs/libDaisy` or
-`code/libs/DaisySP` using the same compiler as the app.
-
-Bootloader:
-
-```bash
-cd reference/firmware/chompi-bootloader-v6.4-beta
-CHOMPI_TOOLCHAIN_BIN=/path/to/arm-gnu-toolchain-13.3.rel1/bin ./build-bootloader.sh        # or: ... ./build-bootloader.sh clean
-```
-
-The script builds libDaisy then the bootloader and checks the result against the release
-(119,612 bytes, md5 `580b187fec405849fb401eb699281e4c`).
-
-## No test suite (except FRIZZ's engine harness)
-
-There is no CI, no test runner, and no Cursor/Copilot rules. The only clang-format tooling is
-vendored inside libDaisy/DaisySP's own `ci/`; it does not apply to `code/src/`. The things that
-look like tests aren't:
-
-- `code/bms_test/` (stock firmwares only) — a standalone battery-management bring-up example,
-  built separately.
-- `src/TestPage.h` (stock firmwares only; FRIZZ removed it) — an on-device hardware self-test
-  mode (entered by holding encoder 6's switch at power-on).
-- `libs/libDaisy/tests/` — vendored.
-
-The only mechanical verification available off-device is: does it compile, does it fit in SRAM, and
-for the bootloader, does the md5 match. Verify changes by building; real validation requires
-hardware.
-
-The exception is FRIZZ: `firmware/test/` compiles its audio engine on the host and runs a
-script of key presses and knob turns through it (3 s per effect plus four combined segments).
-`./all.sh` runs everything. `./check.sh` compares HEAD with the working tree; a refactor must
-come out `bit-identical`. `./unit.sh NAME` runs one unit check, `NAME.cpp`: `pitch`, `tape`,
-`scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`, `comp`, `level`, `sleep`, `ui`, `remote`, `bench`, `midi`, `sync`; a new check is just a new
-`.cpp`. What each covers is in `firmware/test/README.md`.
-
-`firmware/twin/` is the **virtual CHOMPI**: the whole firmware (`chompi_main.cpp` down, with
-libDaisy's UI, Switch, 4021 and MIDI code) compiled unchanged for the host on a simulated
-board (the 4021 chains, encoders, WS2812 DMA, charger, card, audio, MIDI in), deterministic
-and 13-20x real time. `./run.sh -o out.wav -l - SCRIPT` plays a script of keys, knobs,
-MIDI and audio into it from power-on and writes the master out and the LEDs; use it to see
-what a change does to the play page before the user flashes it. `unit.sh ui` checks the play
-page through it. A bug the user hits on the device comes as such a script: SHIFT + transport
-press writes `/FRIZZ/bug-N.txt` (`EventLog.h`), every key, knob and clock change since power-on
-with the card's files from then, and `run.sh` plays it from power-on to the combo; once it
-shows the bug, it becomes a case in `ui.cpp`. `web/serve.sh` runs the same twin in the browser (Emscripten, from
-`~/opt/emsdk`) on a panel drawn from the board file, with sound, for the user to play; each
-page load rebuilds it first if the source changed, so a reload plays the working tree. It can't show the CPU load, the codec, races between the audio interrupt and `main()` or
-anything else about the chip;
-`firmware/twin/README.md` has the details.
-
-## FRIZZ's audio callback is CPU-bound
-
-FRIZZ's audio callback has 0.5 ms per 24-sample block. Until effects that are off stopped
-processing (`FxGate::Asleep`), a playing loop with the delay ran it at 90-100%. At that
-margin, a change that only shifts the memory layout (b5c658c, removing the randomizer) was
-enough to make it crackle on the device, while the host harness stayed bit-identical. The
-host can't measure this, nor can the virtual CHOMPI. The device does, with the **CPU bench**:
-`make BENCH=1` in `firmware/code/src` builds `FRIZZ-bench.bin` (`Bench.h`, compiled in only
-then; the normal `FRIZZ.bin` stays byte for byte the same). On the card in place of
-`FRIZZ.bin`, it waits for every effect to rest (the delay works for its first 10 s after
-power-on), then runs 22 segments by itself on a tune of its own, the clean ones first and the
-sends last, waiting before each for what it doesn't use to rest (every effect alone,
-together, at their heaviest, a playing loop with the delay, PR #7's scene 4, ...). It times
-the whole audio callback but the tune (made after the measurement) by the system timer, as libDaisy's `CpuLoadMeter`
-does, and writes each segment's max and mean load to `/FRIZZ/cpu.txt`, with any effect still
-working outside its segment and whether the loop played, and where each mean goes: split into
-the callback's parts by the core's cycle counter (`BENCH_MARK`, `BenchProfile.h`, nothing in
-`FRIZZ.bin`), with the clock the chip ran at. The key LEDs grade each segment;
-the panel ends green or red.
-
-Its memory layout isn't `FRIZZ.bin`'s, and b5c658c crackled from layout alone: a bench run
-shows what the code costs, not that `FRIZZ.bin` itself won't crackle, which only playing it
-shows. `FRIZZ.bin` times its own callback too (`MidiControl.h`): `firmware/remote.py load`
-reads its max and mean over USB, and `remote.py play SCRIPT --cpu` plays a twin scenario on
-the device and reports the worst, so a heavy scene can be tried on the build that plays. Every commit that rebuilds `FRIZZ.bin` also rebuilds `firmware/bin/FRIZZ-bench.bin`
-(`make BENCH=1`), so the two always match their source. A branch that touches the engine,
-the effects or the memory layout asks for a bench run in its hardware checklist; its
-`cpu.txt` goes into the PR and is compared with the last one there. `unit.sh bench` checks on
-the twin that the bench runs through, writes its file, keeps its clean segments clean and
-plays its loop (the loads there are 0). Many inserts on at once still cost as much as ever.
-Keep effects that are off cheap, and suspect the CPU when crackles appear on hardware that
-the harness can't reproduce.
-
-## SRAM is the binding constraint, especially on TAPE
-
-TAPE has **376 bytes of SRAM left**. Any addition to TAPE will likely fail at link unless something
-is removed first. Every `make` prints a memory usage table — read it. WAVE is the smallest firmware
-with the most headroom, which is why its README nominates it as the base for custom firmware.
-
-## Deployment: BOOT_SRAM via SD card
-
-All three firmwares are `APP_TYPE=BOOT_SRAM`: the firmware runs from SRAM, loaded by CHOMPI's own
-bootloader out of QSPI flash. Standard Daisy flashing advice does not apply.
-
-- **While developing:** the user runs sfaber02's multi-firmware launcher (`CHOMPI.bin` in the
-  root, firmwares in `/FIRMWARE/NN_NAME.bin`, FRIZZ on key 10, the bench on 11, lnetzel's USB
-  storage on 15), in our builds with `RUN` and restart-on-eject (branches `launcher/run-slot`,
-  `usb-storage/restart-on-eject`, from clones in `~/git-projects/CHOMPI-launcher` and
-  `CHOMPI-usb-storage`). So no hands are needed: `firmware/flash.py` builds and sends the build
-  to its slot over USB MIDI (`--bench`, `--no-build`, `--run N` starts a slot);
-  `firmware/card.py get|put|ls|mount|done` reaches the card (`cpu.txt`, bug reports) and starts
-  FRIZZ again; `remote.py` starts FRIZZ if needed. All go through `firmware/tools/chompi.py`
-  (FRIZZ restarts into the launcher on SysEx `F0 7D 43 48 10 F7`, `MidiClock.h`); an older
-  firmware needs the power switch instead. Sending replaces the slot's file: never send to a
-  slot the user didn't name. The one CHOMPI may be in use by another session's test: ask
-  before sending it anything.
-- **Normal path:** copy `build/FRIZZ.bin` (stock: `build/CHOMPI.bin`) onto the microSD card
-  (delete any other `.bin` first)
-  and power on. A slow rainbow LED pattern means it is reprogramming QSPI.
-- **Do not use `make program-boot`.** Only WAVE's and FRIZZ's Makefiles override `BOOT_BIN` to
-  CHOMPI's bootloader; from TAPE's or TEMPO's it would install libDaisy's generic Daisy bootloader.
-- The bootloader itself lives in internal flash and is never touched by an SD update. Install it
-  over DFU at `0x08000000` (`dfu-util -a 0 -s 0x08000000:leave -D ... -d ,0483:df11`) or with an
-  ST-Link. `bin/install_bootloader.sh` in each firmware folder does this for the shipped v6.2.
-- Debugging needs an STLINK-V3MINIE and a Daisy with a soldered debug header:
-  `openocd -f interface/stlink.cfg -f target/stm32h7x.cfg`, then `arm-none-eabi-gdb CHOMPI.elf` and
-  `target remote localhost:3333`.
+The callback has 0.5 ms per 24-sample block. Idle it uses ~45 %, a loop with ~11 effects
+reaches 100 % and crackles (a known limit, parked by the user). Effects that are off must stay
+cheap (`FxGate::Asleep`). A change that only shifts the memory layout has made it crackle on
+the device (b5c658c) while the host stayed bit-identical, so suspect the CPU when crackles
+appear that the twin can't reproduce. The host can't measure the load; the device can:
+`make BENCH=1` builds `FRIZZ-bench.bin` (`Bench.h`, compiled in only then), which runs 22
+segments by itself and writes `/FRIZZ/cpu.txt`; `firmware/remote.py load` and `remote.py play
+SCRIPT --cpu` read `FRIZZ.bin`'s own load. A branch that touches the engine, the effects or
+the memory layout asks for a bench run in its hardware checklist, and its `cpu.txt` goes into
+the PR, compared with the last one there. Details: `firmware/README.md`, *Measure the CPU load*.
 
 ## Firmware architecture
 
-Each firmware follows the same skeleton; `chompi_main.cpp` documents it. Three execution contexts,
-by descending priority:
+`chompi_main.cpp` documents the skeleton. Two execution contexts:
 
-1. **`AudioCallback()`** — the audio ISR, once per ~24-sample block at 48 kHz. Polls controls,
-   generates UI events, runs the engine. Four output channels (headphone L/R + master L/R, two SAI
-   peripherals in sync) and four inputs (mic, X, aux L/R).
-2. **`SDCallback()`** — a lower-priority hardware-timer callback. Drains **one**
-   `FileStreamingManager` request per tick and advances chunked preset writes, so FatFs never
-   blocks audio.
-3. **`MainLoop()`** — UI event dispatch, MIDI out, battery checks, boot sequencing.
+1. **`AudioCallback()`**, the audio ISR, once per 24-sample block at 48 kHz: polls controls,
+   reads MIDI (`MidiClock.h`), generates UI events, runs the engine.
+2. **`MainLoop()`**: UI event dispatch, LEDs, the card, USB answers, battery.
 
-The rule this enforces: **no file I/O and no blocking call from the audio ISR.** SD work is posted
-as `FileRequest`s to a queue; large writes are chunked across many `SDCallback()` ticks and
-committed by writing a temp file then renaming it.
+**No file I/O and no blocking call from the audio ISR.** FRIZZ reads the card once at boot and
+writes it only from `MainLoop()`: when an FX scene is saved, copied or deleted, 2 s after the
+master compressor's knobs, the mono input or the MIDI settings rest (`SceneStore.h`,
+`MasterSettings.h`), or when a bug report is asked for (`EventLog.h`). Its files live in
+`/FRIZZ` (`frizz_scenes.txt`, `frizz_master.txt`, `.bak` copies, `bug-N.txt`), which
+`EnterFrizzDir()` creates at boot on a card without it. MIDI: clock in over TRS and USB
+(`MidiClock.h` → `TempoClock.h`, `TapTempo.h` as the fallback), notes, CCs, program changes and
+FRIZZ's SysEx (`MidiControl.h`), answered over USB from `MainLoop()`; no other MIDI out.
 
-**FRIZZ is simpler:** it builds `FRIZZ.bin`, has no `SDCallback()`, `FileStreamingManager`,
-NoSDPage or MenuPage, and no MIDI out but its SysEx answers over USB; it takes MIDI clock in
-(`MidiClock.h` → `TempoClock.h`, with `TapTempo.h` as the fallback) and is played over MIDI
-(`MidiControl.h`: notes as keys, CCs, program changes, SysEx keys, knobs and queries, which
-`firmware/remote.py` uses to play twin scripts on the device and read its LEDs and load). It reads the card once at boot and writes it
-only from `MainLoop()` when an FX scene is saved, copied or deleted, or when the master
-compressor's knobs or the mono input setting have rested 2 s (`SceneStore.h`,
-`MasterSettings.h`), or a bug report is asked for (`EventLog.h`). Its files live in
-`/FRIZZ`, which `EnterFrizzDir()` creates at boot on a card without it. Its play page is
-`NormalPage.h`; its engine is `passthroughEngine.h` → `Looper.h` + `FxMorph.h` → `FxChain.h` →
-`MasterComp.h` → output gain → `limiter.h`.
+The play page is `NormalPage.h`; the engine is `passthroughEngine.h` → `Looper.h` +
+`FxMorph.h` → `FxChain.h` → `MasterComp.h` → output gain → `limiter.h`. Large buffers live in
+SDRAM (`DSY_SDRAM_BSS`), cleared by `ZeroSDRAM()` at boot because startup code doesn't. Card
+buffers live in internal RAM, 32-byte aligned, written in whole sectors (`EventLog::Flush`).
 
-Supporting layers, same names in all three firmwares (different contents):
-
-- `hardware.h` — the board: 28 keys and 6 encoder switches read through a CD4021 shift-register
-  chain (`Hardware::SwId`), encoders, 35 RGB LEDs, MP2722 charger/battery over I²C, USB switch.
-  Also brings up the second PCM3060 codec on SAI2. `encoder.{h,cpp}` and `temp_led_stuff.h` /
-  `ui_utils.h` are the drivers.
-- `ui.h` — built on libDaisy's `daisy::UI` page stack. `GenerateEvents()` turns debounced hardware
-  state into `UiEventQueue` events; `DoEvents()` dispatches to the active page. Pages:
-  `NormalPage` (play), `MenuPage` (the SHIFT layer, reached by holding the CHOMPI key with the mode
-  switch down), `TestPage`, `BootPage`, `NoSDPage`, `RainbowWavePage`. `MenuPage` and `NormalPage`
-  are the largest files in each firmware.
-- `OptionsManager.h` / `PresetManager.h` — `options.json` and `presets.json` on the card, parsed
-  with coreJSON.
-- `chompi_sram.lds` — the linker script placing the app in SRAM. Large audio buffers go to SDRAM
-  via `DSY_SDRAM_BSS` / `.sdram_bss`, which `ZeroSDRAM()` clears at boot because startup code
-  doesn't.
-
-Where they diverge — the engine:
-
-| | Engine files |
-|---|---|
-| WAVE | `subtractiveEngine.h` (8 wavetable voices → filter → amp env → shared delay/reverb/comp/sat), `WavetableManager.h`, `Sequencer.h`, `clockManager.h`, `MidiManager.h` |
-| TAPE | `DSPEngine.h` (the largest hand-written file here, ~1600 lines), `LooperEngine.h`, `Sampler.h`, `SampleReader.h`, `RamBuffer.h`, `FileCopier.h`, `Warble.h` |
-| TEMPO | `EngineBase.h` with `SampleEngine.h` (chromatic) and `SliceEngine.h` (16 slices), `ArpeggiatorSequencer.h`, `SampleManager.h`, `StateSaver.h`, `granularDelay*.h` |
-
-Shared DSP blocks (`reverb.h`, `fx_engine.h`, `DJFilter.h`, `BasicMMF.h`, `limiter.h`,
-`EnvFollower.h`, `InterpolatedDelayLine.h`) are per-firmware copies too.
-
-## Vendored libraries are patched — never swap in upstream
-
-`code/libs/libDaisy/` is Electrosmith's CHOMPI adaptation of libDaisy v5.4.0 with further local
-changes, and **TAPE's copy differs from TEMPO's and WAVE's** (which are identical to each other).
-`THIRD_PARTY.md` enumerates the diffs; the load-bearing ones:
-
-- TEMPO/WAVE: `src/per/tim.{h,cpp}` adds TIM16 (TEMPO's clock and WAVE's MIDI clock use it) and
-  `src/hid/midi.h` adds `GetUartHandle`/`GetMutableTransport`. **The build fails without these.**
-- TEMPO/WAVE: `src/per/uart.cpp` has interrupt-blocking guards removed for tighter MIDI timing.
-  Builds fine against pristine upstream but MIDI output timing won't match the release.
-- TAPE: `src/hid/midi.h` adds MIDI send helpers the firmware calls (build fails without them);
-  `src/per/tim.{h,cpp}` compiles timer init/start at `-O0` with auto-reload preload disabled.
-- The bootloader's copy additionally carries an upstream QSPI driver and two `BootInfo` enum
-  additions — see `reference/firmware/chompi-bootloader-v6.4-beta/LIBDAISY_PATCH.md`.
-
-Also note `__attribute__((optimize("-O0")))` on `UserInterface::WritePresets()` and similar
-per-function optimization overrides — these are deliberate workarounds for timing/audio artifacts,
-not leftovers.
-
-## SD card layout
-
-FRIZZ needs only `FRIZZ.bin` at the root. Its state is two text files in `/FRIZZ`:
-`frizz_scenes.txt` (FX scenes, `FxScenes.h` format) and `frizz_master.txt` (master settings,
-`MasterSettings.h`), plus any bug reports, `bug-N.txt`, the user wrote (`EventLog.h`). The rest of this section is about the stock firmwares.
-
-The card is the firmware's filesystem: one `CHOMPI.bin`, the audio assets, `options.json`,
-`presets.json`. FAT32, assets at the card root. `reference/firmware/card-profiles/` holds the three factory
-cards ready to copy.
-
-Format details that bite:
-
-- **WAVE** loads the first seven `.wav` files alphabetically as wavetables, reading raw 32-bit
-  float data from byte offset 136 (Serum layout, 33 waves × 2048 samples) rather than parsing the
-  WAV header. Presets reference a wavetable by **slot index, not name** — renaming or reordering
-  files silently repoints saved presets.
-- **TAPE** samples are `<instrument>_<bank><slot>.wav`, 48 kHz 16-bit stereo, each with a
-  `_double` variant used for high-pitched playback.
-- **TEMPO** samples are 48 kHz 16-bit stereo in `chromatic/`, `slice/` and `buffer/`, capped at 10
-  seconds per slot.
-
-## Hardware files
-
-`reference/hardware/hardware-pcb/` is an EAGLE 9.6.2 project (two boards on one v-scored panel) plus the
-September 2023 fabrication package; `reference/hardware/hardware-enclosure/` is six panel `.brd` files with
-laser-cutting DXFs. These are binary CAD files — don't attempt text edits. The BOM
-(`CHOMPI_Rev4_BOM.csv`) is the authoritative parts list.
+**Memory**: the firmware runs from SRAM, loaded by CHOMPI's bootloader (`APP_TYPE=BOOT_SRAM`).
+Code has about 23 KB left (`SRAM_EXEC`), the bench build less; `docs/CAPACITY.md` lists every
+region and the ways to make room. Never use `make program-boot`, and never swap in upstream
+libDaisy: the vendored copy is patched (`THIRD_PARTY.md`).
+`__attribute__((optimize("-O0")))` and similar per-function overrides (`ProcessAllControls`)
+are deliberate workarounds, not leftovers.

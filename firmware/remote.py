@@ -95,7 +95,7 @@ class Frizz:
             self.send(cmd, payload)
             reply = self.link.recv(cmd, 0.5)
         if reply is None:
-            sys.exit("no answer to 0x%02X: is FRIZZ running, with MIDI (v0.11 or later)?" % cmd)
+            sys.exit("no answer to 0x%02X: is FRIZZ running, a build newer than v0.10?" % cmd)
         return reply
 
     def leds(self):

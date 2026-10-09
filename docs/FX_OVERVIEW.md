@@ -44,7 +44,7 @@ drive the VU LEDs.
 - **WAVE** (`subtractiveEngine.h`): per voice wavetable → amp envelope → its own DJ filter, with a
   shared filter LFO and pitch LFO; voices summed → delay → reverb → output compressor →
   saturation → pan.
-- **FRIZZ** (`FxChain.h`): AUX input → dry/wet mix with the looper → freezer → shifter →
+- **FRIZZ** (`FxChain.h`): AUX input → input/loop mix with the looper → freezer → shifter →
   folder → crusher → filter → flanger → slicer → wow & flutter → tape stop → delay → reverb
   (fed the delay's echoes too) → master compressor (`MasterComp.h`: amount, ratio, speed, mix,
   on its own key) → output gain → safety limiter (`limiter.h` at its lowest setting). The
