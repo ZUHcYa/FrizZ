@@ -313,10 +313,13 @@ ms jitter). Each case prints what it measured; the limits are at the top of `syn
 The limits that depend on the sender's luck (a tempo's changes, a loop's length and drift) are
 checked over all cases together, after them, so one case just inside a limit by chance doesn't
 pass for a fix. Known: the FX's tempo keeps jumping by 1-2 BPM at 174 and 300 BPM, and at a
-tempo between two whole BPM (MidiClock's smoothing against the blocks' and USB's jitter, and the rounding
-without hysteresis); and a quantized loop is up to 82 samples off its bars from a DAW (the tick
-times are only as precise as a block, plus USB's frame), so it drifts up to 50 ms a minute
-against the clock, and even an exact clock's drifts 2-20 ms a minute on a short loop.
+tempo between two whole BPM (MidiClock's smoothing against the blocks' and USB's jitter, and
+the rounding without hysteresis); and a quantized loop, though within a few samples of its bars
+(the looper fits a line through every tick of the recording, `Looper.h`), still drifts up to 5.5
+ms a minute against the clock when it's short and fast (1 bar at 174 BPM from a DAW): a bar of
+ticks can't measure the tempo closer, and nothing follows the clock once the loop plays. The
+drift is worked out from the length's error; the loop point's moves, measured only to a block,
+have to agree with it.
 
 ## CPU bench check
 

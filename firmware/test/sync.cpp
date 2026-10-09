@@ -182,17 +182,22 @@ static void LoopCase(const Sender& s, double bpm, int bars)
     };
     RunMs(30000);
     each_block = nullptr;
-    double max_drift, per_min;
-    watch.Drift(ideal / 48., max_drift, per_min);
+    double max_drift, measured;
+    watch.Drift(ideal / 48., max_drift, measured);
+    // the drift a minute from the length's error: the wraps measure it only to a block (0.5 ms),
+    // too coarse over 30 s for a limit of 1 ms a minute, so they only have to agree with it
+    const double per_min = err / 48. * (60000. / (ideal / 48.));
     const double want_pulses = 30000. / (ideal / 48.) * c.loop_beats * 12.;
-    Report("%-9s %3.0f BPM, %d bar%s: %zu samples for %.1f (%+.1f), %u beats; drift %+.2f ms in "
-           "30 s, %+.2f ms/min (%+.1f ms after 100 passes); %llu pulses for %.0f",
+    Report("%-9s %3.0f BPM, %d bar%s: %zu samples for %.1f (%+.1f), %u beats; drift %+.2f ms/min "
+           "(%+.1f ms after 100 passes), measured %+.2f ms in 30 s; %llu pulses for %.0f",
            s.name, bpm, bars, bars > 1 ? "s" : " ", c.loop_length, ideal, err, c.loop_beats,
-           max_drift, per_min, err * 100. / 48., (unsigned long long)pulses.count, want_pulses);
+           per_min, err * 100. / 48., max_drift, (unsigned long long)pulses.count, want_pulses);
     const std::string base = Name("loop", s, bpm) + std::to_string(bars) + (bars > 1 ? " bars, " : " bar, ");
     Check(c.loop_state == 2 && c.loop_beats == static_cast<uint32_t>(bars * 4),
           (base + "closes on its bars").c_str());
     Check(fabs(pulses.count - want_pulses) <= 2., (base + "12 pulses a beat of the loop").c_str());
+    Check(fabs(max_drift - per_min * 30000. / 60000.) <= 1.,
+          (base + "its loop point moves as its length says").c_str());
     Record(&s == &kExact ? "loop-error-exact" : "loop-error-real", err);
     Record("loop-drift", per_min);
 }
@@ -405,7 +410,7 @@ int main()
                Worst(r, "loop-error-exact"), Worst(r, "loop-error-real"), Worst(r, "loop-drift"));
         Check(Worst(r, "loop-error-exact") <= kMaxLoopError,
               "loop: from an exact clock, every quantized loop within a block of its bars");
-        Known(Worst(r, "loop-error-real") <= kMaxLoopError,
+        Check(Worst(r, "loop-error-real") <= kMaxLoopError,
               "loop: from a sequencer or a DAW, every quantized loop within a block of its bars");
         Known(Worst(r, "loop-drift") <= kMaxDriftPerMin,
               "loop: every quantized loop drifts under 1 ms a minute against the clock");

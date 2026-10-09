@@ -29,6 +29,11 @@ what FRIZZ does.
 
 ### Fixed
 
+- A quantized loop is now as long as its bars to a fraction of a millisecond, so it stays with
+  the MIDI clock much longer: from a DAW over USB it used to slip up to 50 ms a minute against
+  it, now a few ms at most (a short loop at a fast tempo; longer loops far less). It measures
+  the clock over the whole recording, up to where it closes, and averages out the ticks'
+  jitter.
 - Holding an FX key and tapping CHOMPI twice in a save, copy or delete mode confirmed the
   scene and dropped the latch; it now latches and doesn't confirm, as with one tap.
 - The delay's pitch-up events (random knob left of centre) read from the wrong place after

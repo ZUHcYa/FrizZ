@@ -302,6 +302,7 @@ private:
             first_tick_time_ = 0;
             first_tick_count_ = 0;
             have_first_tick_ = false;
+            fit_ = TickFit();
             break;
         }
 
@@ -386,7 +387,9 @@ private:
 
     /** Snapshots the first tick after the record press, and closes a quantized recording
      *  immediately if the clock goes away (LOOPER.md 1.3), also if it came back at once: its
-     *  ticks then don't count from the press any more */
+     *  ticks then don't count from the press any more. While it records to the end of its
+     *  bar, the end follows the ticks still coming in, so the length is measured over the
+     *  whole loop and not only up to the press (LOOPER.md 2.2) */
     void TrackRecordingClock()
     {
         if (!quantized_)
@@ -398,24 +401,59 @@ private:
             return;
         }
 
-        if (!have_first_tick_ && midi_clock_->GetTicks() != start_ticks_)
+        const uint32_t ticks = midi_clock_->GetTicks();
+        if (!have_first_tick_ && ticks != start_ticks_)
         {
             have_first_tick_ = true;
             first_tick_time_ = midi_clock_->GetLastTickTime();
-            first_tick_count_ = midi_clock_->GetTicks();
+            first_tick_count_ = ticks;
+            fit_ticks_ = ticks;
+            fit_.Add(0., 0.);
         }
+        else if (have_first_tick_ && ticks != fit_ticks_)
+        {
+            // one point a block: ticks that came in one block share its time
+            fit_ticks_ = ticks;
+            fit_.Add(static_cast<double>(ticks - first_tick_count_),
+                     static_cast<double>(midi_clock_->GetLastTickTime() - first_tick_time_));
+        }
+
+        if (closing_ && TickPeriod() > 0.f)
+            target_length_ = static_cast<size_t>(target_bars_ * kTicksPerBar * TickPeriod() + .5f);
     }
 
-    /** Tick period in samples, from the tick span since the record press when there's enough
-     *  of it, otherwise the clock's smoothed period (LOOPER.md 2.2) */
+    /** Tick period in samples, from the ticks since the record press once there's a beat of
+     *  them, otherwise the clock's smoothed period (LOOPER.md 2.2) */
     float TickPeriod() const
     {
         const uint32_t ticks = midi_clock_->GetTicks() - first_tick_count_;
-        if (have_first_tick_ && ticks >= kTicksPerBeat)
-            return static_cast<float>(midi_clock_->GetLastTickTime() - first_tick_time_) / ticks;
+        if (have_first_tick_ && ticks >= kTicksPerBeat && fit_.Ready())
+            return static_cast<float>(fit_.Slope());
 
         return midi_clock_->GetTickPeriod();
     }
+
+    /** A least-squares line through the ticks' (count, time) since the record press: its slope
+     *  is the tick period. A tick's time is only as precise as the audio block it came in (and
+     *  over USB, the 1 ms frame it was sent in); the line averages that out over every tick,
+     *  where the span from the first tick to the last keeps the error of both ends. Updated
+     *  as in Welford's algorithm, which stays precise over a 2:45 recording; in doubles, once
+     *  a block that a tick came in */
+    struct TickFit
+    {
+        double n = 0., mean_x = 0., mean_y = 0., sxx = 0., sxy = 0.;
+        void Add(double x, double y)
+        {
+            n += 1.;
+            const double dx = x - mean_x;
+            mean_x += dx / n;
+            mean_y += (y - mean_y) / n;
+            sxx += dx * (x - mean_x);
+            sxy += dx * (y - mean_y);
+        }
+        inline bool Ready() const { return n >= 2. && sxx > 0.; }
+        inline double Slope() const { return sxy / sxx; }
+    };
 
     /** Hit the 2:45 limit: unquantized keeps everything, quantized cuts back to the last
      *  complete bar (LOOPER.md 1.3a) */
@@ -619,6 +657,8 @@ private:
     uint32_t first_tick_time_;
     uint32_t first_tick_count_;
     bool have_first_tick_;
+    TickFit fit_;          // the ticks since the press, for TickPeriod()
+    uint32_t fit_ticks_ = 0; // the clock's tick count at the last point
 };
 
 } // namespace chompi
