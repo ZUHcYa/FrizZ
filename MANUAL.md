@@ -512,8 +512,7 @@ isn't lost: the first save moves it to `frizz_scenes.bak`.
 A card put in after switching on without one is read before anything is written to it: its
 scenes fill the slots you haven't saved into. If you've saved into a slot it also has a
 scene in, its file is moved to `frizz_scenes.bak` first, so nothing on it is lost. A card
-swapped for another while FRIZZ is on is read the same way. The first save after the swap
-fails (the slot flashes red) while the new card gets ready; save again.
+swapped for another while FRIZZ is on is read the same way before the next save.
 
 ### Morphing to a scene
 

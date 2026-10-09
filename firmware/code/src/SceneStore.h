@@ -27,9 +27,11 @@
  *  and the card's file is kept as frizz_master.bak.
  *
  *  A card swapped for another while FRIZZ runs is taken as a late one too. The new card isn't
- *  set up yet, so the first write after the swap fails; the next mounts it again (Remount) and
+ *  set up yet (disk_status says so), and FatFs would mount it by itself on the next write,
+ *  in the root; so each write first asks, and if it isn't, mounts it again (Remount) and
  *  compares its volume serial number, which formatting a card sets anew, with the card read
- *  before. Two cards copied sector by sector share one and look like the same card.
+ *  before. Two cards copied sector by sector share one and look like the same card. A card
+ *  whose serial can't be read isn't written.
  */
 #pragma once
 #include "daisy.h"
@@ -99,7 +101,7 @@ public:
         loaded_ = Mount();
         if (!loaded_)
             return;
-        serial_ = Serial();
+        Serial(serial_);
         LoadMaster();
         unreadable_ = !LoadScenes(Saved());
     }
@@ -127,15 +129,13 @@ public:
     {
         if (save_state_ == SaveState::PENDING)
         {
-            Remount();
-            failed_ = !(mounted_ && LateCard() && Save());
+            failed_ = !(Remount() && LateCard() && Save());
             save_state_ = failed_ ? SaveState::FAILED : SaveState::OK;
         }
         if (master_pending_)
         {
             master_pending_ = false;
-            Remount();
-            failed_ = !(mounted_ && LateCard());
+            failed_ = !(Remount() && LateCard());
             const size_t len = FormatMaster(master, buf_, kMasterFileMax);
             failed_ = failed_ || !(len && WriteText(kMasterFile, kMasterTmpFile, len));
             master_failed_ = failed_;
@@ -247,7 +247,7 @@ private:
                 Saved()[s] = card[s];
         }
         unreadable_ = clash;
-        serial_ = Serial();
+        Serial(serial_);
 
         if (Exists(kMasterFile))
         {
@@ -276,23 +276,34 @@ private:
             f_rename(tmp, name);
     }
 
-    /** After a failure, or without a card at boot: mount again, the card may be back. If
-     *  it's another card than the one read, it's read before a write, as a late one */
-    void Remount()
+    /** Before a write: mounts the card again after a failure, without a card at boot, or when
+     *  it isn't set up (swapped, or taken out and put back). Another card than the one read is
+     *  read before the write, as a late one. False without a card, or if it can't tell */
+    bool Remount()
     {
-        if ((!mounted_ || failed_) && Mount() && loaded_ && Serial() != serial_)
+        if (mounted_ && !failed_ && !(disk_status(fs_->drv) & STA_NOINIT))
+            return true;
+        if (!Mount())
+            return false;
+        uint32_t serial;
+        if (!loaded_ || !Serial(serial))
+            return !loaded_; // not read yet: LateCard reads it
+        if (serial != serial_)
             loaded_ = false;
+        return true;
     }
 
-    /** The mounted card's volume serial number, from its boot sector into buf_; 0 if it
-     *  can't be read, which takes it for another card */
-    uint32_t Serial()
+    /** The mounted card's volume serial number, from its boot sector into buf_; false (and 0)
+     *  if it can't be read */
+    bool Serial(uint32_t& serial)
     {
+        serial = 0;
         BYTE* sector = reinterpret_cast<BYTE*>(buf_);
         if (disk_read(fs_->drv, sector, fs_->volbase, 1) != RES_OK)
-            return 0;
+            return false;
         const BYTE* id = sector + (fs_->fs_type == FS_FAT32 ? 67 : 39); // BS_VolID(32)
-        return id[0] | id[1] << 8 | id[2] << 16 | static_cast<uint32_t>(id[3]) << 24;
+        serial = id[0] | id[1] << 8 | id[2] << 16 | static_cast<uint32_t>(id[3]) << 24;
+        return true;
     }
 
     bool Save()

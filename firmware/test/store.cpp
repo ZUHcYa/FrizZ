@@ -225,10 +225,8 @@ static void TestSwap()
     card.files[kScenes] = b;
     card.files[kMaster] = "FRIZZ master 1\nmono 1\n";
     SaveInRam(store, 4, .5f);
-    Check(!Saves(store) && card.files[kScenes] == b,
-          "swap: the first save fails (the new card isn't set up), card B untouched");
     float first = 0.f;
-    Check(Saves(store), "swap: the next save works");
+    Check(Saves(store), "swap: the save works");
     Check(card.files[kScenesBak] == b, "swap with a clash: card B's scene file is kept as .bak");
     Check(UsedIn(card.files[kScenes], 1, &first) == 0xf && first == .25f && store.scenes[3].used,
           "... and the new one has the session's scenes 1, 2 and 4, and card B's scene 3");
@@ -244,23 +242,37 @@ static void TestSwap()
     card.files[kScenes] = SceneText(0x1, .25f);
     SaveInRam(store, 2, .5f);
     Check(Saves(store), "swap into empty slots: card A, read late");
+    card.files.erase(kMasterBak);
     NewCard(true);
     card.fresh = true;
     card.dirs["/FRIZZ"] = true;
     card.files[kScenes] = SceneText(0x4, .75f);
     store.Process(); // nothing pending: nothing touches the card
     SaveInRam(store, 4, .5f);
-    Saves(store);
     Check(Saves(store) && UsedIn(card.files[kScenes]) == 0xf && !card.files.count(kScenesBak),
           "swap into empty slots: one file holds all four, no .bak");
+    store.RequestMasterSave();
+    store.Process();
+    Check(!store.TakeMasterFailed() && card.files.count(kMaster), "... and the master settings written");
 
     // the same card taken out and put back: it's the session's own, written without a .bak
+    card.files.erase(kMasterBak);
     card.fresh = true;
     SaveInRam(store, 1, .5f);
-    Saves(store);
     Check(Saves(store) && UsedIn(card.files[kScenes], 1, &first) == 0xf && first == .5f &&
               !card.files.count(kScenesBak) && !card.files.count(kMasterBak),
-          "the same card put back: written as before, no .bak");
+          "the same card put back: written as before, in /FRIZZ, no .bak");
+    Check(!card.files.count("/frizz_scenes.txt") && !card.files.count("/frizz_scenes.tmp"),
+          "... nothing in the card's root");
+
+    // a card whose serial can't be read isn't written: it can't tell whose it is
+    card.fresh = true;
+    card.serial_unreadable = true;
+    const std::string before = card.files[kScenes];
+    SaveInRam(store, 2, .75f);
+    Check(!Saves(store) && card.files[kScenes] == before, "serial unreadable: the save fails, the card untouched");
+    card.serial_unreadable = false;
+    Check(Saves(store), "... and works once it can be read");
 }
 
 int main()

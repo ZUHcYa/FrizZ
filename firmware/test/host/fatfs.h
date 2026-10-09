@@ -2,8 +2,9 @@
 // taken out (card.present), filled and read back (card.files, keyed by full path), made to
 // refuse writes (card.read_only) or run full (card.space: bytes a write can still add), and it
 // counts the files open (card.open), so a check sees one left open. A card just put in
-// (card.fresh) refuses everything until it's mounted, as a real one isn't set up yet; its
-// boot sector (disk_read) holds its volume serial number (card.serial).
+// (card.fresh) isn't set up: disk_status says so, and the next file call mounts it by itself
+// as FatFs does, which puts it back in the root. Its boot sector (disk_read) holds its volume
+// serial number (card.serial).
 #pragma once
 #include <algorithm>
 #include <cstdint>
@@ -52,6 +53,7 @@ struct FakeCard
     bool present = true;
     bool fresh = false;  // just put in: not set up until mounted
     uint32_t serial = 0; // the volume serial number in its boot sector
+    bool serial_unreadable = false; // its boot sector can't be read
     bool read_only = false;
     size_t space = SIZE_MAX;
     int open = 0;
@@ -64,7 +66,16 @@ struct FakeCard
         static FakeCard card;
         return card;
     }
-    inline bool Ready() const { return present && !fresh; }
+    /** Before each file call: a fresh card gets mounted, in the root (FatFs's find_volume) */
+    bool Ready()
+    {
+        if (present && fresh)
+        {
+            fresh = false;
+            cwd = "";
+        }
+        return present;
+    }
     std::string Path(const char* name) const
     {
         return name[0] == '/' ? std::string(name) : cwd + "/" + name;
@@ -193,7 +204,15 @@ inline FRESULT f_close(FIL*)
     return FR_OK;
 }
 
-// the card's sectors, as diskio.h reads them: only its boot sector, which holds its serial
+// the card's sectors, as diskio.h reads them: only its boot sector, which holds its serial;
+// and its status, which asks the card (CMD13), so one just put in isn't set up
+typedef BYTE DSTATUS;
+#define STA_NOINIT 0x01
+inline DSTATUS disk_status(BYTE)
+{
+    const FakeCard& c = FakeCard::Get();
+    return c.present && !c.fresh ? 0 : STA_NOINIT;
+}
 enum DRESULT
 {
     RES_OK = 0,
@@ -205,8 +224,10 @@ enum DRESULT
 inline DRESULT disk_read(BYTE, BYTE* buf, DWORD sector, UINT count)
 {
     const FakeCard& c = FakeCard::Get();
-    if (!c.Ready())
+    if (!c.present || c.fresh)
         return RES_NOTRDY;
+    if (c.serial_unreadable)
+        return RES_ERROR;
     if (sector != 8192 || count != 1)
         return RES_PARERR;
     memset(buf, 0, kSectorSize);
