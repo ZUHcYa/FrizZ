@@ -28,6 +28,11 @@
  *  a scene key morphs to it instead (FxMorph.h), landing on a bar line; the engine times it.
  *  SHIFT + PLAY stops a morph where it is; without one, PLAY works as ever.
  *  The card is written from MainLoop (SceneStore::Process), never here.
+ *
+ *  MIDI (MidiControl.h): notes and FRIZZ's SysEx keys and detents come as the hand's do (ui.h);
+ *  the rest, Remote() takes from MainLoop: a controller sets a parameter, a latch, a gain or
+ *  the mix outright, as its knob or key would, a program change is a scene key, a morph over
+ *  MIDI glides at once over the bars set. It answers SysEx queries over USB.
  */
 #pragma once
 
@@ -40,6 +45,7 @@
 #include "TapTempo.h"
 #include "SceneStore.h"
 #include "EventLog.h"
+#include "MidiControl.h"
 #include "LedColors.h"
 #include "passthroughEngine.h"
 #include "temp_led_stuff.h"
@@ -141,10 +147,12 @@ namespace chompi
     class NormalPage : public daisy::UiPage
     {
     public:
-        void Init(PassthroughEngine *engine, Hardware *hw, SceneStore *scenes, EventLog *log)
+        void Init(PassthroughEngine *engine, Hardware *hw, SceneStore *scenes, EventLog *log,
+                  MidiControl *midi)
         {
             hw_ = hw;
             log_ = log;
+            midi_ = midi;
             engine_ = engine;
             scenes_ = scenes;
 
@@ -389,7 +397,241 @@ namespace chompi
             return true;
         }
 
+        /** What came over MIDI for the page, from MainLoop: controllers, a program change, the
+         *  transport, settings to keep and a query to answer */
+        MIDI_CONTROL_ONCE void Remote()
+        {
+            const uint32_t now = System::GetNow();
+            uint8_t cc, raw;
+            float value;
+            while (midi_->TakeValue(cc, value, raw))
+                RemoteValue(cc, value, raw);
+
+            // a program change is its scene key, pressed
+            const int program = midi_->TakeProgram();
+            if (program >= 0)
+                ScenePressed(static_cast<size_t>(program), false);
+
+            // MIDI Start / Continue plays the loop, Stop pauses it
+            const int transport = midi_->TakeTransport();
+            if (transport && LoopExists()
+                && (transport > 0) != (LooperState() == Looper::State::PLAYING))
+                engine_->looper.TogglePlay();
+
+            if (midi_->TakeSettingsChanged())
+                MasterChanged(now);
+
+            MidiControl::Query query;
+            if (midi_->TakeQuery(query))
+                Answer(query);
+        }
+
     private:
+        MIDI_CONTROL_ONCE void RemoteValue(uint8_t cc, float value, uint8_t raw)
+        {
+            using namespace midimap;
+            if (cc >= kParamCC && cc < kParamCC + kNumFx * kNumFxParams)
+                fx_.SetParamTo((cc - kParamCC) / kNumFxParams, (cc - kParamCC) % kNumFxParams,
+                               value);
+            else if (cc >= kLatchCC && cc < kLatchCC + kNumFx)
+                fx_.SetLatch(cc - kLatchCC, raw >= 64);
+            else if (cc >= kCompCC && cc < kCompCC + kNumFxParams)
+                fx_.SetComp(cc - kCompCC, value);
+            else if (cc == kOutGainCC)
+            {
+                out_gain_ = value;
+                engine_->SetMainGain(out_gain_);
+            }
+            else if (cc == kInGainCC)
+            {
+                in_gain_ = value;
+                engine_->SetInputGain(in_gain_);
+            }
+            else if (cc == kMixCC)
+                SetMix(value);
+            else if (cc == kHpCueCC)
+            {
+                hp_cue_ = value;
+                engine_->SetHeadphoneCue(hp_cue_);
+            }
+            else if (cc == kMonoCC && (raw >= 64) != mono_)
+            {
+                mono_ = raw >= 64;
+                engine_->SetMonoInput(mono_);
+                MasterChanged(System::GetNow());
+            }
+            else if (cc == kMorphBarsCC)
+                morph_bars_ = raw < 1 ? 1 : (raw > kMaxMorphBars ? kMaxMorphBars : raw);
+            else if (cc == kMorphCC && raw < kNumSlots)
+                RemoteMorph(raw);
+            else if (cc == kStopMorphCC && raw >= 64)
+                FreezeMorph();
+        }
+
+        /** A morph over MIDI: as SHIFT + the scene key, tapped once per bar, and SHIFT let go,
+         *  unless the hand holds it, whose release then lets it glide */
+        void RemoteMorph(size_t slot)
+        {
+            SceneControls<PassthroughEngine>::Slot result;
+            {
+                ScopedIrqBlocker irq;
+                result = scene_ctl_.Press(slot, true);
+                if (result == SceneControls<PassthroughEngine>::Slot::MORPH)
+                    for (uint8_t bar = 1; bar < morph_bars_; bar++)
+                        scene_ctl_.MorphMore();
+            }
+            if (result == SceneControls<PassthroughEngine>::Slot::REFUSED)
+                SceneRefusedBlink(slot);
+            else if (!Shift())
+                ReleaseMorph();
+        }
+
+        /** A SysEx query, answered over USB (MidiControl.h has the commands) */
+        MIDI_CONTROL_ONCE void Answer(const MidiControl::Query& q)
+        {
+            uint8_t d[MidiControl::kMaxReply];
+            size_t n = 0;
+            switch (q.cmd)
+            {
+            case kCmdState:
+            {
+                const Looper& looper = engine_->looper;
+                uint16_t latched = 0, on = 0;
+                for (size_t fx = 0; fx < kNumFx; fx++)
+                {
+                    latched |= fx_.IsLatched(fx) ? 1u << fx : 0u;
+                    on |= fx_.IsOn(fx) ? 1u << fx : 0u;
+                }
+                const uint8_t flags = (scene_ctl_.Edited() ? 1 : 0)
+                                      | (fx_.Morphing() ? 2 : 0) | (Shift() ? 4 : 0)
+                                      | (looper.IsErasePending() ? 8 : 0)
+                                      | (looper.IsClosing() ? 16 : 0) | (mono_ ? 32 : 0);
+                d[n++] = static_cast<uint8_t>(looper.GetState());
+                n = Put14(d, n, KnobToMidi14((looper.GetSpeed() + 2.f) * .25f));
+                d[n++] = static_cast<uint8_t>(looper.GetPosition() * 127.f);
+                d[n++] = static_cast<uint8_t>(fx_.Selected());
+                d[n++] = static_cast<uint8_t>(scene_ctl_.Active() + 1);
+                d[n++] = flags;
+                d[n++] = static_cast<uint8_t>(scene_ctl_.Mode());
+                n = Put14(d, n, latched);
+                n = Put14(d, n, on);
+                d[n++] = page_;
+                n = Put14(d, n, KnobToMidi14(mix_));
+                n = Put14(d, n, KnobToMidi14(out_gain_));
+                n = Put14(d, n, KnobToMidi14(in_gain_));
+                n = Put14(d, n, KnobToMidi14(hp_cue_));
+                n = Put14(d, n, static_cast<uint16_t>(engine_->FxBpm() * 10.f + .5f));
+                break;
+            }
+            case kCmdParams:
+                if (q.a > kNumFx)
+                    return;
+                d[n++] = q.a;
+                for (size_t p = 0; p < kNumFxParams; p++)
+                    n = Put14(d, n, KnobToMidi14(q.a == kNumFx ? fx_.CompParam(p)
+                                                               : fx_.Param(q.a, p)));
+                break;
+            case kCmdLeds:
+            {
+                // part 0: the panel's 10, then the keys' 25 in three parts
+                static const uint8_t kFirst[] = {0, 0, 9, 17}, kCount[] = {10, 9, 8, 8};
+                if (q.a > 3)
+                    return;
+                d[n++] = q.a;
+                for (uint8_t i = kFirst[q.a]; i < kFirst[q.a] + kCount[q.a]; i++)
+                    for (int c = 0; c < 3; c++)
+                        d[n++] = q.a == 0 ? led_pth_data[i][c] : led_smt_data[i][c];
+                break;
+            }
+            case kCmdLoad:
+            {
+                uint16_t max, mean;
+                midi_->TakeLoad(max, mean);
+                n = Put14(d, n, max);
+                n = Put14(d, n, mean);
+                break;
+            }
+            case kCmdSettings:
+                d[n++] = midi_->Channel();
+                d[n++] = midi_->Transport() ? 1 : 0;
+                break;
+            case kCmdSceneGet:
+                if (q.a >= kNumSlots || q.b >= kSceneParts)
+                    return;
+                d[n++] = q.a;
+                d[n++] = q.b;
+                n = ScenePart(scenes_->scenes[q.a], q.b, d, n);
+                break;
+            case kCmdScenePut:
+                if (q.a >= kNumSlots || q.b >= kSceneParts)
+                    return;
+                d[n++] = q.a;
+                d[n++] = q.b;
+                d[n++] = TakeScenePart(q) ? 0 : 1;
+                break;
+            default:
+                return;
+            }
+            midi_->Reply(q.cmd, d, n);
+        }
+
+        static size_t Put14(uint8_t* d, size_t n, uint16_t v)
+        {
+            d[n++] = (v >> 7) & 0x7F;
+            d[n++] = v & 0x7F;
+            return n;
+        }
+
+        /** A scene's part for kCmdSceneGet: kFxPerPart effects' knobs, 14 bits each, or (the
+         *  last) whether it's used and its latches */
+        static size_t ScenePart(const FxScene& scene, uint8_t part, uint8_t* d, size_t n)
+        {
+            if (part == kSceneParts - 1)
+            {
+                d[n++] = scene.used ? 1 : 0;
+                return Put14(d, n, scene.latched);
+            }
+            for (size_t fx = part * kFxPerPart; fx < (part + 1u) * kFxPerPart; fx++)
+                for (size_t p = 0; p < kNumFxParams; p++)
+                    n = Put14(d, n, KnobToMidi14(scene.params[fx][p]));
+            return n;
+        }
+
+        /** A part of kCmdScenePut, into the scene being sent; the last part stores it in its
+         *  slot and on the card, once every part has come. Never the blank scene */
+        bool TakeScenePart(const MidiControl::Query& q)
+        {
+            if (q.a == kBlankSlot)
+                return false;
+            if (q.a != put_slot_)
+            {
+                put_slot_ = q.a;
+                put_parts_ = 0;
+            }
+            const uint8_t* v = q.data;
+            if (q.b == kSceneParts - 1)
+            {
+                if (q.len < 3 || put_parts_ != (1u << (kSceneParts - 1)) - 1)
+                    return false;
+                put_scene_.used = v[0] != 0;
+                put_scene_.latched = static_cast<uint16_t>((v[1] << 7) | v[2]);
+                scenes_->scenes[q.a] = put_scene_;
+                put_slot_ = kNoScene;
+                scenes_->RequestSave();
+                scene_flash_ = q.a;
+                scene_flash_waiting_ = true;
+                scene_flash_signal_.Stop();
+                return true;
+            }
+            if (q.len < kFxPerPart * kNumFxParams * 2)
+                return false;
+            for (size_t i = 0; i < kFxPerPart * kNumFxParams; i++)
+                put_scene_.params[q.b * kFxPerPart + i / kNumFxParams][i % kNumFxParams]
+                    = MidiToKnob(static_cast<uint16_t>((v[2 * i] << 7) | v[2 * i + 1]), true);
+            put_parts_ |= 1u << q.b;
+            return true;
+        }
+
         // PlayKeys' Host
         friend class PlayKeys<NormalPage>;
         inline bool SceneArmed() const { return scene_ctl_.Armed(); }
@@ -478,6 +720,8 @@ namespace chompi
                 for (size_t p = 0; p < kNumFxParams; p++)
                     scenes_->master.comp[p] = fx_.CompParam(p);
                 scenes_->master.mono = mono_;
+                scenes_->master.midi_channel = midi_->Channel();
+                scenes_->master.midi_transport = midi_->Transport();
                 scenes_->RequestMasterSave();
                 master_unsaved_ = false;
             }
@@ -868,6 +1112,11 @@ namespace chompi
         PassthroughEngine *engine_;
         SceneStore *scenes_;
         EventLog *log_;
+        MidiControl *midi_ = nullptr;
+        uint8_t morph_bars_ = 1;       // a morph over MIDI's bars (midimap::kMorphBarsCC)
+        FxScene put_scene_;            // a scene coming over SysEx (kCmdScenePut),
+        int put_slot_ = kNoScene;      // for this slot,
+        uint32_t put_parts_ = 0;       // with these parts so far
         uint32_t log_written_ = 0, log_failed_ = 0; // the log's files shown so far
         bool log_ok_ = false;
         LedSignal log_signal_; // the last file written, or not

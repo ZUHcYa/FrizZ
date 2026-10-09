@@ -35,6 +35,10 @@ void StartAudio(AudioCallback cb);
 typedef void (*UartRx)(uint8_t* data, size_t size, void* context);
 void UartListen(UartRx rx, void* context);
 
+// --- USB MIDI, as raw MIDI bytes ------------------------------------------------------------
+void UsbListen(UartRx rx, void* context);
+void UsbTx(const uint8_t* data, size_t size);
+
 // --- power ---------------------------------------------------------------------------------
 void Stop(); // HAL_PWR_EnterSTOPMode
 } // namespace twin

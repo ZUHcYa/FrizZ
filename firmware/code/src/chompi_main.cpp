@@ -4,8 +4,8 @@
  *  CHOMPI (built on the Daisy Seed / STM32H7) has two places code runs, in
  *  order of priority:
  *   1. AudioCallback() - the audio ISR. Runs once per audio block (~24 samples
- *      at 48kHz here). Polls the controls and MIDI clock, and passes the AUX input
- *      through the engine.
+ *      at 48kHz here). Polls the controls and MIDI (clock, and the panel played over it), and
+ *      passes the AUX input through the engine.
  *   2. MainLoop() - Lowest priority, handles UI dispatch, battery checks, writing the FX
  *      scenes to the SD card, and boot-time stuff.
  */
@@ -15,6 +15,7 @@
 #include "passthroughEngine.h"
 #include "SceneStore.h"
 #include "EventLog.h"
+#include "MidiControl.h"
 #if FRIZZ_BENCH
 #include "Bench.h"
 #endif
@@ -33,6 +34,8 @@ SdmmcHandler sdmmc;
 FatFSInterface fsi;
 PassthroughEngine engine;
 MidiClock midi_clock;
+// the panel played and inspected over MIDI
+MidiControl midi_control;
 SceneStore scene_store;
 // every key, knob and clock change since power-on, for a bug report (SHIFT + transport press)
 EventLog event_log;
@@ -110,6 +113,8 @@ void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, s
 {
 #if FRIZZ_BENCH
     bench.BlockStart();
+#else
+    const uint32_t start_tick = System::GetTick(); // the load, for MIDI (MidiControl.h)
 #endif
     midi_clock.Process(sample_clock);
     sample_clock += size;
@@ -123,7 +128,7 @@ void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, s
     if(booting || loading_screen)
     {
         if(!main_loop_running)
-            ui.DoEvents();
+            ui.DoEvents(false);
 
         for(size_t i = 0; i < size; i++)
         {
@@ -138,6 +143,7 @@ void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, s
     bench.BlockEnd(engine);
 #else
     engine.Process(in, out, size);
+    midi_control.BlockTime(System::GetTick() - start_tick);
 #endif
 }
 
@@ -238,7 +244,10 @@ int main(void)
 
     LedSetup();
     event_log.Init(&event_log_mem, &fsi.GetSDFileSystem(), fsi.GetSDPath());
-    ui.Init(&engine, &hw, &scene_store, &event_log);
+    midi_control.Init(&midi_clock, &event_log, scene_store.master.midi_channel,
+                      scene_store.master.midi_transport, System::GetTickFreq(),
+                      24.f / hw.seed.AudioSampleRate());
+    ui.Init(&engine, &hw, &scene_store, &event_log, &midi_control);
 #if FRIZZ_BENCH
     bench.Init(hw.seed.AudioSampleRate(), 24, &fsi.GetSDFileSystem(), fsi.GetSDPath());
 #endif

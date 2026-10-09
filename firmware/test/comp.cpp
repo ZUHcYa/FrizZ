@@ -250,6 +250,20 @@ static void TestFile()
     Check(ParseMaster(buf, b) && !b.mono, "file: stereo round-trips");
     Check(ParseMaster("FRIZZ master 1\ncompressor 500000 500000 500000 500000\n", b) && !b.mono,
           "file: one from before the mono switch, stereo");
+
+    // MIDI's channel and transport following (MidiControl.h)
+    a.Reset();
+    a.midi_channel = 3;
+    a.midi_transport = true;
+    FormatMaster(a, buf, sizeof(buf));
+    Check(ParseMaster(buf, b) && b.midi_channel == 3 && b.midi_transport,
+          "file: the MIDI settings round-trip");
+    a.midi_channel = 0;
+    FormatMaster(a, buf, sizeof(buf));
+    Check(ParseMaster(buf, b) && b.midi_channel == 0, "file: every channel (0) round-trips");
+    Check(ParseMaster("FRIZZ master 1\nmidi_channel 17\n", b) && b.midi_channel == 16
+              && !b.midi_transport,
+          "file: one from before MIDI, or a channel past 16: channel 16, no transport");
 }
 
 /** The gain's ripple, dB, on a steady sine of freq Hz at 0dB: max minus min reduction

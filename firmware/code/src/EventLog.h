@@ -1,6 +1,6 @@
 /** @file EventLog.h
- *  @brief The event recorder: every key, knob detent, mode-switch flip and MIDI clock change
- *  since power-on, written to /FRIZZ/bug-N.txt on SHIFT + transport press (MANUAL.md, "Bug
+ *  @brief The event recorder: every key, knob detent, mode-switch flip, MIDI clock change and
+ *  MIDI message FRIZZ acted on (MidiControl.h) since power-on, written to /FRIZZ/bug-N.txt on SHIFT + transport press (MANUAL.md, "Bug
  *  reports"). The file is a script for the virtual CHOMPI (firmware/twin/README.md): the
  *  card's FRIZZ files as they were at power-on, then the controls at the times they were
  *  used, so the twin plays the session again from power-on.
@@ -15,7 +15,8 @@
  *  in isn't recorded: the replay plays a tone.
  *
  *  A logged time is when the firmware saw the change, after its debouncing; the file gives
- *  when the hand did it (kLead), as the twin debounces too.
+ *  when the hand did it (kLead), as the twin debounces too. A MIDI message is logged as it
+ *  came in and played in again then, through the MIDI jack, USB's too.
  */
 #pragma once
 #include <stdint.h>
@@ -39,10 +40,12 @@ namespace chompi
 struct LoggedEvent
 {
     uint32_t ms;   // since Start
-    int16_t value; // a key: 1 down, 0 up; a detent: +-1; the switch: its level; the clock: BPM x10
+    int16_t value; // a key: 1 down, 0 up; a detent: +-1; the switch: its level; the clock: BPM x10;
+                   // MIDI: its two data bytes, 7 bits each, the first on top
     uint8_t kind;  // EventLog::Kind
     uint8_t id;    // a key: its SwId; a knob: its encoder, 1-6 (SW1-SW6); the clock: how long
-                   // before it was logged it changed, in 10 ms
+                   // before it was logged it changed, in 10 ms; MIDI: its status byte, or
+                   // FRIZZ's SysEx command
 };
 
 // 2 MB of SDRAM: 260,000 events, far more than a session
@@ -77,6 +80,8 @@ public:
         TURN,
         TOGGLE,
         CLOCK,
+        MIDI,  // a channel message, or Start / Continue / Stop
+        SYSEX, // FRIZZ's own, with two data bytes (MidiControl.h)
     };
 
     void Init(EventLogMem* mem, FATFS* fs, const char* path)
@@ -187,6 +192,9 @@ private:
     static const uint32_t kSrTurnLeadMs = 4;
     static const uint32_t kTurnLeadMs = 3;
     static const uint32_t kToggleLowLeadMs = 58, kToggleHighLeadMs = 56;
+    // MIDI has nothing to debounce: its 1 ms is the twin's `booted`, which looks for the main
+    // loop once a millisecond, so its times count from a millisecond after the log's
+    static const uint32_t kMidiLeadMs = 1;
 
     /** How long before the firmware saw it the hand (or the clock) did it */
     static uint32_t Lead(const LoggedEvent& e)
@@ -196,7 +204,8 @@ private:
         case KEY: return e.value && e.id != ENC_5_SW ? kSrKeyDownLeadMs : kKeyLeadMs;
         case TURN: return e.id <= 4 ? kSrTurnLeadMs : kTurnLeadMs;
         case TOGGLE: return e.value ? kToggleHighLeadMs : kToggleLowLeadMs;
-        default: return e.id * 10u;
+        case CLOCK: return e.id * 10u;
+        default: return kMidiLeadMs;
         }
     }
 
@@ -267,7 +276,26 @@ private:
         while (i)
             text_[pos_++] = digits[--i];
     }
-    /** text_ so far to the file */
+    /** A byte as " HH" */
+    EVENT_LOG_ONCE void PutHex(uint8_t b)
+    {
+        static const char kDigits[] = "0123456789ABCDEF";
+        text_[pos_++] = ' ';
+        text_[pos_++] = kDigits[b >> 4];
+        text_[pos_++] = kDigits[b & 15];
+    }
+    /** A MIDI message as the twin's `midi` line, as many data bytes as its status has */
+    EVENT_LOG_ONCE void PutMidi(const LoggedEvent& e)
+    {
+        Put("midi");
+        PutHex(e.id);
+        const uint8_t type = e.id & 0xF0;
+        if (e.id >= 0xF0)
+            return;
+        PutHex(static_cast<uint8_t>(e.value >> 7));
+        if (type != 0xC0 && type != 0xD0)
+            PutHex(e.value & 0x7F);
+    }
     /** text_ to the file in whole sectors, the rest kept for the next (all: everything, at the
      *  end). FatFs hands whole sectors straight from text_ to the SD card's DMA, which reads
      *  from a word-aligned address: so every write starts on a sector of the file and at the
@@ -332,10 +360,11 @@ private:
 
         Put("# FRIZZ event log ");
         PutNum(number_);
-        Put(": the keys, knobs, mode switch and MIDI clock from power-on to SHIFT + transport\n"
+        Put(": the keys, knobs, mode switch and MIDI from power-on to SHIFT + transport\n"
             "# press, the card's FRIZZ files as they were at power-on. The virtual CHOMPI plays\n"
             "# it again: firmware/twin/run.sh -o out.wav -l leds.txt bug-N.txt\n"
-            "# The audio in isn't in it: the replay plays a tone into AUX (the input line).\n");
+            "# The audio in isn't in it: the replay plays a tone into AUX (the input line).\n"
+            "# Nor are scenes sent over MIDI: the replay has the card's.\n");
         if (full_)
             Put("# The log was full: it ends early, and the replay too.\n");
         if (!Flush() || !PutFile("/FRIZZ/frizz_scenes.txt", scenes_)
@@ -376,6 +405,16 @@ private:
             case TOGGLE:
                 Put("toggle ");
                 PutNum(e.value);
+                break;
+            case MIDI:
+                PutMidi(e);
+                break;
+            case SYSEX:
+                Put("midi F0 7D 43 48");
+                PutHex(e.id);
+                PutHex(static_cast<uint8_t>(e.value >> 7));
+                PutHex(e.value & 0x7F);
+                Put(" F7");
                 break;
             default:
                 Put("clock ");
