@@ -257,11 +257,17 @@ All three firmwares are `APP_TYPE=BOOT_SRAM`: the firmware runs from SRAM, loade
 bootloader out of QSPI flash. Standard Daisy flashing advice does not apply.
 
 - **While developing:** the user runs sfaber02's multi-firmware launcher (`CHOMPI.bin` in the
-  root, firmwares in `/FIRMWARE/NN_NAME.bin`, FRIZZ on key 10, the bench on 11).
-  `firmware/flash.py` builds, asks a running FRIZZ to restart into the launcher (SysEx
-  `F0 7D 43 48 10 F7`, `MidiClock.h`) and sends the build to its slot over USB MIDI
-  (`--bench`, `--no-build`); an older firmware needs the power switch instead; key 15 mounts the card over USB, for `cpu.txt` and bug reports.
-  Sending replaces the slot's file: never send to a slot the user didn't name.
+  root, firmwares in `/FIRMWARE/NN_NAME.bin`, FRIZZ on key 10, the bench on 11, lnetzel's USB
+  storage on 15), in our builds with `RUN` and restart-on-eject (branches `launcher/run-slot`,
+  `usb-storage/restart-on-eject`, from clones in `~/git-projects/CHOMPI-launcher` and
+  `CHOMPI-usb-storage`). So no hands are needed: `firmware/flash.py` builds and sends the build
+  to its slot over USB MIDI (`--bench`, `--no-build`, `--run N` starts a slot);
+  `firmware/card.py get|put|ls|mount|done` reaches the card (`cpu.txt`, bug reports) and starts
+  FRIZZ again; `remote.py` starts FRIZZ if needed. All go through `firmware/tools/chompi.py`
+  (FRIZZ restarts into the launcher on SysEx `F0 7D 43 48 10 F7`, `MidiClock.h`); an older
+  firmware needs the power switch instead. Sending replaces the slot's file: never send to a
+  slot the user didn't name. The one CHOMPI may be in use by another session's test: ask
+  before sending it anything.
 - **Normal path:** copy `build/FRIZZ.bin` (stock: `build/CHOMPI.bin`) onto the microSD card
   (delete any other `.bin` first)
   and power on. A slow rainbow LED pattern means it is reprogramming QSPI.
