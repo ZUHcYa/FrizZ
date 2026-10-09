@@ -7,13 +7,17 @@
  */
 #pragma once
 #include "hardware.h"
-#include "ui_utils.h"
 #include "NormalPage.h"
 #include "BootPage.h"
 #include "RainbowWavePage.h"
 #include "passthroughEngine.h"
 #include "EventLog.h"
 #include "MidiControl.h"
+
+/** The pages draw their LEDs themselves (fill_led_data, temp_led_stuff.h), so the canvas's
+ *  clear and flush that libDaisy's UI framework asks for do nothing */
+inline void FlushLeds(const daisy::UiCanvasDescriptor&) {}
+inline void ClearLeds(const daisy::UiCanvasDescriptor&) {}
 
 namespace chompi
 {

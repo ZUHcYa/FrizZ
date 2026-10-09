@@ -92,9 +92,7 @@ public:
         // it would have; the tone filter follows the dry signal, close to what it would hear
         if (gate_.Asleep())
         {
-            ring_.Write(0, *l);
-            ring_.Write(1, *r);
-            ring_.Advance();
+            ring_.WriteFrame(*l, *r);
             lp_[0] = *l;
             lp_[1] = *r;
             return;
@@ -122,7 +120,6 @@ public:
         ring_.Advance();
     }
 
-    /** The parameters land at once, no slew: at Init */
     /** The slewed parameters jump to their targets, at Init */
     void SnapParams()
     {

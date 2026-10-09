@@ -89,7 +89,6 @@ public:
     /** What the loop added in the last Feed, for the key LED */
     inline float Return() const { return ret_[0] + ret_[1]; }
 
-    /** The parameters land at once, no slew: at Init */
     /** The slewed parameters jump to their targets, at Init */
     void SnapParams()
     {

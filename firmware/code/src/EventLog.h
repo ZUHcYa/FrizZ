@@ -181,7 +181,7 @@ private:
     static const uint32_t kClockCheckMs = 500;
     static const int16_t kClockSteady = 3;    // tenths of a BPM between two checks: settled
     static const int16_t kClockChange = 10;   // a running clock's change worth logging
-    static const uint32_t kClockLossMs = 500; // MidiClock's timeout
+    static const uint32_t kClockLossMs = kClockTimeoutSamples / 48; // MidiClock's timeout, at 48 kHz
     // how long the firmware takes to see a hand's change, measured on the twin, which runs
     // the same debouncing: a key let go, or pressed (on the shift registers, a millisecond
     // more than the transport's switch on its own pin), a detent's quadrature steps (knobs

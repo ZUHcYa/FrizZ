@@ -62,9 +62,7 @@ public:
         // off: only the buffer goes on (a press restarts the LFOs anyway)
         if (gate_.Asleep())
         {
-            ring_.Write(0, SoftClip(*l));
-            ring_.Write(1, SoftClip(*r));
-            ring_.Advance();
+            ring_.WriteFrame(SoftClip(*l), SoftClip(*r));
             return;
         }
 
@@ -98,7 +96,6 @@ public:
         ring_.Advance();
     }
 
-    /** The parameters land at once, no slew: at Init */
     /** The slewed parameters jump to their targets, at Init */
     void SnapParams()
     {
