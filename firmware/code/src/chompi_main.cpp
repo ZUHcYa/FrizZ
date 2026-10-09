@@ -43,6 +43,8 @@ EventLogMem DSY_SDRAM_BSS event_log_mem;
 #if FRIZZ_BENCH
 // FRIZZ-bench.bin (make BENCH=1): measures the audio callback's load (Bench.h)
 Bench bench;
+// where its time goes (BenchProfile.h)
+BenchProfile chompi::bench_profile;
 #endif
 
 int16_t DSY_SDRAM_BSS loop_mem[kLoopMemSize];
@@ -118,11 +120,14 @@ void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, s
 #endif
     midi_clock.Process(sample_clock);
     sample_clock += size;
+    BENCH_MARK(MIDI);
 
     if(!main_reads_keys)
     {
         hw.ProcessAllControls();
+        BENCH_MARK(CONTROLS);
         ui.GenerateEvents();
+        BENCH_MARK(EVENTS);
     }
 
     if(booting || loading_screen)

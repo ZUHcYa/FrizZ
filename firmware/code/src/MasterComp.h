@@ -37,6 +37,8 @@ public:
     {
         sample_rate_ = sample_rate;
         reduction_ = 0.f;
+        gain_db_ = 0.f;
+        gain_ = 1.f;
         held_ = 0.f;
         hold_left_ = 0;
         hold_samples_ = static_cast<uint32_t>(kHoldMs * .001f * sample_rate);
@@ -105,7 +107,19 @@ public:
                          : slope * over;
         }
         reduction_ += (target < reduction_ ? attack_ : release_) * (target - reduction_);
-        const float gain = daisysp::pow10f((reduction_ + makeup_db_) * .05f);
+        // released all but 1e-6 dB (a gain 140 dB from 1): released, so the gain below stops
+        // moving, rather than creeping through ever tinier values for seconds
+        if (target == 0.f && reduction_ > -kRestDb)
+            reduction_ = 0.f;
+        // the gain only when its dB moved: at rest (no reduction, the knobs still) it doesn't,
+        // and the expf is most of what the compressor costs
+        const float gain_db = reduction_ + makeup_db_;
+        if (gain_db != gain_db_)
+        {
+            gain_db_ = gain_db;
+            gain_ = daisysp::pow10f(gain_db * .05f);
+        }
+        const float gain = gain_;
 
         const float mix = knobs_[kMix].value;
         *l += (*l * gain - *l) * mix;
@@ -118,6 +132,7 @@ public:
 private:
     static constexpr float kKneeDb = 6.f;
     static constexpr float kOffDb = .01f; // a reduction this small is gone
+    static constexpr float kRestDb = 1e-6f; // and this small, released
     static constexpr float kMaxThreshDb = 30.f;
     static constexpr float kHoldMs = 10.f; // a half-cycle of 50Hz
     static constexpr uint32_t kUpdateSamples = 24; // an audio block: 0.5ms, far below the slew
@@ -149,6 +164,7 @@ private:
     uint32_t hold_left_, hold_samples_;
     float thresh_db_, ratio_, makeup_db_, knee_start_;
     float attack_, release_;
+    float gain_db_ = 0.f, gain_ = 1.f; // the last gain worked out, and its dB
 };
 
 } // namespace chompi

@@ -186,8 +186,11 @@ make BENCH=1      # build-bench/FRIZZ-bench.bin; the normal build is untouched
 3. At the end every panel LED is green (all below 95%) or red. Blinking red: `cpu.txt`
    couldn't be written (no card?).
 4. On the computer (with the launcher: its USB storage on key 15), `FRIZZ/cpu.txt` has every segment's highest and mean load, any effect
-   still working outside its segment (a tail), and whether the loop played. Put `FRIZZ.bin`
-   back on the card to play again.
+   still working outside its segment (a tail), and whether the loop played. Below, where each
+   segment's mean goes: the clock the chip ran at, and the mean split into the callback's
+   parts (MIDI, the controls, the UI's events, the input, the looper, the tempo, the FX chain,
+   the compressor, the output and limiters), counted in the core's cycles (`BenchProfile.h`).
+   Put `FRIZZ.bin` back on the card to play again.
 
 The segments: nothing on, each effect alone (its knobs moving every 0.25 s), the compressor,
 the inserts together, recording a loop, the loop alone, with the inserts, with the delay, with

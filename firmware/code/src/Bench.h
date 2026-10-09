@@ -21,12 +21,17 @@
  *  panel LED is green (everything below 95%) or red; red blinking means cpu.txt couldn't be
  *  written. Switch off and on to run it again.
  *
+ *  Where the time goes: each segment's mean also split into the callback's parts
+ *  (BenchProfile.h), counted in the core's cycles, with the clocks and caches the chip runs on.
+ *
  *  The segments are set in the audio callback after the measurement, so setting them doesn't
  *  count; the results are read in MainLoop once the last one is done.
  */
 #pragma once
+#include <string.h>
 #include "daisy.h"
 #include "fatfs.h"
+#include "BenchProfile.h"
 #include "passthroughEngine.h"
 #include "SceneStore.h"
 #include "temp_led_stuff.h"
@@ -114,10 +119,17 @@ public:
         block_size_ = block_size < kMaxBlock ? block_size : kMaxBlock;
         fs_ = fs;
         path_ = path;
+        BenchProfile::Enable();
     }
 
     /** At the very start of the audio callback */
-    inline void BlockStart() { start_tick_ = daisy::System::GetTick(); }
+    inline void BlockStart()
+    {
+        start_tick_ = daisy::System::GetTick();
+        const uint32_t last = bench_profile.start;
+        bench_profile.Start();
+        block_period_ = bench_profile.start - last; // the cycles from one block to the next
+    }
 
     /** The bench's tune into AUX in place of the inputs, while it runs: made the block before */
     const float* const* Input(const float* const* in, size_t size)
@@ -135,8 +147,10 @@ public:
      *  tune's next block, none of which counts */
     void BlockEnd(PassthroughEngine& engine)
     {
-        const float load = static_cast<float>(daisy::System::GetTick() - start_tick_)
-                           / ticks_per_block_;
+        const uint32_t ticks = daisy::System::GetTick() - start_tick_;
+        block_cycles_ = bench_profile.Total();
+        block_ticks_ = ticks;
+        const float load = static_cast<float>(ticks) / ticks_per_block_;
         Step(engine, load);
         if (running_)
             for (size_t i = 0; i < block_size_; i++)
@@ -175,6 +189,11 @@ public:
 
         max_[segment_] = fmaxf(max_[segment_], load);
         sum_ += load;
+        for (size_t p = 0; p < BenchProfile::kNumParts; p++)
+            part_sum_[p] += bench_profile.cycles[p];
+        cycles_sum_ += block_cycles_;
+        ticks_sum_ += block_ticks_;
+        period_sum_ += block_period_;
         blocks_++;
         const Segment& seg = kSegments[segment_];
         if (!(seg.flags & (STRESS | SCENE4 | RECORD)) && blocks_ % kKnobBlocks == 0)
@@ -186,6 +205,14 @@ public:
             return;
 
         mean_[segment_] = static_cast<float>(sum_ / blocks_);
+        for (size_t p = 0; p < BenchProfile::kNumParts; p++)
+            parts_[segment_][p] = static_cast<float>(part_sum_[p]) / blocks_;
+        cycles_[segment_] = static_cast<float>(cycles_sum_) / blocks_;
+        period_[segment_] = static_cast<float>(period_sum_) / blocks_;
+        all_cycles_ += cycles_sum_;
+        all_ticks_ += ticks_sum_;
+        all_periods_ += period_sum_;
+        all_blocks_ += blocks_;
         // what still worked without being part of the segment, and the loop
         for (size_t fx = 0; fx < kNumFx; fx++)
             if (!(seg.fx & (1u << fx)) && !engine.FxResting(fx))
@@ -312,6 +339,9 @@ private:
         segment_ = s;
         blocks_ = 0;
         sum_ = 0.;
+        for (size_t p = 0; p < BenchProfile::kNumParts; p++)
+            part_sum_[p] = 0;
+        cycles_sum_ = ticks_sum_ = period_sum_ = 0;
         if (s >= kNumSegments)
         {
             running_ = false;
@@ -391,7 +421,7 @@ private:
 
     struct Text
     {
-        alignas(32) char buf[3072]; // whole cache lines for the SD DMA, as SceneStore's
+        alignas(32) char buf[8192]; // whole cache lines for the SD DMA, as SceneStore's
         size_t pos = 0;
         void Put(const char* s)
         {
@@ -409,7 +439,107 @@ private:
             Percent(load, p);
             Put(p);
         }
+        void UInt(uint32_t n, size_t width = 0)
+        {
+            char d[11];
+            size_t len = 0;
+            do
+                d[len++] = static_cast<char>('0' + n % 10);
+            while ((n /= 10) > 0);
+            for (size_t i = len; i < width; i++)
+                Put(" ");
+            while (len > 0 && pos + 1 < sizeof(buf))
+                buf[pos++] = d[--len];
+        }
     };
+
+    /** Where the time went: each segment's mean split into the callback's parts */
+    void WriteParts(Text& t)
+    {
+        // the core's clock, measured two ways: against the audio's own clock (a block's cycles
+        // from one block to the next, 0.5 ms by the codec), and against the system timer, whose
+        // rate libDaisy works out from the clock settings rather than measures
+        const float block_s = static_cast<float>(block_size_) / 48000.f;
+        const float core_hz = all_blocks_ > 0 ? all_periods_ / all_blocks_ / block_s : 0.f;
+        const float timer_hz = all_ticks_ > 0 ? static_cast<float>(all_cycles_) / all_ticks_
+                                                    * daisy::System::GetTickFreq()
+                                              : 0.f;
+        t.Put("\n# the chip: core ");
+#ifdef __arm__
+        t.UInt(SystemCoreClock / 1000000);
+        t.Put(" MHz set, ");
+#endif
+        t.UInt(static_cast<uint32_t>(core_hz / 1e6f + .5f));
+        t.Put(" MHz by the audio clock, ");
+        t.UInt(static_cast<uint32_t>(timer_hz / 1e6f + .5f));
+        t.Put(" MHz by the system timer (");
+        t.UInt(daisy::System::GetTickFreq() / 1000000);
+        t.Put(" MHz)");
+#ifdef __arm__
+        t.Put(", HCLK ");
+        t.UInt(HAL_RCC_GetHCLKFreq() / 1000000);
+        t.Put(" MHz, I-cache ");
+        t.Put(SCB->CCR & SCB_CCR_IC_Msk ? "on" : "off");
+        t.Put(", D-cache ");
+        t.Put(SCB->CCR & SCB_CCR_DC_Msk ? "on" : "off");
+        t.Put(", bootloader ");
+        t.UInt(static_cast<uint32_t>(daisy::System::GetBootloaderVersion()));
+#endif
+        t.Put("\n# where the mean goes, % of the block by the audio clock (BenchProfile.h);\n");
+        t.Put("# total: the whole callback so, to set against the mean above\n");
+        static const char* const kParts[] = {"midi", "ctrl", "events", "input", "looper", "tempo",
+                                             "fx",   "comp", "output", "rest",   "total"};
+        const size_t fx = BenchProfile::FX0;
+        PartsHeader(t, kParts, sizeof(kParts) / sizeof(kParts[0]), 7);
+        for (size_t s = 0; s < kNumSegments; s++)
+        {
+            const float period = period_[s];
+            float row[11] = {};
+            float marked = 0.f;
+            for (size_t p = 0; p < BenchProfile::kNumParts; p++)
+                marked += parts_[s][p];
+            for (size_t p = 0; p < fx; p++)
+                row[p] = parts_[s][p];
+            for (size_t e = 0; e < kNumFx; e++)
+                row[fx] += parts_[s][fx + e];
+            row[fx + 1] = parts_[s][BenchProfile::COMP];
+            row[fx + 2] = parts_[s][BenchProfile::OUTPUT];
+            row[fx + 3] = cycles_[s] - marked; // the callback's cycles not in any part
+            row[fx + 4] = cycles_[s];
+            PartsRow(t, s, row, 11, period, 7);
+        }
+        t.Put("\n# the FX chain by effect, % of the block, each with its meter\n");
+        PartsHeader(t, kFxNames, kNumFx, 10);
+        for (size_t s = 0; s < kNumSegments; s++)
+            PartsRow(t, s, &parts_[s][fx], kNumFx, period_[s], 10);
+    }
+
+    static void PartsHeader(Text& t, const char* const* names, size_t n, size_t width)
+    {
+        t.Put("# segment         ");
+        for (size_t i = 0; i < n; i++)
+        {
+            const size_t col = t.pos;
+            t.Put(" ");
+            t.Pad(col + width - strlen(names[i]));
+            t.Put(names[i]);
+        }
+        t.Put("\n");
+    }
+
+    static void PartsRow(Text& t, size_t s, const float* cycles, size_t n, float period,
+                         size_t width)
+    {
+        const size_t line = t.pos;
+        t.Put(kSegments[s].name);
+        t.Pad(line + 18);
+        for (size_t i = 0; i < n; i++)
+        {
+            t.Pad(t.pos + width - 6);
+            t.Load(period > 0.f ? cycles[i] / period : 0.f);
+        }
+        t.Put("\n");
+    }
 
     bool Write()
     {
@@ -452,6 +582,7 @@ private:
         t.Put(len);
         t.Put(loop_missing_ || loop_frames_ == 0 ? " s, NOT playing in every loop segment\n"
                                                  : " s, playing in every loop segment\n");
+        WriteParts(t);
 
         if (f_mount(fs_, path_, 1) != FR_OK)
             return false;
@@ -479,6 +610,14 @@ private:
     float max_[kNumSegments] = {};
     float mean_[kNumSegments] = {};
     uint16_t awake_[kNumSegments] = {};
+    // where the time goes (BenchProfile.h): this segment's sums so far, and each one's means
+    uint32_t block_cycles_ = 0, block_ticks_ = 0;
+    uint64_t part_sum_[BenchProfile::kNumParts] = {};
+    uint32_t block_period_ = 0;
+    uint64_t cycles_sum_ = 0, ticks_sum_ = 0, period_sum_ = 0;
+    uint64_t all_cycles_ = 0, all_ticks_ = 0, all_periods_ = 0, all_blocks_ = 0;
+    float parts_[kNumSegments][BenchProfile::kNumParts] = {};
+    float cycles_[kNumSegments] = {}, period_[kNumSegments] = {};
     size_t loop_frames_ = 0;
     bool loop_missing_ = false;
     uint32_t lcg_ = 12345;

@@ -22,6 +22,7 @@
 #include <atomic>
 #include "daisy.h"
 #include "daisysp.h"
+#include "BenchProfile.h"
 #include "EnvFollower.h"
 #include "FxChain.h"
 #include "FxMorph.h"
@@ -90,8 +91,10 @@ public:
             dryl[i] = dcblock_line_in_l_.Process(in[2][i] * ingain_ * kLineInGain);
             dryr[i] = dcblock_line_in_r_.Process(in_r * ingain_ * kLineInGain);
         }
+        BENCH_MARK(INPUT);
 
         looper.Process(dryl, dryr, wetl, wetr, size);
+        BENCH_MARK(LOOPER);
 
         // the FX's tempo and clock, once per block, from the loop while there is one
         SyncLoopTempo();
@@ -109,6 +112,7 @@ public:
             morph_.Pulse(chompi::TempoClock::IsBarLine(pos));
         }
         morph_.Process(size, tempo_clock_.PulseSamples());
+        BENCH_MARK(TEMPO);
 
         for (size_t i = 0; i < size; i++)
         {
@@ -130,8 +134,10 @@ public:
 
             // punch-in FX, on the mix so they work on the input, the loop or both, and
             // before the output gain so they don't change with the VOLUME knob
-            fx_.Process(&sigl, &sigr);
+            BENCH_MARK(OUTPUT);
+            fx_.Process(&sigl, &sigr); // marks each effect itself
             comp_.Process(&sigl, &sigr);
+            BENCH_MARK(COMP);
 
             // headphone and master gain
             const float hpl = sigl * kHpGain * mgain_;
@@ -155,6 +161,7 @@ public:
             out[2][i] = lim_line_l_.ProcessComp(out[2][i], 1.f, kLimThresh, 1.f, kLimMakeup);
             out[3][i] = lim_line_r_.ProcessComp(out[3][i], 1.f, kLimThresh, 1.f, kLimMakeup);
         }
+        BENCH_MARK(OUTPUT);
     }
 
     inline void SetMainGain(float gain) { mgain_target_ = gain; }

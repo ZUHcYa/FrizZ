@@ -55,6 +55,39 @@ static void TestInsert(Fx& fx, const char* name)
     Check(shaped && !fx.Idle(), what);
 }
 
+/** The resonator, whose loop wraps the inserts (Feed before them, Tap after): off and faded
+ *  out, it passes its input exactly; on again, it rings */
+static void TestResonator()
+{
+    static chompi::Resonator reso;
+    reso.Init(kSr);
+    reso.SetParam(chompi::Resonator::FEEDBACK, .9f);
+    reso.SetOn(true);
+    long n = 0;
+    const auto Run = [&](long samples, bool* exact, bool* rings) {
+        for (long end = n + samples; n < end; n++)
+        {
+            float l = Sine(n), r = Sine(n);
+            const float in = l;
+            reso.Feed(&l, &r);
+            reso.Tap(l, r);
+            if (exact && n > end - 24000)
+                *exact = *exact && l == in && r == in;
+            if (rings)
+                *rings = *rings || fabsf(l - in) > 1e-3f;
+        }
+    };
+    Run(24000, nullptr, nullptr);
+    reso.SetOn(false);
+    bool exact = true;
+    Run(48000, &exact, nullptr);
+    Check(exact && reso.Idle(), "resonator: off, its output is its input exactly");
+    reso.SetOn(true);
+    bool rings = false;
+    Run(24000, nullptr, &rings);
+    Check(rings && !reso.Idle(), "resonator: on again, it rings");
+}
+
 static float delay_mem[480000 * 2];
 
 /** The delay: off, it keeps ringing out; it sleeps only after its whole buffer of silence,
@@ -163,9 +196,14 @@ int main()
     static chompi::Shifter shifter;
     static chompi::Flanger flanger;
     static chompi::Warble warble;
+    static chompi::Crusher crusher;
+    static chompi::Filter filter;
     TestInsert(shifter, "shifter");
     TestInsert(flanger, "flanger");
     TestInsert(warble, "warble");
+    TestInsert(crusher, "crusher");
+    TestInsert(filter, "filter");
+    TestResonator();
     TestDelay();
     TestReverb();
     return Finish();

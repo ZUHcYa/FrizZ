@@ -44,6 +44,14 @@ class DjFilter
     
     void Process(float in_l, float in_r, float *out_l, float* out_r)
     {
+        Retune();
+        Run(in_l, in_r, out_l, out_r);
+    }
+
+    /** FRIZZ: Process in two: the stages' settings from SetControl, then the stages. Asleep
+     *  (FxFilter.h), the settings are worked out only now and then */
+    inline void Retune()
+    {
         daisysp::fonepole(lp_, lp_target_, slew_);
         daisysp::fonepole(hp_, hp_target_, slew_);
 
@@ -58,7 +66,10 @@ class DjFilter
         feedback_filt_lhp_.SetFreq(hp);
         feedback_filt_rhp_.CopySettings(feedback_filt_lhp_);
         // (WAVE raised the highpass's resonance above hp_ .8; hp_ tops out at .9^3 = .73)
+    }
 
+    inline void Run(float in_l, float in_r, float *out_l, float* out_r)
+    {
         float filt_l = feedback_filt_llp_.Process(in_l);
         float filt_r = feedback_filt_rlp_.Process(in_r);
         
