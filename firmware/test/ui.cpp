@@ -600,9 +600,12 @@ int main()
         SetToggle(true);
         RunMs(kReadyMs);
         const float dry = RunMs(300);
-        Tap("KEY_5");
-        RunMs(300);
-        Check(fabsf(RunMs(300) - dry) < dry * .05f, "settings-boot: switched on with the switch up, the keys set");
+        Press("KEY_10", true); // the tape stop's key: every channel here
+        RunMs(1500);
+        const float held = RunMs(300);
+        Press("KEY_10", false);
+        Check(fabsf(held - dry) < dry * .05f,
+              "settings-boot: switched on with the switch up, the keys set: the tape stop's doesn't stop");
         Check(Max(PthLedFull(kTransportRevLed)) > 0, "settings-boot: and the page shows");
     }});
 

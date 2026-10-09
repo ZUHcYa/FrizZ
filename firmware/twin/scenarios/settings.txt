@@ -17,6 +17,8 @@ wait 300
 tap KEY_13
 wait 300
 tap KEY_14
+wait 300
+tap KEY_10 1500
 wait 1000
 toggle 0
 wait 1000
