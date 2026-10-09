@@ -175,7 +175,12 @@ static void LoopCase(const Sender& s, double bpm, int bars, double factor = 1.)
     {
         SetToggle(true);
         RunMs(200);
-        Tap(factor > 1. ? "KEY_13" : "KEY_12");
+        Tap("KEY_12"); // the factor's key: x1 to x2, again to x1/2
+        if (factor < 1.)
+        {
+            RunMs(200);
+            Tap("KEY_12");
+        }
         SetToggle(false);
         RunMs(1000);
     }

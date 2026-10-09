@@ -4,15 +4,16 @@
  *  (ui.h) and draws it instead of itself; the loop, the effects and MIDI play on meanwhile.
  *  MANUAL.md describes it for players.
  *
- *  The keys, chromatically from the lowest (C, the first white key), each in its group's
- *  colour, the setting in force lit fully, the others dimly:
+ *  The keys, chromatically from the lowest (C, the first white key):
  *
- *    C .. D# of the upper octave (16 keys)  MIDI channel 1-16       light blue
+ *    C .. D# of the upper octave (16 keys)  MIDI channel 1-16       light blue, the one lit
  *    E   all channels                                                light blue
- *    F   MIDI transport following, on / off                          green
- *    F#  mono input, on / off                                        white
- *    G, G#, A  the clock's tempo factor: x1/2, x1, x2                yellow
- *    A#, B, top C  the LEDs' brightness: 100, 75, 50 %               purple
+ *    F   MIDI transport following, on / off                          green, lit when on
+ *    F#  mono input, on / off                                        white, lit when on
+ *    G   the clock's tempo factor, each press the next: x1, x2, x1/2  yellow, red, light blue
+ *    G#  the LEDs' brightness, each press the next: 100, 75, 50 %    purple, dimmed as all are
+ *
+ *  A, A# and B of the upper octave and the top C are free.
  *
  *  Each key acts on its press. A key that went down on the play page stays the play page's
  *  until it's let go, and the other way round (ui.h), so flipping the switch with a key held
@@ -71,29 +72,19 @@ public:
         }
         if (key == static_cast<int>(S::KEY_23))
             return SetMono(!mono_);
-        for (uint8_t f = 0; f < 3; f++)
+        if (key == static_cast<int>(kFactorKey))
         {
-            if (key == static_cast<int>(kFactorKeys[f]))
-            {
-                const ClockFactor factor = static_cast<ClockFactor>(f);
-                if (factor == factor_)
-                    return false;
-                factor_ = factor;
-                midi_->SetClockFactor(factor_);
-                return true;
-            }
+            // x1, x2, x1/2, x1 ...: ClockFactor's next, round
+            factor_ = static_cast<ClockFactor>((static_cast<uint8_t>(factor_) + 1) % 3);
+            midi_->SetClockFactor(factor_);
+            return true;
         }
-        for (uint8_t b = 0; b < 3; b++)
+        if (key == static_cast<int>(kBrightnessKey))
         {
-            if (key == static_cast<int>(kBrightnessKeys[b]))
-            {
-                const uint8_t quarters = 4 - b;
-                if (quarters == quarters_)
-                    return false;
-                quarters_ = quarters;
-                SetLedQuarters(quarters_);
-                return true;
-            }
+            // 100, 75, 50 %, 100 ...
+            quarters_ = quarters_ > 2 ? quarters_ - 1 : 4;
+            SetLedQuarters(quarters_);
+            return true;
         }
         return false;
     }
@@ -133,10 +124,8 @@ public:
         KeyLed(Hardware::SwId::KEY_10, med_blue, channel == 0);
         KeyLed(Hardware::SwId::KEY_11, green, midi_->Transport());
         KeyLed(Hardware::SwId::KEY_23, white, mono_);
-        for (uint8_t f = 0; f < 3; f++)
-            KeyLed(kFactorKeys[f], yellow, static_cast<ClockFactor>(f) == factor_);
-        for (uint8_t b = 0; b < 3; b++)
-            KeyLed(kBrightnessKeys[b], purple, 4 - b == quarters_);
+        KeyLed(kFactorKey, kFactorColors[static_cast<uint8_t>(factor_)], true);
+        KeyLed(kBrightnessKey, purple, true); // dimmed with every LED: it shows itself
 
         const unsigned level = hw_->GetBatteryLevel();
         const float* battery = level < 4 ? kBatteryColors[level] : green;
@@ -187,12 +176,11 @@ private:
         Hardware::SwId::KEY_6,  Hardware::SwId::KEY_20, Hardware::SwId::KEY_7,
         Hardware::SwId::KEY_8,  Hardware::SwId::KEY_21, Hardware::SwId::KEY_9,
         Hardware::SwId::KEY_22};
-    // G, G#, A: x1/2, x1, x2 (ClockFactor's order)
-    static constexpr Hardware::SwId kFactorKeys[3] = {
-        Hardware::SwId::KEY_12, Hardware::SwId::KEY_24, Hardware::SwId::KEY_13};
-    // A#, B, top C: 100, 75, 50 %
-    static constexpr Hardware::SwId kBrightnessKeys[3] = {
-        Hardware::SwId::KEY_25, Hardware::SwId::KEY_14, Hardware::SwId::KEY_15};
+    // G and G# of the upper octave
+    static const Hardware::SwId kFactorKey = Hardware::SwId::KEY_12;
+    static const Hardware::SwId kBrightnessKey = Hardware::SwId::KEY_24;
+    // the factor's hue, by ClockFactor: x1/2 light blue, x1 yellow, x2 red
+    static constexpr const float* kFactorColors[3] = {med_blue, yellow, red};
     static constexpr Hardware::SwId kWhiteKeys[15] = {
         Hardware::SwId::KEY_1,  Hardware::SwId::KEY_2,  Hardware::SwId::KEY_3,
         Hardware::SwId::KEY_4,  Hardware::SwId::KEY_5,  Hardware::SwId::KEY_6,
@@ -216,8 +204,7 @@ private:
 };
 
 constexpr Hardware::SwId SettingsPage::kChannelKeys[];
-constexpr Hardware::SwId SettingsPage::kFactorKeys[];
-constexpr Hardware::SwId SettingsPage::kBrightnessKeys[];
+constexpr const float* SettingsPage::kFactorColors[];
 constexpr Hardware::SwId SettingsPage::kWhiteKeys[];
 constexpr Hardware::SwId SettingsPage::kDarkKeys[];
 constexpr const float* SettingsPage::kBatteryColors[];

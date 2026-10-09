@@ -14,9 +14,9 @@ tap KEY_11
 wait 300
 tap KEY_23
 wait 300
-tap KEY_13
+tap KEY_12
 wait 300
-tap KEY_14
+tap KEY_24
 wait 300
 tap KEY_10 1500
 wait 1000

@@ -52,18 +52,19 @@ than play: the MIDI channel, MIDI transport following, the mono input, how FRIZZ
 MIDI clock and how bright its LEDs are. The loop, the effects and MIDI play on meanwhile;
 only your hands are on this page. Switch back down to play.
 
-Each key sets one thing on its press. They're in groups, by colour: the setting in force is
-lit fully, the others in its group dimly. Counted from the lowest key, chromatically (white and
+Each key sets one thing on its press. Counted from the lowest key, chromatically (white and
 dark keys in turn, as on a keyboard):
 
 | Keys | Setting | Colour |
 |---|---|---|
-| The 16 lowest: C up to D# of the upper octave | [MIDI channel](#channel) 1 to 16 (default 16: the D# of the upper octave) | light blue |
-| E of the upper octave | MIDI on every channel | light blue |
+| The 16 lowest: C up to D# of the upper octave | [MIDI channel](#channel) 1 to 16 (default 16: the D# of the upper octave); the one in force lit, the others dim | light blue |
+| E of the upper octave | MIDI on every channel: lit when on | light blue |
 | F | [MIDI transport following](#start-and-stop): on (lit) / off (dim) | green |
 | F# | [Mono input](#mono-input): mono (lit) / stereo (dim) | white |
-| G, G#, A | [Clock factor](#midi-clock): half, as sent (default), double | yellow |
-| A#, B, the top C | LED brightness: 100 % (default), 75 %, 50 % | purple |
+| G | [Clock factor](#midi-clock), each press the next: as sent (default), double, half | yellow (as sent), red (double), light blue (half) |
+| G# | [LED brightness](#led-brightness), each press the next: 100 % (default), 75 %, 50 % | purple, as bright as the LEDs are |
+
+A, A# and B of the upper octave and the top C do nothing.
 
 - **VOLUME's LED** shows the battery all the time: white full or on the charger, green above
   3.3 V, yellow below, red below 3 V (about to switch off unless charging). It's read every
@@ -85,7 +86,8 @@ MIDI CC 60 sets it too.
 
 ### LED brightness
 
-At 75 % or 50 % every LED is dimmer by that much, for a dark stage. The dim colours keep their
+At 75 % or 50 % every LED is dimmer by that much, for a dark stage. G# steps through the
+three; its own LED dims with all the others, so it shows where you are. The dim colours keep their
 hue, and nothing lit at 100 % goes dark. Full is as bright as FRIZZ has always been.
 
 ## Looper

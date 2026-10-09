@@ -27,7 +27,7 @@ static const int kTransportRevLed = 5, kTransportFwdLed = 6, kVolumeLed = 9;
 static const int kSlot1Led = 1, kCompKeyLed = 10, kTapeStopKeyLed = 15;
 // the settings page's (SettingsPage.h): F# of the upper octave, C and D# of the upper octave
 static const int kMonoKeyLed = 7, kChannel1Led = 24, kChannel3Led = 23, kChannel16Led = 6,
-                 kTransportKeyLed = 14;
+                 kTransportKeyLed = 14, kFactorKeyLed = 13, kBrightnessKeyLed = 8;
 
 static bool sine = true;
 static float amp = .3f, freq = 220.f, phase = 0.f;
@@ -577,10 +577,17 @@ int main()
         const Rgb filter = SmtLed(kFilterKeyLed), vu = PthLed(kVolumeLed);
         SetToggle(true);
         RunMs(300);
-        Tap("KEY_15"); // top C: 50 %
+        const int key_full = Max(SmtLed(kBrightnessKeyLed));
+        Tap("KEY_24"); // G#: 75 %
+        RunMs(300);
+        const int key_75 = Max(SmtLed(kBrightnessKeyLed));
+        Tap("KEY_24"); // 50 %
         RunMs(3000);
         Check(Card("/FRIZZ/frizz_master.txt").find("led_brightness 50") != std::string::npos,
-              "settings-brightness: the top C sets 50 %, saved");
+              "settings-brightness: G# pressed twice steps 100, 75, 50 %, saved");
+        const int key_50 = Max(SmtLed(kBrightnessKeyLed));
+        Check(key_full > key_75 && key_75 > key_50 && key_50 > 0,
+              "settings-brightness: its own key dims with every LED, so it shows the level");
         SetToggle(false);
         RunMs(300);
         const Rgb half = SmtLed(kFilterKeyLed);
@@ -590,10 +597,10 @@ int main()
               "settings-brightness: the panel's dimmer too, still lit");
         SetToggle(true);
         RunMs(300);
-        Tap("KEY_25"); // A#: 100 %
+        Tap("KEY_24"); // and round to 100 %
         SetToggle(false);
         RunMs(300);
-        Check(Same(SmtLed(kFilterKeyLed), filter), "settings-brightness: A# back to full");
+        Check(Same(SmtLed(kFilterKeyLed), filter), "settings-brightness: a third press is back to full");
     }});
 
     // the switch up from power-on: the settings page once booted
@@ -660,14 +667,20 @@ int main()
         Check(Probe().tempo == 120, "settings-factor: a 120 BPM clock, the FX at 120");
         SetToggle(true);
         RunMs(300);
-        Tap("KEY_13"); // A: x2
+        const Rgb one = SmtLedFull(kFactorKeyLed);
+        Tap("KEY_12"); // G: x1 to x2
         RunMs(3000);
-        Check(Probe().tempo == 240, "settings-factor: A doubles it to 240");
+        Check(Probe().tempo == 240, "settings-factor: G doubles it to 240");
+        const Rgb two = SmtLedFull(kFactorKeyLed);
         Check(Card("/FRIZZ/frizz_master.txt").find("clock_factor 200") != std::string::npos,
               "settings-factor: saved");
-        Tap("KEY_12"); // G: x1/2
+        Tap("KEY_12"); // x2 to x1/2
         RunMs(3000);
-        Check(Probe().tempo == 60, "settings-factor: G halves it to 60");
+        Check(Probe().tempo == 60, "settings-factor: G again halves it to 60");
+        const Rgb half = SmtLedFull(kFactorKeyLed);
+        Check(one.r > 200 && one.g > 200 && one.b < 40 && two.r > 200 && two.g < 40
+                  && half.b > 200 && half.r < 40,
+              "settings-factor: its key yellow at x1, red at x2, light blue at x1/2");
         // a quantized loop of one bar at 60: 4 s
         SetToggle(false);
         RunMs(300);
