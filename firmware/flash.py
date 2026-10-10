@@ -22,7 +22,8 @@ lists its keys; an older one can't, and isn't asked). It waits while another too
 CHOMPI (tools/chompi.py, the lock).
 
 It prints the md5 of what it sends: that names the build (tools/builds.py). Builds aren't in
-git, so --no-build needs one made first (make, make BENCH=1 in code/src).
+git, so --no-build needs one made first (make, make BENCH=1 in code/src), and refuses one older
+than the source.
 
 Linux only (ALSA's raw MIDI), Python 3 without packages; building needs the ARM toolchain
 (README.md).

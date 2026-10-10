@@ -15,7 +15,7 @@ builds here refuse it.
 cpu.txt's first line is the bench's own: the checksum of the source it was built from, which
 the bench build also carries. `cpu` files it only if the bench build here carries that line
 and the source still has that checksum, so the md5 it adds is that of the build measured.
-It warns when a build is older than the source. Python 3 without packages; it doesn't touch
+It warns when a build is older than the source, and flash.py --no-build refuses to send one. Python 3 without packages; it doesn't touch
 the CHOMPI (flash.py does).
 """
 import argparse
@@ -52,11 +52,12 @@ def short(path):
 
 
 def stale(path):
-    """True if a source file in code/src is newer than the build at PATH"""
-    sources = glob.glob(os.path.join(SRC, "*.h")) + glob.glob(os.path.join(SRC, "*.cpp")) + \
-        [os.path.join(SRC, f) for f in ("Makefile", "chompi_sram.lds")]
-    built = os.path.getmtime(path)
-    return any(os.path.getmtime(s) > built for s in sources if os.path.exists(s))
+    """True if make would build the build at PATH again (make -q: by the source it depends on)"""
+    path = os.path.abspath(path)
+    if path not in (image(False), image(True)):
+        return False
+    args = ["make", "-q"] + (["BENCH=1"] if path == image(True) else [])
+    return subprocess.run(args, cwd=SRC, capture_output=True).returncode == 1
 
 
 def source_checksum():
@@ -96,21 +97,22 @@ def build(bench, env=None):
     return image(bench)
 
 
-def built(bench):
-    """the build make (BENCH=1) left in code/src; exits, saying how to make it, if there's none"""
+def built(bench, fresh=True):
+    """the build make (BENCH=1) left in code/src; exits, saying how to make it, if there's none
+    or (FRESH) it's older than the source"""
     path = image(bench)
+    how = "make%s in code/src with GCC 10.3, or tools/builds.py" % (" BENCH=1" if bench else "")
     if not os.path.isfile(path):
-        sys.exit("no %s in %s: build it first (make%s in code/src with GCC 10.3, or "
-                 "tools/builds.py)" % (name(bench), short(os.path.dirname(path)),
-                                       " BENCH=1" if bench else ""))
+        sys.exit("no %s in %s: build it first (%s)" % (name(bench), short(os.path.dirname(path)), how))
+    if fresh and stale(path):
+        sys.exit("%s is older than the source: build it again (%s)" % (short(path), how))
     return path
 
 
 def describe(path):
     """'PATH md5 X', with a warning if it's one of the builds here and older than the source"""
     line = "%s  md5 %s" % (short(path), md5(path))
-    ours = os.path.abspath(path) in (image(False), image(True))
-    if ours and stale(path):
+    if stale(path):
         line += "  (older than the source: rebuild)"
     return line
 
@@ -125,7 +127,7 @@ def file_cpu(src):
     if measured != source_checksum():
         sys.exit("%s measured source %s, but code/src is %s now: build the bench again and run "
                  "it" % (src, measured, source_checksum()))
-    bench = built(True)
+    bench = built(True, fresh=False)  # the source checksum it carries says more
     with open(bench, "rb") as f:
         if lines[0].encode() not in f.read():
             sys.exit("%s doesn't carry source %s: rebuild it (make BENCH=1)" % (short(bench), measured))
