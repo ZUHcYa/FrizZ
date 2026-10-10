@@ -24,6 +24,7 @@ STRESS=1 ./run.sh work out.bin
 | `remote` | `../remote.py` itself against the virtual CHOMPI: the twin's USB MIDI on a pseudo-terminal, remote.py run as it is (`--device`) while the twin keeps the wall clock's pace: state, LEDs, load, settings, scenes there and back, a script played with its `expect led` lines; needs `python3` |
 | `bench` | the CPU bench's firmware on the twin: it runs through and writes its file (the loads themselves need the device) |
 | `midi`, `sync` | MIDI in on the twin: ticks among and inside other messages, the jack and USB, which clock locks; and timing against a clock with a real sender's jitter: the FX's tempo, quantized loops' length and drift, the clock lost or switched mid-recording, the 2:45 limit, tap tempo |
+| `midiout` | MIDI out on the twin (`MidiOut.h`), timed as the UART sends: off at first; an incoming clock passed on tick for tick, by the clock factor, never back to its input; a free clock at the last tempo; a loop's Start, Stop, Song Position and Continue; the handover from a DAW's clock to a quantized loop |
 
 A check prints `KNOWN` for a fault it has found in the firmware that isn't fixed yet (`Known()` in
 `check.h`): that doesn't fail it, so `all.sh` stays green while the faults are listed. Once one

@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <vector>
 
 namespace twin
 {
@@ -68,6 +69,18 @@ void UsbMidi(uint8_t byte);
 
 /** What the firmware sent out over USB MIDI since the last call, taken */
 std::string TakeUsbOut();
+
+/** A byte MIDI out sent (MidiOut.h): when it went out (ms; the jack's as the UART sends it,
+ *  USB's as MainLoop does), and where */
+struct MidiOutByte
+{
+    double ms;
+    uint8_t byte;
+    bool usb;
+};
+/** What went out of the MIDI jack, and MIDI out's clock, transport and Song Position over
+ *  USB, since the last call, taken */
+std::vector<MidiOutByte> TakeMidiOut();
 
 /** The start of the current block in ms, to the block (NowMs() is whole ms) */
 double BlockMs();

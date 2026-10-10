@@ -187,7 +187,7 @@ minutes). Mounting needs udisks, as any desktop has.
 
 **Remote control over USB MIDI.** `./remote.py` talks to a running FRIZZ over its SysEx
 (`code/src/MidiControl.h`): `state`, `leds`, `load [--every S]`, `settings`, `channel N`,
-`transport on|off`, `scene get|put SLOT FILE`, and `play SCRIPT [--cpu]`, which plays a twin
+`transport on|off`, `source auto|trs|usb|internal`, `out off|trs|all`, `scene get|put SLOT FILE`, and `play SCRIPT [--cpu]`, which plays a twin
 script (`twin/scenarios/`, a bug report) on the device: its keys and knobs over SysEx at the
 script's times, its MIDI and clock, its `expect led` lines checked against the device's LEDs.
 With `--cpu` it reports the worst load FRIZZ.bin itself had, measured in the audio callback as
@@ -358,6 +358,8 @@ Looper.h               the looper: recording, quantized end, playback, speed, sc
 MidiClock.h            MIDI clock input over TRS and USB; hands the rest to MidiControl.h
 MidiControl.h          MIDI control: notes as keys, CCs, program changes, FRIZZ's SysEx (keys,
                        knobs, queries answered over USB for remote.py)
+MidiOut.h              MIDI out: the clock and the loop's Start, Stop, Continue, Song Position,
+                       out of the jack and over USB, if the settings page asks
 NormalPage.h           the play page: routes the controls (VOLUME, PLAY/LOOP, transport, FX and scene keys) and draws the LEDs
 SettingsPage.h         the settings page (the mode switch up): MIDI channel and transport, mono,
                        the clock factor, the LED brightness, the battery on VOLUME

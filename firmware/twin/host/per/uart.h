@@ -1,4 +1,4 @@
-// Host stand-in for libDaisy's UartHandler: receiving only, from the twin (board.h)
+// Host stand-in for libDaisy's UartHandler: receiving from the twin, and a byte out (board.h)
 #pragma once
 #include "daisy_core.h"
 
@@ -85,6 +85,9 @@ public:
 
     bool IsListening() const { return listening_; }
     Result PollTx(uint8_t*, size_t) { return Result::OK; }
+    /** The twin's stand-in for FRIZZ's register write (MidiClock::TrsPut): a byte out if the
+     *  transmit register is free */
+    bool PutByte(uint8_t byte) { return twin::UartTx(byte); }
 
 private:
     static void Rx(uint8_t* data, size_t size, void* context)
