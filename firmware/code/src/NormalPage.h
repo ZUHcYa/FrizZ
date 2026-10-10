@@ -498,17 +498,8 @@ namespace chompi
          *  unless the hand holds it, whose release then lets it glide */
         void RemoteMorph(size_t slot)
         {
-            SceneControls<PassthroughEngine>::Slot result;
-            {
-                ScopedIrqBlocker irq;
-                result = scene_ctl_.Press(slot, true);
-                if (result == SceneControls<PassthroughEngine>::Slot::MORPH)
-                    for (uint8_t bar = 1; bar < morph_bars_; bar++)
-                        scene_ctl_.MorphMore();
-            }
-            if (result == SceneControls<PassthroughEngine>::Slot::REFUSED)
-                SceneRefusedBlink(slot);
-            else if (!Shift())
+            const auto result = ScenePressed(slot, true, morph_bars_);
+            if (result != SceneControls<PassthroughEngine>::Slot::REFUSED && !Shift())
                 ReleaseMorph();
         }
 
@@ -654,10 +645,7 @@ namespace chompi
                 put_scene_.latched = static_cast<uint16_t>((v[1] << 7) | v[2]);
                 scenes_->scenes[q.a] = put_scene_;
                 put_slot_ = kNoScene;
-                scenes_->RequestSave();
-                scene_flash_ = q.a;
-                scene_flash_waiting_ = true;
-                scene_flash_signal_.Stop();
+                FlashWhenSaved(q.a);
                 return true;
             }
             if (q.len < kFxPerPart * kNumFxKnobs * 2)
@@ -819,24 +807,36 @@ namespace chompi
             engine_->SetMix(mix_);
         }
 
-        void ScenePressed(size_t slot, bool shift)
+        /** A scene key, the hand's or MIDI's: a new morph runs over bars bar lines. A refusal
+         *  blinks the slot */
+        SceneControls<PassthroughEngine>::Slot ScenePressed(size_t slot, bool shift,
+                                                            uint8_t bars = 1)
         {
             SceneControls<PassthroughEngine>::Slot result;
             {
                 // a recall within one audio block
                 ScopedIrqBlocker irq;
                 result = scene_ctl_.Press(slot, shift);
+                if (result == SceneControls<PassthroughEngine>::Slot::MORPH)
+                    for (uint8_t bar = 1; bar < bars; bar++)
+                        scene_ctl_.MorphMore();
             }
             if (result == SceneControls<PassthroughEngine>::Slot::REFUSED)
                 SceneRefusedBlink(slot);
+            return result;
         }
 
         void ConfirmScene()
         {
             const int slot = scene_ctl_.Confirm();
-            if (slot == kNoScene)
-                return;
-            // the slot flashes once SceneStore::Process has written the card (Update)
+            if (slot != kNoScene)
+                FlashWhenSaved(slot);
+        }
+
+        /** A slot changed: to the card, and it flashes once SceneStore::Process has written
+         *  it (Update) */
+        void FlashWhenSaved(int slot)
+        {
             scenes_->RequestSave();
             scene_flash_ = slot;
             scene_flash_waiting_ = true;
