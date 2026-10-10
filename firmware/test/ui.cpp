@@ -23,7 +23,7 @@ using namespace twin;
 
 // the play page's LEDs (NormalPage.h, FxSlots.h)
 static const int kKnob1Led = 1, kPlayLed = 7, kLoopLed = 8;
-static const int kFilterKeyLed = 20, kShifterKeyLed = 23;
+static const int kFilterKeyLed = 20, kShifterKeyLed = 23, kFlangerKeyLed = 19;
 static const int kVolumeEncoder = 6, kKnob1Encoder = 4; // SW6, SW4
 static const int kTransportRevLed = 5, kTransportFwdLed = 6, kVolumeLed = 9;
 static const int kSlot1Led = 1, kCompKeyLed = 10, kTapeStopKeyLed = 15;
@@ -221,6 +221,7 @@ static void Usb(std::initializer_list<int> bytes)
 }
 static const int kNoteOn = 0x9F, kNoteOff = 0x8F, kCC = 0xBF, kPC = 0xCF;
 static const int kFilterNote = 55; // KEY_5, the 5th white key: G above the base note, 48
+static const int kChompiNote = 45; // the CHOMPI key: SHIFT
 static const int kFilterLatchCC = 24, kFilterCutoffCC = 86, kCompAmountCC = 52;
 static const int kHpCueCC = 59, kMonoCCNum = 60; // the headphone feed: 0 the master out, 127 the input alone
 /** 14 bits of an answer as a knob's 0-1 (MidiControl.h's MidiToKnob), and 7 bits of a CC */
@@ -316,6 +317,110 @@ int main()
         Check(Max(SmtLedFull(kShifterKeyLed)) < 80, "select: its key stays dim");
     }});
 
+    // page 2's shared knobs (FxOutput.h, #40, #38): nothing sets a level by itself any more.
+    // The folder driven is far louder than its input, its Level turns it down; Mix at 0 is the
+    // dry signal; the compressor's makeup is a knob, also by NRPN in bank 1
+    cases.push_back({"fx-level", [] {
+        amp = .03f; // -30dBFS: quiet, so the folder's drive shows
+        RunMs(kReadyMs);
+        const float dry = RunMs(300);
+        Latch("KEY_3"); // the folder
+        Turn(kKnob1Encoder, 100); // drive full
+        RunMs(800);
+        const float driven = RunMs(300);
+        printf("      the folder at -30dBFS: dry %.4f, driven %.4f\n", dry, driven);
+        Check(driven > dry * 5.f, "fx-level: the folder driven is far louder than its input, "
+                                  "nothing matches it");
+        Tap("ENC_4_SW"); // page 2
+        RunMs(100);
+        Turn(3, -25); // knob 4, Level: 0dB to -12dB
+        RunMs(800);
+        const float down = RunMs(300);
+        printf("      Level at -12dB: %.4f (%.1fdB)\n", down, 20.f * log10f(down / driven));
+        Check(fabsf(20.f * log10f(down / driven) + 12.f) < 1.f, "fx-level: page 2's knob 4 is its Level, -12dB");
+        Turn(kKnob1Encoder, -100); // knob 1, Mix: dry
+        RunMs(800);
+        const float mixed = RunMs(300);
+        Check(fabsf(mixed / dry - 1.f) < .02f, "fx-level: page 2's knob 1 is its Mix, at 0 the dry signal");
+        Turn(kKnob1Encoder, 100);
+        Turn(2, -50); // knob 3, Band: the lows only, at its far left
+        RunMs(800);
+        Check(RunMs(300) < down * .9f, "fx-level: page 2's knob 3 moves the folder off a 220Hz sine's band");
+
+        // the compressor: threshold off, makeup +12dB by NRPN 1/55: only that gain
+        Latch("KEY_3"); // the folder off again
+        RunMs(300);
+        const float flat = RunMs(300);
+        Trs({kCC, 99, 1, kCC, 98, 55, kCC, 6, 64, kCC, 38, 0});
+        RunMs(300);
+        const std::string comp = Ask({0x21, 12});
+        Check(comp.size() == 17 && comp[15] == 64 && comp[16] == 0,
+              "fx-level: NRPN 1/55 is the compressor's page-2 knob 4, its makeup");
+        const float made_up = RunMs(300);
+        printf("      makeup .5: %.1fdB\n", 20.f * log10f(made_up / flat));
+        Check(fabsf(20.f * log10f(made_up / flat) - 12.f) < .5f,
+              "fx-level: the compressor's makeup at .5 is +12dB, and nothing else changes");
+        Trs({kCC, 52, 40}); // a threshold, no makeup: quieter, nothing gives it back
+        Trs({kCC, 99, 1, kCC, 98, 55, kCC, 6, 0, kCC, 38, 0});
+        RunMs(1500);
+        Check(RunMs(300) <= flat * 1.01f, "fx-level: compressing without makeup is never louder");
+        amp = .3f;
+    }});
+
+    // the safety limiter, the only thing that sets the level by itself, shows on the
+    // compressor's key: red while it limits, held a moment, back to white after
+    cases.push_back({"limiter-led", [] {
+        amp = .05f;
+        RunMs(kReadyMs);
+        RunMs(500);
+        const Rgb quiet = SmtLedFull(kCompKeyLed);
+        Check(quiet.r == quiet.g && quiet.g == quiet.b, "limiter-led: a quiet signal: the key white (dim)");
+        amp = 1.f;
+        Turn(kVolumeEncoder, 100); // VOLUME up: the line outs into the limiter
+        RunMs(600);
+        const Rgb loud = SmtLedFull(kCompKeyLed);
+        printf("      limiting: %02x%02x%02x\n", loud.r, loud.g, loud.b);
+        Check(loud.r > 200 && loud.g < 60 && loud.b < 60, "limiter-led: limiting: the key red");
+        amp = .02f;
+        Turn(kVolumeEncoder, -100);
+        RunMs(100);
+        Check(SmtLedFull(kCompKeyLed).r > 200, "limiter-led: held a moment after it stops");
+        RunMs(800);
+        const Rgb after = SmtLedFull(kCompKeyLed);
+        Check(after.r == after.g && after.g == after.b, "limiter-led: then white again");
+        amp = .3f;
+    }});
+
+    // the knob LEDs: white only at a neutral point. A knob with a centre (the shifter's shift)
+    // white there, blue below, orange above; Level the same around 0dB; others no white
+    cases.push_back({"knob-colors", [] {
+        RunMs(kReadyMs);
+        Tap("KEY_2"); // the shifter
+        RunMs(200);
+        auto white = [](const Rgb& c) { return c.r > 200 && c.g > 200 && c.b > 200; };
+        auto blue = [](const Rgb& c) { return c.b > 200 && c.r < 60 && c.g < 60; };
+        auto orange = [](const Rgb& c) { return c.r > 200 && c.b < 100 && c.g > 80; };
+        Check(white(PthLedFull(kKnob1Led)), "knob-colors: the shift at its centre, white");
+        Turn(kKnob1Encoder, -40); // 12 semitones down
+        RunMs(500);
+        const Rgb down = PthLedFull(kKnob1Led);
+        Turn(kKnob1Encoder, 80);
+        RunMs(800);
+        const Rgb up = PthLedFull(kKnob1Led);
+        printf("      shift down %02x%02x%02x, up %02x%02x%02x\n", down.r, down.g, down.b, up.r, up.g, up.b);
+        Check(blue(down) && orange(up), "knob-colors: turned down blue, up orange");
+        Check(!white(PthLedFull(kKnob1Led + 1)), "knob-colors: the feedback (no centre) never white");
+        Tap("ENC_4_SW"); // page 2: Level at 0dB, white
+        RunMs(300);
+        bool lvl_white = false;
+        for (int i = 0; i < 700 && !lvl_white; i++)
+        {
+            RunMs(1);
+            lvl_white = white(PthLedFull(kKnob1Led + 3)); // pulsing: white at its brightest
+        }
+        Check(lvl_white, "knob-colors: page 2's Level at 0dB, white");
+    }});
+
     // FX page 2 (#35): a plain knob press turns all four knobs over, and back; their LEDs
     // pulse there. Another FX or the compressor goes back to page 1
     cases.push_back({"fx-page2", [] {
@@ -342,10 +447,9 @@ int main()
         RunMs(100);
         Check(page() == 1, "fx-page2: a plain knob press turns to page 2");
         Check(swing() > 100, "fx-page2: page 2's LEDs pulse");
-        bool dark = true;
-        for (int k = 1; k < 4; k++)
-            dark &= Max(PthLedFull(kKnob1Led + k)) == 0;
-        Check(dark, "fx-page2: the shifter's page 2 has only knob 1, the others dark");
+        Check(Max(PthLedFull(kKnob1Led + 1)) > 0 && Max(PthLedFull(kKnob1Led + 2)) > 0
+                  && Max(PthLedFull(kKnob1Led + 3)) > 0,
+              "fx-page2: the shifter's page 2: all four knobs lit");
         Check(mix() == 1.f, "fx-page2: the mix starts fully shifted");
         Turn(kKnob1Encoder, -30); // 8 ms a detent
         RunMs(400);
@@ -371,28 +475,30 @@ int main()
         Tap("KEY_5"); // another FX: page 1
         RunMs(100);
         Check(page() == 0, "fx-page2: another FX goes back to page 1");
-        Tap("ENC_4_SW"); // the filter has no page 2
+        Tap("KEY_10"); // the tape stop: a page 2 too, now every effect has one
         RunMs(100);
-        Check(page() == 0 && swing() < 10 && Max(PthLedFull(kKnob1Led)) > 0,
-              "fx-page2: on an FX without a page 2 the press does nothing");
-        Tap("KEY_2");
-        RunMs(100);
-        Check(page() == 0, "fx-page2: and its page 1 is what comes back with the shifter");
         Tap("ENC_4_SW");
         RunMs(100);
-        Tap("KEY_15"); // the compressor: page 1, and it has no other
+        Check(page() == 1 && swing() > 100, "fx-page2: the tape stop has a page 2 too");
+        Tap("KEY_2");
+        RunMs(100);
+        Check(page() == 0, "fx-page2: and another FX (the shifter) brings page 1 back");
+        Tap("ENC_4_SW");
+        RunMs(100);
+        Tap("KEY_15"); // the compressor: page 1, and a page 2 of its own
         RunMs(100);
         Check(page() == 0, "fx-page2: the compressor's key goes back to page 1");
         Tap("ENC_4_SW");
         RunMs(100);
-        Check(page() == 0 && swing() < 10, "fx-page2: the compressor has no page 2");
+        Check(page() == 1 && swing() > 100, "fx-page2: the compressor has a page 2 too");
         // a page-2 value is part of a scene: saved with it, the blank scene puts it back
         Tap("KEY_2");
         RunMs(100);
         Save(1);
         RunMs(2500);
         const std::string file = Card("/FRIZZ/frizz_scenes.txt");
-        Check(file.find("shifter 0 500000 0 0 0 500000 0 0 0") != std::string::npos,
+        Check(file.find("layout 3\n") != std::string::npos
+                  && file.find("shifter 0 500000 0 0 0 500000 500000 500000 750000") != std::string::npos,
               "fx-page2: a scene keeps page 2 on the card, after page 1's four");
         Tap("ENC_4_SW");
         RunMs(100);
@@ -799,18 +905,21 @@ int main()
         Check(Max(SmtLedFull(kTapeStopKeyLed)) > 2 * off, "latch-turn: FX key, CHOMPI held, transport turned, key let go: still latched");
         Tap("KEY_10");
         RunMs(300);
-        // and a dark knob: the tape stop's 4th
-        Press("KEY_10", true);
+        // and a dark knob: the flanger's page-2 knob 1 (it has no Mix)
+        const int flanger_off = Max(SmtLedFull(kFlangerKeyLed));
+        Press("KEY_6", true);
+        RunMs(80);
+        Tap("ENC_4_SW"); // page 2
         RunMs(80);
         Press("KEY_26", true);
         RunMs(80);
-        Turn(3, 4);
+        Turn(kKnob1Encoder, 4);
         RunMs(200);
-        Press("KEY_10", false);
+        Press("KEY_6", false);
         RunMs(100);
         Press("KEY_26", false);
         RunMs(300);
-        Check(Max(SmtLedFull(kTapeStopKeyLed)) > 2 * off, "latch-turn: the same with a dark knob: still latched");
+        Check(Max(SmtLedFull(kFlangerKeyLed)) > 2 * flanger_off, "latch-turn: the same with a dark knob: still latched");
     }});
 
     // ---- the settings page (SettingsPage.h): the mode switch up ----
@@ -1219,10 +1328,68 @@ int main()
         RunMs(800);
         const std::vector<int> fwd = Watch(true, kTransportFwdLed, 1000);
         Check(*std::min_element(fwd.begin(), fwd.end()) > 0, "transport-leds: at full speed forward the LED never goes dark");
+        Press("KEY_26", true); // SHIFT: the ladder, which flips to reverse past 1/16x
+        RunMs(60);
         Turn(5, -100); // all the way to the fastest reverse
+        RunMs(1000);
+        Press("KEY_26", false);
         RunMs(1500);
         const std::vector<int> rev = Watch(true, kTransportRevLed, 1000);
         Check(*std::min_element(rev.begin(), rev.end()) > 0, "transport-leds: nor at full speed in reverse");
+    }});
+
+    // the transport while a loop plays: semitones, 2 detents each, stopping at 2x and 1/16x;
+    // SHIFT + turn the ladder of roots and fifths, 4 detents a step, the only way to reverse
+    cases.push_back({"transport-semitones", [] {
+        RunMs(kReadyMs);
+        Tap("KEY_28");
+        RunMs(1000);
+        Tap("KEY_28");
+        RunMs(300);
+        auto speed = [] { RunMs(2000); return Probe().loop_speed; }; // after the glide
+        auto near = [](float a, int semis) { return fabsf(a - powf(2.f, semis / 12.f)) < .005f; };
+        auto shift_turn = [](int detents) {
+            Press("KEY_26", true);
+            RunMs(60);
+            Turn(5, detents);
+            RunMs(60);
+            Press("KEY_26", false);
+        };
+        Turn(5, 2);
+        Check(near(speed(), 1), "transport-semitones: 2 detents right: a semitone up");
+        Turn(5, 1);
+        Check(near(speed(), 1), "transport-semitones: 1 more: not yet");
+        Turn(5, 1);
+        Check(near(speed(), 2), "transport-semitones: 2: the next one");
+        shift_turn(4);
+        Check(near(speed(), 7), "transport-semitones: SHIFT + 4 detents from +2: the fifth, +7");
+        shift_turn(-4);
+        Check(near(speed(), 0), "transport-semitones: SHIFT + 4 detents left from +7: 1x");
+        shift_turn(3);
+        Check(near(speed(), 0), "transport-semitones: SHIFT + 3 detents: not yet");
+        Turn(5, -1);
+        Check(near(speed(), 0), "transport-semitones: detents don't carry over from SHIFT to the semitones");
+        Turn(5, 100);
+        Check(near(speed(), 12), "transport-semitones: all the way right: 2x");
+        Turn(5, -200);
+        const float slowest = speed();
+        Check(near(slowest, -48), "transport-semitones: all the way left: 1/16x, still forward");
+        shift_turn(-4);
+        Check(speed() < 0.f && near(-Probe().loop_speed, -48), "transport-semitones: SHIFT + left from there: reverse");
+        shift_turn(4);
+        Check(near(speed(), -48), "transport-semitones: SHIFT + right: forward again");
+        Tap("ENC_5_SW"); // the transport's press: back to 1x
+        Check(near(speed(), 0), "transport-semitones: press: 1x");
+        // over MIDI: CC 18 turns in semitones; with the CHOMPI key's note held, along the ladder
+        Trs({kCC, 18, 1, kCC, 18, 1});
+        Check(near(speed(), 1), "transport-semitones: CC 18, 2 detents: a semitone");
+        Trs({kNoteOn, kChompiNote, 100});
+        RunMs(60);
+        for (int i = 0; i < 4; i++)
+            Trs({kCC, 18, 1});
+        RunMs(60);
+        Trs({kNoteOn, kChompiNote, 0});
+        Check(near(speed(), 7), "transport-semitones: CHOMPI's note held, CC 18 x4: the ladder, +7");
     }});
 
     cases.push_back({"flanger-click", [] {
@@ -1725,7 +1892,7 @@ int main()
         Trs({kCC, kCompAmountCC, 127});
         RunMs(50);
         const std::string comp = Ask({0x21, 12});
-        Check(comp.size() == 9 && comp[1] == 127, "midi cc: CC 52 is the compressor's amount");
+        Check(comp.size() == 17 && comp[1] == 127, "midi cc: CC 52 is the compressor's threshold");
         Trs({kCC, 56, 0}); // output gain
         RunMs(300);
         Check(RunMs(300) < .001f, "midi cc: CC 56 sets the output gain");
@@ -1925,11 +2092,11 @@ int main()
         Tap("KEY_28");
         RunMs(300);
         const float speed = Probe().loop_speed;
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < 24; i++)
             Trs({kCC, 18, 1});
         RunMs(1000);
         Check(Probe().loop_speed > 1.9f * speed, "midi cc more: CC 18 turns the transport: the loop speeds up");
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < 24; i++)
             Trs({kCC, 18, 127});
         RunMs(1000);
         Check(fabsf(Probe().loop_speed - speed) < .02f, "midi cc more: and back down (the speed glides there)");
@@ -1950,7 +2117,7 @@ int main()
         Trs({kCC, 53, 0, kCC, 54, 64, kCC, 55, 127});
         RunMs(50);
         const std::string comp = Ask({0x21, 12});
-        Check(comp.size() == 9 && at14(comp, 3) == 0 && at14(comp, 5) == 8192 && at14(comp, 7) == 16383,
+        Check(comp.size() == 17 && at14(comp, 3) == 0 && at14(comp, 5) == 8192 && at14(comp, 7) == 16383,
               "midi cc more: CCs 53-55 are the compressor's knobs 2-4");
 
         const int in_gain = at14(state(), 17);

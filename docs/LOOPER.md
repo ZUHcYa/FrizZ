@@ -81,15 +81,16 @@ USB-MIDI implications (already shipped in WAVE/TAPE/TEMPO, so low risk):
 
 ### 1.5 Transport knob (encoder 5, the big purple one)
 
-Same as TAPE's quantized looper pitch (`SetLooperPitchQuantized` in TAPE's `DSPEngine.h`):
-
-- **Turn while playing:** speed in **steps of 5ths and octaves**, alternating ×1.5 / ×1.335
-  so every second step is an octave. 4 detents per step. Pitch changes with speed, like tape.
-  - Range: up to **2×**. Down to about **1/16×**, then flips into **reverse** and climbs the same
-    ladder to **−2×**.
+- **Turn while playing:** speed in **semitones**, 2 detents per step, from **2×** down to
+  **1/16×** (+12 to −48); the ends stop it, it never flips to reverse. Pitch changes with
+  speed, like tape. In reverse, it turns the same way (right slower, left faster).
+- **SHIFT + turn while playing:** TAPE's quantized looper pitch (`SetLooperPitchQuantized`
+  in TAPE's `DSPEngine.h`): **steps of 5ths and octaves**, alternating ×1.5 / ×1.335 so every
+  second step is an octave, 4 detents per step. From a point between two rungs (after
+  semitones) it goes to the nearest rung in the turn's direction. Past **1/16×** it flips
+  into **reverse** and climbs the same ladder to **−2×**: the only way into reverse.
 - **Press:** reset to 1× forward.
-- **Turn while paused:** scrub through the loop.
-- **SHIFT + turn:** nothing.
+- **Turn while paused:** scrub through the loop; SHIFT + turn does nothing.
 - No loop: the knob does nothing.
 
 ### 1.6 LEDs

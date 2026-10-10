@@ -19,11 +19,14 @@
  *  output.
  *
  *  Three kinds:
- *   - insert: replaces the signal while its key is on; only the wet amount is faded.
+ *   - insert: replaces the signal while its key is on; only the wet amount is faded. Page 2's
+ *     Mix, Band and Level wrap it (FxOutput.h).
  *   - send (delay, reverb): the key fades what goes into the effect, and its return is added
- *     to the signal, so tails ring out after the key is released.
+ *     to the signal, so tails ring out after the key is released. Page 2's Band filters what
+ *     goes in; the rest of their page 2 is their own.
  *   - loop (resonator): a comb feedback loop from after the flanger back to after the
- *     freezer, so the filter is in the loop and the slicer outside it.
+ *     freezer, so the filter is in the loop and the slicer outside it. Page 2's Band filters
+ *     what goes into the loop, its Level is the return's (FxResonator.h).
  */
 #pragma once
 #include "BenchProfile.h"
@@ -34,6 +37,7 @@
 #include "FxFlanger.h"
 #include "FxFolder.h"
 #include "FxFreezer.h"
+#include "FxOutput.h"
 #include "FxResonator.h"
 #include "FxReverb.h"
 #include "FxShifter.h"
@@ -119,7 +123,11 @@ public:
         fx_[FX_REVERB] = &reverb_;
 
         for (size_t fx = 0; fx < kNumFx; fx++)
+        {
             meter_[fx].Init();
+            out_[fx].Init(sample_rate);
+        }
+        out_busy_ = 0;
         fast_slew_left_ = 0;
     }
 
@@ -129,6 +137,7 @@ public:
     {
         delay_.SetTempo(bpm);
         filter_.SetPulseSamples(pulse_samples);
+        slicer_.SetPulseSamples(pulse_samples);
         freezer_.SetTempo(bpm);
         tapestop_.SetTempo(bpm);
     }
@@ -143,12 +152,12 @@ public:
 
     /** One sample through the chain. The meters follow each insert's output and each send's
      *  return, so the send keys show the tails. */
-    void Process(float* l, float* r)
+    FRIZZ_HOT void Process(float* l, float* r)
     {
         if (fast_slew_left_ > 0 && --fast_slew_left_ == 0)
             FxSlew::coeff = kFxParamCoeff;
 
-        freezer_.Process(l, r);
+        Insert(FX_FREEZER, freezer_, l, r);
         if (!freezer_.Idle())
             Meter(FX_FREEZER, *l + *r);
         BENCH_MARK_FX(FX_FREEZER);
@@ -157,37 +166,41 @@ public:
         if (!resonator_.Idle())
             Meter(FX_RESONATOR, resonator_.Return());
         BENCH_MARK_FX(FX_RESONATOR);
-        shifter_.Process(l, r);
+        Insert(FX_SHIFTER, shifter_, l, r);
         if (!shifter_.Idle())
             Meter(FX_SHIFTER, *l + *r);
         BENCH_MARK_FX(FX_SHIFTER);
-        folder_.Process(l, r);
+        Insert(FX_FOLDER, folder_, l, r);
         if (!folder_.Idle())
             Meter(FX_FOLDER, *l + *r);
         BENCH_MARK_FX(FX_FOLDER);
-        crusher_.Process(l, r);
+        Insert(FX_CRUSHER, crusher_, l, r);
         if (!crusher_.Idle())
             Meter(FX_CRUSHER, *l + *r);
         BENCH_MARK_FX(FX_CRUSHER);
-        filter_.Process(l, r);
+        Insert(FX_FILTER, filter_, l, r);
         if (!filter_.Idle())
             Meter(FX_FILTER, *l + *r);
         BENCH_MARK_FX(FX_FILTER);
-        flanger_.Process(l, r);
+        Insert(FX_FLANGER, flanger_, l, r);
         if (!flanger_.Idle())
             Meter(FX_FLANGER, *l + *r);
         BENCH_MARK_FX(FX_FLANGER);
-        resonator_.Tap(*l, *r);
+        {
+            float tl = *l, tr = *r;
+            SendBand(FX_RESONATOR, resonator_.Idle(), &tl, &tr);
+            resonator_.Tap(tl, tr);
+        }
         BENCH_MARK_FX(FX_RESONATOR);
-        slicer_.Process(l, r);
+        Insert(FX_SLICER, slicer_, l, r);
         if (!slicer_.Idle())
             Meter(FX_SLICER, *l + *r);
         BENCH_MARK_FX(FX_SLICER);
-        warble_.Process(l, r);
+        Insert(FX_WARBLE, warble_, l, r);
         if (!warble_.Idle())
             Meter(FX_WARBLE, *l + *r);
         BENCH_MARK_FX(FX_WARBLE);
-        tapestop_.Process(l, r);
+        Insert(FX_TAPESTOP, tapestop_, l, r);
         if (!tapestop_.Idle())
             Meter(FX_TAPESTOP, *l + *r);
         BENCH_MARK_FX(FX_TAPESTOP);
@@ -195,20 +208,76 @@ public:
         // sends: the delay from the inserts' output, the reverb from that plus the delay's
         // return, so the echoes are reverberated. Both returns are added on top.
         const float sendl = *l, sendr = *r;
-        delay_.Process(sendl, sendr, l, r);
+        float inl = sendl, inr = sendr;
+        SendBand(FX_DELAY, delay_.Idle(), &inl, &inr); // what goes in is faded with the key
+        delay_.Process(inl, inr, l, r);
         const float delayl = *l, delayr = *r;
         if (!delay_.Sleeping())
             Meter(FX_DELAY, delayl - sendl + delayr - sendr);
         BENCH_MARK_FX(FX_DELAY);
-        reverb_.Process(delayl, delayr, l, r);
+        inl = delayl;
+        inr = delayr;
+        SendBand(FX_REVERB, reverb_.Idle(), &inl, &inr);
+        reverb_.Process(inl, inr, l, r);
         if (!reverb_.Sleeping())
             Meter(FX_REVERB, *l - delayl + *r - delayr);
         BENCH_MARK_FX(FX_REVERB);
     }
 
+    /** One insert, with its page 2's Mix, Band and Level (out_[fx]) while they're Busy. The
+     *  effect's own Process in one place, so it's inlined once */
+    template <class Fx>
+    inline void Insert(size_t fx, Fx& effect, float* l, float* r)
+    {
+        // the busy case out of line and at the end, so a chain at its defaults runs through
+        // as little code as without page 2: the audio callback is bound by the I-cache (#51)
+        const bool busy = __builtin_expect((out_busy_ & (1u << fx)) != 0, 0);
+        bool split = false;
+        if (busy)
+            split = OutBegin(fx, effect.Quiet(), l, r);
+        effect.Process(l, r);
+        if (busy)
+            OutEnd(fx, split, effect.Fade(), l, r);
+    }
+    __attribute__((noinline, cold)) bool OutBegin(size_t fx, bool idle, float* l, float* r)
+    {
+        return out_[fx].Begin(idle, l, r);
+    }
+    __attribute__((noinline, cold)) void OutEnd(size_t fx, bool split, float fade, float* l,
+                                                float* r)
+    {
+        if (!out_[fx].End(split, l, r, fade))
+            out_busy_ &= ~(1u << fx);
+    }
+
+    /** What goes into a send or the resonator's loop, through its page 2's Band while that's
+     *  Banding and the effect is on (idle: its Idle()) */
+    inline void SendBand(size_t fx, bool idle, float* l, float* r)
+    {
+        if (__builtin_expect(!idle && (out_busy_ & (1u << fx)), 0))
+            OutBand(fx, l, r);
+    }
+    __attribute__((noinline, cold)) void OutBand(size_t fx, float* l, float* r)
+    {
+        if (!out_[fx].Band(l, r))
+            out_busy_ &= ~(1u << fx);
+    }
+
     /** From the UI or the morph */
     inline void SetOn(size_t fx, bool on) { fx_[fx]->SetOn(on); }
-    inline void SetParam(size_t fx, size_t param, float val) { fx_[fx]->SetParam(param, val); }
+    __attribute__((noinline)) void SetParam(size_t fx, size_t param, float val)
+    {
+        // page 2's shared knobs go to the effect's FxOutput: all three on an insert, Band
+        // alone on the sends and the resonator, whose other page-2 knobs are their own
+        const bool own = fx == FX_DELAY || fx == FX_REVERB || fx == FX_RESONATOR;
+        if (own ? param == FxOutput::kBand && out_[fx].SetParam(param, val)
+                : out_[fx].SetParam(param, val))
+        {
+            out_busy_ |= 1u << fx; // after the knob is set, so the audio sees it moving
+            return;
+        }
+        fx_[fx]->SetParam(param, val);
+    }
     /** Before a scene recall's SetParams: the knobs slew at kFxRecallCoeff for
      *  kFxRecallSlewSamples, so the new scene lands at once */
     void FastSlew()
@@ -248,6 +317,11 @@ private:
     DelaySend delay_;
     ReverbSend reverb_;
     FxBase* fx_[kNumFx];
+    FxOutput out_[kNumFx]; // page 2's Mix, Band and Level (FxOutput.h)
+    // the effects whose out_ is Busy (an insert) or Banding (a send, the resonator), by bit:
+    // the rest run alone, their out_ untouched, which keeps a chain at its defaults as cheap
+    // as without them. Set by SetParam, cleared by Insert and SendBand
+    volatile uint16_t out_busy_ = 0;
     EnvFollower meter_[kNumFx];
     uint32_t fast_slew_left_; // samples of FastSlew to go
 };

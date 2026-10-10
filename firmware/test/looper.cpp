@@ -154,6 +154,71 @@ static void TestSpeed()
     Block();
 }
 
+/** A semitone step, picked up by the next block */
+static void Semi(int dir, int n = 1)
+{
+    for (int i = 0; i < n; i++)
+        looper.StepSemitone(dir);
+    Block();
+}
+
+static bool At(float speed) { return fabsf(looper.GetSpeed() - speed) < 1e-5f * fabsf(speed); }
+static float Semis(int semis) { return powf(2.f, semis / 12.f); }
+
+/** Semitone steps, and the ladder's steps from a point between two rungs */
+static void TestSemitones()
+{
+    looper.ResetSpeed();
+    Block();
+    Semi(1);
+    Check(At(Semis(1)), "semitone: up one");
+    Semi(1, 11);
+    Check(At(2.f), "semitone: 12 up: 2x");
+    Semi(1);
+    Check(At(2.f), "semitone: no further than 2x");
+    looper.ResetSpeed();
+    Block();
+    Semi(-1, 48);
+    Check(At(1.f / 16.f), "semitone: 48 down: 1/16x");
+    Semi(-1, 3);
+    Check(At(1.f / 16.f), "semitone: past 1/16x: stays there, forward");
+
+    // the ladder from between two rungs: the nearest rung in the turn's direction
+    looper.ResetSpeed();
+    Semi(1, 3);
+    Step(1);
+    Check(At(Semis(7)), "ladder: from +3 right: +7");
+    looper.ResetSpeed();
+    Semi(1, 3);
+    Step(-1);
+    Check(At(1.f), "ladder: from +3 left: 0");
+    looper.ResetSpeed();
+    Semi(1, 9);
+    Step(1);
+    Check(At(2.f), "ladder: from +9 right: +12");
+    looper.ResetSpeed();
+    Semi(-1, 47);
+    Step(-1);
+    Check(At(1.f / 16.f), "ladder: from -47 left: -48, still forward");
+    Step(-1);
+    Check(At(-1.f / 16.f), "ladder: then reverse at the same speed");
+
+    // in reverse, semitones turn as the ladder does: right slower, left faster, no flip
+    Semi(1);
+    Check(At(-1.f / 16.f), "semitone, reverse: right at 1/16x: stays there, reverse");
+    Semi(-1);
+    Check(At(-Semis(-47)), "semitone, reverse: left: faster");
+    Step(-1);
+    Check(At(-Semis(-41)), "ladder, reverse: from -47 left: -41");
+
+    // a reset drops the semitones posted before it
+    Semi(1);
+    looper.StepSemitone(1);
+    looper.ResetSpeed();
+    Block();
+    Check(looper.GetSpeed() == 1.f, "semitone, reset in the same block: 1x forward");
+}
+
 /** A fresh unquantized loop of blocks blocks, playing */
 static void Record(size_t blocks)
 {
@@ -228,6 +293,7 @@ int main()
     TestRecordAndPlay();
     TestPauseAndErase();
     TestSpeed();
+    TestSemitones();
     TestEraseAtEnd();
     return Finish();
 }

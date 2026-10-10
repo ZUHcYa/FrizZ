@@ -9,6 +9,7 @@
  *   2. MainLoop() - Lowest priority, handles UI dispatch, battery checks, writing the FX
  *      scenes to the SD card, and boot-time stuff.
  */
+#include "FrizzHot.h"
 #include "hardware.h"
 #include "ui.h"
 #include "fatfs.h"
@@ -118,7 +119,7 @@ void ZeroSDRAM()
  */
 
 // The audio ISR. Called by the Daisy audio driver once per block
-void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, size_t size)
+FRIZZ_HOT_CALLBACK void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, size_t size)
 {
 #if FRIZZ_BENCH
     bench.BlockStart();
@@ -228,8 +229,30 @@ void MainLoop(void* data)
     System::DelayUs(10);
 }
 
+// the per-sample code (FRIZZ_HOT, make ITCM=1), from where the bootloader put it to ITCM
+// (chompi_sram.lds)
+#if defined(__arm__) && defined(FRIZZ_ITCM)
+extern uint32_t _siitcmdata, _sitcmram, _eitcmram;
+static void CopyItcm()
+{
+    // all of it written first: the ITCM has ECC, and a fetch running ahead into words never
+    // written would read an ECC error (the code's own end is 8-byte aligned, the rest isn't)
+    volatile uint32_t* const itcm = reinterpret_cast<volatile uint32_t*>(D1_ITCMRAM_BASE);
+    for (size_t i = 0; i < 0x10000 / 4; i++)
+        itcm[i] = 0;
+    const uint32_t* from = &_siitcmdata;
+    for (uint32_t* to = &_sitcmram; to < &_eitcmram;)
+        *to++ = *from++;
+    __DSB();
+    __ISB();
+}
+#else
+static void CopyItcm() {}
+#endif
+
 int main(void)
 {
+    CopyItcm();
     hw.Init();
 
     midi_clock.Init(hw.seed.AudioSampleRate());
