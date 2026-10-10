@@ -5,7 +5,7 @@ a release renames that section to its version, and its notes on GitHub's Release
 from it. Developer-only changes (refactoring, tests, docs) aren't listed unless they change
 what FRIZZ does.
 
-## Unreleased
+## v0.11 (2026-10-10)
 
 ### Added
 
@@ -49,7 +49,6 @@ what FRIZZ does.
   it's seen.
 - LOOP's blink while a quantized recording closes or an erase waits for the loop's end is
   slower, the same as a picked scene slot's, so it doesn't look like a refusal's 3 quick blinks.
-
 - Switching on is a little quicker: FRIZZ clears only the part of its sample memory it
   uses (43 of 64 MB), not all of it.
 

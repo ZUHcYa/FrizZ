@@ -118,11 +118,11 @@ working on a branch:
 
 A build handed out for testing goes on GitHub as a **pre-release**, never as Latest:
 
-- Each test round gets a numbered one, `v<next>-beta.N` (next: `v0.11-beta.1`), tagged on the
+- Each test round gets a numbered one, `v<next>-beta.N` (next: `v0.12-beta.1`), tagged on the
   branch's pushed head, with that commit's `firmware/bin/FRIZZ.bin` attached and the notes
   taken from `CHANGELOG.md`'s Unreleased section plus a link to the branch's PR. The number
   never moves, so feedback can name the build.
-- The pre-release **`beta`** always carries the newest numbered one (until v0.11-beta.1: v0.10
+- The pre-release **`beta`** always carries the newest numbered one (until v0.12-beta.1: v0.11
   itself), and moves only with a new one, at a fixed link
   (`https://github.com/ZUHcYa/FrizZ/releases/download/beta/FRIZZ.bin`): `git tag -f beta
   <commit> && git push -f origin beta`, `gh release upload beta firmware/bin/FRIZZ.bin
