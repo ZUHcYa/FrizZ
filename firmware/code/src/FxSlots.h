@@ -25,13 +25,13 @@ struct FxSlot
     Hardware::SwId key;
     uint8_t key_led;              // SMT LED, TestPage's led_map
     const float* key_color;
-    const float* knob_colors[3];  // the knob LEDs at 0 / .5 / 1
+    const float* knob_colors[3];  // the knob LEDs at 0 and 1 (the middle one unused: white is
+                                  // a bipolar knob's neutral point, NormalPage.h KnobColor)
     FxKind kind;
 };
 
 static const FxSlot kFxSlots[] = {
     {Hardware::SwId::KEY_1, 24, purple, {purple, white, med_blue}, FxKind::INSERT},   // freezer
-    // the shift knob's LED: blue down, white off, red up
     {Hardware::SwId::KEY_2, 23, red, {blue, white, red}, FxKind::INSERT},             // shifter
     {Hardware::SwId::KEY_3, 22, magenta, {magenta, white, orange}, FxKind::INSERT},   // folder
     {Hardware::SwId::KEY_4, 21, orange, {yellow, orange, red}, FxKind::INSERT},       // crusher

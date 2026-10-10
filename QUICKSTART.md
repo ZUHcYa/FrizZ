@@ -76,8 +76,10 @@ compressor on the last one (below).
   setting has them, 10% otherwise.
 - **SHIFT + press a knob:** reset that setting.
 - **Press a knob:** all four knobs turn to the effect's second page (their LEDs pulse) and
-  back. Picking another effect brings page 1 back. Only the shifter has one yet: its mix, the
-  dry sound under the shifted one, for harmonies.
+  back. Picking another effect brings page 1 back. Page 2 is laid out the same on every
+  effect: knob 1 the mix (dry against the effect), knob 2 a setting of the effect's own, knob
+  3 the band (the effect only on the lows or only on the highs), knob 4 the effect's level. Nothing evens out the level by itself:
+  an effect that gets louder as you drive it, like the folder, is set back with knob 4.
 
 Every effect starts silent or nearly so: one knob brings it in. That's knob 1 on most, knob 2
 (feedback) on the resonator, knob 3 (amount) on the flanger and knob 4 (level) on the delay
@@ -85,7 +87,9 @@ and reverb. The freezer, slicer and tape stop work from the first press: the fre
 a whole bar, the slicer pumps gently and the tape stop stops.
 
 **Master compressor:** press the last white key, and knobs 1-4 set the compressor on the
-master out: amount (off at first), ratio, speed and mix. Its key lights up as it compresses.
+master out: threshold (off at first), ratio, attack and release; press a knob for its mix,
+sidechain highpass and makeup. Its key lights up as it compresses, and turns red when the output is so loud
+the safety limiter has to step in.
 It's always on, and FRIZZ remembers its settings when you switch off. Press an effect key to
 give the knobs back to the effect.
 

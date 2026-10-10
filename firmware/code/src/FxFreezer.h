@@ -27,7 +27,9 @@ static const uint8_t kFreezerRollStages[] = {0, 8, 4, 2, 1};
  *  Pressed again while a release still fades the loop out, the loop plays on until the 16th
  *  that starts the new capture, and hands over to it in a short crossfade instead of
  *  dropping to the live signal at once.
- *  Params: 0 length (kNumLengths steps), 1 feedback, 2 roll (kNumRolls steps), 3 stereo.
+ *  Params: 0 length (kNumLengths steps), 1 feedback, 2 roll (kNumRolls steps), 3 stereo;
+ *  page 2's own, 5 gate: how much of each repeat is heard, all of it (0) down to its first
+ *  eighth, a stutter (the rest silent, faded in and out over 2ms).
  *  The freezer's buffers are separate (SDRAM, chompi_main.cpp), kFreezerFrames per channel. */
 class Freezer : public FxBase
 {
@@ -38,6 +40,7 @@ public:
         FEEDBACK,
         ROLL,
         STEREO,
+        GATE = 5,
     };
 
     static const size_t kNumLengths = sizeof(kFreezerBarDivisions);
@@ -78,7 +81,7 @@ public:
             start_ = true;
     }
 
-    void Process(float* l, float* r)
+    FRIZZ_HOT void Process(float* l, float* r)
     {
         ApplyParams();
         const float gate = gate_.Process();
@@ -188,6 +191,9 @@ public:
             // Kastle: the left loop up to 2000 samples at 44kHz longer
             stereo_ = static_cast<size_t>(val * kMaxStereoFrames);
             break;
+        case GATE:
+            gate_frac_ = 1.f - .875f * val;
+            break;
         case ROLL:
             roll_stage_ = kFreezerRollStages[StepIndex(val, kNumRolls)];
             // turned off: back to the full length, and a roll turned on again starts over
@@ -212,6 +218,7 @@ private:
     static const size_t kRollShortest = 64; // the roll stops halving at 1/64 bar
     static const size_t kMaxStereoFrames = 2180; // 45ms
     static const size_t kXfadeFrames = 240;      // 5ms, like the looper's
+    static constexpr float kGateRampFrames = 96.f; // 2ms
 
     /** In the audio callback: what SetParam changed */
     void ApplyParams()
@@ -244,7 +251,15 @@ private:
                 len = len_[c] < written_ ? len_[c] : written_;
         }
         const size_t pos = pos_[c];
-        const float wet = LoopSample(c, pos, len, seam_[c], written_);
+        float wet = LoopSample(c, pos, len, seam_[c], written_);
+        // the gate: only the start of each repeat heard, with short ramps at both ends
+        if (gate_frac_ < 1.f)
+        {
+            const float open = gate_frac_ * static_cast<float>(len);
+            const float p = static_cast<float>(pos);
+            const float g = fminf(fminf(p / kGateRampFrames, 1.f), (open - p) / kGateRampFrames);
+            wet *= fclamp(g, 0.f, 1.f);
+        }
 
         // feedback: the input overdubbed into the loop, which fades a little
         float* const b = buf_[c];
@@ -353,6 +368,7 @@ private:
     volatile bool params_changed_ = false; // set by SetParam, for ApplyParams
     volatile bool roll_reset_ = false;     // the roll was turned off
     float fb_in_ = 0.f, fb_keep_ = 1.f;
+    float gate_frac_ = 1.f; // the gate: the share of each repeat heard
 };
 
 } // namespace chompi

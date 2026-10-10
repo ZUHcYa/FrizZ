@@ -1,5 +1,5 @@
 /** @file FxFolder.h
- *  @brief The folder: a wavefolder, sine to triangle, antialiased, level-matched.
+ *  @brief The folder: a wavefolder, sine to triangle, antialiased.
  */
 #pragma once
 #include "FxCommon.h"
@@ -17,11 +17,13 @@ namespace chompi
  *  by a lowpass. The sine fold barely aliases anyway; on the triangle the ADAA takes off
  *  5-13dB, which at high drive on bright material still leaves some grit. The sine's and the
  *  triangle's antiderivatives are kept apart and blended with the current shape, so moving
- *  the shape knob doesn't put its change into the difference. A folder's output is about full scale whatever goes in, so the result is
- *  matched to the input's level (linked stereo, ~50ms): punching in changes the sound, not
- *  the loudness. Fully wet while on. It runs while off too: skipping it then changes the
- *  first 100ms of the next press, since the level match can't be caught up.
- *  Params: 0 drive, 1 shape (sine to triangle), 2 tone, 3 symmetry. */
+ *  the shape knob doesn't put its change into the difference. The fold is scaled to a slope
+ *  of 1 at 0 (2/pi for the sine, 1 for the triangle, blended with the shape), so at 1x a
+ *  quiet signal comes out at its own level whatever the shape; driven harder, the output stays near
+ *  full scale whatever goes in, and page 2's Level (FxOutput.h) sets how loud that is. Nothing
+ *  follows the input's level. Fully wet while on (page 2's Mix blends in the dry signal).
+ *  Params: 0 drive, 1 shape (sine to triangle), 2 tone, 3 stereo (the right channel driven up
+ *  to 2x harder); page 2's own, 5 symmetry. */
 class Folder : public FxBase
 {
 public:
@@ -30,13 +32,14 @@ public:
         DRIVE,
         SHAPE,
         TONE,
-        SYMMETRY,
+        STEREO,
+        SYMMETRY = 5,
     };
 
     void Init(float sample_rate)
     {
         sample_rate_ = sample_rate;
-        env_coeff_ = TimeCoeff(.05f, sample_rate);
+        asleep_ = true;
         for (size_t c = 0; c < 2; c++)
         {
             u1_[c] = 0.f;
@@ -44,7 +47,6 @@ public:
             lp_[c] = 0.f;
             dc_[c].Init(sample_rate);
         }
-        env_in_ = env_out_ = 0.f;
         gate_.Init();
 
         for (size_t i = 0; i < kNumFxParams; i++)
@@ -55,16 +57,35 @@ public:
     void Process(float* l, float* r)
     {
         const float gate = gate_.Process();
-        const float drive = drive_.Process();
+        const float drive_l = drive_.Process();
+        const float drive_r = drive_l * stereo_.Process();
         const float shape = shape_.Process();
         const float bias = bias_.Process();
         const float tone_coeff = tone_coeff_.Process();
 
+        // off and faded out: nothing to do. Back on, the fold starts from this sample (its
+        // first one plain, no step to average over); the fade-in covers the tone's start
+        if (gate_.Asleep())
+        {
+            asleep_ = true;
+            return;
+        }
         float* const io[2] = {l, r};
-        float wet[2];
+        // the sine's slope at 0 is pi/2, the triangle's 1: both brought to 1
+        const float unity = kSineUnity + shape * (1.f - kSineUnity);
+        if (asleep_)
+        {
+            for (size_t c = 0; c < 2; c++)
+            {
+                u1_[c] = *io[c] * (c ? drive_r : drive_l) + bias;
+                Antiderivatives(u1_[c], &f1_sine_[c], &f1_tri_[c]);
+            }
+            asleep_ = false;
+        }
+
         for (size_t c = 0; c < 2; c++)
         {
-            const float u = *io[c] * drive + bias;
+            const float u = *io[c] * (c ? drive_r : drive_l) + bias;
             float f_sine, f_tri;
             Antiderivatives(u, &f_sine, &f_tri);
             // ADAA: the fold averaged over the step from the last sample, which takes some
@@ -87,22 +108,15 @@ public:
 
             // the bias's DC out, then the tone
             lp_[c] += tone_coeff * (dc_[c].Process(y) - lp_[c]);
-            wet[c] = lp_[c];
+            *io[c] += gate * (unity * lp_[c] - *io[c]);
         }
-
-        // level match: the output scaled to the input's level
-        fonepole(env_in_, *l * *l + *r * *r, env_coeff_);
-        fonepole(env_out_, wet[0] * wet[0] + wet[1] * wet[1], env_coeff_);
-        const float match = fminf(sqrtf((env_in_ + kEnvFloor) / (env_out_ + kEnvFloor)), kMaxMatch);
-
-        *l += gate * (wet[0] * match - *l);
-        *r += gate * (wet[1] * match - *r);
     }
 
     /** The slewed parameters jump to their targets, at Init */
     void SnapParams()
     {
         drive_.Snap();
+        stereo_.Snap();
         shape_.Snap();
         bias_.Snap();
         tone_coeff_.Snap();
@@ -118,6 +132,9 @@ public:
             break;
         case SHAPE:
             shape_.target = val;
+            break;
+        case STEREO:
+            stereo_.target = 1.f + val;
             break;
         case SYMMETRY:
             // up to a quarter of the fold's period: the sine becomes a cosine, all even
@@ -135,8 +152,7 @@ public:
 private:
     static constexpr float kMaxDrive = 32.f;
     static constexpr float kAdaaMinStep = 1e-3f;
-    static constexpr float kEnvFloor = kLevelEnvFloor; // silence stays at about unity
-    static constexpr float kMaxMatch = 2.f;   // the most the level match turns up
+    static constexpr float kSineUnity = 2.f / PI_F;
 
     /** The fold: period 4, 0 at 0, 1 at 1, back through 0 at 2 to -1 at 3, so below 1 it's
      *  close to the input, past it mirrored back. A sine crossfaded into a triangle. */
@@ -164,13 +180,13 @@ private:
     }
 
     float sample_rate_;
-    float env_coeff_;
+    bool asleep_ = true;
     float u1_[2];                 // the last sample's fold input
     float f1_sine_[2], f1_tri_[2]; // and its antiderivatives
     float lp_[2];
     daisysp::DcBlock dc_[2];
-    float env_in_, env_out_; // mean squares, linked stereo
     Smoothed drive_, shape_, bias_, tone_coeff_;
+    Smoothed stereo_; // the right channel's drive over the left's
 };
 
 } // namespace chompi

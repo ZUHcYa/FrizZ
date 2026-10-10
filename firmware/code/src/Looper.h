@@ -25,6 +25,7 @@
  *  default tape slew, and runs in reverse when negative. While paused, the transport knob scrubs instead (Scrub).
  */
 #pragma once
+#include "FrizzHot.h"
 #include <atomic>
 #include "daisy.h"
 #include "daisysp.h"
@@ -148,7 +149,7 @@ public:
     // ===== audio =====
 
     /** Records from in and plays into out, one block. */
-    void Process(const float* in_l, const float* in_r, float* out_l, float* out_r, size_t size)
+    FRIZZ_HOT void Process(const float* in_l, const float* in_r, float* out_l, float* out_r, size_t size)
     {
         HandleCommand();
         HandleSpeed();

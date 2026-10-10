@@ -10,17 +10,54 @@ what FRIZZ does.
 ### Added
 
 - **A second page for the FX knobs:** press any of knobs 1-4 and all four turn over to the
-  selected effect's page 2, with their LEDs pulsing; press again for page 1. On an effect
-  without a page 2 (all but the shifter, for now) the press does nothing. Pressing or
+  selected effect's page 2, with their LEDs pulsing; press again for page 1. Every effect has
+  one. Pressing or
   selecting another effect, or the compressor, brings page 1 back. Scenes, recalls and morphs
   carry page 2 along; scene files from v0.11 load with page 2 on its defaults. Over MIDI,
   page 2 is NRPN MSB 1 with the page-1 CC as LSB. See MANUAL.md, "Page 2".
-- **Shifter mix** on its page 2, knob 1: the dry signal under the shifted one, for harmonies.
-  At the top (the default) it's fully shifted, as before. The other effects' page 2 comes
-  later (#40).
+- **Mix, Band and Level on every effect's page 2,** on the same knobs everywhere (#40):
+  knob 1 Mix (the dry sound against the effect's: parallel distortion, harmonies under the
+  shifter), knob 3 Band (the effect only on the lows or only on the highs, the rest passing
+  dry; on the delay and reverb a low or high cut on what goes in) and knob 4 Level (the
+  effect's output, off to +12 dB). The flanger has Band and Level; on the delay and reverb,
+  knob 1 is Freeze and knob 4 Ducking. At the defaults every effect sounds as before. See
+  MANUAL.md, "Page 2".
+- **Each effect's own setting on page 2's knob 2** (#40), after the SP-404MK2 and the
+  Elektron Tonverk: the freezer's gate (a stutter), the shifter's grain, the flanger's
+  polarity, the resonator's env mod (its own Band and Level too), the slicer's shuffle, wow
+  & flutter's age (dropouts), the tape stop's darken, the delay's damping (left thinner,
+  right darker repeats) and the reverb's pre-delay (up to 250 ms).
+- **Freeze and ducking on the delay and reverb** (page 2's knobs 1 and 4): freeze holds the
+  echoes or the room, by degrees; ducking turns them down while you play.
+- **Stereo on page 1's knob 4 of the folder, crusher and filter**, so knob 4 is stereo on
+  every insert: the folder drives the right channel harder, the crusher's right rate runs
+  lower, the filter's right LFO lags. Their old knob 4 (symmetry, XOR, LFO division) moved
+  to page 2's knob 2; saved scenes are moved along.
+- **Depth on the tape stop's knob 4:** from a full stop (as before) to slowing down to half
+  speed.
+- **A page 2 for the master compressor:** Mix, a sidechain highpass (off, or 20 to 500 Hz,
+  so the bass doesn't pump the rest) and Makeup (0 to +24 dB), on the knobs an effect has
+  its Mix, Band and Level on (#38).
+- **The safety limiter shows:** the compressor's key turns red while it limits the outputs,
+  so you know when to turn something down.
 
 ### Changed
 
+- **The knob LEDs use white only for a neutral point:** a knob with a centre (shift, cutoff,
+  random, damping, grain, every Band) and Level (at 0 dB) are white there, blue below and
+  orange above, on every effect. Other knobs go between the effect's two colours.
+
+- **Nothing sets a level by itself any more but the safety limiter.** The folder is no longer
+  matched to its input's level, and the crusher no longer held to it: driven, they get
+  louder, the folder much louder on quiet sounds (at full drive a sound 30 dB down comes out
+  about 27 dB louder), and page 2's Level sets how loud. Scenes with the folder or the
+  crusher come back at a different level than they were saved at.
+- **The master compressor is a plain one** (#38): its makeup is no longer automatic (it added
+  up to +14 dB, to everything) but a knob on page 2, at 0 dB at first. Speed is split into
+  Attack (knob 3) and Release (knob 4), and Mix moves to page 2's knob 1. Saved settings
+  come back with Speed as both and Makeup at 0 dB, so a compressor you had turned up is
+  quieter until you set its makeup. Over MIDI, CC 54 is now the attack and CC 55 the release;
+  the mix and the makeup are NRPN 1/52 and 1/55.
 - **Transport knob in semitones:** while a loop plays, turning it changes the speed a
   semitone every 2 detents, from 2× down to 1/16×, and stops at both ends. SHIFT + turn
   jumps in fifths and octaves as turning did before (from between two of them, to the next

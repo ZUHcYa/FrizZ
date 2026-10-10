@@ -55,16 +55,31 @@ class DjFilter
         daisysp::fonepole(lp_, lp_target_, slew_);
         daisysp::fonepole(hp_, hp_target_, slew_);
 
-        // the right channel's filters are the left's: their division (CalculateFeedback) once
+        // the right channel's filters are the left's: their division (CalculateFeedback) once.
+        // FRIZZ: unless it has a cutoff of its own (SetControlR), the stereo LFO
         feedback_filt_llp_.SetFreq(lp_);
-        feedback_filt_rlp_.CopySettings(feedback_filt_llp_);
+        const bool own_r = lp_r_target_ >= 0.f;
+        if (own_r)
+        {
+            daisysp::fonepole(lp_r_, lp_r_target_, slew_);
+            daisysp::fonepole(hp_r_, hp_r_target_, slew_);
+            feedback_filt_rlp_.SetFreq(lp_r_);
+            feedback_filt_rhp_.SetFreq(fmaxf(hp_r_, 1e-3f));
+        }
+        else
+        {
+            lp_r_ = lp_;
+            hp_r_ = hp_;
+            feedback_filt_rlp_.CopySettings(feedback_filt_llp_);
+        }
 
         // FRIZZ: never let the highpass reach exactly 0. Without WAVE's slew, hp_ lands on 0
         // as the cutoff crosses the centre, the highpass state stops updating, and whatever
         // it held stays in the output as DC. 1e-3 is a ~8Hz highpass that drains it in ~20ms.
         const float hp = fmaxf(hp_, 1e-3f);
         feedback_filt_lhp_.SetFreq(hp);
-        feedback_filt_rhp_.CopySettings(feedback_filt_lhp_);
+        if (!own_r)
+            feedback_filt_rhp_.CopySettings(feedback_filt_lhp_);
         // (WAVE raised the highpass's resonance above hp_ .8; hp_ tops out at .9^3 = .73)
     }
 
@@ -89,6 +104,20 @@ class DjFilter
         hp_target_ = hp_target_ * hp_target_ * hp_target_;
     }
 
+    /** FRIZZ: the right channel's cutoff on its own, as SetControl; below 0: the left's */
+    void SetControlR(float cutoff)
+    {
+        if (cutoff < 0.f)
+        {
+            lp_r_target_ = -1.f;
+            return;
+        }
+        float lp = daisysp::fclamp(.01f + cutoff * 2.f, 0.f, .98f);
+        lp_r_target_ = lp * lp * lp;
+        float hp = daisysp::fclamp((cutoff * 1.9f) - 1.f, 0.f, .9f);
+        hp_r_target_ = hp * hp * hp;
+    }
+
     void SetRes(float res) 
     {
         res *= .95f;
@@ -104,4 +133,6 @@ class DjFilter
     float slew_;
     float lp_, lp_target_;
     float hp_, hp_target_;
+    float lp_r_ = 0.f, lp_r_target_ = -1.f; // FRIZZ: the right channel's own, SetControlR
+    float hp_r_ = 0.f, hp_r_target_ = 0.f;
 };

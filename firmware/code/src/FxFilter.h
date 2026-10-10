@@ -17,7 +17,9 @@ static_assert(kPulsesPerCycle % 192 == 0, "the longest LFO cycle must divide the
 /** The DJ filter shared by TAPE, TEMPO and WAVE (DJFilter.h, WAVE's copy): lowpass below the
  *  centre of the cutoff knob, highpass above, flat in the middle. Plus a triangle LFO on the
  *  cutoff, like WAVE's filter LFO but locked to the tempo clock (TempoClock.h).
- *  Params: 0 cutoff, 1 resonance, 2 LFO depth, 3 LFO division (kNumLfoDivisions steps). */
+ *  Params: 0 cutoff, 1 resonance, 2 LFO depth, 3 stereo (the right LFO up to half a cycle
+ *  behind, Tonverk's LAG; only heard with the LFO); page 2's own, 5 LFO division
+ *  (kNumLfoDivisions steps). */
 class Filter : public FxBase
 {
 public:
@@ -26,7 +28,8 @@ public:
         CUTOFF,
         RESONANCE,
         LFO_DEPTH,
-        LFO_DIVISION,
+        STEREO,
+        LFO_DIVISION = 5,
     };
 
     static const size_t kNumLfoDivisions = sizeof(kLfoDivisionPulses) / sizeof(kLfoDivisionPulses[0]);
@@ -86,7 +89,7 @@ public:
             if (++sleep_samples_ >= kSleepRetune)
             {
                 sleep_samples_ = 0;
-                filter_.SetControl(Control(cutoff, depth));
+                SetControls(cutoff, depth);
                 filter_.Retune();
             }
             float fl, fr;
@@ -95,7 +98,7 @@ public:
         }
         sleep_samples_ = 0;
 
-        filter_.SetControl(Control(cutoff, depth));
+        SetControls(cutoff, depth);
 
         float fl, fr;
         filter_.Process(*l, *r, &fl, &fr);
@@ -104,15 +107,27 @@ public:
         *r += gate * (fr - *r);
     }
 
-    /** The cutoff with the LFO on it, 0..1 */
-    inline float Control(float cutoff, float depth) const
+    /** Both channels' cutoffs: the right one's LFO lags with the stereo knob */
+    inline void SetControls(float cutoff, float depth)
+    {
+        filter_.SetControl(Control(cutoff, depth));
+        if (lag_ > 0.f && depth > 0.f)
+            filter_.SetControlR(Control(cutoff, depth, lag_));
+        else
+            filter_.SetControlR(-1.f);
+    }
+
+    /** The cutoff with the LFO on it, 0..1, the LFO lag cycles behind */
+    inline float Control(float cutoff, float depth, float lag = 0.f) const
     {
         float pos = static_cast<float>(lfo_pulses_ % lfo_div_pulses_) + lfo_frac_;
         if (pos < 0.f)
             pos += static_cast<float>(lfo_div_pulses_);
-        float phase = pos / static_cast<float>(lfo_div_pulses_) + .25f;
+        float phase = pos / static_cast<float>(lfo_div_pulses_) + .25f - lag;
         if (phase >= 1.f)
             phase -= 1.f;
+        else if (phase < 0.f)
+            phase += 1.f;
         // triangle: 0 on the beat, up to +1 (towards highpass) a quarter cycle later
         const float tri = 1.f - 4.f * fabsf(phase - .5f);
 
@@ -143,6 +158,9 @@ public:
         case LFO_DEPTH:
             depth_.target = val;
             break;
+        case STEREO:
+            lag_ = .5f * val;
+            break;
         case LFO_DIVISION:
             lfo_div_pulses_ = kLfoDivisionPulses[StepIndex(val, kNumLfoDivisions)];
             break;
@@ -163,6 +181,7 @@ private:
     static const uint32_t kSleepRetune = 8;
     uint32_t sleep_samples_ = 0; // asleep: samples since the cutoff was last worked out
     uint32_t lfo_div_pulses_; // pulses per LFO cycle
+    float lag_ = 0.f;         // the right LFO's lag, in cycles
 };
 
 } // namespace chompi

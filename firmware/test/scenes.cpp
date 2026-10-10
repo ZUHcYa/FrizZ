@@ -56,7 +56,7 @@ static void RecallJump(bool fast, float* max_step, float* settle_ms)
     engine.SetMainGain(1.f);
     engine.SetInputGain(1.f);
     engine.SetMix(0.f);
-    engine.SetCompParam(MasterComp::kAmount, 0.f);
+    engine.SetCompParam(MasterComp::kThreshold, 0.f);
     engine.SetFxParam(FX_FILTER, 0, .05f);
     engine.SetFxParam(FX_FILTER, 1, 0.f);
     engine.SetFxParam(FX_FILTER, 2, 0.f);
@@ -201,6 +201,32 @@ int main()
     Check(h[3].params[FX_REVERB][4] == defaults[FX_REVERB][4]
               && h[3].params[FX_REVERB][7] == defaults[FX_REVERB][7],
           "a line of four, as v0.11 wrote them: page 2 on its defaults");
+
+    // a file from #35, before page 2's shared knobs (no layout line): its page 2 was the
+    // shifter's mix alone, kept; the zeros it wrote for the rest load as defaults, or every
+    // effect's Level would be off
+    {
+        const char* old =
+            "FRIZZ scenes 1\n"
+            "scene 1\n"
+            "shifter 1 791667 0 0 0 250000 0 0 0\n"
+            "folder 1 500000 0 1000000 0 0 0 0 0\n";
+        FxScene o[kNumScenes];
+        Check(ParseScenes(old, defaults, o) && o[0].params[FX_SHIFTER][4] == .25f
+                  && o[0].params[FX_SHIFTER][7] == defaults[FX_SHIFTER][7]
+                  && o[0].params[FX_FOLDER][4] == defaults[FX_FOLDER][4]
+                  && o[0].params[FX_FOLDER][7] == defaults[FX_FOLDER][7]
+                  && o[0].params[FX_FOLDER][0] == .5f,
+              "a file from before the shared knobs: the shifter's mix kept, the rest of page 2 on defaults");
+        // and a file with them reads page 2 as written
+        const char* now =
+            "FRIZZ scenes 1\n"
+            "layout 2\n"
+            "scene 1\n"
+            "folder 1 500000 0 1000000 0 0 0 0 0\n";
+        Check(ParseScenes(now, defaults, o) && o[0].params[FX_FOLDER][7] == 0.f,
+              "layout 2: page 2 as written, a Level of 0 too");
+    }
 
     // page 2 (#35): v0.11 reads the first four values of a line and skips the rest, so a
     // newer file gives it page 1 as saved

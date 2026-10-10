@@ -26,7 +26,7 @@ struct FakeEngine
         param_calls++;
     }
     void FastFxSlew() { fast_slews++; }
-    float comp[kNumFxKnobs] = {};
+    float comp[kNumFxParams] = {};
     void SetCompParam(size_t p, float v) { comp[p] = v; }
 
     // the morph: what it was started with, and its bar lines
@@ -207,13 +207,16 @@ static void TestKeys()
     Check(fx.IsLatched(FX_FILTER) && e.on[FX_FILTER], "key, SHIFT twice: latched");
     Latch(fx, FX_FILTER);
 
-    // the key, then SHIFT + a knob the FX doesn't use (the tape stop's 4th): still a latch
-    fx.KeyPressed(FX_TAPESTOP, true, false);
+    // the key, then SHIFT + a knob the FX doesn't use (the flanger's page-2 knob 1, it has no
+    // Mix): still a latch
+    fx.KeyPressed(FX_FLANGER, true, false);
+    fx.KnobPressed(0, false);
     fx.ShiftPressed();
-    fx.KnobTurned(3, 1.f, true);
-    fx.KnobPressed(3, true);
-    fx.KeyPressed(FX_TAPESTOP, false, true);
-    Check(fx.IsLatched(FX_TAPESTOP), "key, SHIFT + a dark knob turned or pressed: still latched");
+    fx.KnobTurned(0, 1.f, true);
+    fx.KnobPressed(0, true);
+    fx.KeyPressed(FX_FLANGER, false, true);
+    Check(fx.IsLatched(FX_FLANGER), "key, SHIFT + a dark knob turned or pressed: still latched");
+    fx.KnobPressed(0, false);
     Latch(fx, FX_TAPESTOP);
 
     // a release without its press (held through boot) does nothing
@@ -311,18 +314,14 @@ static void TestPages()
     Check(fx.Page() == 0 && fx.KnobUsed(1), "pages: page 1 at first, every knob of it used");
     Check(fx.KnobPressed(2, false) && fx.Page() == 1, "pages: a plain press on any knob turns to page 2");
     Check(!fx.Edited(), "pages: turning the page isn't an edit");
-    Check(fx.KnobUsed(0) && !fx.KnobUsed(1) && !fx.KnobUsed(3),
-          "pages: the shifter's page 2 has its mix on knob 1, nothing else");
+    Check(fx.KnobUsed(0) && fx.KnobUsed(1) && fx.KnobUsed(2) && fx.KnobUsed(3),
+          "pages: the shifter's page 2: Mix, its grain, Band and Level");
     Check(fx.Knob(0) == 1.f, "pages: the mix starts fully shifted");
     fx.KnobTurned(0, -40.f, false);
     Check(Near(fx.Param(FX_SHIFTER, 4), .6f) && Near(e.params[FX_SHIFTER][4], .6f)
               && fx.Param(FX_SHIFTER, 0) == .5f,
           "pages: knob 1 turns parameter 4, page 1's knob 1 stays");
     Check(Near(fx.Knob(0), .6f), "pages: the knob reads page 2's value");
-    const int calls = e.param_calls;
-    fx.KnobTurned(1, 10.f, false);
-    fx.KnobPressed(1, true);
-    Check(e.param_calls == calls, "pages: an unused knob there does nothing, turned or reset");
     fx.KnobTurned(0, 1.f, true);
     Check(Near(fx.Param(FX_SHIFTER, 4), .7f), "pages: SHIFT + turn on page 2, its coarse grid");
     fx.KnobPressed(0, true);
@@ -330,10 +329,19 @@ static void TestPages()
     fx.KeyPressed(FX_SHIFTER, false, false);
     fx.KeyPressed(FX_SHIFTER, true, false);
     Check(fx.Page() == 1, "pages: the same FX pressed again keeps page 2");
-    fx.KeyPressed(FX_FILTER, true, true);
+    fx.KeyPressed(FX_FLANGER, true, true);
     Check(fx.Page() == 0, "pages: another FX, also selected with SHIFT, goes back to page 1");
-    Check(!fx.KnobPressed(0, false) && fx.Page() == 0 && fx.KnobUsed(0),
-          "pages: an FX without page-2 parameters stays on page 1, the press does nothing");
+    Check(fx.KnobPressed(0, false) && fx.Page() == 1 && !fx.KnobUsed(0) && fx.KnobUsed(1),
+          "pages: the flanger's page 2 has no Mix, its knob 1 dark");
+    const int calls = e.param_calls;
+    fx.KnobTurned(0, 10.f, false);
+    fx.KnobPressed(0, true);
+    Check(e.param_calls == calls, "pages: an unused knob there does nothing, turned or reset");
+    fx.KeyPressed(FX_DELAY, true, true);
+    fx.KnobPressed(0, false);
+    Check(fx.Page() == 1 && fx.KnobUsed(0) && fx.KnobUsed(1) && fx.KnobUsed(2) && fx.KnobUsed(3)
+              && fx.Knob(0) == 0.f && fx.Knob(1) == .5f && fx.Knob(3) == 0.f,
+          "pages: a send's page 2: freeze (off), its own, Band, ducking (off)");
     fx.KeyPressed(FX_SHIFTER, true, false);
     fx.KnobPressed(0, false);
     fx.KnobPressed(0, false);
@@ -341,11 +349,21 @@ static void TestPages()
     fx.KnobPressed(0, false);
     fx.CompKeyPressed(false);
     Check(fx.Page() == 0, "pages: the compressor's key goes back to page 1");
-    Check(!fx.KnobPressed(0, false) && fx.Page() == 0, "pages: the compressor has no page 2");
+    Check(fx.KnobPressed(0, false) && fx.Page() == 1, "pages: the compressor has a page 2");
+    Check(fx.KnobUsed(0) && !fx.KnobUsed(1) && fx.KnobUsed(2) && fx.KnobUsed(3)
+              && fx.Knob(0) == 1.f && fx.Knob(2) == 0.f && fx.Knob(3) == 0.f,
+          "pages: the compressor's page 2: Mix on knob 1 (fully compressed), the sidechain "
+          "highpass on knob 3 (off), Makeup on knob 4 (0dB)");
+    fx.KnobTurned(3, 25.f, false);
+    Check(Near(fx.CompParam(7), .25f) && Near(e.comp[7], .25f) && fx.CompParam(3) == .5f,
+          "pages: the compressor's knob 4 there turns its makeup, not its release");
+    fx.KnobPressed(3, true);
+    Check(fx.CompParam(7) == 0.f, "pages: SHIFT + press resets the makeup to 0dB");
+    fx.KnobPressed(0, false);
     // MIDI: page 2 outright, but not where an effect has none
     fx.SetParamTo(FX_SHIFTER, 4, .25f);
-    fx.SetParamTo(FX_FILTER, 4, .25f);
-    Check(fx.Param(FX_SHIFTER, 4) == .25f && fx.Param(FX_FILTER, 4) == kFxParams[FX_FILTER].defaults[4],
+    fx.SetParamTo(FX_FLANGER, 4, .25f);
+    Check(fx.Param(FX_SHIFTER, 4) == .25f && fx.Param(FX_FLANGER, 4) == kFxParams[FX_FLANGER].defaults[4],
           "pages: set outright on page 2, only where the FX uses it");
     // a scene keeps page 2, and a recall puts it back
     FxScene scene;
@@ -575,13 +593,14 @@ static void TestMorph()
     store[1].params[FX_DELAY][3] = .6f;
     store[2].latched |= (1u << FX_REVERB) | (1u << FX_SLICER);
     store[2].params[FX_FILTER][0] = .8f;
-    store[2].params[FX_FILTER][3] = 0.f;  // stepped: the LFO division
+    store[2].params[FX_FILTER][5] = 0.f;  // stepped: the LFO division
     store[2].params[FX_REVERB][3] = .5f;
     store[2].params[FX_REVERB][0] = .9f;  // decay, not an amount knob
     store[2].params[FX_FLANGER][0] = .3f; // off in both
     store[2].latched |= 1u << FX_FOLDER;  // on, its tone closed: everything fades
     store[2].params[FX_FOLDER][2] = .3f;
     store[1].params[FX_FOLDER][2] = .6f;  // what it had while off
+    store[2].params[FX_FOLDER][7] = 1.f;  // its Level at +12dB: faded in too
 
     Check(sc.SlotPressed(3, true) == Scenes::Slot::REFUSED, "morph to an empty slot: refused");
     sc.ModePressed(SceneMode::SAVE);
@@ -601,7 +620,7 @@ static void TestMorph()
     Check(plan.how[FX_FILTER][0] == MorphParam::GLIDE && plan.start[FX_FILTER][0] == .2f
               && plan.target[FX_FILTER][0] == .8f,
           "on in both: a continuous knob glides from where it is");
-    Check(plan.how[FX_FILTER][3] == MorphParam::HOLD && plan.target[FX_FILTER][3] == 0.f,
+    Check(plan.how[FX_FILTER][5] == MorphParam::HOLD && plan.target[FX_FILTER][5] == 0.f,
           "on in both: a stepped one switches at the landing");
     Check(plan.how[FX_DELAY][3] == MorphParam::FADE_OUT && plan.how[FX_DELAY][0] == MorphParam::HOLD
               && (plan.deferred >> FX_DELAY & 1) && !(plan.wake >> FX_DELAY & 1),
@@ -610,6 +629,10 @@ static void TestMorph()
               && plan.how[FX_REVERB][0] == MorphParam::HOLD && plan.start[FX_REVERB][0] == .9f
               && (plan.deferred >> FX_REVERB & 1) && (plan.wake >> FX_REVERB & 1),
           "turned on: its level fades in from silent, the rest jumps now");
+    Check(plan.how[FX_FOLDER][7] == MorphParam::GLIDE
+              && plan.start[FX_FOLDER][7] == kFxParams[FX_FOLDER].defaults[7]
+              && plan.target[FX_FOLDER][7] == 1.f && plan.how[FX_FOLDER][4] == MorphParam::HOLD,
+          "turned on: page 2's Level glides from 0dB, Mix doesn't need to");
     Check((plan.deferred >> FX_FREEZER & 1) && (plan.deferred >> FX_SLICER & 1)
               && !(plan.wake >> FX_FREEZER & 1) && !(plan.wake >> FX_SLICER & 1)
               && plan.how[FX_SLICER][1] == MorphParam::HOLD,

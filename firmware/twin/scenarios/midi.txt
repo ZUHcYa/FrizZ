@@ -6,8 +6,8 @@ midi 9F 37 64
 midi BF 56 10
 wait 1500
 # a note holds the filter: its knobs on the panel, CC 86 closing knob 1
-expect led pth 1 fd84b0
-expect led pth 2 fdfdfd
+expect led pth 1 3737fd
+expect led pth 2 798fc6
 midi 8F 37 00
 wait 500
 # CC 24 latches the filter, NRPN 86 sweeps its cutoff in 14 bits, CC 24 unlatches it
