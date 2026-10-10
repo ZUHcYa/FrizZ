@@ -119,6 +119,11 @@ what FRIZZ does.
   value afresh, so a CC 38 alone sets just its fine part.
 - **Knobs turned by relative CCs (14-19) stop when the CCs stop:** a DAW's fast turns used
   to pile up and keep the knob turning for seconds after.
+- **MIDI out at double tempo keeps every tick** of a clock whose ticks come in bunches (a DAW
+  over USB sending two at once): one in four went missing, so the gear behind fell behind.
+- **MIDI out no longer sends a stale Start after power-on:** a Start that came while FRIZZ
+  was starting up went out once it was up, seconds late. A clock running then no longer
+  sends a few ticks at once either.
 
 ## v0.11 (2026-10-10)
 

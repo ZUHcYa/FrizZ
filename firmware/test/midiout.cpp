@@ -2,7 +2,8 @@
 // Continue and Song Position that go out of the MIDI jack and over USB, timed as the UART
 // sends them. Off at first; passing an incoming clock on, by the clock factor, never back
 // where it comes from; generating it from a loop or the last tempo; a loop's Start, Stop and
-// Continue. Each case on a fresh device. Run by unit.sh midiout.
+// Continue; nothing stale from the boot screen. Each case on a fresh device. Run by unit.sh
+// midiout.
 #include "timing.h"
 #include "twin.h"
 
@@ -292,6 +293,34 @@ int main()
         s = TakeSent();
         Check(Count(s.trs, 0xF8) > 80 && Count(s.trs, 0xFA) == 1,
               "lead: with a loop FRIZZ leads: Start and its clock go out of the jack");
+    }});
+
+    // at double, a host that sends its ticks in pairs (two in a block): every one counts
+    // twice, the pair's too
+    cases.push_back({"factor-pairs", [] {
+        RunMs(kReadyMs);
+        SetOut(1);
+        StartUsb(Clock(120., .3, true, 0., true));
+        RunMs(1000);
+        Factor(1); // x2
+        RunMs(1000);
+        TakeSent();
+        const uint64_t before = usb.Sent();
+        RunMs(5000);
+        const Sent s = TakeSent();
+        const int in = static_cast<int>(usb.Sent() - before);
+        Report("double, pairs: %d in, %d out", in, Count(s.trs, 0xF8));
+        Check(abs(Count(s.trs, 0xF8) - 2 * in) <= 2, "factor-pairs: at double, twice the ticks of a host sending pairs");
+    }});
+
+    // a Start that came while FRIZZ was starting up isn't sent out late, once it's up
+    cases.push_back({"boot-start", [] {
+        RunMs(500); // the boot screen
+        SetOut(1);
+        UsbMidi(0xFA);
+        RunMs(kReadyMs - 520);
+        const Sent s = TakeSent();
+        Check(Count(s.trs, 0xFA) == 0, "boot-start: a Start from the boot screen doesn't go out after it");
     }});
 
     return RunCases();
