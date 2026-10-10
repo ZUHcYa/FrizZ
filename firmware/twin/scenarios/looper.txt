@@ -4,6 +4,8 @@ input sine 220 0.3
 at 6000
 tap KEY_28
 wait 2000
+# recording: LOOP red
+expect led pth 8 fd0000
 tap KEY_28
 input off
 wait 1500
@@ -11,6 +13,8 @@ turn 5 32
 wait 2500
 turn 5 -64
 wait 3000
+# in reverse: the transport's left LED amber
+expect led pth 5 fd8400
 tap ENC_5_SW
 wait 1000
 tap KEY_27
@@ -33,3 +37,7 @@ down KEY_27
 tap KEY_28
 up KEY_27
 wait 2500
+# erased: PLAY and LOOP dark
+expect led pth 7 000000
+expect led pth 8 000000
+expect on

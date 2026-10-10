@@ -130,6 +130,10 @@ uint64_t NowNs()
     return main_ns;
 }
 
+static uint64_t clock_start_ns = 0;
+void SetClockStartMs(uint32_t ms) { clock_start_ns = uint64_t(ms) * 1000000; }
+uint64_t FirmwareNs() { return NowNs() + clock_start_ns; }
+
 // the audio callback's waits (the 4021's DelayTicks) take no time: it runs at its block's start
 void DelayNs(uint64_t ns)
 {

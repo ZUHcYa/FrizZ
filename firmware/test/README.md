@@ -17,7 +17,7 @@ STRESS=1 ./run.sh work out.bin
 | Check | What it looks at |
 |---|---|
 | `check.sh` | the engine harness (below): every output sample and FX meter of a fixed script, two versions compared; a refactor must be `bit-identical` |
-| `pitch`, `tape`, `delay`, `comp`, `clicks`, `level`, `sleep`, `inserts` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up events, the master compressor, moves that used to click, the level guard (an effect no louder than its input), effects that are off costing no time, the folder's bypass and level match, the slicer's patterns, chance and stereo, and the shifter's mix |
+| `pitch`, `tape`, `delay`, `crusher`, `freezer`, `comp`, `clicks`, `level`, `sleep`, `inserts` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up and random events, the crusher's rate, bits and dive, the freezer's capture and roll, the master compressor, moves that used to click, the level guard (an effect no louder than its input), effects that are off costing no time, the folder's bypass and level match, the slicer's patterns, chance and stereo, and the shifter's mix |
 | `scenes`, `store` | the scene and master files and the card: formats, a card not read at boot, backups |
 | `controls`, `keys`, `looper`, `tempo` | the play page's logic classes on their own: FX keys and knobs, SHIFT and the confirm, the looper, the tempo clock |
 | `ui` | the whole firmware from power-on on the virtual CHOMPI: keys through the 4021s, LEDs, the headphones and the master out, the card (full too), bug reports, MIDI (notes, CCs, NRPN, program changes, Start/Stop, the SysEx and its USB answers); each case on a fresh device |
@@ -135,7 +135,39 @@ resonance jumps the cutoff, but the output doesn't step further than the sweep d
 ```
 
 Checks where the delay's voices (`granularDelay.h`) start a pitch-up event: half a bar back at
-the default 1/4, right after Init as after a division change.
+the default 1/4, right after Init as after a division change. Then its random events on the
+8th-note edges: none with the random knob in the middle or the key off (a tail's edges); towards
+0 retriggers, reverses and pitch-ups and -downs, each about as often, on half the edges at 0 and
+a quarter at 0.25, in the centre; towards 1 only octave-up shimmers, on half the edges at 1,
+panned at random to both sides; and at 2 bars and 50 BPM, where a reverse wouldn't fit the
+buffer, a retrigger instead.
+
+## Crusher check
+
+```bash
+./unit.sh crusher
+```
+
+The crusher (`FxCrusher.h`) on a 1 kHz sine: the reducer holds a sample 15 samples with the
+rate knob in the middle and 100 at the top (3.2 kHz, 480 Hz), and at 0 lets the sine through
+nearly as it was; the bits knob at the top leaves a handful of steps, at 0 the sine's every
+value; a press dives the rate 10x lower 0.1 s on, and it's back to the knob's by 0.3 s. Held
+values are compared within 1e-4 and a step counts once, as the reducer's BLEP spreads it over
+two samples.
+
+## Freezer check
+
+```bash
+./unit.sh freezer
+```
+
+The freezer (`FxFreezer.h`) at 120 BPM on a ramp whose every sample is its own value: pressed,
+the live signal passes bit for bit to the next 16th and one loop past it, then it repeats what
+came in from the 16th, sample for sample past each seam's crossfade, a 16th each. The roll at
+its shortest stage halves the loop after 1 repeat, after 2 more, and stops at 1/64 bar; at its
+longest it holds 8 repeats first. Released, the live signal is back bit for bit once it has
+faded out. (The gate fades in to 1 - 7e-6, not 1, #45, so a repeat carries the live input 100 dB
+down: the check feeds silence once a capture is recorded.)
 
 ## Master compressor check
 
@@ -284,6 +316,25 @@ The headphones (outputs 0/1, which the other cases don't look at): the master ou
 its level at first (`kHpGain` .2 to the line out's .3), silent with it under a latched tape
 stop, the input alone with the cue up (CC 59, VOLUME's page 4) while the master stays silent,
 and the master again with the cue down.
+
+The battery: VOLUME's LED on the settings page white on the cable, green once it's pulled, yellow
+below 3.3 V at the next 30 s read, white again with the cable (known: red never shows below 3 V,
+as the amber countdown comes first, #43), and the charger plugged in during the countdown
+stopping it. The scene keys: a saved slot dim, the active one bright, pulsing from a fifth up
+to full once a second once edited; a morph's key blinking on the beat, SHIFT + another scene key
+during it and a 9th bar each blinking red 3 times. The compressor's key without a card: 3 red
+blinks for the failed save and for each of its 3 retries, 2 s apart. And the controllers the
+other MIDI cases don't send: 18 and 19 (the transport and VOLUME turned), 53-55, 57, 58, 60, 61
+above 8, 63 and 120 (keys held by notes and by SysEx let go), and the mod wheel, pitch bend and
+aftertouch changing nothing.
+
+The millisecond counter's wrap (after 49.7 days on; `SetClockStartMs()` starts the firmware's
+clock 9 s before it): a refused scene key's blinks just before it end and don't come back, a
+loop recorded across it is as long as it was recorded, the compressor's knob turned before it
+is saved after it, a scene saves and CHOMPI's pending blink keeps its pace after it. And every
+scenario of `../twin/scenarios/` played from power-on, with its `expect` lines.
+
+`CASES="scene-leds scene-morph" ./unit.sh ui` runs only those cases, while working on them.
 
 The flicker #7 fixed in the transport LED (a value just over 1 wrapping to dark) doesn't show
 on the twin before the fix either, so that check guards only what it can see.

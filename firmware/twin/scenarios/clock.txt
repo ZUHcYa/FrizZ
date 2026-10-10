@@ -6,8 +6,12 @@ down KEY_27
 tap KEY_28
 up KEY_27
 wait 3000
+# a quantized loop recording: LOOP red
+expect led pth 8 fd0000
 tap KEY_28
 wait 2500
+# playing forward: the transport's right LED green
+expect led pth 6 79f200
 down KEY_12
 wait 80
 tap KEY_26
@@ -23,3 +27,5 @@ clock 90
 wait 3000
 clock 0
 wait 2000
+expect led pth 6 79f200
+expect on

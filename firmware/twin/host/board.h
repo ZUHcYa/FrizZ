@@ -12,6 +12,8 @@ namespace twin
 // The audio callback runs at the start of each 0.5 ms block; main() runs as a coroutine
 // between them, its own time moving only on System::Delay*, GetNow and DelayTicks
 uint64_t NowNs();
+/** NowNs() as the firmware's clock reads it: from SetClockStartMs() on */
+uint64_t FirmwareNs();
 void DelayNs(uint64_t ns);
 bool InMain();
 

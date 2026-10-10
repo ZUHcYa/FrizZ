@@ -13,6 +13,8 @@ wait 80
 tap KEY_26
 up KEY_6
 wait 200
+# the shifter latched on top of the filter, on the knobs
+expect led pth 3 00d1fd
 turn 2 20
 turn 4 10
 wait 800
@@ -25,12 +27,16 @@ turn 3 30
 wait 1500
 down KEY_26
 wait 50
+# SHIFT held: CHOMPI lit white
+expect led pth 0 fdfdfd
 turn 4 3
 wait 300
 tap ENC_4_SW
 wait 200
 up KEY_26
 wait 500
+expect led pth 0 000000
+expect on
 down KEY_26
 tap KEY_13
 up KEY_26

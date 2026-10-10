@@ -5,10 +5,12 @@
 #include <unistd.h>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <algorithm>
 #include <functional>
+#include <list>
 #include <map>
 #include <sstream>
 #include <string>
@@ -165,6 +167,25 @@ static void Tap(const char* key, uint32_t ms = 60)
 
 static int Max(const Rgb& c) { return std::max(c.r, std::max(c.g, c.b)); }
 
+/** Taps a key and counts the red blinks on a key's LED over the next 700 ms */
+static int RedBlinks(const char* key, int led)
+{
+    Press(key, true);
+    int blinks = 0;
+    bool was_lit = false;
+    for (int t = 0; t < 700; t++)
+    {
+        if (t == 60)
+            Press(key, false);
+        RunMs(1);
+        const Rgb c = SmtLedFull(led);
+        const bool lit = c.r > 128 && c.g == 0 && c.b == 0;
+        blinks += lit && !was_lit;
+        was_lit = lit;
+    }
+    return blinks;
+}
+
 /** Holds an FX key and taps SHIFT: latched once the key is let go */
 static void Latch(const char* key)
 {
@@ -201,7 +222,7 @@ static void Usb(std::initializer_list<int> bytes)
 static const int kNoteOn = 0x9F, kNoteOff = 0x8F, kCC = 0xBF, kPC = 0xCF;
 static const int kFilterNote = 55; // KEY_5, the 5th white key: G above the base note, 48
 static const int kFilterLatchCC = 24, kFilterCutoffCC = 86, kCompAmountCC = 52;
-static const int kHpCueCC = 59; // the headphone feed: 0 the master out, 127 the input alone
+static const int kHpCueCC = 59, kMonoCCNum = 60; // the headphone feed: 0 the master out, 127 the input alone
 /** 14 bits of an answer as a knob's 0-1 (MidiControl.h's MidiToKnob), and 7 bits of a CC */
 static float KnobOf(int hi, int lo)
 {
@@ -496,6 +517,248 @@ int main()
         SetBattery(2.9f, true);
         RunMs(20000);
         Check(Powered() && RunMs(300) > .05f, "charging: below 3V on the charger, it keeps playing");
+    }});
+
+    // the charger plugged in during the 15 s countdown: it stops and FRIZZ plays on. Looked at
+    // while the countdown would still run, 5.5-8 s into it; unplugged, the same window flashes
+    auto countdown = [](bool plug) {
+        auto amber = [] {
+            const Rgb c = PthLedFull(kTransportRevLed);
+            return c.r > 100 && c.g > 100 && c.b < 50;
+        };
+        RunMs(kReadyMs);
+        SetBattery(2.9f, false);
+        uint32_t waited = 0;
+        while (!amber() && waited++ < 10000)
+            RunMs(1);
+        RunMs(5000);
+        if (plug)
+            SetBattery(2.9f, true);
+        RunMs(500);
+        int lit = 0;
+        for (int i = 0; i < 2500; i++)
+        {
+            RunMs(1);
+            lit += amber();
+        }
+        return std::make_pair(waited < 10000, lit);
+    };
+    cases.push_back({"charger-countdown", [countdown] {
+        const auto seen = countdown(true);
+        Check(seen.first, "charger-countdown: unplugged below 3V, the panel flashes amber");
+        Check(seen.second == 0 && Powered() && RunMs(300) > .05f,
+              "charger-countdown: the charger plugged in 5 s into it, the flashing stops and FRIZZ plays on");
+    }});
+    cases.push_back({"charger-countdown-unplugged", [countdown] {
+        const auto seen = countdown(false);
+        Check(seen.first && seen.second > 500,
+              "charger-countdown: (without the charger, the panel still flashes then)");
+    }});
+
+    // VOLUME's LED on the settings page shows the battery (MANUAL.md, Settings page)
+    cases.push_back({"battery-level", [] {
+        SetBattery(3.8f, true);
+        RunMs(kReadyMs);
+        SetToggle(true);
+        RunMs(300);
+        const Rgb plugged = PthLedFull(kVolumeLed);
+        Check(plugged.r > 100 && plugged.r == plugged.g && plugged.g == plugged.b,
+              "battery-level: white while the charging cable is in");
+        SetBattery(3.8f, false);
+        RunMs(3000);
+        const Rgb high = PthLedFull(kVolumeLed);
+        Check(high.g > 100 && high.r < 50 && high.b < 50,
+              "battery-level: the cable pulled, green above 3.3V within a few seconds");
+        SetBattery(3.1f, false);
+        RunMs(5000);
+        Check(Same(PthLedFull(kVolumeLed), high), "battery-level: below 3.3V it waits for the 30 s read");
+        RunMs(30000);
+        const Rgb medium = PthLedFull(kVolumeLed);
+        Check(medium.r > 100 && medium.g > 100 && medium.b < 50, "battery-level: then yellow");
+        SetBattery(3.1f, true);
+        RunMs(1000);
+        const Rgb again = PthLedFull(kVolumeLed);
+        Check(again.r > 100 && again.r == again.g && again.g == again.b,
+              "battery-level: and white again as soon as the cable is back");
+        SetBattery(2.9f, false);
+        int red = 0;
+        for (int i = 0; i < 3000; i++)
+        {
+            RunMs(1);
+            const Rgb c = PthLedFull(kVolumeLed);
+            red += c.r > 100 && c.g < 50;
+        }
+        Known(red > 0, "battery-level: red below 3V, as MANUAL.md says (the amber countdown comes first: #43)");
+    }});
+
+    // the compressor's knobs without a card: its key blinks red 3 times, and the save is tried
+    // again 3 times, 2 s after each failure
+    cases.push_back({"comp-no-card", [] {
+        SetCardPresent(false);
+        RunMs(kReadyMs);
+        Tap("KEY_15"); // the compressor on the knobs
+        RunMs(300);
+        Turn(4, 20);
+        const std::vector<int> seen = Watch(false, kCompKeyLed, 14000);
+        // trains of red blinks (lit 100 ms, dark 100 ms), and how many blinks each
+        std::vector<int> trains, blinks;
+        int last_lit = -1000;
+        for (size_t t = 1; t < seen.size(); t++)
+        {
+            if (seen[t] > 150 && seen[t - 1] <= 150)
+            {
+                if (static_cast<int>(t) - last_lit > 400)
+                {
+                    trains.push_back(static_cast<int>(t));
+                    blinks.push_back(0);
+                }
+                blinks.back()++;
+                last_lit = static_cast<int>(t);
+            }
+        }
+        bool threes = !blinks.empty(), spaced = trains.size() > 1;
+        for (int b : blinks)
+            threes &= b == 3;
+        for (size_t i = 1; i < trains.size(); i++)
+            spaced &= trains[i] - trains[i - 1] >= 2000 && trains[i] - trains[i - 1] < 2300;
+        printf("      red blinks at");
+        for (size_t i = 0; i < trains.size(); i++)
+            printf(" %d ms (%d)", trains[i], blinks[i]);
+        printf("\n");
+        Check(trains.size() == 4 && threes,
+              "comp-no-card: without a card the compressor key blinks red 3 times, and again for each of 3 retries");
+        Check(spaced, "comp-no-card: the retries 2 s apart");
+        Check(Card("/FRIZZ/frizz_master.txt").empty(), "comp-no-card: and nothing is written");
+    }});
+
+    // the scene keys' LEDs: a used slot dim, the active one bright, pulsing once it's edited
+    cases.push_back({"scene-leds", [] {
+        RunMs(kReadyMs);
+        Latch("KEY_5");
+        Save(1);
+        RunMs(1000);
+        Latch("KEY_2");
+        Save(2);
+        RunMs(1000);
+        const int used = Max(SmtLedFull(kSlot1Led)), active = Max(SmtLedFull(kSlot1Led + 1)),
+                  empty = Max(SmtLedFull(kSlot1Led + 2));
+        printf("      used %d, active %d, empty %d\n", used, active, empty);
+        Check(active > 240 && used > 20 && used < 60 && empty == 0,
+              "scene-leds: the active scene's key bright, another saved one dim, an empty one dark");
+        Turn(kKnob1Encoder, 10); // the shifter's interval: the scene edited
+        RunMs(300);
+        const std::vector<int> pulse = Watch(false, kSlot1Led + 1, 2000);
+        const int lo = *std::min_element(pulse.begin(), pulse.end()),
+                  hi = *std::max_element(pulse.begin(), pulse.end());
+        // .6 + .4 cos: from .2 up to full, once a second
+        const size_t at_lo = std::min_element(pulse.begin(), pulse.end()) - pulse.begin();
+        const int a_second_on = pulse[(at_lo + 1000) % pulse.size()];
+        printf("      edited: %d to %d\n", lo, hi);
+        Check(lo > 40 && lo < 65 && hi > 245 && a_second_on < lo + 5,
+              "scene-leds: edited, it pulses from a fifth up to full and back once a second");
+        Tap("KEY_17");
+        RunMs(300);
+        const std::vector<int> recalled = Watch(false, kSlot1Led, 1000);
+        Check(*std::min_element(recalled.begin(), recalled.end()) > 240
+                  && Max(SmtLedFull(kSlot1Led + 1)) < 60,
+              "scene-leds: a recall makes its key the bright one, steady, and the other dim");
+    }});
+
+    // a morph: its key blinks on the beat; SHIFT + another scene key, or a 9th bar, blinks red
+    cases.push_back({"scene-morph", [] {
+        RunMs(kReadyMs);
+        Latch("KEY_5");
+        Save(1);
+        RunMs(1000);
+        Latch("KEY_2");
+        Save(2);
+        RunMs(1000);
+        Tap("KEY_17");
+        RunMs(500);
+        Press("KEY_26", true); // SHIFT held: the morph waits for it
+        RunMs(80);
+        Tap("KEY_18");
+        RunMs(100);
+        const std::vector<int> beat = Watch(false, kSlot1Led + 1, 2000);
+        const std::vector<int> runs = Runs(beat, 128);
+        bool on_beat = runs.size() >= 6;
+        for (int r : runs)
+            on_beat &= r >= 230 && r <= 270;
+        printf("      morph blinks:");
+        for (int r : runs)
+            printf(" %d", r);
+        printf(" ms\n");
+        Check(on_beat, "scene-morph: the key it morphs to blinks on the beat, 250 ms at 120 BPM");
+        // another scene key: refused, 3 red blinks on it
+        Check(RedBlinks("KEY_17", kSlot1Led) == 3 && Ask({0x20}).size() > 6 && (Ask({0x20})[6] & 2),
+              "scene-morph: SHIFT + another scene key during it blinks that key red 3 times, and it morphs on");
+        // the same key again adds bars, 8 in all; a 9th is refused
+        int refused = 0;
+        for (int bar = 2; bar <= 8; bar++)
+            refused += RedBlinks("KEY_18", kSlot1Led + 1);
+        Check(refused == 0 && RedBlinks("KEY_18", kSlot1Led + 1) == 3,
+              "scene-morph: the same key adds bars up to 8 in all; a 9th blinks it red 3 times");
+        Press("KEY_26", false);
+        RunMs(20000);
+        Check(Ask({0x20}).size() > 6 && !(Ask({0x20})[6] & 2) && Ask({0x20})[5] == 3,
+              "scene-morph: SHIFT let go, it glides and lands on scene 2");
+    }});
+
+    // the millisecond counter wrapping (after 49.7 days on): the signals started just before it
+    // end on time and don't come back, and timing across it holds
+    cases.push_back({"clock-wrap", [] {
+        const uint32_t wrap = kReadyMs + 3000; // ms after power-on
+        SetClockStartMs(static_cast<uint32_t>(0x100000000ull - wrap));
+        RunMs(kReadyMs);
+        Check(RunMs(300) > .05f, "clock-wrap: it boots on a clock 9 s before its wrap");
+        Tap("KEY_15"); // the compressor's amount: saved 2 s after, across the wrap
+        RunMs(300);
+        Turn(4, 20);
+        RunMs(300);
+        // a refused quantized record: LOOP's quick red blinks, then a loop recorded across it
+        Press("KEY_27", true);
+        RunMs(80);
+        Tap("KEY_28");
+        Press("KEY_27", false);
+        RunMs(1000);
+        while (NowMs() < wrap - 800)
+            RunMs(1);
+        const uint32_t rec_at = NowMs();
+        Tap("KEY_28");
+        while (NowMs() < wrap - 300)
+            RunMs(1);
+        // a refused scene key (an empty slot), 300 ms before
+        const int blinks = RedBlinks("KEY_19", kSlot1Led + 2); // to 400 ms past the wrap
+        Check(blinks == 3, "clock-wrap: a scene key refused 300 ms before it blinks red 3 times across it");
+        RunMs(300);
+        const std::vector<int> slot = Watch(false, kSlot1Led + 2, 3000);
+        Check(*std::max_element(slot.begin(), slot.end()) == 0,
+              "clock-wrap: a refused scene key's red blinks just before the wrap end and don't come back");
+        const std::vector<int> loop = Watch(true, kLoopLed, 500);
+        Check(Probe().loop_state == 1 && *std::min_element(loop.begin(), loop.end()) > 100,
+              "clock-wrap: LOOP refused before, records on, lit, without blinking");
+        const float recorded = (NowMs() - rec_at) / 1000.f;
+        Tap("KEY_28");
+        RunMs(300);
+        printf("      the loop: %.3f s, recorded for %.3f s\n", Probe().loop_length / kSampleRate, recorded);
+        Check(Probe().loop_state == 2 && fabsf(Probe().loop_length / kSampleRate - recorded) < .02f,
+              "clock-wrap: the loop recorded across it plays, as long as it was recorded");
+        Check(Card("/FRIZZ/frizz_master.txt").find("comp") != std::string::npos,
+              "clock-wrap: the compressor's knob turned before it is saved after it");
+        // a scene saved after it, and SAVE's pending blink on CHOMPI
+        Latch("KEY_5");
+        Save(1);
+        RunMs(1000);
+        Check(SavedLatch(Card("/FRIZZ/frizz_scenes.txt"), 1, "filter") == 1,
+              "clock-wrap: a scene saved after it is on the card");
+        Tap("KEY_25");
+        RunMs(100);
+        Tap("KEY_18");
+        const std::vector<int> pending = Runs(Watch(true, 0, 1200), 128);
+        bool steady = pending.size() >= 3;
+        for (int r : pending)
+            steady &= r >= 230 && r <= 270;
+        Check(steady, "clock-wrap: CHOMPI blinks steadily while a save waits after it");
     }});
 
     // ---- PR #7's hardware checklist, as far as it isn't about the CPU ----
@@ -1595,6 +1858,114 @@ int main()
         Check(RunMs(300) > .05f, "midi kept: transport following off again: Stop doesn't pause");
     }});
 
+    // the controllers midi-cc doesn't: the transport and VOLUME turned, the compressor's other
+    // knobs, the input gain, the mix, mono, a morph's bars and its stop, all sound off; and what
+    // FRIZZ ignores: the mod wheel, pitch bend, aftertouch
+    cases.push_back({"midi-cc-more", [] {
+        RunMs(kReadyMs);
+        const float dry = RunMs(300);
+        auto state = [] { return Ask({0x20}); };
+        auto at14 = [](const std::string& d, size_t i) {
+            return d.size() > i + 1 ? (static_cast<uint8_t>(d[i]) << 7) | static_cast<uint8_t>(d[i + 1]) : -1;
+        };
+        // a loop, for the transport
+        Tap("KEY_28");
+        RunMs(1000);
+        Tap("KEY_28");
+        RunMs(300);
+        const float speed = Probe().loop_speed;
+        for (int i = 0; i < 8; i++)
+            Trs({kCC, 18, 1});
+        RunMs(1000);
+        Check(Probe().loop_speed > 1.9f * speed, "midi cc more: CC 18 turns the transport: the loop speeds up");
+        for (int i = 0; i < 8; i++)
+            Trs({kCC, 18, 127});
+        RunMs(1000);
+        Check(fabsf(Probe().loop_speed - speed) < .02f, "midi cc more: and back down (the speed glides there)");
+        Tap("KEY_28"); // erase it
+        RunMs(1000);
+        Check(Probe().loop_state == 0, "midi cc more: (the loop erased)");
+        const int out_gain = at14(state(), 15);
+        for (int i = 0; i < 20; i++)
+            Trs({kCC, 19, 127});
+        RunMs(500);
+        Check(at14(state(), 15) < out_gain && RunMs(300) < dry * .8f,
+              "midi cc more: CC 19 turns VOLUME: the master out down");
+        for (int i = 0; i < 20; i++)
+            Trs({kCC, 19, 1});
+        RunMs(500);
+        Check(at14(state(), 15) == out_gain, "midi cc more: and up again");
+
+        Trs({kCC, 53, 0, kCC, 54, 64, kCC, 55, 127});
+        RunMs(50);
+        const std::string comp = Ask({0x21, 12});
+        Check(comp.size() == 9 && at14(comp, 3) == 0 && at14(comp, 5) == 8192 && at14(comp, 7) == 16383,
+              "midi cc more: CCs 53-55 are the compressor's knobs 2-4");
+
+        const int in_gain = at14(state(), 17);
+        Trs({kCC, 57, 0});
+        RunMs(300);
+        Check(at14(state(), 17) == 0 && RunMs(300) < .001f, "midi cc more: CC 57 sets the input gain: 0 silences it");
+        Trs({kCC, 57, 127});
+        RunMs(300);
+        Check(at14(state(), 17) == 16383 && at14(state(), 17) != in_gain,
+              "midi cc more: and 127 turns it all the way up");
+        Trs({kCC, 58, 32});
+        RunMs(50);
+        Check(at14(state(), 13) == 4096, "midi cc more: CC 58 sets the mix");
+        Trs({kCC, kMonoCCNum, 127});
+        RunMs(50);
+        Check(state().size() > 6 && (state()[6] & 32), "midi cc more: CC 60 at 127 makes the input mono");
+        Trs({kCC, kMonoCCNum, 0});
+        RunMs(50);
+        Check(state().size() > 6 && !(state()[6] & 32), "midi cc more: and at 0 stereo");
+
+        // CC 61 past 8 is 8 bars: a morph over CC 62 still going after 15 s, landed by 17 s
+        Latch("KEY_5");
+        Save(1);
+        RunMs(1000);
+        Tap("KEY_5");
+        RunMs(300);
+        Trs({kCC, 61, 127, kCC, 62, 1});
+        RunMs(15000);
+        const bool going = state().size() > 6 && (state()[6] & 2);
+        RunMs(2500);
+        Check(going && !(state()[6] & 2), "midi cc more: CC 61 above 8 makes a morph take 8 bars");
+        // CC 63 stops one where it is
+        Tap("KEY_5");
+        RunMs(300);
+        Trs({kCC, 61, 1, kCC, 62, 1});
+        RunMs(500);
+        const bool started = state()[6] & 2;
+        Trs({kCC, 63, 127});
+        RunMs(50);
+        Check(started && !(state()[6] & 2), "midi cc more: CC 63 stops a morph before its bar");
+
+        // CC 120: every key MIDI holds let go, by note and by FRIZZ's SysEx
+        Tap("KEY_5"); // the filter off, as the morph left it
+        RunMs(300);
+        const int off = Max(SmtLedFull(kFilterKeyLed));
+        Trs({kNoteOn, kFilterNote, 100});
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x11, 25, 1, 0xF7}); // KEY_12: the delay
+        RunMs(200);
+        const bool held = Max(SmtLedFull(kFilterKeyLed)) > 2 * off && __builtin_popcount(at14(state(), 10)) == 2;
+        Trs({kCC, 120, 0});
+        RunMs(300);
+
+        Check(held && Max(SmtLedFull(kFilterKeyLed)) == off && at14(state(), 10) == 0,
+              "midi cc more: CC 120 lets go of the keys held by notes and by SysEx");
+
+        // ignored: the mod wheel, pitch bend, channel and key pressure, also in running status
+        const std::string before = state(), filter = Ask({0x21, 4});
+        Trs({kCC, 1, 127, 0xEF, 0x7F, 0x7F, 0x00, 0x00, 0xDF, 100, 0xAF, kFilterNote, 100});
+        RunMs(300);
+        Check(state() == before && Ask({0x21, 4}) == filter,
+              "midi cc more: the mod wheel, pitch bend and aftertouch change nothing");
+        Trs({0xEF, 0x00, 0x40, kCC, kFilterLatchCC, 127});
+        RunMs(300);
+        Check(Max(SmtLedFull(kFilterKeyLed)) > 2 * off, "midi cc more: a CC right after a pitch bend still works");
+    }});
+
     // a DAW's automation: no harder steps than a hand's turn at the same speed, and a dense
     // stream of controllers lands on its last value
     cases.push_back({"midi-automation", [] {
@@ -1628,20 +1999,53 @@ int main()
               "midi automation: 3000 CCs in 1.5 s, and the cutoff lands on the last one");
     }});
 
+    // every scenario of ../twin/scenarios played from power-on, its expect lines holding
+    static std::vector<std::string> scenarios;
+    {
+        const std::string dir = std::string(__FILE__).substr(0, std::string(__FILE__).rfind('/') + 1)
+                                + "../twin/scenarios/";
+        FILE* ls = popen(("ls " + dir + "*.txt").c_str(), "r");
+        char path[512];
+        while (ls && fgets(path, sizeof(path), ls))
+        {
+            scenarios.push_back(path);
+            scenarios.back().erase(scenarios.back().find_last_not_of("\n") + 1);
+        }
+        if (ls)
+            pclose(ls);
+    }
+    Check(scenarios.size() >= 10, "scenarios: found in twin/scenarios");
+    for (const std::string& path : scenarios)
+    {
+        static std::list<std::string> names; // the cases keep pointers into it
+        const std::string file = path.substr(path.rfind('/') + 1);
+        names.push_back("scenario:" + file.substr(0, file.size() - 4));
+        cases.push_back({names.back().c_str(), [path] {
+            std::ifstream script(path);
+            const int failed = PlayScript(script, nullptr, nullptr);
+            Check(failed == 0, (path.substr(path.rfind('/') + 1) + ": played from power-on, every expect holds").c_str());
+        }});
+    }
+
     char card_name[] = "/tmp/frizz-ui-card-XXXXXX";
     const int card_fd = mkstemp(card_name);
     close(card_fd);
     card_file = card_name;
 
+    // CASES="a b": only those, while working on them (a case that takes the card from the one
+    // before it needs that one too)
+    const char* only = getenv("CASES");
     int failed = 0;
     for (auto& c : cases)
     {
+        if (only && !strstr((" " + std::string(only) + " ").c_str(), (" " + std::string(c.first) + " ").c_str()))
+            continue;
         fflush(stdout);
         const pid_t pid = fork();
         if (pid == 0)
         {
             // a replay boots by its script
-            if (strcmp(c.first, "bug-replay") != 0)
+            if (strcmp(c.first, "bug-replay") != 0 && strncmp(c.first, "scenario:", 9) != 0)
                 Boot();
             c.second();
             fflush(stdout);
@@ -1658,6 +2062,6 @@ int main()
             failed += WEXITSTATUS(status);
     }
     unlink(card_name);
-    failures = failed;
+    failures += failed;
     return Finish();
 }
