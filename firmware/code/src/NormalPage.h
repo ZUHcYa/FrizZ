@@ -4,11 +4,10 @@
  *  SceneStore.h), with their LEDs. The logic is in FxControls.h and SceneControls.h; this
  *  routes the hardware to it and draws. MANUAL.md describes every control; what's here is what the manual doesn't say.
  *
- *  SHIFT is the CHOMPI key held. The mode switch isn't used in play mode: VOLUME's page 4
- *  sets the headphone feed instead, from the master out to the dry input (passthroughEngine.h).
- *  Page 3 switches the AUX input to mono, the left channel to both sides, kMonoDetents
- *  detents left, and back to stereo as many right; it goes to the master file as the
- *  compressor's knobs do.
+ *  SHIFT is the CHOMPI key held. VOLUME's page 3 sets the headphone feed, from the master out
+ *  to the dry input (passthroughEngine.h). The mode switch up shows the settings page instead
+ *  (SettingsPage.h, ShowSettings): the hand's keys go there, while MIDI's still come here,
+ *  and its settings go to the master file as the compressor's knobs do.
  *
  *  The CHOMPI, PLAY and LOOP keys' rules are in PlayKeys.h: SHIFT, the confirm tap in a scene
  *  mode, the looper's combos, tap tempo (TapTempo.h). This page is its Host. Every other key
@@ -42,6 +41,7 @@
 #include "LedSignal.h"
 #include "PlayKeys.h"
 #include "SceneControls.h"
+#include "SettingsPage.h"
 #include "TapTempo.h"
 #include "SceneStore.h"
 #include "EventLog.h"
@@ -56,7 +56,8 @@ namespace chompi
     static const float kVolumeStep = .02f;
     static const float kMixStep = .04f;
     static const float kHpCueStep = .01f;
-    static const uint32_t kBattHoldMs = 1250;
+    // the hand's keys while the mode switch is up come as these IDs plus their SwId (ui.h)
+    static const uint16_t kSettingsKeyBase = 64;
 
     static const float kDefaultOutGain = .75f;
     static const float kDefaultInGain = .75f;
@@ -67,11 +68,9 @@ namespace chompi
     {
         kOutGainPage,
         kInGainPage,
-        kMonoPage,
         kHpCuePage,
         kNumPages,
     };
-    static const float kMonoDetents = 3.f; // VOLUME detents on page 3 to switch mono / stereo
 
     // encoder IDs, by ui.h's encoder_map: 0-3 are knobs 1-4
     static const uint16_t kTransportEncoder = 4;
@@ -140,8 +139,6 @@ namespace chompi
     };
     static const uint32_t kScenePulseMs = 1000;     // the active scene, edited
 
-    // VOLUME held: the battery's level, by Hardware::BatteryLevel
-    static const float* const kBatteryColors[] = {white, green, yellow, red};
     static const float kVuDim[3] = {.1f, .1f, .1f}; // the VU meter's floor
 
     class NormalPage : public daisy::UiPage
@@ -173,9 +170,8 @@ namespace chompi
             for (size_t p = 0; p < kNumFxParams; p++)
                 fx_.SetComp(p, scenes_->master.comp[p]);
             fx_.TakeCompChanged();
-            // and the mono input switch
-            mono_ = scenes_->master.mono;
-            engine_->SetMonoInput(mono_);
+            // and the settings page's: the mono input, the clock's factor, the LEDs
+            settings_.Init(engine_, midi_, hw_, scenes_->master);
             scene_ctl_.Init(scenes_->scenes, &fx_);
             keys_.Init(this);
 
@@ -195,6 +191,9 @@ namespace chompi
             return !master_unsaved_;
         }
 
+        /** From ui.h, as the mode switch goes: up shows the settings page */
+        inline void ShowSettings(bool show) { show_settings_ = show; }
+
         void ResetSmtLeds()
         {
             for (int i = 0; i < kNumSmtLeds; i++)
@@ -211,16 +210,26 @@ namespace chompi
             for (int i = 0; i < kNumPthLeds; i++)
                 SetPthLed(i, 0, 0, 0);
 
+            // the keys the play page doesn't draw would keep the settings page's colours; a
+            // scene mode (SAVE, COPY, DELETE) is left on the way up, so CHOMPI can't confirm
+            // it later
+            if (show_settings_ != drew_settings_)
+            {
+                drew_settings_ = show_settings_;
+                ResetSmtLeds();
+                if (show_settings_)
+                    scene_ctl_.Cancel();
+            }
+            if (show_settings_)
+            {
+                settings_.Draw();
+                fill_led_data();
+                return;
+            }
+
             float rgb[3];
 
-            if (batt_display && now - batt_hold > kBattHoldMs)
-            {
-                const unsigned level = hw_->GetBatteryLevel();
-                const float* color = level < 4 ? kBatteryColors[level] : green;
-                for (int c = 0; c < 3; c++)
-                    rgb[c] = color[c];
-            }
-            else if (Shift())
+            if (Shift())
                 Xfade(green, purple, mix_, rgb);
             else if (page_flash_.Active(now))
             {
@@ -235,8 +244,6 @@ namespace chompi
             }
             else if (page_ == kInGainPage)
                 Xfade(blue, red, in_gain_, rgb);
-            else if (page_ == kMonoPage)
-                Xfade(med_blue, white, mono_ ? 1.f : 0.f, rgb);
             else
                 Xfade(white, green, hp_cue_, rgb);
             SetPthLedFloat(kVolumeLed, rgb[0], rgb[1], rgb[2]);
@@ -261,6 +268,12 @@ namespace chompi
                       bool isRetriggering) override
         {
             const bool rising = numberOfPresses == 1;
+            if (buttonID >= kSettingsKeyBase)
+            {
+                if (rising && settings_.Key(buttonID - kSettingsKeyBase))
+                    MasterChanged(System::GetNow());
+                return true;
+            }
             switch (buttonID)
             {
             case static_cast<uint16_t>(Hardware::SwId::KEY_26):
@@ -299,32 +312,23 @@ namespace chompi
                 }
             }
 
-            // VOLUME: a short press picks the next page, a hold checks the battery. SHIFT +
-            // press resets the mix, as SHIFT + press does on knobs 1-4, to where a recording
+            // VOLUME: a press picks the next page, on its release. SHIFT + press resets the mix, as SHIFT + press does on knobs 1-4, to where a recording
             // or an erase leaves it: the loop only while there is one, otherwise the input
             // only. Whether it was SHIFT + press is decided on the press, so letting go of
             // CHOMPI first doesn't turn its release into a page change
             if (buttonID == static_cast<uint16_t>(Hardware::SwId::ENC_6_SW))
             {
-                const uint32_t now = System::GetNow();
                 if (rising)
                 {
                     keys_.Used();
                     vol_shift_ = Shift();
                     if (vol_shift_)
                         SetMix(LoopExists() ? 1.f : 0.f);
-                    batt_hold = now;
-                    batt_display = !vol_shift_;
                 }
-                else
+                else if (!vol_shift_)
                 {
-                    if (!vol_shift_ && now - batt_hold < kBattHoldMs)
-                    {
-                        page_ = (page_ + 1) % kNumPages;
-                        mono_chunk_ = 0.f;
-                        page_flash_.Start(now, (page_ + 1) * 2 * kSignalBlinkMs);
-                    }
-                    batt_display = false;
+                    page_ = (page_ + 1) % kNumPages;
+                    page_flash_.Start(System::GetNow(), (page_ + 1) * 2 * kSignalBlinkMs);
                 }
                 return true;
             }
@@ -465,12 +469,8 @@ namespace chompi
                 hp_cue_ = value;
                 engine_->SetHeadphoneCue(hp_cue_);
             }
-            else if (cc == kMonoCC && (raw >= 64) != mono_)
-            {
-                mono_ = raw >= 64;
-                engine_->SetMonoInput(mono_);
+            else if (cc == kMonoCC && settings_.SetMono(raw >= 64))
                 MasterChanged(System::GetNow());
-            }
             else if (cc == kMorphBarsCC)
                 morph_bars_ = raw < 1 ? 1 : (raw > kMaxMorphBars ? kMaxMorphBars : raw);
             else if (cc == kMorphCC && raw < kNumSlots)
@@ -516,7 +516,9 @@ namespace chompi
                 const uint8_t flags = (scene_ctl_.Edited() ? 1 : 0)
                                       | (fx_.Morphing() ? 2 : 0) | (Shift() ? 4 : 0)
                                       | (looper.IsErasePending() ? 8 : 0)
-                                      | (looper.IsClosing() ? 16 : 0) | (mono_ ? 32 : 0);
+                                      | (looper.IsClosing() ? 16 : 0)
+                                      | (settings_.Mono() ? 32 : 0)
+                                      | (show_settings_ ? 64 : 0);
                 d[n++] = static_cast<uint8_t>(looper.GetState());
                 n = Put14(d, n, KnobToMidi14((looper.GetSpeed() + 2.f) * .25f));
                 d[n++] = static_cast<uint8_t>(looper.GetPosition() * 127.f);
@@ -532,6 +534,8 @@ namespace chompi
                 n = Put14(d, n, KnobToMidi14(in_gain_));
                 n = Put14(d, n, KnobToMidi14(hp_cue_));
                 n = Put14(d, n, static_cast<uint16_t>(engine_->FxBpm() * 10.f + .5f));
+                // the mode switch: 1 if it stands up, plus SysEx's setting (kCmdSwitch) x2
+                d[n++] = static_cast<uint8_t>((hw_->GetToggleState() ? 0 : 1) | midi_->Switch() << 1);
                 break;
             }
             case kCmdParams:
@@ -730,9 +734,7 @@ namespace chompi
             {
                 for (size_t p = 0; p < kNumFxParams; p++)
                     scenes_->master.comp[p] = fx_.CompParam(p);
-                scenes_->master.mono = mono_;
-                scenes_->master.midi_channel = midi_->Channel();
-                scenes_->master.midi_transport = midi_->Transport();
+                settings_.Store(scenes_->master);
                 scenes_->RequestMasterSave();
                 master_unsaved_ = false;
             }
@@ -753,25 +755,6 @@ namespace chompi
             {
                 in_gain_ = fclamp(in_gain_ + inc, 0.f, 1.f);
                 engine_->SetInputGain(in_gain_);
-            }
-            else if (page_ == kMonoPage)
-            {
-                // left: mono, right: stereo, after kMonoDetents in one direction so a nudge
-                // doesn't switch; turning back starts the count over
-                if (mono_chunk_ * detents < 0.f)
-                    mono_chunk_ = 0.f;
-                mono_chunk_ += detents;
-                if (mono_chunk_ <= -kMonoDetents || mono_chunk_ >= kMonoDetents)
-                {
-                    const bool mono = mono_chunk_ < 0.f;
-                    mono_chunk_ = 0.f;
-                    if (mono != mono_)
-                    {
-                        mono_ = mono;
-                        engine_->SetMonoInput(mono_);
-                        MasterChanged(System::GetNow());
-                    }
-                }
             }
             else
             {
@@ -796,7 +779,7 @@ namespace chompi
                 engine_->TapTempo(tap_tempo_.Bpm());
         }
 
-        /** The compressor's knobs or mono changed: written kMasterSaveDelayMs after the last
+        /** The compressor's knobs or a setting changed: written kMasterSaveDelayMs after the last
          *  change, with every retry available again */
         void MasterChanged(uint32_t now)
         {
@@ -1147,9 +1130,10 @@ namespace chompi
         LedSignal tap_flash_;
         LedSignal select_flash_; // on the selected FX's key
         float speed_chunk_ = 0.f;   // transport detents towards the next speed step
-        bool mono_ = false;          // the AUX input in mono (VOLUME's page 3)
-        float mono_chunk_ = 0.f;     // page 3's detents towards a switch
-        bool master_unsaved_ = false;     // the compressor's knobs or mono,
+        SettingsPage settings_;
+        volatile bool show_settings_ = false; // the mode switch is up (ui.h)
+        bool drew_settings_ = false;          // the last frame was the settings page's
+        bool master_unsaved_ = false;     // the compressor's knobs or a setting,
                                           // not yet on the card
         uint32_t master_changed_at_ = 0;  // when they last changed
         bool master_hurried_ = false;     // a restart pulled the save forward (MasterSettled)
@@ -1165,8 +1149,6 @@ namespace chompi
         int scene_refused_ = kNoScene; // refused, pressed
         LedSignal scene_refused_signal_;
 
-        bool batt_display = false; // VOLUME held, without SHIFT
-        uint32_t batt_hold = 0;     // when VOLUME was last pressed
         bool vol_shift_ = false;    // VOLUME's press was SHIFT + press
         LedSignal page_flash_;      // a page picked: its number in blinks
     };

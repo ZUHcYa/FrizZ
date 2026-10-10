@@ -426,6 +426,8 @@ void Boot()
         l = true;
     for (bool& l : keys_sr.inputs)
         l = true;
+    // the mode switch down, as it's played: the play page (SetToggle(true) puts it up)
+    keys_sr.inputs[static_cast<int>(chompi::Hardware::SwId::SW_TOG)] = false;
     for (bool& l : enc_sr.inputs)
         l = true;
     // a card always has /FRIZZ's parent

@@ -68,6 +68,7 @@ enum MidiCmd : uint8_t
     kCmdKey = 0x11,      // KEY DOWN: a key (Hardware::SwId) held or let go
     kCmdTurn = 0x12,     // ENC DETENTS: encoder 1-6 (SW1-SW6), detents in 7-bit two's complement
     kCmdSetting = 0x13,  // ID VALUE: 0 the channel (0 all, 1-16), 1 transport following (0/1)
+    kCmdSwitch = 0x14,   // POS: the mode switch, 0 as it stands, 1 down, 2 up, until power-off
     kCmdState = 0x20,    // what the play page shows
     kCmdParams = 0x21,   // FX: an effect's knobs (12: the compressor's), 14 bits each
     kCmdLeds = 0x22,     // PART: the LEDs as their bytes, part 0 the panel's, 1-3 the keys'
@@ -122,19 +123,20 @@ public:
 
     // ---- from the audio callback ----
 
-    /** The keys MIDI holds, by Hardware::SwId */
+    /** The keys MIDI's notes hold, by Hardware::SwId: always the play page's */
     inline uint64_t Keys() const { return keys_; }
+    /** The keys FRIZZ's SysEx holds (kCmdKey): the panel's, as the hand's, so they reach the
+     *  settings page too (ui.h) */
+    inline uint64_t PanelKeys() const { return panel_keys_; }
+    /** The mode switch as SysEx set it (kCmdSwitch): 0 as it stands, 1 down, 2 up */
+    inline uint8_t Switch() const { return switch_; }
 
     /** A detent MIDI turned knob 0-5 (the knobs' order: 1-4, transport, VOLUME), taken: +-1,
      *  or 0. One a block, as a hand's come: the play page counts stepped knobs and the
      *  transport's speed steps detent by detent */
-    inline int TakeTurn(size_t knob)
-    {
-        const int t = turns_[knob];
-        const int one = t > 0 ? 1 : (t < 0 ? -1 : 0);
-        turns_[knob] = t - one;
-        return one;
-    }
+    inline int TakeTurn(size_t knob) { return TakeOne(turns_[knob]); }
+    /** The same for FRIZZ's SysEx detents (kCmdTurn): the panel's, as the hand's */
+    inline int TakePanelTurn(size_t knob) { return TakeOne(panel_turns_[knob]); }
 
     /** The callback's own time in system ticks, for kCmdLoad */
     inline void BlockTime(uint32_t ticks)
@@ -208,6 +210,12 @@ public:
 
     inline uint8_t Channel() const { return channel_; }
     inline bool Transport() const { return transport_; }
+
+    /** The settings page's (SettingsPage.h): the channel (0 all), transport following, and
+     *  how the clock is followed */
+    inline void SetChannel(uint8_t channel) { channel_ = channel; }
+    inline void SetTransport(bool on) { transport_ = on; }
+    inline void SetClockFactor(ClockFactor factor) { clock_->SetFactor(factor); }
 
     /** The load since the last call, max and mean, in 1/1000 of a block */
     void TakeLoad(uint16_t& max, uint16_t& mean)
@@ -322,6 +330,7 @@ private:
         if (cc == kAllSoundOffCC || cc == kAllNotesOffCC)
         {
             keys_ = 0;
+            panel_keys_ = 0;
             return true;
         }
         if (cc == kNrpnMsbCC)
@@ -417,18 +426,23 @@ private:
             if (n < 2 || arg[0] >= static_cast<uint8_t>(Hardware::SwId::SR_LAST))
                 return;
             if (arg[1])
-                keys_ |= 1ull << arg[0];
+                panel_keys_ |= 1ull << arg[0];
             else
-                keys_ &= ~(1ull << arg[0]);
+                panel_keys_ &= ~(1ull << arg[0]);
             break;
         case kCmdTurn:
         {
             static const uint8_t kKnobOf[6] = {1, 2, 3, 0, 4, 5}; // ui.h's encoder_map
             if (n < 2 || arg[0] < 1 || arg[0] > 6)
                 return;
-            turns_[kKnobOf[arg[0] - 1]] += arg[1] < 64 ? arg[1] : static_cast<int>(arg[1]) - 128;
+            panel_turns_[kKnobOf[arg[0] - 1]] += arg[1] < 64 ? arg[1] : static_cast<int>(arg[1]) - 128;
             break;
         }
+        case kCmdSwitch:
+            if (n < 1 || arg[0] > 2)
+                return;
+            switch_ = arg[0];
+            break;
         case kCmdSetting:
             if (n < 2 || arg[0] > 1 || (arg[0] == 0 && arg[1] > 16))
                 return;
@@ -467,8 +481,20 @@ private:
     volatile bool transport_ = false;
     volatile bool settings_changed_ = false;
 
-    volatile uint64_t keys_ = 0;
-    volatile int turns_[midimap::kNumKnobs] = {};
+    /** One detent of a count, taken: +-1, or 0 */
+    static inline int TakeOne(volatile int& t)
+    {
+        const int v = t;
+        const int one = v > 0 ? 1 : (v < 0 ? -1 : 0);
+        t = v - one;
+        return one;
+    }
+
+    volatile uint64_t keys_ = 0;       // notes'
+    volatile uint64_t panel_keys_ = 0; // SysEx's
+    volatile int turns_[midimap::kNumKnobs] = {};       // CCs'
+    volatile int panel_turns_[midimap::kNumKnobs] = {}; // SysEx's
+    volatile uint8_t switch_ = 0;
 
     uint16_t values_[128] = {};
     uint32_t changed_[4] = {}, fine_[4] = {};
