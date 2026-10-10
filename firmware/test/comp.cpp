@@ -115,6 +115,44 @@ static void TestCurve()
     Check(fabsf(out - (-40.f + 24.f)) < .2f, "makeup 1: +24dB");
 }
 
+/** The reduction, dB, on a steady sine of freq Hz at 0dB, with the sidechain highpass at sc */
+static float ReductionAt(float freq, float sc)
+{
+    MasterComp c;
+    Setup(c, 1.f, .5f, 0.f, 1.f);
+    c.SetParam(MasterComp::kSidechain, sc);
+    float deepest = 0.f;
+    for (int i = 0; i < 96000; i++)
+    {
+        float l = sinf(2.f * float(M_PI) * freq * i / kSr), r = l;
+        c.Process(&l, &r);
+        if (i > 72000)
+            deepest = fminf(deepest, c.GetReduction());
+    }
+    return deepest;
+}
+
+static void TestSidechain()
+{
+    const float bass = ReductionAt(50.f, 0.f), bass_hp = ReductionAt(50.f, 1.f);
+    const float mid = ReductionAt(2000.f, 0.f), mid_hp = ReductionAt(2000.f, 1.f);
+    printf("      sidechain highpass: 50Hz %.1f -> %.1fdB, 2kHz %.1f -> %.1fdB\n", bass, bass_hp, mid,
+           mid_hp);
+    Check(bass_hp > bass + 10.f, "sidechain: at the top, a bass note is compressed far less");
+    Check(fabsf(mid_hp - mid) < 1.f, "sidechain: the mids are compressed as before");
+    MasterComp c;
+    Setup(c, 0.f, .5f, .5f, 1.f);
+    c.SetParam(MasterComp::kSidechain, 1.f);
+    bool same = true;
+    for (int i = 0; i < 4800; i++)
+    {
+        float l = .7f, r = -.3f;
+        c.Process(&l, &r);
+        same = same && l == .7f && r == -.3f;
+    }
+    Check(same, "sidechain: with the threshold off, still an exact bypass");
+}
+
 /** ms until the reduction has recovered to 3dB after a loud burst stops */
 static float Recovery(float speed)
 {
@@ -348,6 +386,7 @@ int main()
     TestBypass();
     TestCurve();
     TestSpeed();
+    TestSidechain();
     TestRipple();
     TestLinked();
     TestCeiling();

@@ -346,9 +346,10 @@ static void TestPages()
     fx.CompKeyPressed(false);
     Check(fx.Page() == 0, "pages: the compressor's key goes back to page 1");
     Check(fx.KnobPressed(0, false) && fx.Page() == 1, "pages: the compressor has a page 2");
-    Check(fx.KnobUsed(0) && !fx.KnobUsed(1) && !fx.KnobUsed(2) && fx.KnobUsed(3)
-              && fx.Knob(0) == 1.f && fx.Knob(3) == 0.f,
-          "pages: the compressor's page 2: Mix on knob 1 (fully compressed), Makeup on knob 4 (0dB)");
+    Check(fx.KnobUsed(0) && !fx.KnobUsed(1) && fx.KnobUsed(2) && fx.KnobUsed(3)
+              && fx.Knob(0) == 1.f && fx.Knob(2) == 0.f && fx.Knob(3) == 0.f,
+          "pages: the compressor's page 2: Mix on knob 1 (fully compressed), the sidechain "
+          "highpass on knob 3 (off), Makeup on knob 4 (0dB)");
     fx.KnobTurned(3, 25.f, false);
     Check(Near(fx.CompParam(7), .25f) && Near(e.comp[7], .25f) && fx.CompParam(3) == .5f,
           "pages: the compressor's knob 4 there turns its makeup, not its release");

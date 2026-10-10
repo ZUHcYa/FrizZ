@@ -22,8 +22,11 @@ what FRIZZ does.
   effect's output, off to +12 dB). The flanger has Band and Level, the delay and reverb
   Band; knob 2 is left for each effect's own parameter later. At the defaults every effect
   sounds as before. See MANUAL.md, "Page 2".
-- **A page 2 for the master compressor:** Mix and Makeup (0 to +24 dB), on the knobs an
-  effect has its Mix and Level on (#38).
+- **A page 2 for the master compressor:** Mix, a sidechain highpass (off, or 20 to 500 Hz,
+  so the bass doesn't pump the rest) and Makeup (0 to +24 dB), on the knobs an effect has
+  its Mix, Band and Level on (#38).
+- **The safety limiter shows:** the compressor's key turns red while it limits the outputs,
+  so you know when to turn something down.
 
 ### Changed
 

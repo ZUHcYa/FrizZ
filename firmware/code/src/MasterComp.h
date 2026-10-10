@@ -18,6 +18,8 @@
  *   2 attack: 1-30ms (time constant)
  *   3 release: 40-600ms (time constant)
  *   4 mix: dry to fully compressed, for parallel compression
+ *   6 sidechain highpass: what the detector hears, off (0) or from 20Hz up to 500Hz, so the
+ *     bass doesn't pump the rest (page 2's knob 3, where an FX has its Band)
  *   7 makeup: 0dB to +24dB
  *
  *  The safety limiter after the output gain is the old master compressor at its lowest
@@ -35,7 +37,7 @@ class MasterComp
 {
 public:
     static const size_t kThreshold = 0, kRatio = 1, kAttack = 2, kRelease = 3, kMix = 4,
-                        kMakeup = 7;
+                        kSidechain = 6, kMakeup = 7;
 
     void Init(float sample_rate)
     {
@@ -45,6 +47,8 @@ public:
         gain_ = 1.f;
         held_ = 0.f;
         hold_left_ = 0;
+        sc_coeff_ = 0.f;
+        sc_lp_[0] = sc_lp_[1] = 0.f;
         hold_samples_ = static_cast<uint32_t>(kHoldMs * .001f * sample_rate);
         for (size_t p = 0; p < kNumFxParams; p++)
             knobs_[p].Reset(0.f);
@@ -86,8 +90,22 @@ public:
             return;
         }
 
-        // the louder channel's peak, held for hold_samples_ before it may fall
-        const float now = fmaxf(fabsf(*l), fabsf(*r));
+        // the louder channel's peak, held for hold_samples_ before it may fall; through the
+        // sidechain's highpass where it's on (a one-pole lowpass taken off)
+        float dl = *l, dr = *r;
+        if (sc_coeff_ > 0.f)
+        {
+            sc_lp_[0] += sc_coeff_ * (dl - sc_lp_[0]);
+            sc_lp_[1] += sc_coeff_ * (dr - sc_lp_[1]);
+            dl -= sc_lp_[0];
+            dr -= sc_lp_[1];
+        }
+        else
+        {
+            sc_lp_[0] = dl;
+            sc_lp_[1] = dr;
+        }
+        const float now = fmaxf(fabsf(dl), fabsf(dr));
         if (now >= held_)
         {
             held_ = now;
@@ -150,6 +168,8 @@ private:
         thresh_db_ = -kMaxThreshDb * knobs_[kThreshold].value;
         ratio_ = CurveMap(knobs_[kRatio].value, kRatioX, kRatioY, 5);
         makeup_db_ = kMaxMakeupDb * knobs_[kMakeup].value;
+        const float sc = knobs_[kSidechain].value;
+        sc_coeff_ = sc > 0.f ? OnePoleCoeff(20.f * powf(25.f, sc), sample_rate_) : 0.f;
         // below where the knee starts nothing is reduced: no log needed
         knee_start_ = daisysp::pow10f((thresh_db_ - kKneeDb * .5f) * .05f);
 
@@ -168,6 +188,8 @@ private:
     uint32_t hold_left_, hold_samples_;
     float thresh_db_, ratio_, makeup_db_, knee_start_;
     float attack_, release_;
+    float sc_coeff_;  // the sidechain highpass's lowpass coefficient, 0: off
+    float sc_lp_[2];
     float gain_db_ = 0.f, gain_ = 1.f; // the last gain worked out, and its dB
 };
 

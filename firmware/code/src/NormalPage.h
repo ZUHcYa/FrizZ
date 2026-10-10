@@ -110,6 +110,10 @@ namespace chompi
     static const float kFxMeterFloorDb = -30.f; // the meters' range, up to 0 dBFS
     static const float kFxWhiteMax = .8f;     // on: how far the loudest audio pushes to white
     static const float kCompMeterDb = 12.f;   // the compressor key's full brightness, dB reduced
+    // The safety limiter on the compressor's key: red from kLimStartDb of limiting, fully red
+    // at kLimFullDb, held kLimHoldMs so a short peak is seen
+    static constexpr float kLimStartDb = 1.f, kLimFullDb = 3.f;
+    static const uint32_t kLimHoldMs = 300;
     static const uint32_t kMasterSaveDelayMs = 2000;
     static const uint32_t kMasterSaveTries = 3; // a failed write is tried again, this often
 
@@ -953,10 +957,21 @@ namespace chompi
                 SetSmtLedFloat(kFxSlots[fx].key_led, rgb[0], rgb[1], rgb[2]);
             }
 
-            // the compressor's key: its gain reduction, from dim up to full; a select flashes
+            // the compressor's key: its gain reduction, from dim up to full, white; turning red
+            // while the safety limiter works, the one thing that sets the level by itself; a
+            // select flashes
             const float reduced = -engine_->GetCompReduction() / kCompMeterDb;
             const float level = kFxOffLevel + (1.f - kFxOffLevel) * fclamp(reduced, 0.f, 1.f);
+            const float lim_db = -20.f * log10f(fmaxf(engine_->TakeLimiterGain(), 1e-6f));
+            const float lim = fclamp((lim_db - kLimStartDb) / (kLimFullDb - kLimStartDb), 0.f, 1.f);
+            if (lim >= lim_shown_ || now - lim_at_ > kLimHoldMs)
+            {
+                lim_shown_ = lim;
+                lim_at_ = now;
+            }
             float rgb[3] = {level, level, level};
+            for (int c = 0; c < 3; c++)
+                rgb[c] += lim_shown_ * (red[c] - rgb[c]);
             if (comp && select_flash_.Active(now))
                 Flash(rgb);
             if (master_refused_.Active(now))
@@ -1160,6 +1175,8 @@ namespace chompi
         TapTempo tap_tempo_;
         LedSignal tap_flash_;
         LedSignal select_flash_; // on the selected FX's key
+        float lim_shown_ = 0.f;  // the limiter on the compressor's key, 0..1, held from lim_at_
+        uint32_t lim_at_ = 0;
         float speed_chunk_ = 0.f;   // transport detents towards the next speed step
         bool speed_ladder_ = false; // speed_chunk_ counts towards a step of the ladder (SHIFT)
         SettingsPage settings_;

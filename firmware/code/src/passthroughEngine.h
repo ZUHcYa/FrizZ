@@ -161,6 +161,11 @@ public:
             out[2][i] = lim_line_l_.ProcessComp(out[2][i], 1.f, kLimThresh, 1.f, kLimMakeup);
             out[3][i] = lim_line_r_.ProcessComp(out[3][i], 1.f, kLimThresh, 1.f, kLimMakeup);
         }
+        // the line outs' deepest limiting this block, for the compressor key's LED; kept the
+        // deepest until the play page takes it
+        const float lim = fminf(lim_line_l_.Gain(), lim_line_r_.Gain());
+        if (lim < lim_gain_)
+            lim_gain_ = lim;
         BENCH_MARK(OUTPUT);
     }
 
@@ -170,6 +175,14 @@ public:
     inline void SetCompParam(size_t param, float val) { comp_.SetParam(param, val); }
     /** Its gain reduction now, in dB (<= 0) */
     inline float GetCompReduction() const { return comp_.GetReduction(); }
+    /** The safety limiter's deepest gain on the line outs since the last call, 0..1 (1: it
+     *  didn't limit). From MainLoop: a float read and written whole, so no lock */
+    inline float TakeLimiterGain()
+    {
+        const float g = lim_gain_;
+        lim_gain_ = 1.f;
+        return g;
+    }
     /** 0 = dry (input only), 1 = wet (looper/buffer only) */
     inline void SetMix(float mix) { mix_target_ = mix; }
     /** Headphones: 0 = mirror the master out, 1 = the dry input on its own */
@@ -255,6 +268,7 @@ private:
     std::atomic<float> tap_bpm_{0.f};
     daisysp::DcBlock dcblock_line_in_l_, dcblock_line_in_r_;
     chompi::Limiter lim_hp_l_, lim_hp_r_, lim_line_l_, lim_line_r_;
+    volatile float lim_gain_ = 1.f; // TakeLimiterGain
     chompi::EnvFollower output_env_follower;
     chompi::TempoClock tempo_clock_;
     chompi::FxChain fx_;

@@ -367,6 +367,30 @@ int main()
         amp = .3f;
     }});
 
+    // the safety limiter, the only thing that sets the level by itself, shows on the
+    // compressor's key: red while it limits, held a moment, back to white after
+    cases.push_back({"limiter-led", [] {
+        amp = .05f;
+        RunMs(kReadyMs);
+        RunMs(500);
+        const Rgb quiet = SmtLedFull(kCompKeyLed);
+        Check(quiet.r == quiet.g && quiet.g == quiet.b, "limiter-led: a quiet signal: the key white (dim)");
+        amp = 1.f;
+        Turn(kVolumeEncoder, 100); // VOLUME up: the line outs into the limiter
+        RunMs(600);
+        const Rgb loud = SmtLedFull(kCompKeyLed);
+        printf("      limiting: %02x%02x%02x\n", loud.r, loud.g, loud.b);
+        Check(loud.r > 200 && loud.g < 60 && loud.b < 60, "limiter-led: limiting: the key red");
+        amp = .02f;
+        Turn(kVolumeEncoder, -100);
+        RunMs(100);
+        Check(SmtLedFull(kCompKeyLed).r > 200, "limiter-led: held a moment after it stops");
+        RunMs(800);
+        const Rgb after = SmtLedFull(kCompKeyLed);
+        Check(after.r == after.g && after.g == after.b, "limiter-led: then white again");
+        amp = .3f;
+    }});
+
     // FX page 2 (#35): a plain knob press turns all four knobs over, and back; their LEDs
     // pulse there. Another FX or the compressor goes back to page 1
     cases.push_back({"fx-page2", [] {

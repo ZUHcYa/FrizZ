@@ -118,10 +118,11 @@ static_assert(kNumFxParams <= 8, "a bit per parameter in knobs and fade");
 
 // The master compressor's knobs (MasterComp.h), edited like an FX's from its own key, but
 // always on and not part of a scene: threshold (off), ratio (4:1), attack (5.5ms), release
-// (155ms); page 2: mix (fully compressed) on Mix's knob, makeup (0dB) on Level's. Coarse
-// ratio: its points 1.5, 2, 4, 8 and 20:1; coarse makeup: 3dB
+// (155ms); page 2: mix (fully compressed) on Mix's knob, the sidechain highpass (off) on
+// Band's, makeup (0dB) on Level's. Coarse ratio: its points 1.5, 2, 4, 8 and 20:1; coarse
+// makeup: 3dB
 static const FxParams kCompParams = {
-    0x9f, {0.f, .5f, .5f, .5f, 1.f, 0.f, 0.f, 0.f}, {0, 0, 0, 0},
+    0xdf, {0.f, .5f, .5f, .5f, 1.f, 0.f, 0.f, 0.f}, {0, 0, 0, 0},
     {kGrid10, {0.f, .25f, nullptr, 0}, kGrid10, kGrid10, kGrid10, kGrid10, kGrid10,
      {0.f, .125f, nullptr, 0}}, 0};
 

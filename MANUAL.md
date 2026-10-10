@@ -479,10 +479,10 @@ latch, and holding it doesn't switch anything. With SHIFT it's a select, as an F
 |---|---|---|
 | 1 | Threshold, from 0 dB down to -30 dB (default 0, off) | Mix: dry to fully compressed, for parallel compression (default fully compressed) |
 | 2 | Ratio: 1.5:1, 2:1, 4:1, 8:1, 20:1 across the knob, which are also its coarse points (default 4:1) | — |
-| 3 | Attack, 1 ms to 30 ms (default 5.5 ms) | — |
+| 3 | Attack, 1 ms to 30 ms (default 5.5 ms) | Sidechain highpass: what the compressor listens to, off or from 20 Hz up to 500 Hz, so the bass doesn't pump everything else (default off) |
 | 4 | Release, 40 ms to 600 ms (default 155 ms) | Makeup: 0 dB to +24 dB, 3 dB a coarse step (default 0 dB) |
 
-Mix and Makeup sit on the knobs an effect has its Mix and Level on.
+Mix, Sidechain and Makeup sit on the knobs an effect has its Mix, Band and Level on.
 
 - **Linked:** one detector for both channels, so the stereo image doesn't shift. It has a
   soft knee, 6 dB wide.
@@ -495,13 +495,16 @@ Mix and Makeup sit on the knobs an effect has its Mix and Level on.
 - **Safety limiter:** after VOLUME, every output has a fixed limiter: the old one-knob
   compressor at its lowest setting, which was its default. It keeps the outputs within full
   scale; it is what FRIZZ always had, so nothing changes until you turn the threshold down.
-  It's the only thing FRIZZ does to the level by itself.
+  It's the only thing FRIZZ does to the level by itself, so it shows: the compressor's key
+  turns red while it limits, from 1 dB of limiting on and fully red from 3 dB, held 0.3 s so
+  a short peak is seen. Red means turn something down: VOLUME, an effect's Level, the
+  makeup.
 - **Kept:** the settings are saved to `FRIZZ/frizz_master.txt` on the card 2 s after the
   last turn, and come back at power-on. They're not part of a scene. Without a card, or when
   the card can't be written, the key blinks red 3 times instead, and FRIZZ tries again 2 s
   later, up to 3 times; the settings then last until power-off.
 - LEDs: the key is white, dim, lighting up with the gain reduction, at full brightness from
-  12 dB; it flashes when pressed, white, or dark while it's already bright. While selected, the knobs go light blue (0%) through
+  12 dB, and red while the safety limiter works (above); it flashes when pressed, white, or dark while it's already bright. While selected, the knobs go light blue (0%) through
   white to orange (100%).
 
 ## FX scenes
