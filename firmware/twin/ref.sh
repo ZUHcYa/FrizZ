@@ -23,12 +23,15 @@ twin_dir()
         dir=$OUT/$hash
         src=$dir/src
         if [ ! -d "$src" ]; then
-            mkdir -p "$src"
+            # unpacked beside it, then moved: one that was cut short isn't kept as the firmware
+            rm -rf "$src.tmp"
+            mkdir -p "$src.tmp"
             # FRIZZ moved from firmware/frizz/ to firmware/ (CLAUDE.md)
             path=firmware/code/src
             git -C "$REPO" cat-file -e "$hash:$path" 2> /dev/null || path=firmware/frizz/code/src
             git -C "$REPO" archive "$hash" "$path" \
-                | tar -x -C "$src" --strip-components=$(($(echo "$path" | tr -cd / | wc -c) + 1))
+                | tar -x -C "$src.tmp" --strip-components=$(($(echo "$path" | tr -cd / | wc -c) + 1))
+            mv "$src.tmp" "$src"
         fi
     fi
     TWIN_FIRMWARE=$src TWIN_BUILD=$dir "$TW/build.sh" >&2
