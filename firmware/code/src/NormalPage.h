@@ -838,8 +838,11 @@ namespace chompi
                 ScopedIrqBlocker irq;
                 result = scene_ctl_.Press(slot, shift);
                 if (result == SceneControls<PassthroughEngine>::Slot::MORPH)
+                {
+                    hand_fader_ = false; // a new morph: no fader has it yet
                     for (uint8_t bar = 1; bar < bars; bar++)
                         scene_ctl_.MorphMore();
+                }
             }
             if (result == SceneControls<PassthroughEngine>::Slot::REFUSED)
                 SceneRefusedBlink(slot);
