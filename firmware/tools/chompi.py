@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """chompi.py: where the CHOMPI on USB is, and getting it from there to where it's wanted.
 
 It is in one of four states, as the computer sees it:
@@ -12,8 +13,17 @@ into it on its SysEx F0 7D 43 48 10 F7 (MidiClock.h), the storage firmware on an
 the launcher starts a slot on its RUN (05). Launchers and storage firmwares from before those
 two need a hand instead, and this says which.
 
+One process at a time has the CHOMPI: importing this takes a lock (LOCK, flock) for the
+process's life, and waits, saying who has it, while another holds it. A tool started by one
+that holds it (FRIZZ_CHOMPI_HELD set) shares it. To keep the CHOMPI over several tools, or
+for playing it by hand:
+
+    tools/chompi.py hold                 holds it until Ctrl-C
+    tools/chompi.py hold CMD ARGS...     holds it while CMD runs (sh -c for a sequence)
+
 Linux only: ALSA's raw MIDI and udisks, Python 3 without packages.
 """
+import fcntl
 import os
 import re
 import subprocess
@@ -24,6 +34,7 @@ import midi_send
 
 FRIZZ_SLOT = int(os.environ.get("FRIZZ_SLOT", 10))
 BENCH_SLOT = int(os.environ.get("BENCH_SLOT", 11))
+TEST_SLOT = int(os.environ.get("TEST_SLOT", 12))  # a branch's build, tested by a session
 STORAGE_SLOT = int(os.environ.get("STORAGE_SLOT", 15))
 STORAGE_LABEL = "CHOMPI-SD"
 
@@ -35,6 +46,51 @@ BAD_MESSAGE, BAD_SLOT = 1, 8
 
 def say(*args):
     print(*args, file=sys.stderr, flush=True)
+
+
+# ---- the lock: one process at a time ------------------------------------------------------
+
+LOCK = os.environ.get("FRIZZ_CHOMPI_LOCK") or os.path.join(
+    os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "frizz-chompi.lock")
+HELD = "FRIZZ_CHOMPI_HELD"
+_lock = None
+
+
+def claim():
+    """Takes the CHOMPI for this process, waiting while another has it"""
+    global _lock
+    if _lock or os.environ.get(HELD):
+        return
+    f = open(LOCK, "a+")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        f.seek(0)
+        say("the CHOMPI is in use (%s): waiting" % (f.read().strip() or "?"))
+        fcntl.flock(f, fcntl.LOCK_EX)
+    f.seek(0)
+    f.truncate()
+    f.write("pid %d in %s: %s\n" % (os.getpid(), os.getcwd(), " ".join(sys.argv)))
+    f.flush()
+    _lock = f
+    os.environ[HELD] = "1"  # the tools this one starts share it
+
+
+def hold(cmd):
+    """Holds the CHOMPI while cmd runs, or until Ctrl-C without one"""
+    claim()
+    if cmd:
+        sys.exit(subprocess.run(cmd).returncode)
+    say("holding the CHOMPI; Ctrl-C lets it go")
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        pass
+
+
+if not {"-h", "--help"} & set(sys.argv[1:]) and sys.argv[1:2] != ["hold"]:
+    claim()
 
 
 # ---- MIDI ---------------------------------------------------------------------------------
@@ -226,3 +282,9 @@ def to_storage(timeout=120):
     """The card's mount point, with the CHOMPI in its USB storage firmware"""
     part = storage_partition() or run(STORAGE_SLOT, "storage", timeout)
     return mount(part), part
+
+
+if __name__ == "__main__":
+    if sys.argv[1:2] != ["hold"]:
+        sys.exit(__doc__)
+    hold(sys.argv[2:])
