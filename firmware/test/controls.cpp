@@ -38,7 +38,20 @@ struct FakeEngine
     {
         plan = p;
         morphing = true;
+        held = true;
         bars = 1;
+    }
+    // the crossfader: a morph held for SHIFT, taken to where the fader is
+    bool held = false;
+    float fader = -1.f;
+    bool FxMorphHeld() const { return morphing && held; }
+    bool FadeFxMorph(float t)
+    {
+        if (!morphing)
+            return false;
+        held = false;
+        fader = t;
+        return true;
     }
     bool AddFxMorphBar()
     {
@@ -752,6 +765,94 @@ static void TestTails()
     sc.Recall(kBlankSlot);
 }
 
+/** The crossfader (SceneControls::FaderTurned, FaderTo, EndFade) */
+static void TestFader()
+{
+    FakeEngine e;
+    Fx fx;
+    Fresh(e, fx);
+    FxScene store[kNumSlots] = {};
+    Scenes sc;
+    sc.Init(store, &fx);
+
+    // scene 1: the filter latched at .2, the reverb off at level .3; scene 2: the filter at
+    // .8 and the reverb latched at .5
+    store[1] = store[2] = store[kBlankSlot];
+    store[1].latched = store[2].latched = 1u << FX_FILTER;
+    store[1].params[FX_FILTER][0] = .2f;
+    store[1].params[FX_REVERB][3] = .3f;
+    store[2].params[FX_FILTER][0] = .8f;
+    store[2].latched |= 1u << FX_REVERB;
+    store[2].params[FX_REVERB][3] = .5f;
+
+    Check(!sc.FaderTurned(3.f) && !sc.FaderTo(.5f) && !sc.EndFade(),
+          "fader: nothing without a morph");
+
+    // from scene 1 edited, to scene 2 and back to the start: as it was
+    sc.Recall(1);
+    fx.KeyPressed(FX_FILTER, true, false);
+    fx.KeyPressed(FX_FILTER, false, false);
+    Latch(fx, FX_FILTER);
+    fx.KnobTurned(0, 10.f, false); // the filter at .3
+    Check(sc.Edited() && Near(fx.Param(FX_FILTER, 0), .3f), "fader: scene 1, edited");
+    sc.Morph(2);
+    Check(sc.FaderTurned(3.f) && sc.Fading() && Near(sc.FaderPos(), 3.f / 24.f)
+              && Near(e.fader, 3.f / 24.f) && sc.FadeFrom() == 1 && sc.Morphing() == 2,
+          "fader: SHIFT + turn on a held morph takes it, 24 detents from end to end");
+    sc.FaderTurned(-10.f);
+    Check(sc.FaderPos() == 0.f, "fader: it stops at the start");
+    Check(sc.EndFade() && !e.morphing && !sc.Fading() && sc.Active() == 1 && sc.Edited(),
+          "fader: let go at the start, the morph ends and scene 1 is back, edited as it was");
+    Check(Near(fx.Param(FX_FILTER, 0), .3f) && fx.IsLatched(FX_FILTER)
+              && !fx.IsLatched(FX_REVERB) && !e.on[FX_REVERB] && fx.Param(FX_REVERB, 3) == .3f,
+          "fader: ... its knobs and latches too, the reverb off at its level");
+    Check(!sc.EndFade(), "fader: and only once");
+
+    // let go in between: stopped where it is, the scene it went to edited
+    sc.Recall(1);
+    sc.Morph(2);
+    sc.FaderTurned(12.f);
+    Check(sc.EndFade() && !e.morphing && sc.Active() == 2 && sc.Edited(),
+          "fader: let go in the middle, it stays there, scene 2 edited");
+
+    // let go at the end: landed, as recalled
+    sc.Recall(1);
+    sc.Morph(2);
+    sc.FaderTurned(30.f);
+    const int landings = e.landings;
+    Check(sc.FaderPos() == 1.f && sc.EndFade() && e.landings == landings + 1 && sc.Active() == 2
+              && !sc.Edited() && fx.IsLatched(FX_REVERB),
+          "fader: let go at the end, it lands on scene 2");
+
+    // a morph SHIFT has let go of glides on its own: SHIFT + turn is the speed again
+    sc.Recall(1);
+    sc.Morph(2);
+    e.held = false;
+    Check(!sc.FaderTurned(3.f) && !sc.Fading(), "fader: not on a morph already gliding");
+    sc.Recall(1);
+
+    // over MIDI: any running morph; the ends decide
+    sc.Morph(2);
+    e.held = false;
+    Check(sc.FaderTo(0.f) && sc.Fading(), "fader midi: takes a gliding morph, at the start it waits");
+    sc.FaderTo(.5f);
+    Check(sc.Fading() && Near(e.fader, .5f), "fader midi: in between");
+    Check(sc.FaderTo(0.f) && !sc.Fading() && !e.morphing && sc.Active() == 1,
+          "fader midi: back at the start after being away, scene 1 again");
+    sc.Morph(2);
+    Check(sc.FaderTo(1.f) && !e.morphing && sc.Active() == 2 && !sc.Edited(),
+          "fader midi: at the end, landed");
+
+    // the start deleted meanwhile: no scene active
+    sc.Recall(1);
+    sc.Morph(2);
+    sc.FaderTurned(1.f);
+    store[1].used = false;
+    sc.FaderTurned(-1.f);
+    Check(sc.EndFade() && sc.Active() == kNoScene, "fader: back to a deleted scene, none active");
+    store[1].used = true;
+}
+
 int main()
 {
     TestInit();
@@ -762,5 +863,6 @@ int main()
     TestScenes();
     TestMorph();
     TestTails();
+    TestFader();
     return Finish();
 }

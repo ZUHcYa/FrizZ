@@ -229,6 +229,11 @@ public:
         return morph_.Freeze(params, unswitched, was_on);
     }
     inline bool FxMorphing() const { return morph_.Active(); }
+    /** Started and still held for SHIFT (FxMorph::Holding) */
+    inline bool FxMorphHeld() const { return morph_.Holding(); }
+    /** The crossfader (FxMorph::Fader): the morph at t, 0 where it started to 1 the scene,
+     *  from now on in the UI's hands; with the audio interrupt blocked. False if none runs */
+    bool FadeFxMorph(float t) { return morph_.Fader(t); }
     /** The tempo clock, and the pulses its last block counted with each one's place in the
      *  loop (TempoClock::LoopPulse), at most kMaxBlockPulses: for MIDI out (MidiOut.h) */
     inline const chompi::TempoClock& Tempo() const { return tempo_clock_; }
