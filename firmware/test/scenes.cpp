@@ -198,6 +198,41 @@ int main()
     Check(!h[0].used && !h[1].used && !h[2].used && h[3].used, "only scene 4 is used");
     Check(h[3].latched == (1u << FX_REVERB), "reverb latched, the unknown effect and scene 9 skipped");
     Check(fabsf(h[3].params[FX_REVERB][3] - .4f) < 1e-6f, "reverb level read");
+    Check(h[3].params[FX_REVERB][4] == defaults[FX_REVERB][4]
+              && h[3].params[FX_REVERB][7] == defaults[FX_REVERB][7],
+          "a line of four, as v0.11 wrote them: page 2 on its defaults");
+
+    // page 2 (#35): v0.11 reads the first four values of a line and skips the rest, so a
+    // newer file gives it page 1 as saved
+    {
+        const char* line = " 1 100000 200000 300000 400000 500000 600000 700000 800000\nnext";
+        const char* p = line;
+        size_t wlen;
+        scenefile::Word(p, wlen); // the latch
+        float four[4] = {};
+        scenefile::ReadValues(p, four, 4);
+        scenefile::NextLine(p);
+        Check(fabsf(four[3] - .4f) < 1e-6f && strcmp(p, "next") == 0,
+              "a line of eight read as v0.11 does: page 1's four, then the next line");
+    }
+    // the largest file: 4 scenes, every value 1, every effect latched
+    {
+        FxScene full[kNumScenes];
+        for (size_t s = 0; s < kNumScenes; s++)
+        {
+            full[s].used = true;
+            full[s].latched = (1u << kNumFx) - 1;
+            for (size_t fx = 0; fx < kNumFx; fx++)
+                for (size_t p = 0; p < kNumFxParams; p++)
+                    full[s].params[fx][p] = 1.f;
+        }
+        static char big[kSceneFileMax];
+        const size_t big_len = FormatScenes(full, big, sizeof(big));
+        printf("      the largest file: %zu of %zu bytes\n", big_len, kSceneFileMax);
+        FxScene back[kNumScenes];
+        Check(big_len > 0 && ParseScenes(big, defaults, back) && SameScenes(full, back),
+              "the largest file, both pages, fits and reads back");
+    }
     Check(fabsf(h[3].params[FX_FREEZER][0] - .5f) < 1e-6f
               && h[3].params[FX_FREEZER][1] == defaults[FX_FREEZER][1],
           "a short line keeps the rest at defaults");

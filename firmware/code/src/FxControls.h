@@ -1,8 +1,14 @@
 /** @file FxControls.h
  *  @brief What the play page does with the punch-in FX keys and knobs 1-4, without the
- *  hardware: the parameters, which keys are held and latched, which FX the knobs edit, fine,
- *  stepped and coarse turns, and taking, recalling or morphing to a scene. NormalPage.h routes the keys and
+ *  hardware: the parameters, which keys are held and latched, which FX the knobs edit and on
+ *  which page, fine, stepped and coarse turns, and taking, recalling or morphing to a scene. NormalPage.h routes the keys and
  *  knobs here and draws the LEDs from it; test/controls.cpp runs it on the host.
+ *
+ *  The knobs have two pages, switched together: a plain press on any of them turns all four
+ *  over to the selected FX's page 2 (its parameters 4-7, FxParams.h) and back; on an FX with
+ *  nothing on page 2 it does nothing. Selecting
+ *  another FX, or the compressor, goes back to page 1, so the main controls are under the
+ *  fingers whenever an effect is picked. SHIFT + turn and SHIFT + press act on the page shown.
  *
  *  The master compressor (MasterComp.h) is edited here too: its key selects it for the knobs
  *  (kCompSelected), which then turn as they do for an FX (kCompParams). It's always on and
@@ -18,6 +24,10 @@
 #include "FxMorph.h"
 #include "FxParams.h"
 #include "FxScenes.h"
+
+// a scene's work, a press now and then: kept out of line and small, since FRIZZ's code
+// space is tight (SRAM_EXEC) and two pages of parameters made it twice as long
+#define FX_SCENE_ONCE __attribute__((noinline, optimize("Os")))
 
 namespace chompi
 {
@@ -50,7 +60,7 @@ public:
             }
             engine_->SetFxOn(fx, false);
         }
-        for (size_t p = 0; p < kNumFxParams; p++)
+        for (size_t p = 0; p < kNumFxKnobs; p++)
         {
             comp_[p] = -1.f;
             SetComp(p, kCompParams.defaults[p]);
@@ -59,6 +69,7 @@ public:
         ClearChunks();
         chunk_shift_ = false;
         selected_ = 0;
+        page_ = 0;
         edited_ = false;
         stale_ = morph_touched_ = 0;
     }
@@ -73,9 +84,13 @@ public:
     {
         if (down)
         {
-            // detents towards a step belong to the FX they were turned on
+            // detents towards a step belong to the FX they were turned on; another FX shows
+            // its page 1
             if (fx != selected_)
+            {
                 ClearChunks();
+                page_ = 0;
+            }
             selected_ = fx;
             if (shift)
             {
@@ -112,6 +127,7 @@ public:
         if (selected_ != kCompSelected)
             ClearChunks();
         selected_ = kCompSelected;
+        page_ = 0;
         if (shift)
             ShiftUsed();
     }
@@ -148,12 +164,13 @@ public:
 
     /** Knob 0-3 turned by detents (signed). Plain: 1% per detent, or a step per
      *  kFxDetentsPerStep for a stepped parameter. SHIFT: one point of the coarse grid per
-     *  detent. Knobs past the selected FX's num_params do nothing */
+     *  detent. A knob the page doesn't use does nothing */
     void KnobTurned(size_t knob, float detents, bool shift)
     {
         const FxParams& fxp = Knobs();
-        if (knob >= fxp.num_params)
+        if (!KnobUsed(knob))
             return;
+        const size_t param = ParamOf(knob);
         if (shift)
             ShiftUsed();
 
@@ -173,13 +190,13 @@ public:
             while (chunk_[knob] >= 1.f || chunk_[knob] <= -1.f)
             {
                 const float dir = chunk_[knob] > 0.f ? 1.f : -1.f;
-                SetKnob(knob, CoarseStep(fxp.coarse[knob], Knob(knob), dir));
+                SetKnob(knob, CoarseStep(fxp.coarse[param], Knob(knob), dir));
                 chunk_[knob] -= dir;
             }
             return;
         }
 
-        const uint8_t steps = fxp.steps[knob];
+        const uint8_t steps = fxp.steps[param];
         if (steps == 0)
         {
             SetKnob(knob, val + detents * kFxParamStep);
@@ -199,16 +216,26 @@ public:
         }
     }
 
-    /** Knob 0-3 pressed: with SHIFT, resets that parameter to its default. A plain press is
-     *  kept free for a second parameter page */
-    void KnobPressed(size_t knob, bool shift)
+    /** Knob 0-3 pressed: with SHIFT, resets that parameter to its default, on a knob the page
+     *  uses. A plain press turns the page, all four knobs together, for an FX with a page 2;
+     *  the compressor has only one. True if the press did something */
+    bool KnobPressed(size_t knob, bool shift)
     {
-        if (!shift || knob >= Knobs().num_params)
-            return;
+        if (!shift)
+        {
+            if (!HasPage2())
+                return false;
+            page_ ^= 1;
+            ClearChunks();
+            return true;
+        }
+        if (!KnobUsed(knob))
+            return false;
         ShiftUsed();
 
-        SetKnob(knob, Knobs().defaults[knob]);
+        SetKnob(knob, Knobs().defaults[ParamOf(knob)]);
         chunk_[knob] = 0.f;
+        return true;
     }
 
     /** A parameter set outright (MIDI, MidiControl.h), as a knob turned there would: a stepped
@@ -216,7 +243,7 @@ public:
     void SetParamTo(size_t fx, size_t param, float val)
     {
         const FxParams& fxp = kFxParams[fx];
-        if (param >= fxp.num_params)
+        if (param >= kNumFxParams || !((fxp.knobs >> param) & 1))
             return;
         if (fxp.steps[param])
         {
@@ -242,7 +269,7 @@ public:
     }
 
     /** The parameters and latches into scene, which is then what the controls match */
-    void Snapshot(FxScene& scene)
+    FX_SCENE_ONCE void Snapshot(FxScene& scene)
     {
         scene.used = true;
         scene.latched = 0;
@@ -260,7 +287,7 @@ public:
      *  share runs on untouched; the latches become the scene's and keys held stay on. A send
      *  the scene leaves off keeps ringing out as it was (kFxSends). On the device, call it with
      *  the audio interrupt blocked, so it lands within one block */
-    void Recall(const FxScene& scene)
+    FX_SCENE_ONCE void Recall(const FxScene& scene)
     {
         SceneDecides();
         engine_->LandFxMorph();
@@ -301,7 +328,7 @@ public:
      *   - an FX without fade knobs it turns on or off: all at the landing.
      *  Only what changes is sent, as in a recall
      *  On the device, call it with the audio interrupt blocked */
-    void Morph(const FxScene& scene)
+    FX_SCENE_ONCE void Morph(const FxScene& scene)
     {
         SceneDecides();
         engine_->LandFxMorph();
@@ -390,7 +417,7 @@ public:
      *  switched yet stays as it was, unless its key was pressed meanwhile. Edited, since
      *  that's neither scene. False if none runs. On the device, call it with the audio
      *  interrupt blocked */
-    bool FreezeMorph()
+    FX_SCENE_ONCE bool FreezeMorph()
     {
         float live[kNumFx][kNumFxParams];
         uint16_t unswitched, was_on;
@@ -481,11 +508,23 @@ public:
             return kCompParams;
         return kFxParams[selected_];
     }
+    /** Whether the knobs' FX has parameters on page 2; never the compressor */
+    inline bool HasPage2() const
+    {
+        return selected_ != kCompSelected && (kFxParams[selected_].knobs >> kNumFxKnobs) != 0;
+    }
+    /** The page the knobs show, 0 or 1; always 0 without a page 2 */
+    inline size_t Page() const { return page_; }
+    /** The parameter knob 0-3 edits on the page shown */
+    inline size_t ParamOf(size_t knob) const { return knob + kNumFxKnobs * page_; }
+    /** Whether knob 0-3 does something on the page shown */
+    inline bool KnobUsed(size_t knob) const { return (Knobs().knobs >> ParamOf(knob)) & 1; }
+    /** Knob 0-3's value on the page shown */
     inline float Knob(size_t knob) const
     {
         if (selected_ == kCompSelected)
             return comp_[knob];
-        return params_[selected_][knob];
+        return params_[selected_][ParamOf(knob)];
     }
 
 private:
@@ -520,7 +559,7 @@ private:
 
     void ClearChunks()
     {
-        for (size_t knob = 0; knob < kNumFxParams; knob++)
+        for (size_t knob = 0; knob < kNumFxKnobs; knob++)
             chunk_[knob] = 0.f;
     }
 
@@ -529,7 +568,7 @@ private:
         if (selected_ == kCompSelected)
             SetComp(knob, val);
         else
-            SetParam(selected_, knob, val);
+            SetParam(selected_, ParamOf(knob), val);
     }
 
     void SetParam(size_t fx, size_t param, float val)
@@ -555,9 +594,10 @@ private:
     bool latched_[kNumFx];
     OnRelease on_release_[kNumFx];
     size_t selected_ = 0;
-    float comp_[kNumFxParams];  // the master compressor's knobs
+    size_t page_ = 0;           // the knobs' page, 0 or 1 (ParamOf)
+    float comp_[kNumFxKnobs];   // the master compressor's knobs
     bool comp_changed_ = false; // since the last TakeCompChanged
-    float chunk_[kNumFxParams]; // detents towards the next step or grid point
+    float chunk_[kNumFxKnobs];  // detents towards the next step or grid point
     bool chunk_shift_ = false;  // whether they were turned with SHIFT
     bool edited_ = false;
     uint16_t stale_ = 0;         // bit fx: off, and the engine has older parameters than

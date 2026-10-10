@@ -75,6 +75,9 @@ compressor on the last one (below).
 - **SHIFT + turn a knob:** jump in big steps: notes, octaves or musical intervals where the
   setting has them, 10% otherwise.
 - **SHIFT + press a knob:** reset that setting.
+- **Press a knob:** all four knobs turn to the effect's second page (their LEDs pulse) and
+  back. Picking another effect brings page 1 back. Only the shifter has one yet: its mix, the
+  dry sound under the shifted one, for harmonies.
 
 Every effect starts silent or nearly so: one knob brings it in. That's knob 1 on most, knob 2
 (feedback) on the resonator, knob 3 (amount) on the flanger and knob 4 (level) on the delay

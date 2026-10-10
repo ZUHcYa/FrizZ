@@ -91,9 +91,13 @@ namespace chompi
     static const float kFlashDarkAbove = .5f;    // a flash goes dark on an LED this white (Flash)
     static const float kSpeedStepPerTurn = .25f; // 4 transport detents per speed step
 
-    static const uint8_t kFxKnobLeds[kNumFxParams] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
+    static const uint8_t kFxKnobLeds[kNumFxKnobs] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
+    // Page 2 of the FX knobs: their LEDs pulse, from full down to kPage2Low and back, faster
+    // than an edited scene's key, so turning a knob never surprises
+    static const uint32_t kPage2PulseMs = 600;
+    static const float kPage2Low = .15f;
     // Knob 1-4 press switches, by ui.h's encoder_map
-    static const Hardware::SwId kFxKnobSwitches[kNumFxParams] = {
+    static const Hardware::SwId kFxKnobSwitches[kNumFxKnobs] = {
         Hardware::SwId::ENC_4_SW,
         Hardware::SwId::ENC_1_SW,
         Hardware::SwId::ENC_2_SW,
@@ -167,7 +171,7 @@ namespace chompi
 
             fx_.Init(engine_);
             // the compressor's knobs as they were left, from the card
-            for (size_t p = 0; p < kNumFxParams; p++)
+            for (size_t p = 0; p < kNumFxKnobs; p++)
                 fx_.SetComp(p, scenes_->master.comp[p]);
             fx_.TakeCompChanged();
             // and the settings page's: the mono input, the clock's factor, the LEDs
@@ -374,14 +378,13 @@ namespace chompi
                     return true;
                 }
             }
-            for (size_t knob = 0; knob < kNumFxParams; knob++)
+            for (size_t knob = 0; knob < kNumFxKnobs; knob++)
             {
-                // a knob press does something only with SHIFT, on a knob the FX uses: the reset
-                if (buttonID == static_cast<uint16_t>(kFxKnobSwitches[knob]) && Shift()
-                    && knob < fx_.Knobs().num_params)
+                // a plain press turns the page; SHIFT + press resets, on a knob the page uses
+                if (buttonID == static_cast<uint16_t>(kFxKnobSwitches[knob]))
                 {
-                    keys_.Used();
-                    fx_.KnobPressed(knob, true);
+                    if (fx_.KnobPressed(knob, Shift()))
+                        keys_.Used();
                     return true;
                 }
             }
@@ -396,9 +399,9 @@ namespace chompi
         {
             if (encoderID == kTransportEncoder)
                 TransportTurned(turns);
-            else if (encoderID < kNumFxParams)
+            else if (encoderID < kNumFxKnobs)
             {
-                if (encoderID < fx_.Knobs().num_params)
+                if (fx_.KnobUsed(encoderID))
                     keys_.Used();
                 fx_.KnobTurned(encoderID, turns, Shift());
             }
@@ -417,7 +420,8 @@ namespace chompi
         MIDI_CONTROL_ONCE void Remote()
         {
             const uint32_t now = System::GetNow();
-            uint8_t cc, raw;
+            uint16_t cc;
+            uint8_t raw;
             float value;
             while (midi_->TakeValue(cc, value, raw))
                 RemoteValue(cc, value, raw);
@@ -442,15 +446,19 @@ namespace chompi
         }
 
     private:
-        MIDI_CONTROL_ONCE void RemoteValue(uint8_t cc, float value, uint8_t raw)
+        MIDI_CONTROL_ONCE void RemoteValue(uint16_t cc, float value, uint8_t raw)
         {
             using namespace midimap;
-            if (cc >= kParamCC && cc < kParamCC + kNumFx * kNumFxParams)
-                fx_.SetParamTo((cc - kParamCC) / kNumFxParams, (cc - kParamCC) % kNumFxParams,
-                               value);
+            // page 1's from the CC, page 2's from its NRPN in bank 1 (MidiControl.h)
+            const size_t bank = cc / 128, ctl = cc % 128;
+            if (ctl >= kParamCC && ctl < kParamCC + kNumFx * kNumFxKnobs)
+                fx_.SetParamTo((ctl - kParamCC) / kNumFxKnobs,
+                               (ctl - kParamCC) % kNumFxKnobs + bank * kNumFxKnobs, value);
+            else if (bank)
+                return;
             else if (cc >= kLatchCC && cc < kLatchCC + kNumFx)
                 fx_.SetLatch(cc - kLatchCC, raw >= 64);
-            else if (cc >= kCompCC && cc < kCompCC + kNumFxParams)
+            else if (cc >= kCompCC && cc < kCompCC + kNumFxKnobs)
                 fx_.SetComp(cc - kCompCC, value);
             else if (cc == kOutGainCC)
             {
@@ -536,13 +544,15 @@ namespace chompi
                 n = Put14(d, n, static_cast<uint16_t>(engine_->FxBpm() * 10.f + .5f));
                 // the mode switch: 1 if it stands up, plus SysEx's setting (kCmdSwitch) x2
                 d[n++] = static_cast<uint8_t>((hw_->GetToggleState() ? 0 : 1) | midi_->Switch() << 1);
+                d[n++] = static_cast<uint8_t>(fx_.Page()); // the FX knobs' page, 0 or 1
                 break;
             }
             case kCmdParams:
+                // both pages of an effect, the compressor's one
                 if (q.a > kNumFx)
                     return;
                 d[n++] = q.a;
-                for (size_t p = 0; p < kNumFxParams; p++)
+                for (size_t p = 0; p < (q.a == kNumFx ? kNumFxKnobs : kNumFxParams); p++)
                     n = Put14(d, n, KnobToMidi14(q.a == kNumFx ? fx_.CompParam(p)
                                                                : fx_.Param(q.a, p)));
                 break;
@@ -597,8 +607,9 @@ namespace chompi
             return n;
         }
 
-        /** A scene's part for kCmdSceneGet: kFxPerPart effects' knobs, 14 bits each, or (the
-         *  last) whether it's used and its latches */
+        /** A scene's part for kCmdSceneGet: kFxPerPart effects' knobs on one page, 14 bits
+         *  each (parts 0-3 page 1, 4-7 page 2), or (the last) whether it's used and its
+         *  latches */
         static size_t ScenePart(const FxScene& scene, uint8_t part, uint8_t* d, size_t n)
         {
             if (part == kSceneParts - 1)
@@ -606,9 +617,10 @@ namespace chompi
                 d[n++] = scene.used ? 1 : 0;
                 return Put14(d, n, scene.latched);
             }
-            for (size_t fx = part * kFxPerPart; fx < (part + 1u) * kFxPerPart; fx++)
-                for (size_t p = 0; p < kNumFxParams; p++)
-                    n = Put14(d, n, KnobToMidi14(scene.params[fx][p]));
+            const size_t first = part % kFxParts * kFxPerPart, page = part / kFxParts;
+            for (size_t fx = first; fx < first + kFxPerPart; fx++)
+                for (size_t k = 0; k < kNumFxKnobs; k++)
+                    n = Put14(d, n, KnobToMidi14(scene.params[fx][page * kNumFxKnobs + k]));
             return n;
         }
 
@@ -638,10 +650,11 @@ namespace chompi
                 scene_flash_signal_.Stop();
                 return true;
             }
-            if (q.len < kFxPerPart * kNumFxParams * 2)
+            if (q.len < kFxPerPart * kNumFxKnobs * 2)
                 return false;
-            for (size_t i = 0; i < kFxPerPart * kNumFxParams; i++)
-                put_scene_.params[q.b * kFxPerPart + i / kNumFxParams][i % kNumFxParams]
+            const size_t first = q.b % kFxParts * kFxPerPart, page = q.b / kFxParts;
+            for (size_t i = 0; i < kFxPerPart * kNumFxKnobs; i++)
+                put_scene_.params[first + i / kNumFxKnobs][page * kNumFxKnobs + i % kNumFxKnobs]
                     = MidiToKnob(static_cast<uint16_t>((v[2 * i] << 7) | v[2 * i + 1]), true);
             put_parts_ |= 1u << q.b;
             return true;
@@ -732,7 +745,7 @@ namespace chompi
             }
             if (master_unsaved_ && now - master_changed_at_ > kMasterSaveDelayMs)
             {
-                for (size_t p = 0; p < kNumFxParams; p++)
+                for (size_t p = 0; p < kNumFxKnobs; p++)
                     scenes_->master.comp[p] = fx_.CompParam(p);
                 settings_.Store(scenes_->master);
                 scenes_->RequestMasterSave();
@@ -892,18 +905,23 @@ namespace chompi
 
         void DrawFxLeds(uint32_t now)
         {
-            // knob LEDs: the selected FX's parameters in its colours, or the compressor's
+            // knob LEDs: the selected FX's parameters in its colours, or the compressor's; a
+            // knob the page doesn't use is dark, and page 2's pulse
             const size_t selected = fx_.Selected();
             const bool comp = selected == kCompSelected;
             const float* const* colors = comp ? kCompKnobColors : kFxSlots[selected].knob_colors;
-            const FxParams& knobs = fx_.Knobs();
-            for (size_t p = 0; p < kNumFxParams; p++)
+            float pulse = 1.f;
+            if (fx_.Page())
             {
-                const float val = fx_.Knob(p);
+                const float phase = static_cast<float>(now % kPage2PulseMs) / kPage2PulseMs;
+                pulse = kPage2Low + (1.f - kPage2Low) * .5f * (1.f + cosf(phase * TWOPI_F));
+            }
+            for (size_t k = 0; k < kNumFxKnobs; k++)
+            {
                 float rgb[3] = {0.f, 0.f, 0.f};
-                if (p < knobs.num_params)
-                    Xfade3(colors[0], colors[1], colors[2], val, rgb);
-                SetPthLedFloat(kFxKnobLeds[p], rgb[0], rgb[1], rgb[2]);
+                if (fx_.KnobUsed(k))
+                    Xfade3(colors[0], colors[1], colors[2], fx_.Knob(k), rgb);
+                SetPthLedFloat(kFxKnobLeds[k], rgb[0] * pulse, rgb[1] * pulse, rgb[2] * pulse);
             }
 
             for (size_t fx = 0; fx < kNumFx; fx++)

@@ -20,6 +20,11 @@ below come from it and from `build/FRIZZ.map`.
 of `SRAM_EXEC`, so a feature of more than ~5 KB of code needs room made first (below), or the
 bench build stops linking before `FRIZZ.bin` does.
 
+Since then the FX knobs' page 2 (#35) took about 2.4 KB of code (`FRIZZ.bin` at 216,564 B),
+leaving ~21 KB, and ~3.4 KB in the bench build (234,196 B): #40's parameters, or anything
+bigger, need room made first. The scene work (`Recall`, `Morph`, the scene file) is compiled
+`-Os` and out of line (`FX_SCENE_ONCE`), as the event log's and MIDI's are.
+
 Where the code goes (`.text` + `.rodata` by object, from the map):
 
 | | Bytes |

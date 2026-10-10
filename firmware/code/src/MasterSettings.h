@@ -35,7 +35,7 @@ static const size_t kMasterFileMax = 512;
 
 struct MasterSettings
 {
-    float comp[kNumFxParams];
+    float comp[kNumFxKnobs];
     bool mono;  // the AUX input's left channel to both sides, for a mono (TS) cable
     uint8_t midi_channel; // the channel FRIZZ listens on, 1-16, or 0 for all
     bool midi_transport;  // MIDI Start, Continue and Stop play and pause the loop
@@ -45,7 +45,7 @@ struct MasterSettings
     /** Every setting on its default */
     void Reset()
     {
-        for (size_t p = 0; p < kNumFxParams; p++)
+        for (size_t p = 0; p < kNumFxKnobs; p++)
             comp[p] = kCompParams.defaults[p];
         mono = false;
         midi_channel = kDefaultMidiChannel;
@@ -71,7 +71,7 @@ inline size_t FormatMaster(const MasterSettings& settings, char* buf, size_t siz
     size_t pos = 0;
     Put(buf, size, pos, masterfile::kHeader);
     Put(buf, size, pos, "\ncompressor");
-    PutValues(buf, size, pos, settings.comp, kNumFxParams);
+    PutValues(buf, size, pos, settings.comp, kNumFxKnobs);
     Put(buf, size, pos, settings.mono ? "\nmono 1" : "\nmono 0");
     Put(buf, size, pos, "\nmidi_channel ");
     PutUint(buf, size, pos, settings.midi_channel);
@@ -141,7 +141,7 @@ inline bool ParseMaster(const char* text, MasterSettings& settings)
             continue;
         }
         if (word && Is(word, len, "compressor"))
-            ReadValues(p, settings.comp, kNumFxParams);
+            ReadValues(p, settings.comp, kNumFxKnobs);
     }
     return true;
 }

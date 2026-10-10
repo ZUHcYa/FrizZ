@@ -26,7 +26,7 @@ struct FakeEngine
         param_calls++;
     }
     void FastFxSlew() { fast_slews++; }
-    float comp[kNumFxParams] = {};
+    float comp[kNumFxKnobs] = {};
     void SetCompParam(size_t p, float v) { comp[p] = v; }
 
     // the morph: what it was started with, and its bar lines
@@ -270,10 +270,11 @@ static void TestKnobs()
     fx.KnobTurned(0, -3.f, true); // +12 -> +7 -> +5 -> 0
     Check(Near(fx.Param(FX_SHIFTER, 0), .5f), "coarse points: three down from +12 is 0");
 
-    // SHIFT + press resets, a plain press doesn't
+    // SHIFT + press resets, a plain press doesn't (it turns the page, TestPages)
     fx.KeyPressed(FX_REVERB, true, false);
     fx.KnobPressed(0, false);
-    Check(fx.Param(FX_REVERB, 0) == 1.f, "plain press: nothing");
+    Check(fx.Param(FX_REVERB, 0) == 1.f, "plain press: no reset");
+    fx.KnobPressed(0, false);
     fx.KnobPressed(0, true);
     Check(fx.Param(FX_REVERB, 0) == kFxParams[FX_REVERB].defaults[0], "SHIFT + press: the default");
 
@@ -300,13 +301,77 @@ static void TestKnobs()
           "CoarseStep: nothing past 0 or 1");
 }
 
+// page 2 (#35): a plain knob press turns all four knobs over to the FX's parameters 4-7
+static void TestPages()
+{
+    FakeEngine e;
+    Fx fx;
+    Fresh(e, fx);
+    fx.KeyPressed(FX_SHIFTER, true, false);
+    Check(fx.Page() == 0 && fx.KnobUsed(1), "pages: page 1 at first, every knob of it used");
+    Check(fx.KnobPressed(2, false) && fx.Page() == 1, "pages: a plain press on any knob turns to page 2");
+    Check(!fx.Edited(), "pages: turning the page isn't an edit");
+    Check(fx.KnobUsed(0) && !fx.KnobUsed(1) && !fx.KnobUsed(3),
+          "pages: the shifter's page 2 has its mix on knob 1, nothing else");
+    Check(fx.Knob(0) == 1.f, "pages: the mix starts fully shifted");
+    fx.KnobTurned(0, -40.f, false);
+    Check(Near(fx.Param(FX_SHIFTER, 4), .6f) && Near(e.params[FX_SHIFTER][4], .6f)
+              && fx.Param(FX_SHIFTER, 0) == .5f,
+          "pages: knob 1 turns parameter 4, page 1's knob 1 stays");
+    Check(Near(fx.Knob(0), .6f), "pages: the knob reads page 2's value");
+    const int calls = e.param_calls;
+    fx.KnobTurned(1, 10.f, false);
+    fx.KnobPressed(1, true);
+    Check(e.param_calls == calls, "pages: an unused knob there does nothing, turned or reset");
+    fx.KnobTurned(0, 1.f, true);
+    Check(Near(fx.Param(FX_SHIFTER, 4), .7f), "pages: SHIFT + turn on page 2, its coarse grid");
+    fx.KnobPressed(0, true);
+    Check(fx.Param(FX_SHIFTER, 4) == 1.f && fx.Page() == 1, "pages: SHIFT + press resets it, on page 2");
+    fx.KeyPressed(FX_SHIFTER, false, false);
+    fx.KeyPressed(FX_SHIFTER, true, false);
+    Check(fx.Page() == 1, "pages: the same FX pressed again keeps page 2");
+    fx.KeyPressed(FX_FILTER, true, true);
+    Check(fx.Page() == 0, "pages: another FX, also selected with SHIFT, goes back to page 1");
+    Check(!fx.KnobPressed(0, false) && fx.Page() == 0 && fx.KnobUsed(0),
+          "pages: an FX without page-2 parameters stays on page 1, the press does nothing");
+    fx.KeyPressed(FX_SHIFTER, true, false);
+    fx.KnobPressed(0, false);
+    fx.KnobPressed(0, false);
+    Check(fx.Page() == 0, "pages: a second press turns back to page 1");
+    fx.KnobPressed(0, false);
+    fx.CompKeyPressed(false);
+    Check(fx.Page() == 0, "pages: the compressor's key goes back to page 1");
+    Check(!fx.KnobPressed(0, false) && fx.Page() == 0, "pages: the compressor has no page 2");
+    // MIDI: page 2 outright, but not where an effect has none
+    fx.SetParamTo(FX_SHIFTER, 4, .25f);
+    fx.SetParamTo(FX_FILTER, 4, .25f);
+    Check(fx.Param(FX_SHIFTER, 4) == .25f && fx.Param(FX_FILTER, 4) == kFxParams[FX_FILTER].defaults[4],
+          "pages: set outright on page 2, only where the FX uses it");
+    // a scene keeps page 2, and a recall puts it back
+    FxScene scene;
+    fx.Snapshot(scene);
+    Check(scene.params[FX_SHIFTER][4] == .25f, "pages: a snapshot takes page 2");
+    fx.SetParamTo(FX_SHIFTER, 4, 1.f);
+    fx.Recall(scene);
+    Check(fx.Param(FX_SHIFTER, 4) == .25f && e.params[FX_SHIFTER][4] == .25f,
+          "pages: a recall puts page 2 back, also in the engine");
+    // a morph glides it with page 1's, the shifter on in both
+    fx.SetLatch(FX_SHIFTER, true);
+    fx.Snapshot(scene);
+    scene.params[FX_SHIFTER][4] = .75f;
+    fx.Morph(scene);
+    Check(e.plan.how[FX_SHIFTER][4] == MorphParam::GLIDE && e.plan.start[FX_SHIFTER][4] == .25f
+              && e.plan.target[FX_SHIFTER][4] == .75f,
+          "pages: a morph glides page 2's knobs too");
+}
+
 static void TestComp()
 {
     FakeEngine e;
     Fx fx;
     Fresh(e, fx);
     bool defaults = true;
-    for (size_t p = 0; p < kNumFxParams; p++)
+    for (size_t p = 0; p < kNumFxKnobs; p++)
         defaults = defaults && e.comp[p] == kCompParams.defaults[p] &&
                    fx.CompParam(p) == kCompParams.defaults[p];
     Check(defaults, "compressor: init on its defaults, also in the engine");
@@ -669,6 +734,7 @@ int main()
     TestInit();
     TestKeys();
     TestKnobs();
+    TestPages();
     TestComp();
     TestScenes();
     TestMorph();
