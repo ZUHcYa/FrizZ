@@ -204,11 +204,12 @@ freezer -> shifter -> folder -> crusher -> filter -> flanger -> slicer -> wow & 
   -> tape stop -> delay -> reverb
 ```
 
-The inserts fill the first 10 white keys, the 11th is free, the delay and reverb are the
-12th and 13th, the 14th is free again and the 15th, the last, is the
-[master compressor](#master-compressor)'s. The free keys set the inserts, the sends and the
-compressor apart. (The delay and reverb used to sit on the 11th and 12th keys, the compressor
-on the 14th, and the last key was the randomizer's, which is gone.)
+The inserts fill the first 10 white keys, the 11th is the [chaos key](#chaos-key), which
+makes no sound of its own but plays with the others, the delay and reverb are the 12th and
+13th, the 14th is free and the 15th, the last, is the
+[master compressor](#master-compressor)'s. (The delay and reverb used to sit on the 11th and
+12th keys, the compressor on the 14th, and the last key was the randomizer's, which is gone;
+the chaos key takes up its idea.)
 
 - **Inserts** (freezer, shifter, folder, crusher, filter, flanger, slicer): replace the
   signal while on and stop the moment they're off. The freezer comes first, so it captures
@@ -284,6 +285,7 @@ SHIFT + press on a knob takes it back there.
 | 8th white | Slicer: Kastle 2 FX Wizard's rhythmic gate | Pattern, 8 steps of 16ths: `x.......`, `x...x...`, `..x...x.`, `x....x..`, `x..x..x.`, `x.x.x.x.`, `x.x.xx..`, `xxxxxxxx` (default `xxxxxxxx`) | Decay, 10 ms to 1 s (default 1 s) | Chance: each step flipped at random, up to 90% (default off) | Stereo: the left channel plays a pattern up the list, the right one down, 0-7 apart (default off) |
 | 9th white | Wow & flutter: TAPE's warble, plus flutter | Wow: TAPE's warble knob, how often the pitch drifts and how much of it you hear, together (default off) | Flutter: a fast, shallow wobble, up to 1.4% of pitch; real tape's 0.1-0.5% is the lower half (default off) | Tone, lowpass 200 Hz to open (default open) | Stereo: the right channel drifts on its own and wobbles out of step (default off) |
 | 10th white | Tape stop | Stop time: 1/16, 1/8, 1/4, 1/2, 1 bar, 2 bars (default 1/2) | Spin-up time on release: off, 1/16, 1/8, 1/4, 1/2, 1 bar (default 1/4) | Curve: linear to a brake, fast at first then dragging (default linear) | Depth: how far it slows, from a full stop at the top (default) down to half speed (the SP-404MK2 Stopper's DEPTH) |
+| 11th white | [Chaos](#chaos-key): no sound of its own, it plays with the effects you've latched | FX chance: how often each latched effect drops out of a step, from never to half the steps (default off) | Scramble chance: how often a step of the loop plays from elsewhere in it, from never to every step (default off) | Grid: 1/16, 1/8, 1/4, 1/2, 1 bar, on the effects' tempo (default 1/8) | Random to pattern: left, every step rolled anew; right, a bar rolled once and repeated (default random) |
 | 12th white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 0) |
 | 13th white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Diffusion (default 60%) | Tone, dark to open (default 60%) | Level (default 0) |
 
@@ -496,6 +498,37 @@ Delay details:
 Reverb details:
 - LEDs: the key is blue; the knobs go light blue to purple.
 
+### Chaos key
+
+The 11th white key, after the Red Panda Tensor's RAND and the Chase Bliss Blooper's
+Scrambler. It works like any effect's key (hold to play, hold + SHIFT to latch, part of
+scenes and morphs), but makes no sound of its own. It plays with what's there, on its grid,
+in two ways:
+
+- **FX gates (knob 1):** the effects you've *latched* drop out of a step and come back on
+  the next, at random. An effect you're holding by hand stays on: holding a latched key takes
+  it out of chaos's hands while you hold it. With nothing latched, there's nothing to gate.
+  The keys of the effects show it: a dropped one dims as if off. Chance only decides when
+  they act, never how they sound: their knobs stay yours.
+- **Loop scramble (knob 2):** on a random step the loop plays another of its steps, from
+  elsewhere in the loop, and on the next step without one it plays in place again. The loop
+  itself runs on, so its position, the effects' tempo and its end don't move. Each jump is
+  crossfaded (5 ms). Without a loop, or while it's paused, nothing jumps.
+- **Grid (knob 3):** how often it rolls the dice, 1/16 to 1 bar, on the effects' tempo (the
+  loop, MIDI clock or taps), for both. Its steps are counted from the loop's start.
+- **Random to pattern (knob 4):** at the left every step is rolled anew; turned right, a
+  bar's steps are kept once rolled and only now and then rolled again, so at the right one
+  bar repeats and grooves. Each time the key comes on (a press, a latch, a scene), it rolls
+  a fresh bar.
+- It has no page 2: a knob press does nothing.
+- A morph fades it in and out on its two chances. A scene file from before it loads with it
+  off.
+- Effects that react to coming on do so each time chaos lets them back in: the freezer
+  grabs, the tape stop stops, the slicer attacks. A latched tape stop under chaos makes
+  random stops.
+- Over MIDI: CC 119 latches it, and its knobs are NRPN only (see [Controllers](#controllers)).
+- LEDs: the key is rose; the knobs go light blue to rose.
+
 ## Master compressor
 
 A stereo compressor on the master out, after the effects and before VOLUME, so turning
@@ -562,6 +595,7 @@ save again.
 | SHIFT + scene key | **Morph** to the scene, landing at the end of the current bar (see below) |
 | SHIFT + the same scene key again, while it morphs | One bar longer, up to 8 (past that, the key blinks red) |
 | SHIFT + PLAY, while it morphs | Stop the morph where it is |
+| SHIFT + scene key, then turn the transport knob (SHIFT still held) | **Crossfade** to the scene by hand (see below) |
 
 A recall is meant for performing, a build-up on one scene and the drop on the next:
 
@@ -678,6 +712,34 @@ While it morphs:
   key pulses as edited, since the sound is now between two scenes: save it to keep it.
   Without a morph, SHIFT + PLAY plays and pauses like PLAY.
 
+### Crossfading by hand
+
+A morph at the speed of your hand instead of the bar clock, like the Octatrack's crossfader:
+press SHIFT + a scene key as for a morph, and before you let go of SHIFT, turn the transport
+knob. The morph is now yours: the scene you're in (with whatever you've changed) on the
+left, the one you picked on the right, and everything in between, back and forth as often
+as you like. 24 detents take it from one end to the other. It works with or without a loop,
+and the bar lines don't count while you hold it.
+
+- **What fades is what a morph fades:** knobs on both scenes glide with the transport knob;
+  an effect only the new scene has fades in as soon as you're off the left end, one only the
+  old scene has fades out and goes off at the right end. What can't fade switches in the
+  middle, either way: stepped knobs (delay division, slicer pattern, shifter shift …) and the
+  freezer, shifter and slicer coming on or going off.
+- **Let go of SHIFT** to leave it:
+  - **all the way right:** you're in the new scene, as after a recall;
+  - **all the way left:** you're back where you started, the scene you were in as it was
+    (pulsing if you had changed it, steady if not);
+  - **in between:** it stays where it is, as SHIFT + PLAY leaves a morph: the knobs where the
+    fade got to, the new scene's key pulsing as edited. Save it to keep it.
+- **LEDs:** the two scene keys light in their mix, one brighter as the other dims, and the
+  transport LEDs show the position in white instead of the speed: the left one for the old
+  scene, the right one for the new.
+- Letting go without turning is a morph as before: it glides to the bar line. While you
+  hold a morph, SHIFT + turn crossfades instead of stepping the speed in 5ths and octaves;
+  once you've let go, the transport knob is back to speed and scrub at once.
+- Over MIDI, CC 118 is the crossfader (see [Controllers](#controllers)).
+
 ## MIDI
 
 From v0.11 (v0.10 takes MIDI clock only). FRIZZ takes MIDI from the TRS MIDI input and over USB (CHOMPI is a USB device, so USB MIDI
@@ -763,6 +825,8 @@ or C2 in Ableton Live): the white keys from 48 up, the dark keys on the sharps. 
 | 61 | How many bars a morph over CC 62 takes, 1-8 (1 at first) |
 | 62 | Morph to scene 0-4 (0 the blank one): as SHIFT + its key, landing on the bar line |
 | 63 | 64 and above: stops a morph where it is |
+| 118 | The [crossfader](#crossfading-by-hand): takes a running morph (CC 62's, or one you hold) to where it says, 0 the scene it started from, 127 the scene it goes to. Reaching 127 lands it; reaching 0 after being away from it goes back to where it started; in between it waits |
+| 119 | The [chaos key](#chaos-key)'s latch: 64 and above latched, below off. Its knobs have no CCs: NRPN MSB 0, LSB 122-125 set knobs 1-4 |
 | 70-117 | An effect's knob, set outright: 70 + 4 × the effect + the knob − 1, the effects counted from 0 by their keys: the freezer 70-73, shifter 74-77, folder 78-81, crusher 82-85, filter 86-89, flanger 90-93, resonator 94-97, slicer 98-101, wow & flutter 102-105, tape stop 106-109, delay 110-113, reverb 114-117 |
 
 - **Set outright** (CC 20-117), a value does what the knob or key would: the LEDs follow, the

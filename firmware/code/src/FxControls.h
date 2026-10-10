@@ -17,7 +17,8 @@
  *  Engine is PassthroughEngine on the device, a fake on the host. It needs SetFxOn(fx, on),
  *  SetFxParam(fx, param, val), SetCompParam(param, val), FastFxSlew() and the morph's
  *  StartFxMorph(plan), AddFxMorphBar(), LandFxMorph(), FreezeFxMorph(params, unswitched,
- *  was_on) and FxMorphing().
+ *  was_on), FxMorphing(), the crossfader's FxMorphHeld() and FadeFxMorph(t), and
+ *  SetFxPool(pool) for the chaos key (Pool).
  */
 #pragma once
 #include <math.h>
@@ -272,15 +273,7 @@ public:
     /** The parameters and latches into scene, which is then what the controls match */
     FX_SCENE_ONCE void Snapshot(FxScene& scene)
     {
-        scene.used = true;
-        scene.latched = 0;
-        for (size_t fx = 0; fx < kNumFx; fx++)
-        {
-            if (latched_[fx])
-                scene.latched |= static_cast<uint16_t>(1u << fx);
-            for (size_t p = 0; p < kNumFxParams; p++)
-                scene.params[fx][p] = params_[fx][p];
-        }
+        Capture(scene);
         edited_ = false;
     }
 
@@ -333,6 +326,10 @@ public:
     {
         SceneDecides();
         engine_->LandFxMorph();
+        // where it starts, for the crossfader to go back to (EndFade)
+        Capture(start_);
+        start_edited_ = edited_;
+        fading_ = false;
         FxMorphPlan plan;
         plan.deferred = plan.wake = plan.was_on = plan.park = 0;
         for (size_t fx = 0; fx < kNumFx; fx++)
@@ -404,6 +401,7 @@ public:
                 params_[fx][p] = scene.params[fx][p];
             engine_->SetFxOn(fx, IsOn(fx));
         }
+        engine_->SetFxPool(Pool());
         morph_touched_ = 0;
         ClearChunks();
         edited_ = false;
@@ -444,6 +442,44 @@ public:
         ClearChunks();
         edited_ = true;
         return true;
+    }
+
+    /** The crossfader (#66): the morph at t, 0 where it started to 1 the scene, in the
+     *  hand from now on (FxMorph::Fader). False if none runs. On the device, call it with the
+     *  audio interrupt blocked */
+    bool Fade(float t)
+    {
+        if (!engine_->FadeFxMorph(t))
+            return false;
+        fader_ = t;
+        fading_ = true;
+        return true;
+    }
+    /** Whether the crossfader has the morph, and where it is */
+    inline bool Fading() const { return fading_ && engine_->FxMorphing(); }
+    inline float FaderPos() const { return fader_; }
+    /** A morph started and waiting for SHIFT to be let go: the crossfader can take it */
+    inline bool MorphHeld() const { return engine_->FxMorphHeld(); }
+
+    /** The crossfader let go. At the scene's end the morph lands, as recalled: 1. At the
+     *  start's it stops and everything is as it was before the morph, the knobs, the latches
+     *  and whether the scene was edited: -1 (the UI takes back its active scene). In between it
+     *  stops where it is, edited, as FreezeMorph: 0. On the device, call it with the audio
+     *  interrupt blocked */
+    FX_SCENE_ONCE int EndFade()
+    {
+        fading_ = false;
+        if (fader_ >= 1.f)
+        {
+            engine_->LandFxMorph();
+            return 1;
+        }
+        // stopped first, so no key the morph would switch at the landing goes off and on
+        if (!FreezeMorph() || fader_ > 0.f)
+            return 0;
+        Recall(start_);
+        edited_ = start_edited_;
+        return -1;
     }
 
     /** The grid's next point from val in the direction dir, or val if there is none in
@@ -497,6 +533,16 @@ public:
         return changed;
     }
     inline bool IsLatched(size_t fx) const { return latched_[fx]; }
+    /** The chaos key's pool (FxChaos.h): the effects latched, but not held, nor the chaos key
+     *  itself, so what you play by hand stays on */
+    uint16_t Pool() const
+    {
+        uint16_t pool = 0;
+        for (size_t fx = 0; fx < kNumSoundFx; fx++)
+            if (latched_[fx] && !held_[fx])
+                pool |= Bit(fx);
+        return pool;
+    }
     inline bool IsOn(size_t fx) const { return held_[fx] || latched_[fx]; }
     /** The FX the knobs edit: the last one pressed, or kCompSelected */
     inline size_t Selected() const { return selected_; }
@@ -529,6 +575,20 @@ public:
 
 private:
     static inline uint16_t Bit(size_t fx) { return static_cast<uint16_t>(1u << fx); }
+
+    /** The parameters and latches into scene, used */
+    FX_SCENE_ONCE void Capture(FxScene& scene) const
+    {
+        scene.used = true;
+        scene.latched = 0;
+        for (size_t fx = 0; fx < kNumFx; fx++)
+        {
+            if (latched_[fx])
+                scene.latched |= Bit(fx);
+            for (size_t p = 0; p < kNumFxParams; p++)
+                scene.params[fx][p] = params_[fx][p];
+        }
+    }
     inline bool Stale(size_t fx) const { return (stale_ >> fx) & 1; }
 
     /** The key's state to the engine; coming on, first the parameters it lags behind in */
@@ -541,6 +601,7 @@ private:
             stale_ &= static_cast<uint16_t>(~Bit(fx));
         }
         engine_->SetFxOn(fx, IsOn(fx));
+        engine_->SetFxPool(Pool());
     }
 
     /** A recall, morph or stop: the latches are the scene's, and the keys held keep them */
@@ -603,6 +664,10 @@ private:
     uint16_t stale_ = 0;         // bit fx: off, and the engine has older parameters than
                                  // params_: a send ringing out, or an FX a morph parked
     uint16_t morph_touched_ = 0; // bit fx: its key pressed during the morph
+    FxScene start_;              // where the last morph started, for the crossfader
+    bool start_edited_ = false;  // and whether its scene was edited then
+    bool fading_ = false;        // the crossfader has the morph (Fade)
+    float fader_ = 0.f;          // where it is, 0 the start to 1 the scene
 };
 
 } // namespace chompi

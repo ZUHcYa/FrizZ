@@ -18,6 +18,13 @@
  *  While it runs it owns every parameter: the UI's SetParam moves the parameter's
  *  destination, not the sound. An FX whose key it switches at the landing (or when its fade-in
  *  starts) is deferred: the UI's SetOn only says what it will be.
+ *
+ *  The crossfader (#66): Fader takes the glide out of the clock's hands into the UI's, 0 the
+ *  start (A) and 1 the target (B), back and forth, and the bar lines no longer count. What
+ *  glides follows the fader; a fade-in's key is on anywhere past A, a fade-out's until B; the
+ *  rest switches in the middle, both ways: the stepped values of an FX on in both, and the
+ *  keys of the FX without fade knobs. It ends as a morph does: Land (B), Freeze (where it
+ *  is), or Freeze at A, which the UI takes back to where it was (FxControls::EndFade).
  */
 #pragma once
 #include "FxChain.h"
@@ -89,6 +96,8 @@ public:
         since_start_ = 0;
         land_ = false;
         holding_ = hold;
+        manual_ = false;
+        fader_ = 0.f;
         active_ = true;
     }
 
@@ -97,7 +106,7 @@ public:
      *  with the audio interrupt blocked */
     void Release(uint32_t pulses_to_bar, uint32_t pulses_per_bar)
     {
-        if (!active_ || !holding_)
+        if (!active_ || !holding_ || manual_)
             return;
         holding_ = false;
         base_ = pos_;
@@ -111,7 +120,7 @@ public:
      *  blocked */
     bool AddBar(uint32_t pulses_per_bar)
     {
-        if (!active_ || land_ || bars_left_ >= kMaxMorphBars)
+        if (!active_ || land_ || manual_ || bars_left_ >= kMaxMorphBars)
             return false;
         bars_left_++;
         for (size_t fx = 0; fx < kNumFx; fx++)
@@ -130,9 +139,31 @@ public:
             return;
         pulses_++;
         since_pulse_ = 0.f;
-        if (bar_line && !holding_ && --bars_left_ == 0)
+        if (bar_line && !holding_ && !manual_ && --bars_left_ == 0)
             land_ = true;
     }
+
+    /** The crossfader: the glide at t, 0 the start to 1 the target, from now on in the UI's
+     *  hands, held or gliding. False if none runs. Call with the audio interrupt blocked */
+    bool Fader(float t)
+    {
+        if (!active_ || land_)
+            return false;
+        if (!manual_)
+        {
+            // every switched key goes through the fader from here, the ones a fade-in
+            // switched already as they are now
+            sent_on_ = (plan_.was_on & deferred_) | (pending_on_ & plan_.deferred & ~deferred_);
+            deferred_ = plan_.deferred;
+            holding_ = false;
+            manual_ = true;
+        }
+        fader_ = t < 0.f ? 0.f : (t > 1.f ? 1.f : t);
+        return true;
+    }
+    /** Whether the crossfader has it, and where */
+    inline bool Manual() const { return active_ && manual_; }
+    inline float FaderPos() const { return fader_; }
 
     /** Once per block, after the block's pulses: the glide, or the landing */
     void Process(size_t size, float pulse_samples)
@@ -142,6 +173,11 @@ public:
         if (land_)
         {
             Land();
+            return;
+        }
+        if (manual_)
+        {
+            ProcessFader();
             return;
         }
 
@@ -230,8 +266,10 @@ public:
         for (size_t fx = 0; fx < kNumFx; fx++)
             for (size_t p = 0; p < kNumFxParams; p++)
                 params[fx][p] = live_[fx][p];
-        *unswitched = deferred_;
-        *was_on = deferred_ & plan_.was_on;
+        // on the fader, the keys still as they were at the start
+        const uint16_t unswitched_now = manual_ ? deferred_ & ~(sent_on_ ^ plan_.was_on) : deferred_;
+        *unswitched = unswitched_now;
+        *was_on = unswitched_now & plan_.was_on;
         deferred_ = 0;
         land_ = false;
         active_ = false;
@@ -253,8 +291,9 @@ public:
     bool SetOn(size_t fx, bool on)
     {
         const uint16_t bit = static_cast<uint16_t>(1u << fx);
-        if (!active_ || !(deferred_ & bit))
+        if (!active_ || !(plan_.deferred & bit))
             return false;
+        // also once a fade-in has switched it, for the crossfader to take up (Fader)
         if (on)
             pending_on_ |= bit;
         else
@@ -265,6 +304,52 @@ public:
     inline bool Active() const { return active_; }
 
 private:
+    /** A block on the crossfader: see the file comment. Only what changes is sent, at the
+     *  knobs' slew, as if they were turned */
+    __attribute__((noinline, optimize("Os"))) void ProcessFader()
+    {
+        const float t = fader_;
+        for (size_t fx = 0; fx < kNumFx; fx++)
+        {
+            const uint16_t bit = static_cast<uint16_t>(1u << fx);
+            if (plan_.deferred & bit)
+            {
+                const bool past = plan_.wake & bit ? t > 0.f
+                                                   : (plan_.park & bit ? t >= 1.f : t >= .5f);
+                const bool on = (past ? pending_on_ : plan_.was_on) & bit;
+                if (on != ((sent_on_ & bit) != 0))
+                {
+                    sent_on_ ^= bit;
+                    chain_->SetOn(fx, on);
+                }
+            }
+            for (size_t p = 0; p < kNumFxParams; p++)
+            {
+                const MorphParam how = plan_.how[fx][p];
+                const float start = plan_.start[fx][p];
+                float val;
+                if (how == MorphParam::HOLD)
+                {
+                    // one going off keeps its own until the end (Land)
+                    if (plan_.park & bit)
+                        continue;
+                    val = t >= .5f ? plan_.target[fx][p] : start;
+                }
+                else
+                {
+                    const float end = how == MorphParam::FADE_OUT ? kFxParams[fx].defaults[p]
+                                                                  : plan_.target[fx][p];
+                    val = start + (end - start) * t;
+                }
+                if (val != live_[fx][p])
+                {
+                    live_[fx][p] = val;
+                    chain_->SetParam(fx, p, val);
+                }
+            }
+        }
+    }
+
     Chain* chain_ = nullptr;
     FxMorphPlan plan_;
     float live_[kNumFx][kNumFxParams]; // what was last sent
@@ -280,6 +365,9 @@ private:
     volatile bool land_;
     volatile bool active_;
     volatile bool holding_ = false; // started held, not released yet
+    volatile bool manual_ = false;  // on the crossfader (Fader)
+    volatile float fader_ = 0.f;    // its position, 0 the start to 1 the target
+    uint16_t sent_on_ = 0;          // on the crossfader: the switched keys as sent
 };
 using FxMorph = FxMorphT<>;
 

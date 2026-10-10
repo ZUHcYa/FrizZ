@@ -25,7 +25,9 @@
  *  Scenes: a recall sends only the parameters that change, within one audio block and at the
  *  fast slew (FxChain::FastSlew), so an FX the two scenes share runs on untouched. SHIFT +
  *  a scene key morphs to it instead (FxMorph.h), landing on a bar line; the engine times it.
- *  SHIFT + PLAY stops a morph where it is; without one, PLAY works as ever.
+ *  SHIFT + PLAY stops a morph where it is; without one, PLAY works as ever. The transport knob
+ *  turned while SHIFT still holds a morph is its crossfader (#66, SceneControls::FaderTurned):
+ *  the glide in the hand, until SHIFT is let go (ReleaseMorph); the transport LEDs show it.
  *  The card is written from MainLoop (SceneStore::Process), never here.
  *
  *  MIDI (MidiControl.h): notes and FRIZZ's SysEx keys and detents come as the hand's do (ui.h);
@@ -460,15 +462,19 @@ namespace chompi
             using namespace midimap;
             // page 1's from the CC, page 2's from its NRPN in bank 1 (MidiControl.h)
             const size_t bank = cc / 128, ctl = cc % 128;
-            if (ctl >= kParamCC && ctl < kParamCC + kNumFx * kNumFxKnobs)
+            if (ctl >= kParamCC && ctl < kParamCC + kMidiFx * kNumFxKnobs)
                 fx_.SetParamTo((ctl - kParamCC) / kNumFxKnobs,
                                (ctl - kParamCC) % kNumFxKnobs + bank * kNumFxKnobs, value);
             else if (ctl >= kCompCC && ctl < kCompCC + kNumFxKnobs)
                 fx_.SetComp(ctl - kCompCC + bank * kNumFxKnobs, value);
+            else if (ctl >= kChaosNrpn && ctl < kChaosNrpn + kNumFxKnobs)
+                fx_.SetParamTo(FX_CHAOS, ctl - kChaosNrpn + bank * kNumFxKnobs, value);
             else if (bank)
                 return;
-            else if (cc >= kLatchCC && cc < kLatchCC + kNumFx)
+            else if (cc >= kLatchCC && cc < kLatchCC + kMidiFx)
                 fx_.SetLatch(cc - kLatchCC, raw >= 64);
+            else if (cc == kChaosLatchCC)
+                fx_.SetLatch(FX_CHAOS, raw >= 64);
             else if (cc == kOutGainCC)
             {
                 out_gain_ = value;
@@ -494,6 +500,11 @@ namespace chompi
                 RemoteMorph(raw);
             else if (cc == kStopMorphCC && raw >= 64)
                 FreezeMorph();
+            else if (cc == kFaderCC)
+            {
+                ScopedIrqBlocker irq;
+                scene_ctl_.FaderTo(value);
+            }
         }
 
         /** A morph over MIDI: as SHIFT + the scene key, tapped once per bar, and SHIFT let go,
@@ -631,7 +642,8 @@ namespace chompi
             const size_t first = part % kFxParts * kFxPerPart, page = part / kFxParts;
             for (size_t fx = first; fx < first + kFxPerPart; fx++)
                 for (size_t k = 0; k < kNumFxKnobs; k++)
-                    n = Put14(d, n, KnobToMidi14(scene.params[fx][page * kNumFxKnobs + k]));
+                    n = Put14(d, n, fx < kNumFx ? KnobToMidi14(scene.params[fx][page * kNumFxKnobs + k])
+                                                : 0);
             return n;
         }
 
@@ -664,7 +676,7 @@ namespace chompi
             if (q.len < kFxPerPart * kNumFxKnobs * 2)
                 return false;
             const size_t first = q.b % kFxParts * kFxPerPart, page = q.b / kFxParts;
-            for (size_t i = 0; i < kFxPerPart * kNumFxKnobs; i++)
+            for (size_t i = 0; i < kFxPerPart * kNumFxKnobs && first + i / kNumFxKnobs < kNumFx; i++)
                 put_scene_.params[first + i / kNumFxKnobs][page * kNumFxKnobs + i % kNumFxKnobs]
                     = MidiToKnob(static_cast<uint16_t>((v[2 * i] << 7) | v[2 * i + 1]), true);
             put_parts_ |= 1u << q.b;
@@ -681,11 +693,13 @@ namespace chompi
             ScopedIrqBlocker irq;
             return scene_ctl_.FreezeMorph();
         }
-        /** SHIFT let go: a morph started with it glides now (FxMorph::Release) */
+        /** SHIFT let go: a morph started with it glides now (FxMorph::Release), or the
+         *  crossfader ends where it is (SceneControls::EndFade) */
         void ReleaseMorph()
         {
             ScopedIrqBlocker irq;
-            engine_->ReleaseFxMorph();
+            if (!scene_ctl_.EndFade())
+                engine_->ReleaseFxMorph();
         }
         inline void Refused() { loop_refused_.Start(System::GetNow()); }
         inline uint32_t Now() const { return System::GetNow(); }
@@ -896,6 +910,16 @@ namespace chompi
                     else if (scene_ctl_.Valid(slot))
                         level = kFxOffLevel;
                 }
+                else if (scene_ctl_.Fading()
+                         && (s == scene_ctl_.Morphing() || s == scene_ctl_.FadeFrom()))
+                {
+                    // the crossfader: where it started and where it goes, in their mix
+                    const float t = scene_ctl_.FaderPos();
+                    float mix = s == scene_ctl_.Morphing() ? t : 0.f;
+                    if (s == scene_ctl_.FadeFrom())
+                        mix = fmaxf(mix, 1.f - t);
+                    level = kFxOffLevel + (1.f - kFxOffLevel) * mix;
+                }
                 else if (s == scene_ctl_.Morphing())
                 {
                     // morphing to it: blinking on the FX clock's beats
@@ -944,7 +968,8 @@ namespace chompi
                 const float meter = fclamp(1.f - db / kFxMeterFloorDb, 0.f, 1.f);
                 float level = kFxOffLevel;
                 float whiten = 0.f; // how far towards white
-                if (fx_.IsOn(fx))
+                // dropped from this step by the chaos key: dim, as if off
+                if (fx_.IsOn(fx) && !(engine_->FxDropped() >> fx & 1))
                 {
                     level = 1.f;
                     // squared, so normal levels stay coloured and the peaks flash white
@@ -1028,7 +1053,15 @@ namespace chompi
             SetPthLedFloat(kPlayLed, play, play, play);
             SetPthLedFloat(kLoopLed, loop[0], loop[1], loop[2]);
 
-            if (state == Looper::State::PLAYING)
+            // the crossfader in the hand: where it is, in white, instead of the speed: the
+            // start on the reverse LED, the scene on the forward one
+            if (scene_ctl_.Fading())
+            {
+                const float t = scene_ctl_.FaderPos();
+                SetPthLedFloat(kTransportLedRev, 1.f - t, 1.f - t, 1.f - t);
+                SetPthLedFloat(kTransportLedFwd, t, t, t);
+            }
+            else if (state == Looper::State::PLAYING)
                 DrawSpeedLeds(looper.GetSpeed());
             else if (state == Looper::State::PAUSED)
             {
@@ -1082,9 +1115,25 @@ namespace chompi
         }
 
         /** Playing: a turn steps the speed in semitones, SHIFT + turn along the ladder (see
-         *  Looper::StepSpeed). Paused: a turn scrubs, SHIFT + turn does nothing */
+         *  Looper::StepSpeed). Paused: a turn scrubs, SHIFT + turn does nothing. SHIFT + turn
+         *  while SHIFT holds a morph: the crossfader, loop or not */
         void TransportTurned(int16_t turns)
         {
+            // SHIFT still holding a morph, or the crossfader already in the hand: the
+            // crossfader, with or without a loop
+            if (Shift())
+            {
+                bool fader;
+                {
+                    ScopedIrqBlocker irq;
+                    fader = scene_ctl_.FaderTurned(turns);
+                }
+                if (fader)
+                {
+                    keys_.Used();
+                    return;
+                }
+            }
             if (!LoopExists())
                 return;
 

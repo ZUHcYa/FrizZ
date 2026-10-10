@@ -27,10 +27,17 @@
  *   - loop (resonator): a comb feedback loop from after the flanger back to after the
  *     freezer, so the filter is in the loop and the slicer outside it. Page 2's Band filters
  *     what goes into the loop, its Level is the return's (FxResonator.h).
+ *
+ *  And the chaos key (FxChaos.h), last of the FxIds though its key sits between the tape stop
+ *  and the delay: no sound and no place in the chain, it gates the others. The keys reach the
+ *  effects a block after they're set, together with what chaos drops (Block), so a key set
+ *  from MainLoop and one chaos changes in the audio callback never cross.
  */
 #pragma once
+#include <atomic>
 #include "BenchProfile.h"
 #include "EnvFollower.h"
+#include "FxChaos.h"
 #include "FxCrusher.h"
 #include "FxDelay.h"
 #include "FxFilter.h"
@@ -63,10 +70,13 @@ enum FxId
     FX_TAPESTOP,
     FX_DELAY,
     FX_REVERB,
+    FX_CHAOS, // the 11th white key, but last here so the others keep their numbers (MIDI)
     kNumFx,
 };
+// The effects in the chain, with a sound of their own: all but the chaos key
+static const size_t kNumSoundFx = FX_CHAOS;
 #if FRIZZ_BENCH
-static_assert(BenchProfile::COMP - BenchProfile::FX0 == kNumFx, "a bench part per effect");
+static_assert(BenchProfile::COMP - BenchProfile::FX0 == kNumSoundFx, "a bench part per effect");
 #endif
 
 /** Their names in the scene file (FxScenes.h): fixed, so saved scenes survive new effects
@@ -74,7 +84,7 @@ static_assert(BenchProfile::COMP - BenchProfile::FX0 == kNumFx, "a bench part pe
 static const char* const kFxNames[] = {
     "freezer", "shifter", "folder", "crusher", "filter",
     "flanger", "resonator", "slicer", "warble", "tapestop",
-    "delay", "reverb",
+    "delay", "reverb", "chaos",
 };
 static_assert(sizeof(kFxNames) / sizeof(kFxNames[0]) == kNumFx, "one per FxId");
 
@@ -108,6 +118,7 @@ public:
         resonator_.Init(sample_rate);
         warble_.Init(sample_rate);
         tapestop_.Init(sample_rate, tapestop_mem_l, tapestop_mem_r, tapestop_frames);
+        chaos_.Init();
 
         fx_[FX_FILTER] = &filter_;
         fx_[FX_CRUSHER] = &crusher_;
@@ -121,13 +132,15 @@ public:
         fx_[FX_TAPESTOP] = &tapestop_;
         fx_[FX_DELAY] = &delay_;
         fx_[FX_REVERB] = &reverb_;
+        fx_[FX_CHAOS] = &chaos_;
 
         for (size_t fx = 0; fx < kNumFx; fx++)
-        {
             meter_[fx].Init();
+        for (size_t fx = 0; fx < kNumSoundFx; fx++)
             out_[fx].Init(sample_rate);
-        }
         out_busy_ = 0;
+        keys_.store(0);
+        applied_ = pool_ = dropped_ = 0;
         fast_slew_left_ = 0;
     }
 
@@ -148,7 +161,42 @@ public:
         filter_.ClockPulse(pos, reverse);
         freezer_.ClockPulse(pos);
         slicer_.ClockPulse(pos);
+        chaos_.ClockPulse(pos);
     }
+
+    /** Once per block, after the pulses and the morph, before the samples: the keys set
+     *  since, and what chaos drops of its pool. True on a chaos step (FxChaos.h), with where
+     *  the loop plays it */
+    bool Block(float* jump)
+    {
+        // the chaos key's own first, so it drops nothing from the block it goes off in
+        const uint32_t keys = keys_.load(std::memory_order_relaxed);
+        const uint32_t chaos = 1u << FX_CHAOS;
+        if ((keys ^ applied_) & chaos)
+        {
+            applied_ ^= chaos;
+            chaos_.SetOn(keys & chaos);
+        }
+        const bool step = chaos_.TakeStep(jump);
+        const uint32_t drop = chaos_.Drops() & pool_;
+        const uint32_t want = keys & ~drop;
+        dropped_ = drop;
+        if (want != applied_)
+        {
+            const uint32_t changed = want ^ applied_;
+            applied_ = want;
+            for (size_t fx = 0; fx < kNumFx; fx++)
+                if (changed >> fx & 1)
+                    fx_[fx]->SetOn(want >> fx & 1);
+        }
+        return step;
+    }
+    /** The chaos key's pool, from the UI: the effects it may drop (FxControls::Pool) */
+    inline void SetPool(uint16_t pool) { pool_ = pool; }
+    /** Bit fx: dropped from this step by chaos, for the key LEDs */
+    inline uint16_t Dropped() const { return static_cast<uint16_t>(dropped_); }
+    /** Its grid in clock pulses, for the scramble's steps */
+    inline uint32_t ChaosGridPulses() const { return chaos_.GridPulses(); }
 
     /** One sample through the chain. The meters follow each insert's output and each send's
      *  return, so the send keys show the tails. */
@@ -263,10 +311,21 @@ public:
             out_busy_ &= ~(1u << fx);
     }
 
-    /** From the UI or the morph */
-    inline void SetOn(size_t fx, bool on) { fx_[fx]->SetOn(on); }
+    /** From the UI or the morph: the key reaches the effect at the next Block */
+    inline void SetOn(size_t fx, bool on)
+    {
+        if (on)
+            keys_.fetch_or(1u << fx, std::memory_order_relaxed);
+        else
+            keys_.fetch_and(~(1u << fx), std::memory_order_relaxed);
+    }
     __attribute__((noinline)) void SetParam(size_t fx, size_t param, float val)
     {
+        if (fx == FX_CHAOS)
+        {
+            chaos_.SetParam(param, val);
+            return;
+        }
         // page 2's shared knobs go to the effect's FxOutput: all three on an insert, Band
         // alone on the sends and the resonator, whose other page-2 knobs are their own
         const bool own = fx == FX_DELAY || fx == FX_REVERB || fx == FX_RESONATOR;
@@ -316,14 +375,19 @@ private:
     TapeStop tapestop_;
     DelaySend delay_;
     ReverbSend reverb_;
+    Chaos chaos_;
     FxBase* fx_[kNumFx];
-    FxOutput out_[kNumFx]; // page 2's Mix, Band and Level (FxOutput.h)
+    FxOutput out_[kNumSoundFx]; // page 2's Mix, Band and Level (FxOutput.h)
     // the effects whose out_ is Busy (an insert) or Banding (a send, the resonator), by bit:
     // the rest run alone, their out_ untouched, which keeps a chain at its defaults as cheap
     // as without them. Set by SetParam, cleared by Insert and SendBand
     volatile uint16_t out_busy_ = 0;
     EnvFollower meter_[kNumFx];
     uint32_t fast_slew_left_; // samples of FastSlew to go
+    std::atomic<uint32_t> keys_{0}; // bit fx: its key on, as the UI or the morph set it
+    uint32_t applied_ = 0;          // and as the effects have it, less what chaos drops
+    volatile uint32_t pool_ = 0;    // the chaos key's pool (SetPool)
+    volatile uint32_t dropped_ = 0; // what it drops of it now
 };
 
 } // namespace chompi
