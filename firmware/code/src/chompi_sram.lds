@@ -240,6 +240,9 @@ SECTIONS
 		. = ALIGN(4);
 		_ebackupsram = .;
 	} > BACKUP_SRAM
+	/* boot_info first, where the bootloader writes it: anything else in BACKUP_SRAM goes
+	 * after it (FaultLog.h). Moved, the firmware hangs at boot */
+	ASSERT(_ZN5daisy9boot_infoE == ORIGIN(BACKUP_SRAM), "boot_info must start BACKUP_SRAM")
 
 	.sdram_bss (NOLOAD) :
 	{
