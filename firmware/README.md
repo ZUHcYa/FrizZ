@@ -167,11 +167,12 @@ wherever it is.
 
 All of them go through the launcher (`tools/chompi.py`): a running FRIZZ restarts into it over
 USB MIDI (the SysEx `F0 7D 43 48 10 F7`, `MidiClock.h`), the storage firmware restarts on an
-eject, and the launcher starts a slot on its `RUN` command. The last two are in
-[launcher/run-slot](https://github.com/ZUHcYa/FrizZ/tree/launcher/run-slot) and
-[usb-storage/restart-on-eject](https://github.com/ZUHcYa/FrizZ/tree/usb-storage/restart-on-eject),
-offered upstream; with the released launcher v1.3 the tools still work, but say which key to
-press (15 for the card, overdub then CHOMPI to leave it, 10 for FRIZZ). With an older FRIZZ or
+eject, and the launcher starts a slot on its `RUN` command. The last two need launcher 1.5
+(sfaber02/CHOMPI#2, offered as an update by the
+[setup page](https://ugrossek.github.io/CHOMPI/setup/)) and
+[USB storage v1.6](https://github.com/lnetzel/CHOMPI-lnetzel/releases/tag/usb-storage-v1.6)
+(lnetzel/CHOMPI-lnetzel#14); with an older launcher or storage firmware the tools still work,
+but say which key to press (15 for the card, overdub then CHOMPI to leave it, 10 for FRIZZ). With an older FRIZZ or
 another firmware running, switch the CHOMPI off and on when they say so (they wait up to 2
 minutes). Mounting needs udisks, as any desktop has.
 
