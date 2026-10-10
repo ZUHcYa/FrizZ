@@ -127,6 +127,7 @@ public:
             meter_[fx].Init();
             out_[fx].Init(sample_rate);
         }
+        out_busy_ = 0;
         fast_slew_left_ = 0;
     }
 
@@ -156,7 +157,7 @@ public:
         if (fast_slew_left_ > 0 && --fast_slew_left_ == 0)
             FxSlew::coeff = kFxParamCoeff;
 
-        out_[FX_FREEZER].Process(freezer_, l, r);
+        Insert(FX_FREEZER, freezer_, l, r);
         if (!freezer_.Idle())
             Meter(FX_FREEZER, *l + *r);
         BENCH_MARK_FX(FX_FREEZER);
@@ -165,44 +166,41 @@ public:
         if (!resonator_.Idle())
             Meter(FX_RESONATOR, resonator_.Return());
         BENCH_MARK_FX(FX_RESONATOR);
-        out_[FX_SHIFTER].Process(shifter_, l, r);
+        Insert(FX_SHIFTER, shifter_, l, r);
         if (!shifter_.Idle())
             Meter(FX_SHIFTER, *l + *r);
         BENCH_MARK_FX(FX_SHIFTER);
-        out_[FX_FOLDER].Process(folder_, l, r);
+        Insert(FX_FOLDER, folder_, l, r);
         if (!folder_.Idle())
             Meter(FX_FOLDER, *l + *r);
         BENCH_MARK_FX(FX_FOLDER);
-        out_[FX_CRUSHER].Process(crusher_, l, r);
+        Insert(FX_CRUSHER, crusher_, l, r);
         if (!crusher_.Idle())
             Meter(FX_CRUSHER, *l + *r);
         BENCH_MARK_FX(FX_CRUSHER);
-        out_[FX_FILTER].Process(filter_, l, r);
+        Insert(FX_FILTER, filter_, l, r);
         if (!filter_.Idle())
             Meter(FX_FILTER, *l + *r);
         BENCH_MARK_FX(FX_FILTER);
-        out_[FX_FLANGER].Process(flanger_, l, r);
+        Insert(FX_FLANGER, flanger_, l, r);
         if (!flanger_.Idle())
             Meter(FX_FLANGER, *l + *r);
         BENCH_MARK_FX(FX_FLANGER);
-        if (resonator_.Idle())
-            resonator_.Tap(*l, *r);
-        else
         {
             float tl = *l, tr = *r;
-            out_[FX_RESONATOR].Band(&tl, &tr);
+            SendBand(FX_RESONATOR, resonator_.Idle(), &tl, &tr);
             resonator_.Tap(tl, tr);
         }
         BENCH_MARK_FX(FX_RESONATOR);
-        out_[FX_SLICER].Process(slicer_, l, r);
+        Insert(FX_SLICER, slicer_, l, r);
         if (!slicer_.Idle())
             Meter(FX_SLICER, *l + *r);
         BENCH_MARK_FX(FX_SLICER);
-        out_[FX_WARBLE].Process(warble_, l, r);
+        Insert(FX_WARBLE, warble_, l, r);
         if (!warble_.Idle())
             Meter(FX_WARBLE, *l + *r);
         BENCH_MARK_FX(FX_WARBLE);
-        out_[FX_TAPESTOP].Process(tapestop_, l, r);
+        Insert(FX_TAPESTOP, tapestop_, l, r);
         if (!tapestop_.Idle())
             Meter(FX_TAPESTOP, *l + *r);
         BENCH_MARK_FX(FX_TAPESTOP);
@@ -211,8 +209,7 @@ public:
         // return, so the echoes are reverberated. Both returns are added on top.
         const float sendl = *l, sendr = *r;
         float inl = sendl, inr = sendr;
-        if (!delay_.Idle()) // what goes in is faded with the key
-            out_[FX_DELAY].Band(&inl, &inr);
+        SendBand(FX_DELAY, delay_.Idle(), &inl, &inr); // what goes in is faded with the key
         delay_.Process(inl, inr, l, r);
         const float delayl = *l, delayr = *r;
         if (!delay_.Sleeping())
@@ -220,12 +217,49 @@ public:
         BENCH_MARK_FX(FX_DELAY);
         inl = delayl;
         inr = delayr;
-        if (!reverb_.Idle())
-            out_[FX_REVERB].Band(&inl, &inr);
+        SendBand(FX_REVERB, reverb_.Idle(), &inl, &inr);
         reverb_.Process(inl, inr, l, r);
         if (!reverb_.Sleeping())
             Meter(FX_REVERB, *l - delayl + *r - delayr);
         BENCH_MARK_FX(FX_REVERB);
+    }
+
+    /** One insert, with its page 2's Mix, Band and Level (out_[fx]) while they're Busy. The
+     *  effect's own Process in one place, so it's inlined once */
+    template <class Fx>
+    inline void Insert(size_t fx, Fx& effect, float* l, float* r)
+    {
+        // the busy case out of line and at the end, so a chain at its defaults runs through
+        // as little code as without page 2: the audio callback is bound by the I-cache (#51)
+        const bool busy = __builtin_expect((out_busy_ & (1u << fx)) != 0, 0);
+        bool split = false;
+        if (busy)
+            split = OutBegin(fx, l, r);
+        effect.Process(l, r);
+        if (busy)
+            OutEnd(fx, split, l, r);
+    }
+    __attribute__((noinline, cold)) bool OutBegin(size_t fx, float* l, float* r)
+    {
+        return out_[fx].Begin(fx_[fx]->Quiet(), l, r);
+    }
+    __attribute__((noinline, cold)) void OutEnd(size_t fx, bool split, float* l, float* r)
+    {
+        if (!out_[fx].End(split, l, r, fx_[fx]->Fade()))
+            out_busy_ &= ~(1u << fx);
+    }
+
+    /** What goes into a send or the resonator's loop, through its page 2's Band while that's
+     *  Banding and the effect is on (idle: its Idle()) */
+    inline void SendBand(size_t fx, bool idle, float* l, float* r)
+    {
+        if (__builtin_expect(!idle && (out_busy_ & (1u << fx)), 0))
+            OutBand(fx, l, r);
+    }
+    __attribute__((noinline, cold)) void OutBand(size_t fx, float* l, float* r)
+    {
+        if (!out_[fx].Band(l, r))
+            out_busy_ &= ~(1u << fx);
     }
 
     /** From the UI or the morph */
@@ -237,7 +271,10 @@ public:
         const bool own = fx == FX_DELAY || fx == FX_REVERB || fx == FX_RESONATOR;
         if (own ? param == FxOutput::kBand && out_[fx].SetParam(param, val)
                 : out_[fx].SetParam(param, val))
+        {
+            out_busy_ |= 1u << fx; // after the knob is set, so the audio sees it moving
             return;
+        }
         fx_[fx]->SetParam(param, val);
     }
     /** Before a scene recall's SetParams: the knobs slew at kFxRecallCoeff for
@@ -280,6 +317,10 @@ private:
     ReverbSend reverb_;
     FxBase* fx_[kNumFx];
     FxOutput out_[kNumFx]; // page 2's Mix, Band and Level (FxOutput.h)
+    // the effects whose out_ is Busy (an insert) or Banding (a send, the resonator), by bit:
+    // the rest run alone, their out_ untouched, which keeps a chain at its defaults as cheap
+    // as without them. Set by SetParam, cleared by Insert and SendBand
+    volatile uint16_t out_busy_ = 0;
     EnvFollower meter_[kNumFx];
     uint32_t fast_slew_left_; // samples of FastSlew to go
 };

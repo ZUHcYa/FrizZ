@@ -87,16 +87,35 @@ public:
     template <class Fx>
     inline void Process(Fx& fx, float* l, float* r)
     {
-        // at their defaults, or with the effect off and faded out: the effect alone, bit for
-        // bit as without them (an effect asleep passes its input). The rest is out of line,
-        // once for every effect, and the effect's own Process is called in one place
-        const bool plain = Plain(fx.Quiet());
+        const bool split = Begin(fx.Quiet(), l, r);
+        fx.Process(l, r);
+        End(split, l, r, fx.Fade());
+    }
+
+    /** Process in two halves, for FxChain.h, which calls them only while Busy. Before the
+     *  effect (idle: its Quiet()): the knobs' slew, and the band it gets split off, unless at
+     *  their defaults or with the effect off and faded out it runs alone, bit for bit as
+     *  without them (then false) */
+    inline bool Begin(bool idle, float* l, float* r)
+    {
+        const bool plain = Plain(idle);
         if (!plain)
             Split(l, r);
-        fx.Process(l, r);
-        if (!plain)
-            Join(l, r, fx.Fade());
+        return !plain;
     }
+
+    /** After the effect: what Begin split off joined back (split: what Begin returned), with
+     *  fade the effect's Fade(). Returns Busy() */
+    inline bool End(bool split, float* l, float* r, float fade)
+    {
+        if (split)
+            Join(l, r, fade);
+        return Busy();
+    }
+
+    /** Off their defaults or still slewing: at rest at the defaults, the effect runs alone
+     *  and FxChain.h leaves this out (SetParam makes it busy again) */
+    inline bool Busy() const { return moving_ || !neutral_; }
 
     /** The knobs' slewed values jump to their targets (tests) */
     void Snap()
@@ -108,27 +127,36 @@ public:
         moving_ = true; // Slew works out what follows
     }
 
-    /** A send's input: its Band alone. In place, l and r */
-    inline void Band(float* l, float* r)
+    /** A send's input: its Band alone. In place, l and r. Returns Banding() */
+    inline bool Band(float* l, float* r)
     {
         if (moving_)
             Slew();
+        if (!band_)
+        {
+            awake_ = false;
+            return Banding();
+        }
         float* const io[2] = {l, r};
-        const bool band = lo_.value != 0.f || hi_.value != 1.f;
         for (size_t c = 0; c < 2; c++)
         {
-            if (!band)
+            if (!awake_)
             {
-                // where the crossovers start from once the knob turns
+                // the crossovers start from here once the knob turns
                 lp_hi_[c] = *io[c];
                 lp_lo_[c] = 0.f;
-                continue;
             }
             lp_hi_[c] += hi_.value * (*io[c] - lp_hi_[c]);
             lp_lo_[c] += lo_.value * (*io[c] - lp_lo_[c]);
             *io[c] = lp_hi_[c] - lp_lo_[c];
         }
+        awake_ = true;
+        return Banding();
     }
+
+    /** Band off its default or still slewing: at rest in the middle, Band leaves the signal
+     *  as it is and FxChain.h leaves it out */
+    inline bool Banding() const { return moving_ || band_; }
 
     /** Level's knob 0..1 as a gain: 0 mutes, then -36dB to +12dB, exactly 1 at its default */
     static float LevelGain(float val)
@@ -169,7 +197,7 @@ private:
     }
 
     /** Before the effect: the signal kept, and the band the effect gets in its place */
-    FRIZZ_HOT __attribute__((noinline)) void Split(float* l, float* r)
+    FRIZZ_HOT inline void Split(float* l, float* r)
     {
         float* const io[2] = {l, r};
         for (size_t c = 0; c < 2; c++)
@@ -198,7 +226,7 @@ private:
     /** After it: the signal, with the band crossfaded by Mix into the effect's output at its
      *  Level. Level is the effect's alone, as the SP-404's: Mix at 0 is the signal untouched.
      *  Level fades in and out with the key (fade) as the effect does */
-    FRIZZ_HOT __attribute__((noinline)) void Join(float* l, float* r, float fade)
+    FRIZZ_HOT inline void Join(float* l, float* r, float fade)
     {
         // the fade only nears 1 (fonepole): its last 1e-4 (-80dB) taken as 1, so Level 0 mutes
         if (fade > 1.f - 1e-4f)
