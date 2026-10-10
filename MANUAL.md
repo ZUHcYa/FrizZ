@@ -598,7 +598,7 @@ While it morphs:
 
 ## MIDI
 
-From v0.11 (until its release, the [test build](https://github.com/ZUHcYa/FrizZ/releases/tag/beta); v0.10 takes MIDI clock only). FRIZZ takes MIDI from the TRS MIDI input and over USB (CHOMPI is a USB device, so USB MIDI
+From v0.11 (v0.10 takes MIDI clock only). FRIZZ takes MIDI from the TRS MIDI input and over USB (CHOMPI is a USB device, so USB MIDI
 comes from a computer or a host), both alike. It sends nothing over TRS; over USB it only
 answers FRIZZ's own queries (see [Remote control](#remote-control)).
 
