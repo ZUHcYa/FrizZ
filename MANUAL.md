@@ -234,7 +234,7 @@ on the 14th, and the last key was the randomizer's, which is gone.)
 | Knobs 1-4 | The parameters of the most recently pressed or selected FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo, tape stop and spin-up times) move one step per 3 detents |
 | SHIFT + knobs 1-4 | Coarse: jumps to the next point of the parameter's grid per detent (see below) |
 | SHIFT + press knobs 1-4 | Resets that parameter to its default, on the page shown |
-| Press knobs 1-4 | **Page 2:** all four knobs turn over to the effect's second page, and their LEDs pulse; press any knob again for page 1. Pressing or selecting another effect, or the compressor's key, goes back to page 1; pressing the same effect's key keeps page 2. The compressor has one too. On an effect without a page 2 (the resonator and the tape stop, for now) the press does nothing. See [Page 2](#page-2) |
+| Press knobs 1-4 | **Page 2:** all four knobs turn over to the effect's second page, and their LEDs pulse; press any knob again for page 1. Pressing or selecting another effect, or the compressor's key, goes back to page 1; pressing the same effect's key keeps page 2. Every effect has one, and the compressor too. See [Page 2](#page-2) |
 
 The FX keys are dimly lit in their effect's colour while off and at full brightness while
 on, where the audio coming out of the effect pushes the colour towards white, from -30 dBFS
