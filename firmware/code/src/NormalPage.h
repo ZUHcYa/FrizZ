@@ -41,6 +41,7 @@
 #include "FxSlots.h"
 #include "hardware.h"
 #include "LedSignal.h"
+#include "PanelLeds.h"
 #include "PlayKeys.h"
 #include "SceneControls.h"
 #include "SettingsPage.h"
@@ -78,12 +79,6 @@ namespace chompi
     static const uint16_t kTransportEncoder = 4;
     static const uint16_t kVolumeEncoder = 5;
 
-    static const uint8_t kVolumeLed = 9;
-    static const uint8_t kChompiKeyLed = 0;
-    static const uint8_t kTransportLedRev = 5; // lit when playing in reverse
-    static const uint8_t kTransportLedFwd = 6; // lit when playing forward
-    static const uint8_t kPlayLed = 7;
-    static const uint8_t kLoopLed = 8;
     static const float kPausedDim = .3f;
     // waiting for something: a quantized record closing, an erase at the loop's end, a picked
     // scene slot, the CHOMPI key armed to confirm. Slower than a refusal's 3 blinks (LedSignal)
@@ -106,9 +101,7 @@ namespace chompi
         Hardware::SwId::ENC_2_SW,
         Hardware::SwId::ENC_3_SW,
     };
-    // FX key LEDs. The SMT LEDs have 64 steps (temp_led_stuff.h), and below about 8 of them
-    // the colours run together, so off is as dim as the keys go while keeping their colour.
-    static const float kFxOffLevel = .15f;    // off: every FX key dimly in its colour
+    // FX key LEDs: off, every FX key dimly in its colour (kFxOffLevel, PanelLeds.h)
     static const float kFxMeterFloorDb = -30.f; // the meters' range, up to 0 dBFS
     static const float kFxWhiteMax = .8f;     // on: how far the loudest audio pushes to white
     static const float kCompMeterDb = 12.f;   // the compressor key's full brightness, dB reduced
@@ -1164,15 +1157,8 @@ namespace chompi
 
         inline bool Shift() const { return keys_.Shift(); }
 
-        // LED helpers: a colour at a level, and crossfades through two, three or four colours
-        static void SmtLed(uint8_t led, const float* color, float level)
-        {
-            SetSmtLedFloat(led, level * color[0], level * color[1], level * color[2]);
-        }
-        static void PthLed(uint8_t led, const float* color, float level)
-        {
-            SetPthLedFloat(led, level * color[0], level * color[1], level * color[2]);
-        }
+        // LED helpers (a colour at a level: PanelLeds.h): crossfades through two, three or
+        // four colours
         /** A short flash over what an LED shows: white, or dark where it's already close to
          *  white (a loud FX, the compressor working hard, LOOP near the loop's end), so it's
          *  always seen */
