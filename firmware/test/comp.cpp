@@ -360,6 +360,15 @@ static void TestFile()
     Check(ParseMaster(buf, b) && b.clock_source == 3, "file: the clock source round-trips");
     Check(ParseMaster("FRIZZ master 1\nclock_source 4\n", b) && b.clock_source == 0,
           "file: one from before it, or a source past 3: Auto");
+
+    // MIDI out: 0 off, 1 the jack, 2 the jack and USB
+    a.Reset();
+    Check(a.midi_out == 0, "file: MIDI out off by default");
+    a.midi_out = 2;
+    FormatMaster(a, buf, sizeof(buf));
+    Check(ParseMaster(buf, b) && b.midi_out == 2, "file: MIDI out round-trips");
+    Check(ParseMaster("FRIZZ master 1\nmidi_out 3\n", b) && b.midi_out == 0,
+          "file: one from before it, or a value past 2: off");
     // every setting at its longest still fits the file's buffer
     a.Reset();
     for (size_t p = 0; p < kNumFxKnobs; p++)
@@ -368,6 +377,7 @@ static void TestFile()
     a.midi_channel = 16;
     a.clock_factor = 200;
     a.clock_source = 3;
+    a.midi_out = 2;
     char big[kMasterFileMax];
     Check(FormatMaster(a, big, sizeof(big)) > 0, "file: every setting at its longest fits");
 }

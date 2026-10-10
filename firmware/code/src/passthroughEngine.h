@@ -106,11 +106,16 @@ public:
             size, looper.GetPosition(), looper.GetActualSpeed(),
             looper.GetState() == chompi::Looper::State::PAUSED);
         fx_.SetTempo(tempo_clock_.GetFxBpm(), tempo_clock_.PulseSamples());
+        // where the loop was before this block's pulses, for MIDI out's next 16th (MidiOut.h)
+        next_16th_ = tempo_clock_.HasLoop() ? tempo_clock_.NextLoopPulseOn(chompi::kPulsesPer16th) : 0;
+        block_pulses_ = 0;
         for (uint32_t p = 0; p < pulses; p++)
         {
             const uint32_t pos = tempo_clock_.Pulse();
             fx_.ClockPulse(pos, tempo_clock_.Reverse());
             morph_.Pulse(chompi::TempoClock::IsBarLine(pos));
+            if (block_pulses_ < kMaxBlockPulses)
+                block_loop_pulse_[block_pulses_++] = tempo_clock_.LoopPulse();
         }
         morph_.Process(size, tempo_clock_.PulseSamples());
         BENCH_MARK(TEMPO);
@@ -229,6 +234,15 @@ public:
     /** The crossfader (FxMorph::Fader): the morph at t, 0 where it started to 1 the scene,
      *  from now on in the UI's hands; with the audio interrupt blocked. False if none runs */
     bool FadeFxMorph(float t) { return morph_.Fader(t); }
+    /** The tempo clock, and the pulses its last block counted with each one's place in the
+     *  loop (TempoClock::LoopPulse), at most kMaxBlockPulses: for MIDI out (MidiOut.h) */
+    inline const chompi::TempoClock& Tempo() const { return tempo_clock_; }
+    inline uint32_t BlockPulses() const { return block_pulses_; }
+    inline uint32_t BlockLoopPulse(uint32_t i) const { return block_loop_pulse_[i]; }
+    /** With a loop: the loop pulse of the next 16th as the block began, before its pulses */
+    inline uint32_t Next16th() const { return next_16th_; }
+    static const uint32_t kMaxBlockPulses = 4;
+
     /** The FX clock's position, 0..TempoClock's kPulsesPerCycle - 1, for blinking on its beats */
     inline uint32_t FxClockPosition() const { return tempo_clock_.Position(); }
     /** The tempo the effects follow, for MIDI's state query (MidiControl.h) */
@@ -277,6 +291,9 @@ private:
     volatile float lim_gain_ = 1.f; // TakeLimiterGain
     chompi::EnvFollower output_env_follower;
     chompi::TempoClock tempo_clock_;
+    uint32_t block_pulses_ = 0; // the last block's pulses, up to kMaxBlockPulses
+    uint32_t block_loop_pulse_[kMaxBlockPulses] = {};
+    uint32_t next_16th_ = 0;
     chompi::FxChain fx_;
     chompi::FxMorph morph_;
     chompi::MasterComp comp_;

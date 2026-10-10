@@ -33,9 +33,12 @@ void LedDmaStart(int channel, const uint32_t* data, size_t size, DmaDone done, v
 typedef void (*AudioCallback)(const float* const* in, float** out, size_t size);
 void StartAudio(AudioCallback cb);
 
-// --- MIDI in (the TRS jack's UART) ---------------------------------------------------------
+// --- MIDI in and out (the TRS jacks' UART) ------------------------------------------------
 typedef void (*UartRx)(uint8_t* data, size_t size, void* context);
 void UartListen(UartRx rx, void* context);
+/** A byte into the UART's transmit register, if it's free: as on the chip it holds one byte
+ *  while the one before it goes out, 0.32 ms each at 31250 baud */
+bool UartTx(uint8_t byte);
 
 // --- USB MIDI, as raw MIDI bytes ------------------------------------------------------------
 void UsbListen(UartRx rx, void* context);

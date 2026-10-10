@@ -17,6 +17,7 @@
 #include "SceneStore.h"
 #include "EventLog.h"
 #include "MidiControl.h"
+#include "MidiOut.h"
 #if FRIZZ_BENCH
 #include "Bench.h"
 #endif
@@ -37,6 +38,8 @@ PassthroughEngine engine;
 MidiClock midi_clock;
 // the panel played and inspected over MIDI
 MidiControl midi_control;
+// MIDI clock and the loop's transport out, if the settings page asks (MidiOut.h)
+MidiOut midi_out;
 SceneStore scene_store;
 // every key, knob and clock change since power-on, for a bug report (SHIFT + VOLUME held on
 // the settings page)
@@ -153,9 +156,11 @@ FRIZZ_HOT_CALLBACK void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::
 
 #if FRIZZ_BENCH
     engine.Process(bench.Input(in, size), out, size);
+    midi_out.Process(size, engine, midi_control.GetMidiOut());
     bench.BlockEnd(engine);
 #else
     engine.Process(in, out, size);
+    midi_out.Process(size, engine, midi_control.GetMidiOut());
     midi_control.BlockTime(System::GetTick() - start_tick);
 #endif
 }
@@ -187,6 +192,9 @@ void MainLoop(void* data)
         ui.DoEvents();
         uit = now;
     }
+
+    // MIDI out's bytes for USB, which only MainLoop may send (MidiOut.h)
+    midi_out.FlushUsb();
 
     // a scene saved, copied or deleted: the card is written here, never in the audio callback
     scene_store.Process();
@@ -289,6 +297,7 @@ int main(void)
     midi_control.Init(&midi_clock, &event_log, scene_store.master.midi_channel,
                       scene_store.master.midi_transport, System::GetTickFreq(),
                       24.f / hw.seed.AudioSampleRate());
+    midi_out.Init(&midi_clock);
     ui.Init(&engine, &hw, &scene_store, &event_log, &midi_control);
 #if FRIZZ_BENCH
     bench.Init(hw.seed.AudioSampleRate(), 24, &fsi.GetSDFileSystem(), fsi.GetSDPath());

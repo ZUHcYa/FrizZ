@@ -402,9 +402,26 @@ void UsbListen(UartRx rx, void* context)
     usb_rx = rx;
     usb_context = context;
 }
+static std::vector<MidiOutByte> midi_out;
+static uint64_t uart_tx_free_ns = 0; // when the UART has sent everything it was given
+static const uint64_t kUartByteNs = 320000; // 10 bits at 31250 baud
+bool UartTx(uint8_t byte)
+{
+    // the transmit register is free once at most the byte before is still going out
+    if (uart_tx_free_ns > block_ns + kUartByteNs)
+        return false;
+    const uint64_t start = uart_tx_free_ns > block_ns ? uart_tx_free_ns : block_ns;
+    uart_tx_free_ns = start + kUartByteNs;
+    midi_out.push_back({start / 1e6, byte, false});
+    return true;
+}
 void UsbTx(const uint8_t* data, size_t size)
 {
     usb_out.append(reinterpret_cast<const char*>(data), size);
+    // MIDI out's (MidiOut.h): the clock, the transport, a Song Position; not SysEx
+    if (size > 0 && (data[0] == 0xF2 || data[0] >= 0xF8))
+        for (size_t i = 0; i < size; i++)
+            midi_out.push_back({(main_ns > block_ns ? main_ns : block_ns) / 1e6, data[i], true});
 }
 // what arrived since the last block, handed over at its start, as the UART's DMA and the USB
 // interrupt do before the audio callback polls them
@@ -603,6 +620,13 @@ std::string TakeUsbOut()
 {
     std::string out;
     out.swap(usb_out);
+    return out;
+}
+
+std::vector<MidiOutByte> TakeMidiOut()
+{
+    std::vector<MidiOutByte> out;
+    out.swap(midi_out);
     return out;
 }
 

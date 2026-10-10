@@ -596,6 +596,7 @@ namespace chompi
                 d[n++] = midi_->Channel();
                 d[n++] = midi_->Transport() ? 1 : 0;
                 d[n++] = static_cast<uint8_t>(midi_->GetClockSource());
+                d[n++] = static_cast<uint8_t>(midi_->GetMidiOut());
                 break;
             case kCmdSceneGet:
                 if (q.a >= kNumSlots || q.b >= kSceneParts)
