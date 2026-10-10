@@ -16,6 +16,8 @@
  *                        lit for the first half of every beat the effects follow, else dim
  *    A#                  the LEDs' brightness, each press the next: 100, 75, 50 %
  *                                                            purple, dimmed as all are
+ *    D# (upper octave)   MIDI out, each press the next: off, the jack, the jack and USB
+ *                                                            dim, orange, white
  *    G# (upper octave)   the clock source, each press the next: Auto, TRS, USB, internal
  *                                                            white, orange, blue, pink
  *
@@ -61,6 +63,7 @@ public:
                                                : ClockFactor::ONE;
         midi_->SetClockFactor(factor_);
         midi_->SetClockSource(static_cast<ClockSource>(master.clock_source));
+        midi_->SetMidiOut(static_cast<MidiOutPorts>(master.midi_out));
         quarters_ = master.led_brightness / 25;
         SetLedQuarters(quarters_);
     }
@@ -97,6 +100,13 @@ public:
             // Auto, TRS, USB, internal, Auto ...
             const uint8_t next = (static_cast<uint8_t>(midi_->GetClockSource()) + 1) % kNumClockSources;
             midi_->SetClockSource(static_cast<ClockSource>(next));
+            return true;
+        }
+        if (key == static_cast<int>(kMidiOutKey))
+        {
+            // off, the jack, the jack and USB, off ...
+            const uint8_t next = (static_cast<uint8_t>(midi_->GetMidiOut()) + 1) % kNumMidiOutPorts;
+            midi_->SetMidiOut(static_cast<MidiOutPorts>(next));
             return true;
         }
         if (key == static_cast<int>(kBrightnessKey))
@@ -156,6 +166,7 @@ public:
                               : factor_ == ClockFactor::DOUBLE ? 200
                                                                : 100;
         master.clock_source = static_cast<uint8_t>(midi_->GetClockSource());
+        master.midi_out = static_cast<uint8_t>(midi_->GetMidiOut());
         master.led_brightness = quarters_ * 25;
     }
 
@@ -176,6 +187,8 @@ public:
         const bool beat = engine_->FxClockPosition() % kPulsesPerBeat < kPulsesPerBeat / 2;
         KeyLed(kFactorKey, kFactorColors[static_cast<uint8_t>(factor_)], beat);
         KeyLed(kSourceKey, kSourceColors[static_cast<uint8_t>(midi_->GetClockSource())], true);
+        const MidiOutPorts out = midi_->GetMidiOut();
+        KeyLed(kMidiOutKey, out == MidiOutPorts::TRS ? orange : white, out != MidiOutPorts::OFF);
         KeyLed(kBrightnessKey, purple, true); // dimmed with every LED: it shows itself
 
         const unsigned level = hw_->GetBatteryLevel();
@@ -227,6 +240,8 @@ private:
     static const Hardware::SwId kBrightnessKey = Hardware::SwId::KEY_20;
     // G# of the upper octave, where the factor's is in the lower
     static const Hardware::SwId kSourceKey = Hardware::SwId::KEY_24;
+    // D# of the upper octave, where transport following's is in the lower
+    static const Hardware::SwId kMidiOutKey = Hardware::SwId::KEY_22;
     // the factor's hue, by ClockFactor: x1/2 light blue, x1 yellow, x2 red
     static constexpr const float* kFactorColors[3] = {med_blue, yellow, red};
     // the source's, by ClockSource: Auto white, TRS orange, USB blue, internal pink

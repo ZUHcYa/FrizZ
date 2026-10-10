@@ -49,7 +49,7 @@ then on page 4. Mono and the battery check moved to the [settings page](#setting
 
 From v0.11. With the mode switch **up**, the keys set what you'd set once for a setup rather
 than play: the MIDI channel, MIDI transport following, the mono input, where FRIZZ takes a
-MIDI clock from and how it follows it, and how bright its LEDs are. The loop, the effects
+MIDI clock from and how it follows it, whether it sends one, and how bright its LEDs are. The loop, the effects
 and MIDI play on meanwhile; only your hands are on this page. Switch back down to play.
 
 Each key sets one thing on its press. The white keys pick the MIDI channel; the dark keys
@@ -64,6 +64,7 @@ set the rest:
 | F# | [Mono input](#mono-input): mono (lit) / stereo (dim) | white |
 | G# | [Clock factor](#midi-clock), each press the next: as sent (default), double, half. It also shows the [beat](#tempo): lit for the first half of every beat, dim for the second | yellow (as sent), red (double), light blue (half) |
 | A# | [LED brightness](#led-brightness), each press the next: 100 % (default), 75 %, 50 % | purple, as bright as the LEDs are |
+| D# (upper octave) | [MIDI out](#midi-out), each press the next: off (default), TRS, TRS and USB | dim (off), orange (TRS), white (TRS and USB) |
 | G# (upper octave) | [Clock source](#clock-source), each press the next: Auto (default), TRS, USB, internal | white (Auto), orange (TRS), blue (USB), pink (internal) |
 
 The upper octave's other dark keys do nothing.
@@ -680,8 +681,10 @@ While it morphs:
 ## MIDI
 
 From v0.11 (v0.10 takes MIDI clock only). FRIZZ takes MIDI from the TRS MIDI input and over USB (CHOMPI is a USB device, so USB MIDI
-comes from a computer or a host), both alike. It sends nothing over TRS; over USB it only
-answers FRIZZ's own queries (see [Remote control](#remote-control)).
+comes from a computer or a host), both alike. With [MIDI out](#midi-out) on, it sends its
+clock and the loop's Start, Stop and Continue out of the TRS MIDI output, and over USB if you
+ask; otherwise it sends nothing over TRS, and over USB it only answers FRIZZ's own queries
+(see [Remote control](#remote-control)).
 
 ### MIDI clock
 
@@ -791,6 +794,55 @@ transport on`, or `midi_transport 1` in `FRIZZ/frizz_master.txt`.
 Start plays on from where the loop is, as Continue does: the loop doesn't jump to its start.
 With the [clock source](#clock-source) on TRS or USB, Start and Stop count only from that
 input; on Auto or internal, from both.
+
+### MIDI out
+
+From v0.12. FRIZZ sends its clock, so a drum machine, a sequencer or a synth's arpeggio plays
+in time with it, and with the loop. The upper octave's D# on the [settings
+page](#settings-page) switches it, each press the next: **off** (the default, dim), **TRS**
+(the TRS MIDI output, orange), **TRS and USB** (white). It's kept as `midi_out` in
+`FRIZZ/frizz_master.txt` (0 off, 1 TRS, 2 TRS and USB), and `firmware/remote.py out
+off|trs|all` sets it too.
+
+**The clock** (24 PPQN) runs all the time while MIDI out is on, at the tempo FRIZZ thinks in,
+the beat on the settings page's G#:
+
+- **With a loop:** the loop's tempo, at its speed, with the loop's start on beat 1. In reverse
+  the clock keeps running, at the loop's speed; while the loop is paused, it runs on at the
+  loop's tempo.
+- **Without a loop, with a MIDI clock coming in:** that clock, passed on tick for tick, with
+  the [clock factor](#midi-clock): at double a tick more halfway between two, at half every
+  other one.
+- **Neither:** the last tempo (tapped, from the last loop or from a clock; 120 BPM at
+  power-on).
+
+**Start, Stop and Continue** follow the loop:
+
+- A new loop starting to play sends **Start**, so the gear starts on the loop's beat 1. If
+  the gear already plays from a DAW's Start that FRIZZ passed on, no second Start: it plays
+  on, and the loop takes over the clock.
+- A pause sends **Stop**. PLAY sends **Song Position** (where the loop goes on, to the 16th)
+  and then **Continue** on that 16th, so the gear goes on where the loop does. Gear that
+  ignores Song Position goes on where it stopped, which is the same place, unless the loop
+  moved while paused.
+- Without a loop, Start, Continue and Stop that come in from the clock's input are passed on.
+- Erasing the loop sends nothing: the gear plays on, to the clock that's coming in or the
+  loop's tempo.
+
+**Not back to the sender:** while FRIZZ passes a clock on, nothing goes back out of the input
+it comes in on. A DAW over USB gets nothing back over USB, gear on the TRS jacks nothing out
+of TRS. With a loop, FRIZZ leads, and its clock goes out of every port MIDI out is set to.
+
+Nothing else goes out: no notes, no controllers, no MIDI thru.
+
+- Gear that follows any clock by itself takes FRIZZ's tempo as soon as MIDI out is on, even
+  while nothing plays. That's why it's off at first.
+- Over USB, the clock goes out between FRIZZ's other work: it's less steady than the TRS
+  output's (by up to a millisecond or so), and while FRIZZ writes the card (a scene saved)
+  its ticks wait and come out in a bunch. For tight timing, use TRS.
+- Gear with MIDI thru on that sends FRIZZ's clock back into its TRS input: with the clock
+  source on Auto, FRIZZ follows its own clock coming back. Set the clock source to internal
+  or USB, or switch the gear's thru off.
 
 ### Remote control
 

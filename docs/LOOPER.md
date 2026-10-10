@@ -74,7 +74,8 @@ TAPE's monitor-routing modes.
   whichever ticks next takes over. The settings page can pin it to TRS or USB, or ignore MIDI
   clock (internal): `MidiClock.h`, MANUAL.md *Clock source*.
 - For the looper, only clock ticks are used. (Since v0.11 FRIZZ also takes notes, CCs, program
-  changes and, optionally, Start/Stop: MANUAL.md, *MIDI*.) MIDI out is not needed.
+  changes and, optionally, Start/Stop: MANUAL.md, *MIDI*.) MIDI out isn't needed for the
+  looper; since v0.12 FRIZZ sends its clock and the loop's transport (MANUAL.md, *MIDI out*).
 
 USB-MIDI implications (already shipped in WAVE/TAPE/TEMPO, so low risk):
 - CHOMPI is a USB *device*. It works with a computer/DAW or gear with a USB *host* port; a

@@ -15,7 +15,8 @@
  *  Process()), so tick timestamps line up with the audio the looper records. They're only as
  *  precise as the audio block (24 samples = 0.5ms) plus the transport's own latency.
  *
- *  The UART/USB setup is from WAVE's MidiManager.h. See LOOPER.md 1.4.
+ *  The UART/USB setup is from WAVE's MidiManager.h. See LOOPER.md 1.4. MIDI out (MidiOut.h)
+ *  sends through it too: a byte at a time to the jack's UART (TrsPut), and over USB.
  *
  *  The tempo factor (the settings page, SettingsPage.h) makes FRIZZ follow the clock at half
  *  or double its tempo: what the looper and TempoClock read (the ticks, their period, the
@@ -63,6 +64,15 @@ enum class ClockSource : uint8_t
     INTERNAL,
 };
 static const uint8_t kNumClockSources = 4;
+
+// Where MIDI out (MidiOut.h) goes: nowhere, the jack, or the jack and USB
+enum class MidiOutPorts : uint8_t
+{
+    OFF,
+    TRS,
+    TRS_USB,
+};
+static const uint8_t kNumMidiOutPorts = 3;
 
 /** Whether a message from an input (usb, or the jack) passes the source: TRS and USB only
  *  their own, Auto and internal both */
@@ -198,6 +208,37 @@ public:
     /** A message out over USB. From MainLoop only: the transport waits for the bus */
     void SendUsb(uint8_t* bytes, size_t size) { usb_midi.SendMessage(bytes, size); }
 
+    /** One byte out of the MIDI jack if the UART can take it now, without waiting: from the
+     *  audio callback (MidiOut.h). False while it's busy: at 31250 baud a byte takes 0.32 ms,
+     *  and the UART holds one more while it sends */
+    bool TrsPut(uint8_t byte)
+    {
+#if defined(__arm__)
+        // the MIDI UART (MidiUartHandler's default USART1); libDaisy only sends blocking
+        if (!(USART1->ISR & USART_ISR_TXE_TXFNF))
+            return false;
+        USART1->TDR = byte;
+        return true;
+#else
+        return uart_midi.GetMutableTransport().GetUartHandle().PutByte(byte);
+#endif
+    }
+
+    /** The input whose ticks are counted now, NONE without a clock */
+    inline Source Locked() const { return source_; }
+
+    /** A Start (0xFA), Continue (0xFB) or Stop (0xFC) from an input whose clock would count
+     *  (the one locked to, or either before a lock: a DAW sends Start before its first tick),
+     *  the last of this block's, taken, and the input it came on: for MIDI out to pass on
+     *  (MidiOut.h); 0 for none */
+    inline uint8_t TakeTransport(Source& from)
+    {
+        const uint8_t t = transport_in_;
+        transport_in_ = 0;
+        from = transport_from_;
+        return t;
+    }
+
 private:
     inline float Bpm(float period) const
     {
@@ -228,6 +269,13 @@ private:
             restart_ = restart_
                        || (event.sysex_message_len == sizeof(kRestartSysEx)
                            && memcmp(event.sysex_data, kRestartSysEx, sizeof(kRestartSysEx)) == 0);
+        }
+        if (event.type == SystemRealTime
+            && (event.srt_type == Start || event.srt_type == Continue || event.srt_type == Stop)
+            && Counts(from) && (source_ == Source::NONE || from == source_))
+        {
+            transport_in_ = event.srt_type == Start ? 0xFA : event.srt_type == Continue ? 0xFB : 0xFC;
+            transport_from_ = from;
         }
         if (event.type != SystemRealTime || event.srt_type != TimingClock)
         {
@@ -303,6 +351,8 @@ private:
     float period_;
     float held_ = 0.f; // an interval waiting for the next tick, 0 for none
     volatile bool restart_ = false;
+    uint8_t transport_in_ = 0; // TakeTransport's
+    Source transport_from_ = Source::NONE;
     Listener listener_ = nullptr;
     void* listener_context_ = nullptr;
 };

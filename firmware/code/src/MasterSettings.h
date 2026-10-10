@@ -1,7 +1,7 @@
 /** @file MasterSettings.h
  *  @brief What the play page keeps on the card outside the scenes: the master compressor's
  *  knobs (MasterComp.h), the settings page's (SettingsPage.h: the mono input, the MIDI
- *  settings, the clock's tempo factor and source, the LEDs' brightness), and their text
+ *  settings, the clock's tempo factor and source, MIDI out, the LEDs' brightness), and their text
  *  format (SceneStore.h writes it). No
  *  hardware here, so the format can be tested on the host.
  *
@@ -15,11 +15,13 @@
  *    midi_transport 0
  *    clock_factor 100
  *    clock_source 0
+ *    midi_out 0
  *    led_brightness 100
  *
  *  clock_factor is how FRIZZ follows a MIDI clock, in percent of its tempo: 50, 100 or 200;
  *  clock_source whose clock it follows (ClockSource, MidiClock.h): 0 Auto, 1 TRS, 2 USB, 3
- *  internal; led_brightness the LEDs' in percent of FRIZZ's full: 100, 75 or 50. Another
+ *  internal; midi_out where MIDI out goes (MidiOutPorts): 0 off, 1 the jack, 2 the jack and
+ *  USB; led_brightness the LEDs' in percent of FRIZZ's full: 100, 75 or 50. Another
  *  value keeps the default. compressor2 has the compressor's eight parameters, both pages
  *  (MasterComp.h); a file from before has "compressor" with four, threshold, ratio, speed and
  *  mix, which loads with the speed as both attack and release and the makeup at 0dB (it was
@@ -46,6 +48,7 @@ struct MasterSettings
     bool midi_transport;  // MIDI Start, Continue and Stop play and pause the loop
     uint8_t clock_factor;   // percent of the clock's tempo FRIZZ follows: 50, 100, 200
     uint8_t clock_source;   // whose clock: 0 Auto, 1 TRS, 2 USB, 3 internal (MidiClock.h's ClockSource)
+    uint8_t midi_out;       // where MIDI out goes: 0 off, 1 the jack, 2 and USB (MidiOutPorts)
     uint8_t led_brightness; // percent: 100, 75, 50
 
     /** Every setting on its default */
@@ -58,6 +61,7 @@ struct MasterSettings
         midi_transport = false;
         clock_factor = 100;
         clock_source = 0;
+        midi_out = 0;
         led_brightness = 100;
     }
 
@@ -87,6 +91,8 @@ inline size_t FormatMaster(const MasterSettings& settings, char* buf, size_t siz
     PutUint(buf, size, pos, settings.clock_factor);
     Put(buf, size, pos, "\nclock_source ");
     PutUint(buf, size, pos, settings.clock_source);
+    Put(buf, size, pos, "\nmidi_out ");
+    PutUint(buf, size, pos, settings.midi_out);
     Put(buf, size, pos, "\nled_brightness ");
     PutUint(buf, size, pos, settings.led_brightness);
     Put(buf, size, pos, "\n");
@@ -148,6 +154,14 @@ inline bool ParseMaster(const char* text, MasterSettings& settings)
             const long v = num ? strtol(num, nullptr, 10) : -1;
             if (v >= 0 && v <= 3)
                 settings.clock_source = static_cast<uint8_t>(v);
+            continue;
+        }
+        if (word && Is(word, len, "midi_out"))
+        {
+            const char* num = Word(p, len);
+            const long v = num ? strtol(num, nullptr, 10) : -1;
+            if (v >= 0 && v <= 2)
+                settings.midi_out = static_cast<uint8_t>(v);
             continue;
         }
         if (word && Is(word, len, "led_brightness"))

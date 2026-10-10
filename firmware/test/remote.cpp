@@ -205,18 +205,35 @@ int main()
     Remote({"channel", "5"}, out);
     Remote({"transport", "on"}, out);
     rc = Remote({"settings"}, out);
-    Check(rc == 0 && out == "channel 5, transport on, clock auto\n",
+    Check(rc == 0 && out == "channel 5, transport on, clock auto, out off\n",
           "remote: channel and transport set, settings reads them");
     Remote({"channel", "0"}, out);
     rc = Remote({"settings"}, out);
-    Check(rc == 0 && out == "channel all, transport on, clock auto\n", "remote: channel 0 is every channel");
+    Check(rc == 0 && out == "channel all, transport on, clock auto, out off\n", "remote: channel 0 is every channel");
     Remote({"source", "usb"}, out);
     rc = Remote({"settings"}, out);
-    Check(rc == 0 && out == "channel all, transport on, clock usb\n", "remote: source sets the clock source");
+    Check(rc == 0 && out == "channel all, transport on, clock usb, out off\n", "remote: source sets the clock source");
+    Remote({"out", "trs"}, out);
+    rc = Remote({"settings"}, out);
+    Check(rc == 0 && out == "channel all, transport on, clock usb, out trs\n", "remote: out sets MIDI out");
     RunMs(2500);
     Check(Has(Card("/FRIZZ/frizz_master.txt"), "midi_channel 0\nmidi_transport 1\n")
-              && Has(Card("/FRIZZ/frizz_master.txt"), "clock_source 2\n"),
+              && Has(Card("/FRIZZ/frizz_master.txt"), "clock_source 2\nmidi_out 1\n"),
           "remote: and they go to the card");
+
+    // MIDI out over USB: its clock comes between the answers, and remote.py reads past it
+    Remote({"out", "all"}, out);
+    RunMs(200);
+    TakeMidiOut();
+    rc = Remote({"state"}, out);
+    size_t usb_ticks = 0;
+    for (const MidiOutByte& b : TakeMidiOut())
+        usb_ticks += b.usb && b.byte == 0xF8;
+    Check(rc == 0 && Has(out, "looper     empty") && usb_ticks > 0,
+          "remote: with MIDI out over USB, its clock comes in between, and state still reads");
+    if (rc != 0)
+        printf("%s\n", out.c_str());
+    Remote({"out", "off"}, out);
 
     // a scene: the blank one read, the filter closed and latched in it, sent to slot 2
     const std::string blank = tmp_dir + "/blank.json", mine = tmp_dir + "/mine.json",
