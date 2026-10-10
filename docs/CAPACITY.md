@@ -102,15 +102,22 @@ its own branch with a device test (the layout can change the timing: b5c658c).
 Not recommended: link-time optimisation (GCC 10.3, and it would merge the `-O0` workarounds
 into their callers), and running code from QSPI flash (slow, and it's the bootloader's).
 
+**The CPU and the code's size.** The per-sample code is far bigger than the 16 KB I-cache,
+so the callback is bound by it: every byte on that path costs, even code that is only
+skipped. Page 2's wrapper cost ~6 points of "everything" at its defaults until the chain
+skipped it with a bitmask and moved the busy case out of line (`FxChain::Insert`,
+`__attribute__((cold))`). Rare paths belong out of line; but a small change also shifts the
+layout, by ±2.5 points either way, so measure each one. `-O3` stays: `-O2` and `-Os` came out
+slower.
+
 **For the CPU, not for room: ITCM** (an experiment, #51, off by default). ITCM (64 KB) is the
-core's fastest code memory, with no cache to miss. When page 2's knobs grew the per-sample
-code past the 16 KB I-cache, everything in the callback slowed, the compressor included,
-which hadn't changed: the bench showed "everything" at 98 % against main's 83 %. With
+core's fastest code memory, with no cache to miss. With
 `make ITCM=1` the per-sample functions
 (`FxChain::Process`, the effects that aren't inlined into it, `PassthroughEngine::Process`,
 the looper, the delay's read, the reverb, `AudioCallback`) are marked `FRIZZ_HOT` and run
 from ITCM: `.itcmram` loads from `SRAM_EXEC` (`chompi_sram.lds`) and `main()` copies it
 (`CopyItcm`) before anything else. It saves no code room: the image still carries it. Calls
 out of it go through the linker's long-branch veneers. A function that runs every sample and
-grows big belongs there; mark it `FRIZZ_HOT`. The first device run with it hung (#51), so it
-stays off until that's understood.
+grows big belongs there; mark it `FRIZZ_HOT`. Its first device run came up on USB but never
+answered (the main loop starved, no fault: a fault resets into the launcher), so it stays off
+until a debugger shows why (#51).
