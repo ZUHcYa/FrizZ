@@ -105,27 +105,15 @@ def frizz(a):
     return remote.Frizz(chompi.to_frizz(a.slot))
 
 
-def key(f, name, down):
-    f.send(remote.KEY, [remote.SW_NAMES.index(name), 1 if down else 0])
-
-
 def latch(f, name):
     """An FX key held, SHIFT tapped: latched (MANUAL.md)"""
-    key(f, name, True)
+    f.key(name, True)
     time.sleep(.08)
-    key(f, "KEY_26", True)
+    f.key("KEY_26", True)
     time.sleep(.05)
-    key(f, "KEY_26", False)
+    f.key("KEY_26", False)
     time.sleep(.05)
-    key(f, name, False)
-
-
-def state(f):
-    return f.ask(remote.STATE)
-
-
-def tempo(d):
-    return remote.get14(d[21], d[22]) / 10
+    f.key(name, False)
 
 
 # ======== a clock paced by this computer ========
@@ -275,7 +263,7 @@ def cmd_clock(a):
     vals = []
     end = time.time() + a.seconds
     while time.time() < end:
-        vals.append(tempo(state(f)))
+        vals.append(remote.tempo(f.state()))
         time.sleep(.05)
     clock.close()
     changes = sum(1 for x, y in zip(vals, vals[1:]) if x != y)
@@ -324,7 +312,7 @@ def loop_length(y, times, bpm, bars):
 
 def cmd_drift(a):
     f = frizz(a)
-    if state(f)[0] != 0:
+    if f.state()[0] != 0:
         sys.exit("the looper isn't empty: erase it, or restart FRIZZ (flash.py --run 10)")
     midi = os.open(trs_midi(), os.O_WRONLY)
     clock = Clock(lambda b: os.write(midi, b), a.bpm, a.mode)
@@ -333,17 +321,17 @@ def cmd_drift(a):
     p = play(wav)
     time.sleep(4)
     # PLAY held, LOOP: a quantized recording; LOOP again half a bar before its last bar ends
-    key(f, "KEY_27", True); time.sleep(.08); key(f, "KEY_28", True); time.sleep(.06)
-    key(f, "KEY_28", False); time.sleep(.02); key(f, "KEY_27", False)
+    f.key("KEY_27", True); time.sleep(.08); f.key("KEY_28", True); time.sleep(.06)
+    f.key("KEY_28", False); time.sleep(.02); f.key("KEY_27", False)
     start, bar = time.time(), 4 * 60. / a.bpm
-    while state(f)[0] != 1 and time.time() - start < 2:
+    while f.state()[0] != 1 and time.time() - start < 2:
         time.sleep(.01)
     time.sleep(max(0., (a.bars - .5) * bar - (time.time() - start)))
-    key(f, "KEY_28", True); time.sleep(.05); key(f, "KEY_28", False)
+    f.key("KEY_28", True); time.sleep(.05); f.key("KEY_28", False)
     t1 = time.time()
-    while state(f)[0] != 2 and time.time() - t1 < bar + 2:
+    while f.state()[0] != 2 and time.time() - t1 < bar + 2:
         time.sleep(.02)
-    if state(f)[0] != 2:
+    if f.state()[0] != 2:
         sys.exit("the loop didn't close: is the clock reaching the TRS jack?")
     time.sleep(.3)
     p.terminate()

@@ -32,6 +32,7 @@ tools, or for playing it by hand:
 
 Linux only: ALSA's raw MIDI and udisks, Python 3 without packages.
 """
+import argparse
 import contextlib
 import fcntl
 import glob
@@ -412,6 +413,19 @@ def to_frizz(slot=None, timeout=120, device=None):
 def to_storage(timeout=120):
     """The card's partition, with the CHOMPI in its USB storage firmware (mount() mounts it)"""
     return storage_partition() or run(STORAGE_SLOT, "storage", timeout)
+
+
+# ---- the tools' command lines --------------------------------------------------------------
+
+def before_and_after(ap, *options):
+    """Options taken before the subcommand and after it, each (flags, add_argument's keywords):
+    added to AP, and to the parser returned, the parent for the subcommands, where a default of
+    SUPPRESS keeps one given before from being overwritten"""
+    common = argparse.ArgumentParser(add_help=False)
+    for flags, kw in options:
+        ap.add_argument(*flags, **kw)
+        common.add_argument(*flags, **dict(kw, default=argparse.SUPPRESS))
+    return common
 
 
 if __name__ == "__main__":

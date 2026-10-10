@@ -98,13 +98,9 @@ def then_arg(value):
 
 
 def main():
-    # --then is taken before the subcommand and after it: a default of SUPPRESS on the
-    # subcommands keeps one given before from being overwritten
-    help_then = "the slot to start afterwards (default FRIZZ's), or none"
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--then", type=then_arg, help=help_then)
-    then = argparse.ArgumentParser(add_help=False)
-    then.add_argument("--then", type=then_arg, default=argparse.SUPPRESS, help=help_then)
+    then = chompi.before_and_after(ap, (["--then"], dict(
+        type=then_arg, help="the slot to start afterwards (default FRIZZ's), or none")))
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("get", parents=[then])
     p.add_argument("paths", nargs="*")

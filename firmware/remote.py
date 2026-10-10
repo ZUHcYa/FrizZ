@@ -55,7 +55,7 @@ import chompi  # noqa: E402
 import midi_send  # noqa: E402
 
 KEY, TURN, SETTING, SWITCH = 0x11, 0x12, 0x13, 0x14
-STATE, PARAMS, LEDS, LOAD, SETTINGS = 0x20, 0x21, 0x22, 0x23, 0x24
+STATE, LEDS, LOAD, SETTINGS = 0x20, 0x22, 0x23, chompi.SETTINGS
 SOURCES = ["auto", "trs", "usb", "internal"]  # MidiClock.h's ClockSource, as SETTING 2 takes it
 OUTS = ["off", "trs", "all"]  # MidiClock.h's MidiOutPorts, as SETTING 3 takes it
 SCENE_GET, SCENE_PUT = 0x30, 0x31
@@ -77,8 +77,8 @@ FX_NAMES = ["freezer", "shifter", "folder", "crusher", "filter", "flanger", "res
 LOOPER = ["empty", "recording", "playing", "paused"]
 MODES = ["none", "save", "copy", "delete"]
 PAGES = ["output gain", "input gain", "headphone feed"]
-# the LED parts kCmdLeds answers: (panel?, first, count)
-LED_PARTS = [(True, 0, 10), (False, 0, 9), (False, 9, 8), (False, 17, 8)]
+# the LED parts kCmdLeds answers: (panel?, count)
+LED_PARTS = [(True, 10), (False, 9), (False, 8), (False, 8)]
 
 
 def get14(hi, lo):
@@ -138,10 +138,14 @@ class Frizz:
         for name in sorted(self.held):
             self.key(name, False)
 
+    def state(self):
+        """STATE's answer: what the play page shows (show_state)"""
+        return self.ask(STATE)
+
     def leds(self):
         """[(r, g, b)] * 10 for the panel, * 25 for the keys, as the LEDs get them"""
         pth, smt = [], []
-        for part, (panel, _, count) in enumerate(LED_PARTS):
+        for part, (panel, count) in enumerate(LED_PARTS):
             d = self.ask(LEDS, [part])[1:]
             rgb = [tuple(d[3 * i:3 * i + 3]) for i in range(count)]
             (pth if panel else smt).extend(rgb)
@@ -155,8 +159,13 @@ def led_line(pth, smt):
     return "pth " + hexes(pth, 11) + " | smt " + hexes(smt, 4)
 
 
+def tempo(d):
+    """The tempo in BPM, from STATE's answer"""
+    return get14(d[21], d[22]) / 10
+
+
 def show_state(f):
-    d = f.ask(STATE)
+    d = f.state()
     sel, active, flags = d[4], d[5], d[6]
     latched, on = get14(d[8], d[9]), get14(d[10], d[11])
     print("looper     %s, speed %+.3f, at %d%%" % (
@@ -173,7 +182,7 @@ def show_state(f):
         PAGES[d[12]] if d[12] < len(PAGES) else d[12], knob(get14(d[13], d[14])),
         knob(get14(d[15], d[16])), knob(get14(d[17], d[18])), knob(get14(d[19], d[20])),
         ", mono" if flags & 32 else ""))
-    print("tempo      %.1f BPM%s%s" % (get14(d[21], d[22]) / 10,
+    print("tempo      %.1f BPM%s%s" % (tempo(d),
                                      ", SHIFT held" if flags & 4 else "",
                                      ", erase waiting" if flags & 8 else ""))
     if len(d) > 23:
@@ -231,30 +240,35 @@ def scene_put(f, slot, scene):
         sys.exit("refused: slots 1-4 only")
 
 
+def script_lines(path):
+    """(line number, command, its arguments) for each line of a twin script that says
+    something: comments and the LED log's lines (|) left out"""
+    with open(path) as src:
+        for line_no, line in enumerate(src, 1):
+            words = line.split("#", 1)[0].split()
+            if words and not line.startswith("|"):
+                yield line_no, words[0], words[1:]
+
+
 def settings_use(path, up):
     """Where a script uses the settings page, (line, what), or None: a key or a knob while the
     mode switch is up (up: where it stands when the script starts), or a SETTING SysEx"""
     by_toggle = up
-    with open(path) as src:
-        for line_no, line in enumerate(src, 1):
-            words = line.split("#", 1)[0].split()
-            if not words or line.startswith("|"):
+    for line_no, cmd, args in script_lines(path):
+        if cmd == "toggle":
+            up = by_toggle = bool(int(args[0]))
+        elif cmd in ("down", "tap", "turn") and up:
+            return line_no, "%s %s on the settings page" % (cmd, args[0])
+        elif cmd in ("midi", "usb"):
+            data = [int(b, 16) for b in args]
+            if bytes(data[:4]) != midi_send.HEADER or len(data) < 6:
                 continue
-            cmd, args = words[0], words[1:]
-            if cmd == "toggle":
-                up = by_toggle = bool(int(args[0]))
-            elif cmd in ("down", "tap", "turn") and up:
-                return line_no, "%s %s on the settings page" % (cmd, args[0])
-            elif cmd in ("midi", "usb"):
-                data = [int(b, 16) for b in args]
-                if bytes(data[:4]) != midi_send.HEADER or len(data) < 6:
-                    continue
-                if data[4] == SETTING:
-                    return line_no, "a setting over SysEx"
-                if data[4] == SWITCH:
-                    up = {0: by_toggle, 1: False, 2: True}.get(data[5], up)
-                elif data[4] == KEY and up:
-                    return line_no, "a SysEx key on the settings page"
+            if data[4] == SETTING:
+                return line_no, "a setting over SysEx"
+            if data[4] == SWITCH:
+                up = {0: by_toggle, 1: False, 2: True}.get(data[5], up)
+            elif data[4] == KEY and up:
+                return line_no, "a SysEx key on the settings page"
     return None
 
 
@@ -312,54 +326,49 @@ def play(f, path, cpu):
     at_base = 0.0
     toggled = False
     try:
-        with open(path) as src:
-            for line_no, line in enumerate(src, 1):
-                words = line.split("#", 1)[0].split()
-                if not words or line.startswith("|"):
-                    continue
-                cmd, args = words[0], words[1:]
-                now_ms = (time.monotonic() - start) * 1000
-                if cmd == "wait":
-                    wait_until(now_ms + float(args[0]))
-                elif cmd == "at":
-                    wait_until(at_base + float(args[0]))
-                elif cmd == "booted":
-                    at_base = now_ms
-                elif cmd in ("down", "up"):
-                    f.key(args[0], cmd == "down")
-                elif cmd == "tap":
-                    f.key(args[0], True)
-                    time.sleep((float(args[1]) if len(args) > 1 else 60) / 1000)
-                    f.key(args[0], False)
-                elif cmd == "turn":
-                    detents = int(args[1])
-                    while detents:
-                        step = max(-64, min(63, detents))
-                        f.send(TURN, [int(args[0]), step & 0x7F])
-                        detents -= step
-                elif cmd in ("midi", "usb"):
-                    f.raw(int(b, 16) for b in args)
-                elif cmd == "clock":
-                    clock["bpm"] = float(args[0])
-                elif cmd == "toggle":
-                    toggled = True
-                    f.send(SWITCH, [2 if int(args[0]) else 1])
-                elif cmd == "leds":
-                    print("%7d %s" % (now_ms, led_line(*f.leds())))
-                elif cmd == "expect" and args[0] == "led":
-                    pth, smt = f.leds()
-                    chain, index, want = args[1], int(args[2]), args[3].lower()
-                    rgb = (pth if chain == "pth" else smt)[index]
-                    got = "%02x%02x%02x" % tuple(min(255, c * (11 if chain == "pth" else 4))
-                                                 for c in rgb)
-                    if got != want:
-                        print("line %d: %s %d is %s, not %s" % (line_no, chain, index, got, want),
-                              file=sys.stderr)
-                        failed += 1
-                else:
-                    if cmd not in skipped:
-                        print("skipped (twin only): %s" % cmd, file=sys.stderr)
-                    skipped.add(cmd)
+        for line_no, cmd, args in script_lines(path):
+            now_ms = (time.monotonic() - start) * 1000
+            if cmd == "wait":
+                wait_until(now_ms + float(args[0]))
+            elif cmd == "at":
+                wait_until(at_base + float(args[0]))
+            elif cmd == "booted":
+                at_base = now_ms
+            elif cmd in ("down", "up"):
+                f.key(args[0], cmd == "down")
+            elif cmd == "tap":
+                f.key(args[0], True)
+                time.sleep((float(args[1]) if len(args) > 1 else 60) / 1000)
+                f.key(args[0], False)
+            elif cmd == "turn":
+                detents = int(args[1])
+                while detents:
+                    step = max(-64, min(63, detents))
+                    f.send(TURN, [int(args[0]), step & 0x7F])
+                    detents -= step
+            elif cmd in ("midi", "usb"):
+                f.raw(int(b, 16) for b in args)
+            elif cmd == "clock":
+                clock["bpm"] = float(args[0])
+            elif cmd == "toggle":
+                toggled = True
+                f.send(SWITCH, [2 if int(args[0]) else 1])
+            elif cmd == "leds":
+                print("%7d %s" % (now_ms, led_line(*f.leds())))
+            elif cmd == "expect" and args[0] == "led":
+                pth, smt = f.leds()
+                chain, index, want = args[1], int(args[2]), args[3].lower()
+                rgb = (pth if chain == "pth" else smt)[index]
+                got = "%02x%02x%02x" % tuple(min(255, c * (11 if chain == "pth" else 4))
+                                             for c in rgb)
+                if got != want:
+                    print("line %d: %s %d is %s, not %s" % (line_no, chain, index, got, want),
+                          file=sys.stderr)
+                    failed += 1
+            else:
+                if cmd not in skipped:
+                    print("skipped (twin only): %s" % cmd, file=sys.stderr)
+                skipped.add(cmd)
     finally:
         stop.set()
         for t in threads:
@@ -386,21 +395,14 @@ def play(f, path, cpu):
 
 
 def main():
-    # --device and --no-start are taken before the subcommand and after it: a default of
-    # SUPPRESS on the subcommands keeps one given before from being overwritten
-    help_device = "the raw MIDI node, if not the first CHOMPI"
-    help_no_start = "don't start FRIZZ if the CHOMPI is elsewhere"
-    help_slot = "the FRIZZ slot to play on (10, 12), started unless it runs; default the one running"
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--device", help=help_device)
-    ap.add_argument("--no-start", action="store_true", help=help_no_start)
-    ap.add_argument("--slot", type=int, choices=chompi.FRIZZ_SLOTS, help=help_slot)
-    common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--device", default=argparse.SUPPRESS, help=help_device)
-    common.add_argument("--no-start", action="store_true", default=argparse.SUPPRESS,
-                        help=help_no_start)
-    common.add_argument("--slot", type=int, choices=chompi.FRIZZ_SLOTS, default=argparse.SUPPRESS,
-                        help=help_slot)
+    common = chompi.before_and_after(
+        ap, (["--device"], dict(help="the raw MIDI node, if not the first CHOMPI")),
+        (["--no-start"], dict(action="store_true",
+                              help="don't start FRIZZ if the CHOMPI is elsewhere")),
+        (["--slot"], dict(type=int, choices=chompi.FRIZZ_SLOTS,
+                          help="the FRIZZ slot to play on (10, 12), started unless it runs; "
+                          "default the one running")))
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("state", parents=[common])
     sub.add_parser("leds", parents=[common])
@@ -476,7 +478,7 @@ def main():
         if not a.force:
             # the page the device shows (STATE's flags, bit 6), where the script's keys land
             # until it toggles
-            used = settings_use(a.script, bool(f.ask(STATE)[6] & 64))
+            used = settings_use(a.script, bool(f.state()[6] & 64))
             if used:
                 sys.exit("line %d: %s. FRIZZ would save it to /FRIZZ/frizz_master.txt, on the card "
                          "the FRIZZ on key 10 shares, with no .bak (#58): not played. --force "
