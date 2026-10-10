@@ -7,13 +7,16 @@
     ./remote.py settings              the MIDI channel and transport following
     ./remote.py channel N             listen on channel N (1-16), 0 for all
     ./remote.py transport on|off      MIDI Start / Continue / Stop play and pause the loop
+    ./remote.py switch up|down|hand   the mode switch: up (settings page), down (play page),
+                                      or the real one again; until power-off
     ./remote.py scene get SLOT [FILE] a scene (1-4, 0 the blank one) as JSON
     ./remote.py scene put SLOT FILE   one into slot 1-4, and onto the card
     ./remote.py play SCRIPT [--cpu]   a twin script (twin/README.md) on the device
 
 `play` presses the keys and turns the knobs of a script over FRIZZ's SysEx, at the script's
 times, sends its `midi` and `clock` to the device, and checks its `expect led` lines against the
-LEDs the device shows; what only the twin has (the card, the input, the battery, power-on) is
+LEDs the device shows; its `toggle 0|1` sets the mode switch (down, up) over SysEx, back to
+the real one when the script ends. What only the twin has (the card, the input, the battery, power-on) is
 skipped, and `booted` is when the script starts. With --cpu it asks for the load every 250 ms
 and prints the worst, the way to try a scenario for crackles on FRIZZ.bin itself rather than on
 the bench's build. A bug report (/FRIZZ/bug-N.txt) plays too, from where the device is.
@@ -35,7 +38,7 @@ sys.path.insert(0, os.path.join(HERE, "tools"))
 import chompi  # noqa: E402
 import midi_send  # noqa: E402
 
-KEY, TURN, SETTING = 0x11, 0x12, 0x13
+KEY, TURN, SETTING, SWITCH = 0x11, 0x12, 0x13, 0x14
 STATE, PARAMS, LEDS, LOAD, SETTINGS = 0x20, 0x21, 0x22, 0x23, 0x24
 SCENE_GET, SCENE_PUT = 0x30, 0x31
 SCENE_PARTS, FX_PER_PART = 5, 3
@@ -135,6 +138,10 @@ def show_state(f):
     print("tempo      %.1f BPM%s%s" % (get14(d[21], d[22]) / 10,
                                      ", SHIFT held" if flags & 4 else "",
                                      ", erase waiting" if flags & 8 else ""))
+    if len(d) > 23:
+        print("page       %s; the mode switch stands %s%s" % (
+            "settings" if flags & 64 else "play", "up" if d[23] & 1 else "down",
+            {0: "", 2: ", SysEx holds it down", 4: ", SysEx holds it up"}.get(d[23] & 6, "")))
 
 
 def load(f):
@@ -218,6 +225,7 @@ def play(f, path, cpu):
 
     skipped = set()
     at_base = 0.0
+    toggled = False
     with open(path) as src:
         for line_no, line in enumerate(src, 1):
             words = line.split("#", 1)[0].split()
@@ -247,6 +255,9 @@ def play(f, path, cpu):
                 f.raw(int(b, 16) for b in args)
             elif cmd == "clock":
                 clock["bpm"] = float(args[0])
+            elif cmd == "toggle":
+                f.send(SWITCH, [2 if int(args[0]) else 1])
+                toggled = True
             elif cmd == "leds":
                 print("%7d %s" % (now_ms, led_line(*f.leds())))
             elif cmd == "expect" and args[0] == "led":
@@ -266,6 +277,8 @@ def play(f, path, cpu):
     stop.set()
     for t in threads:
         t.join(1)
+    if toggled:
+        f.send(SWITCH, [0])  # the real switch again
     if cpu:
         mx, mean = load(f)
         print("load: worst max %.1f%%, worst mean %.1f%% of the block"
@@ -288,6 +301,8 @@ def main():
     p.add_argument("channel", type=int, choices=range(17))
     p = sub.add_parser("transport")
     p.add_argument("on", choices=["on", "off"])
+    p = sub.add_parser("switch")
+    p.add_argument("pos", choices=["up", "down", "hand"])
     p = sub.add_parser("scene")
     p.add_argument("action", choices=["get", "put"])
     p.add_argument("slot", type=int, choices=range(5))
@@ -318,6 +333,8 @@ def main():
         f.send(SETTING, [0, a.channel])
     elif a.cmd == "transport":
         f.send(SETTING, [1, 1 if a.on == "on" else 0])
+    elif a.cmd == "switch":
+        f.send(SWITCH, [{"hand": 0, "down": 1, "up": 2}[a.pos]])
     elif a.cmd == "scene" and a.action == "get":
         text = json.dumps(scene_get(f, a.slot), indent=1)
         if a.file:

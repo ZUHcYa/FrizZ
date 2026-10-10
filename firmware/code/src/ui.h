@@ -78,15 +78,17 @@ namespace chompi
         // is down while the hand or MIDI holds it (MidiControl.h), so one held by both is
         // pressed once and let go once both have; only the hand's are logged here, MIDI's as
         // the messages that came.
-        // The mode switch up (GetToggleState() false) shows the settings page: a key the hand
-        // presses then goes to it, as kSettingsKeyBase plus the key, and its turns go nowhere;
-        // MIDI's keys and turns still play. A key belongs to the side it went down on until
+        // The mode switch up (GetToggleState() false, or SysEx's kCmdSwitch) shows the settings
+        // page: a key the panel presses then goes to it, as kSettingsKeyBase plus the key, and
+        // its turns go nowhere. The panel is the hand and FRIZZ's SysEx keys and detents, so a
+        // computer can play it as a hand would; MIDI's notes and CCs still play. A key belongs to the side it went down on until
         // it's let go, so flipping the switch while holding one neither lets go of it on the
         // play page (an FX punched in, PLAY or CHOMPI acting on their release) nor presses it
         // on the settings page.
         void GenerateEvents()
         {
-            settings_ = !hw_->GetToggleState();
+            const uint8_t sw = midi_->Switch();
+            settings_ = sw == 0 ? !hw_->GetToggleState() : sw == 2;
             normal_page_.ShowSettings(settings_);
 
             for (int i = 0; i < static_cast<int>(Hardware::SwId::SR_LAST); i++)
@@ -107,9 +109,13 @@ namespace chompi
                 Hand(ENC_5_SW, true);
             log_->Toggle(hw_->GetToggleState());
 
-            Tell((hand_ & ~settings_keys_) | midi_->Keys(), told_, 0);
-            Tell(hand_ & settings_keys_, told_settings_, kSettingsKeyBase);
-            settings_keys_ &= hand_;
+            const uint64_t panel = hand_ | midi_->PanelKeys();
+            if (settings_)
+                settings_keys_ |= panel & ~panel_;
+            panel_ = panel;
+            Tell((panel & ~settings_keys_) | midi_->Keys(), told_, 0);
+            Tell(panel & settings_keys_, told_settings_, kSettingsKeyBase);
+            settings_keys_ &= panel;
 
             // encoder_map remaps the encoders' wiring order to the knobs' order; one event per
             // detent
@@ -123,12 +129,16 @@ namespace chompi
                     log_->Add(EventLog::TURN, i + 1, inc);
                 }
             }
-            // MIDI's, in the knobs' order already, one detent a block
+            // MIDI's, in the knobs' order already, one detent a block: CCs always, SysEx's as
+            // the hand's
             for (uint16_t knob = 0; knob < midimap::kNumKnobs; knob++)
             {
                 const int turn = midi_->TakeTurn(knob);
                 if (turn)
                     event_queue.AddEncoderTurned(knob, static_cast<int16_t>(turn), 0);
+                const int panel_turn = midi_->TakePanelTurn(knob);
+                if (panel_turn && !settings_)
+                    event_queue.AddEncoderTurned(knob, static_cast<int16_t>(panel_turn), 0);
             }
         }
 
@@ -157,11 +167,7 @@ namespace chompi
         void Hand(int key, bool down)
         {
             if (down)
-            {
                 hand_ |= 1ull << key;
-                if (settings_)
-                    settings_keys_ |= 1ull << key;
-            }
             else
                 hand_ &= ~(1ull << key);
             log_->Add(EventLog::KEY, key, down ? 1 : 0);
@@ -186,7 +192,8 @@ namespace chompi
         uint64_t hand_ = 0; // the keys the hand holds, by Hardware::SwId
         uint64_t told_ = 0; // the keys the play page was told are down
         bool settings_ = false;         // the mode switch is up: the settings page
-        uint64_t settings_keys_ = 0;    // the hand's keys that went down on it
+        uint64_t panel_ = 0;            // the panel's keys down: the hand's and SysEx's
+        uint64_t settings_keys_ = 0;    // those that went down on the settings page
         uint64_t told_settings_ = 0;    // the keys it was told are down
 
         BootPage boot_page_;

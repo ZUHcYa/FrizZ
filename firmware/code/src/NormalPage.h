@@ -517,7 +517,8 @@ namespace chompi
                                       | (fx_.Morphing() ? 2 : 0) | (Shift() ? 4 : 0)
                                       | (looper.IsErasePending() ? 8 : 0)
                                       | (looper.IsClosing() ? 16 : 0)
-                                      | (settings_.Mono() ? 32 : 0);
+                                      | (settings_.Mono() ? 32 : 0)
+                                      | (show_settings_ ? 64 : 0);
                 d[n++] = static_cast<uint8_t>(looper.GetState());
                 n = Put14(d, n, KnobToMidi14((looper.GetSpeed() + 2.f) * .25f));
                 d[n++] = static_cast<uint8_t>(looper.GetPosition() * 127.f);
@@ -533,6 +534,8 @@ namespace chompi
                 n = Put14(d, n, KnobToMidi14(in_gain_));
                 n = Put14(d, n, KnobToMidi14(hp_cue_));
                 n = Put14(d, n, static_cast<uint16_t>(engine_->FxBpm() * 10.f + .5f));
+                // the mode switch: 1 if it stands up, plus SysEx's setting (kCmdSwitch) x2
+                d[n++] = static_cast<uint8_t>((hw_->GetToggleState() ? 0 : 1) | midi_->Switch() << 1);
                 break;
             }
             case kCmdParams:

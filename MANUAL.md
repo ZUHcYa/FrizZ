@@ -682,9 +682,10 @@ Start plays on from where the loop is, as Continue does: the loop doesn't jump t
 ### Remote control
 
 FRIZZ's own SysEx (`F0 7D 43 48 ...`, documented in `firmware/code/src/MidiControl.h`) presses
-keys, turns knobs and sets the channel on every channel, and over USB answers what the play
+keys, turns knobs, sets the channel and holds the mode switch up or down (until power-off) on
+every channel; its keys and knobs act as your hands do, on the settings page too, and over USB answers what the play
 page shows, every LED, the processing load, and sends and receives scenes. `firmware/remote.py`
-uses it from a Linux computer: `state`, `leds`, `load`, `scene get 2 my.json`, `scene put 3
+uses it from a Linux computer: `state`, `leds`, `load`, `switch up|down|hand`, `scene get 2 my.json`, `scene put 3
 my.json`, and `play SCRIPT --cpu`, which plays a scenario of the virtual CHOMPI on the device
 and reports the worst load.
 
