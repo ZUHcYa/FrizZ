@@ -190,8 +190,7 @@ namespace chompi
             keys_.Init(this);
 
             ResetSmtLeds();
-            for (int i = 0; i < kNumPthLeds; i++)
-                SetPthLed(i, 0, 0, 0);
+            PthLedsOff();
         }
 
         /** Before a restart: master settings waiting out their kMasterSaveDelayMs go to the
@@ -208,11 +207,7 @@ namespace chompi
         /** From ui.h, as the mode switch goes: up shows the settings page */
         inline void ShowSettings(bool show) { show_settings_ = show; }
 
-        void ResetSmtLeds()
-        {
-            for (int i = 0; i < kNumSmtLeds; i++)
-                SetSmtLed(i, 0, 0, 0);
-        }
+        inline void ResetSmtLeds() { SmtLedsOff(); }
 
         void Draw(const daisy::UiCanvasDescriptor &canvasDescriptor) override
         {
@@ -221,8 +216,7 @@ namespace chompi
 
             // the boot / rainbow animations leave the other knob LEDs lit, and nothing
             // clears the canvas, so blank them all every frame
-            for (int i = 0; i < kNumPthLeds; i++)
-                SetPthLed(i, 0, 0, 0);
+            PthLedsOff();
 
             // the keys the play page doesn't draw would keep the settings page's colours; a
             // scene mode (SAVE, COPY, DELETE) is left on the way up, so CHOMPI can't confirm

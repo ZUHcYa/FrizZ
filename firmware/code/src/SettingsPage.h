@@ -173,8 +173,7 @@ public:
     /** Every LED; the panel's were cleared */
     void Draw()
     {
-        for (int i = 0; i < kNumSmtLeds; i++)
-            SetSmtLed(i, 0, 0, 0);
+        SmtLedsOff();
 
         const uint8_t channel = midi_->Channel();
         for (uint8_t ch = 0; ch < kNumChannelKeys; ch++)

@@ -17,7 +17,7 @@ namespace chompi
         const int greens[8] = {0, 146, 255, 255, 0, 0, 130, 0};
         const int blues[8] = {0, 0, 0, 0, 255, 130, 238, 0};
 
-        const float kPthStep = 6.f / kNumPthLeds;
+        const float kPthStep = 6.f / 22; // over the chain with its porches, as it always was
         const float kSmtStepBlack = 6.f / 10;
         const float kSmtStepWhite = 6.f / 15;
 
@@ -41,19 +41,11 @@ namespace chompi
                 fade -= .01f;
                 if(fade > 0.f)
                 {
-                    for(size_t i = 0; i < kNumPthLeds; i++)
-                    {
-                        led_pth_data[i][0] = led_pth_data[i][0] * fade;
-                        led_pth_data[i][1] = led_pth_data[i][1] * fade;
-                        led_pth_data[i][2] = led_pth_data[i][2] * fade;
-                    }
-
-                    for(size_t i = 0; i < kNumSmtLeds; i++)
-                    {
-                        led_smt_data[i][0] = led_smt_data[i][0] * fade;
-                        led_smt_data[i][1] = led_smt_data[i][1] * fade;
-                        led_smt_data[i][2] = led_smt_data[i][2] * fade;
-                    }
+                    // what the boot glow left, fading out
+                    for(uint8_t* c = led_pth_data[0]; c < led_pth_data[0] + kPthLeds * 3; c++)
+                        *c = *c * fade;
+                    for(uint8_t* c = led_smt_data[0]; c < led_smt_data[0] + kSmtLeds * 3; c++)
+                        *c = *c * fade;
                 }
 
                 else
@@ -80,7 +72,7 @@ namespace chompi
                     if(fidx >= 7.f)
                         fidx -= 7.f;
 
-                    for(int i = 0; i < kNumPthLeds; i++)
+                    for(int i = 0; i < kPthLeds; i++)
                     {
                         const size_t floor = fidx;
                         const size_t ceil = floor + 1;
