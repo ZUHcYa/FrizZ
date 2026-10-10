@@ -308,6 +308,23 @@ int main()
         Check(all_dim, "boot: every FX key glows dimly in its colour");
     }});
 
+    // VOLUME pressed during the boot animation and let go on the play page: no page change,
+    // as the boot page had the press
+    cases.push_back({"boot-volume", [] {
+        RunMs(1000);
+        Press("ENC_6_SW", true);
+        RunMs(kReadyMs);
+        Press("ENC_6_SW", false);
+        RunMs(300);
+        const std::string st = Ask({0x20});
+        Check(st.size() > 12 && st[12] == 0,
+              "boot-volume: VOLUME held through the boot, let go: still the output gain's page");
+        Tap("ENC_6_SW");
+        RunMs(300);
+        Check(Ask({0x20}).size() > 12 && Ask({0x20})[12] == 1,
+              "boot-volume: then a press steps to the input gain's page");
+    }});
+
     cases.push_back({"hold", [] {
         RunMs(kReadyMs);
         const float dry = RunMs(300);

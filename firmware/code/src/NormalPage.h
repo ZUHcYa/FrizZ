@@ -335,14 +335,20 @@ namespace chompi
                 if (rising)
                 {
                     keys_.Used();
+                    vol_down_ = true;
                     vol_shift_ = Shift();
                     if (vol_shift_)
                         SetMix(LoopExists() ? 1.f : 0.f);
                 }
-                else if (!vol_shift_)
+                else
                 {
-                    page_ = (page_ + 1) % kNumPages;
-                    page_flash_.Start(System::GetNow(), (page_ + 1) * 2 * kSignalBlinkMs);
+                    // a release whose press the boot page had picks no page
+                    if (vol_down_ && !vol_shift_)
+                    {
+                        page_ = (page_ + 1) % kNumPages;
+                        page_flash_.Start(System::GetNow(), (page_ + 1) * 2 * kSignalBlinkMs);
+                    }
+                    vol_down_ = false;
                 }
                 return true;
             }
@@ -1257,6 +1263,7 @@ namespace chompi
         int scene_refused_ = kNoScene; // refused, pressed
         LedSignal scene_refused_signal_;
 
+        bool vol_down_ = false;     // VOLUME's press was seen here, not by the boot page
         bool vol_shift_ = false;    // VOLUME's press was SHIFT + press
         LedSignal page_flash_;      // a page picked: its number in blinks
     };

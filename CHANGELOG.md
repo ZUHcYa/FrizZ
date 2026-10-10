@@ -113,6 +113,8 @@ what FRIZZ does.
   300 BPM) and between two whole BPM (say 120.4), it used to flip between neighbouring
   BPM many times a second, moving the delay time with it. It's now measured over the last
   few seconds; a jump in tempo is still followed at once.
+- **VOLUME held through the boot animation** no longer switches VOLUME's page when it's let
+  go on the play page.
 
 ## v0.11 (2026-10-10)
 
