@@ -234,18 +234,19 @@ public:
         const bool busy = __builtin_expect((out_busy_ & (1u << fx)) != 0, 0);
         bool split = false;
         if (busy)
-            split = OutBegin(fx, l, r);
+            split = OutBegin(fx, effect.Quiet(), l, r);
         effect.Process(l, r);
         if (busy)
-            OutEnd(fx, split, l, r);
+            OutEnd(fx, split, effect.Fade(), l, r);
     }
-    __attribute__((noinline, cold)) bool OutBegin(size_t fx, float* l, float* r)
+    __attribute__((noinline, cold)) bool OutBegin(size_t fx, bool idle, float* l, float* r)
     {
-        return out_[fx].Begin(fx_[fx]->Quiet(), l, r);
+        return out_[fx].Begin(idle, l, r);
     }
-    __attribute__((noinline, cold)) void OutEnd(size_t fx, bool split, float* l, float* r)
+    __attribute__((noinline, cold)) void OutEnd(size_t fx, bool split, float fade, float* l,
+                                                float* r)
     {
-        if (!out_[fx].End(split, l, r, fx_[fx]->Fade()))
+        if (!out_[fx].End(split, l, r, fade))
             out_busy_ &= ~(1u << fx);
     }
 

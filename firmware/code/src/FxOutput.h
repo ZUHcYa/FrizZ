@@ -210,17 +210,17 @@ private:
                 lp_lo_[c] = 0.f;
             }
             x_[c] = *io[c];
-            if (band_)
-            {
-                lp_hi_[c] += hi_.value * (x_[c] - lp_hi_[c]);
-                lp_lo_[c] += lo_.value * (x_[c] - lp_lo_[c]);
-                b_[c] = lp_hi_[c] - lp_lo_[c];
-            }
-            else
-                b_[c] = x_[c];
-            *io[c] = b_[c];
         }
         awake_ = true;
+        if (!band_)
+            return; // the effect gets it all: the signal as it is (Join takes x_ for the band)
+        for (size_t c = 0; c < 2; c++)
+        {
+            lp_hi_[c] += hi_.value * (x_[c] - lp_hi_[c]);
+            lp_lo_[c] += lo_.value * (x_[c] - lp_lo_[c]);
+            b_[c] = lp_hi_[c] - lp_lo_[c];
+            *io[c] = b_[c];
+        }
     }
 
     /** After it: the signal, with the band crossfaded by Mix into the effect's output at its
@@ -233,9 +233,10 @@ private:
             fade = 1.f;
         const float gain = 1.f + fade * (level_.value - 1.f);
         const float mix = mix_.value;
+        const float* const b = band_ ? b_ : x_; // Split's band, or without one all of it
         float* const io[2] = {l, r};
         for (size_t c = 0; c < 2; c++)
-            *io[c] = x_[c] + mix * (gain * *io[c] - b_[c]);
+            *io[c] = x_[c] + mix * (gain * *io[c] - b[c]);
     }
 
     float sample_rate_;

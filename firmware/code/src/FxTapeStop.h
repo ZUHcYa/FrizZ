@@ -181,8 +181,8 @@ public:
     inline bool Resting() const { return Idle() && state_ == State::IDLE; }
     /** For page 2's Mix and Level (FxOutput.h): on while the tape is off its speed, also
      *  after the key, at full while it does */
-    bool Quiet() const override { return Resting(); }
-    float Fade() const override { return state_ == State::IDLE ? FxBase::Fade() : 1.f; }
+    inline bool Quiet() const { return Resting(); }
+    inline float Fade() const { return state_ == State::IDLE ? FxBase::Fade() : 1.f; }
 
 private:
     enum class State

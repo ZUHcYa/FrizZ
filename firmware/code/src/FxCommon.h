@@ -151,10 +151,9 @@ public:
     /** Off and faded out: its output is its input, and its meter isn't shown */
     inline bool Idle() const { return gate_.Silent(); }
     /** The key's fade now, 0..1, and whether it's off and faded out: for page 2's Mix and
-     *  Level (FxOutput.h), which an effect sounding on after its key (the tape stop) hides.
-     *  Virtual: FxChain.h asks them out of line, only while page 2 is off its defaults */
-    virtual float Fade() const { return gate_.Value(); }
-    virtual bool Quiet() const { return Idle(); }
+     *  Level (FxOutput.h), which an effect sounding on after its key (the tape stop) hides */
+    inline float Fade() const { return gate_.Value(); }
+    inline bool Quiet() const { return Idle(); }
 
 protected:
     FxGate gate_;
