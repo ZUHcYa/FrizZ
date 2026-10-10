@@ -141,8 +141,8 @@ Transport knob (the big purple one), once a loop exists:
 LEDs: LOOP is red while recording and blinks while a quantized recording finishes its bar or
 an erase waits for the loop's end, at the slow blink everything waiting uses (a picked scene
 slot, the CHOMPI key ready to confirm); a refusal is 3 quick blinks.
-Throughout FRIZZ, 3 quick red blinks mean refused or not stored, and 3 white ones done. Red
-lit or blinking slowly means something else: LOOP recording or waiting to erase, the
+Throughout FRIZZ, 3 quick red blinks mean refused or not stored, and 3 white ones done.
+Besides the effects' own colours, red lit or blinking slowly means something else: LOOP recording or waiting to erase, the
 compressor's key while the safety limiter works, the input gain near 100% (VOLUME's page
 2), and on the settings page the clock factor on double and the battery below 3 V.
 While a loop plays, PLAY and LOOP crossfade in white to show the position (dimmed when
@@ -416,7 +416,7 @@ Shifter details:
   here it has its own knob.
 - **Feedback** sends the shifted output back into the delay, so each pass shifts again: a
   fifth stacks into fifths (Kastle: its comb around every mode).
-- LEDs: the key is red; the shift knob goes blue (down) through white (off) to orange (up), as every knob with a centre does, the others blue to red.
+- LEDs: the key is red; the shift knob goes blue (down) through white (off) to orange (up), as every knob with a centre does, the other page-1 knobs blue to red.
 
 Folder details:
 - **The fold:** past the fold point the signal is mirrored back, again and again as the
@@ -928,7 +928,7 @@ and reports the worst load.
 
 ## Bug reports
 
-From v0.11, on the settings page from v0.12. On the [settings page](#settings-page) (mode switch up), hold SHIFT (CHOMPI) and
+From v0.11 (this hold from v0.12). On the [settings page](#settings-page) (mode switch up), hold SHIFT (CHOMPI) and
 press and hold the VOLUME knob for 2 seconds: FRIZZ writes everything you did since switching
 on to the card, as `/FRIZZ/bug-1.txt` (the next one `bug-2.txt`, and so on): every key, knob detent and
 mode-switch flip with its time, the MIDI clock's tempo, every MIDI message FRIZZ acted on, and
