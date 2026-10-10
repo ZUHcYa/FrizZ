@@ -3,6 +3,7 @@
 // (--device), while the twin plays at the wall clock's pace: remote.py's SysEx, its parsing of
 // the answers and its script player are checked, end to end, against the firmware's.
 #include <fcntl.h>
+#include <signal.h>
 #include <sys/file.h>
 #include <sys/wait.h>
 #include <termios.h>
@@ -71,10 +72,15 @@ static void RunMs(uint32_t ms)
     }
 }
 
-/** remote.py ARGS, the twin running at the wall clock's pace until it's done (30 s at most).
- *  Its exit code; out gets what it printed, stdout and stderr */
-static int Remote(const std::vector<std::string>& args, std::string& out)
+static bool Has(const std::string& s, const std::string& what) { return s.find(what) != std::string::npos; }
+
+/** remote.py ARGS, the twin running at the wall clock's pace until it's done (30 s at most),
+ *  interrupted (SIGINT, Ctrl-C) once it has printed interrupt_at, if given. Its exit code; out
+ *  gets what it printed, stdout and stderr */
+static int Remote(const std::vector<std::string>& args, std::string& out,
+                  const std::string& interrupt_at = "")
 {
+    bool interrupt = !interrupt_at.empty();
     int pipe_fd[2];
     if (pipe(pipe_fd))
         return -1;
@@ -86,6 +92,7 @@ static int Remote(const std::vector<std::string>& args, std::string& out)
         close(pipe_fd[0]);
         setenv("PYTHONDONTWRITEBYTECODE", "1", 1); // no __pycache__ in the repo
         setenv("FRIZZ_CHOMPI_HELD", "1", 1); // the twin, not the CHOMPI: no lock (tools/chompi.py)
+        signal(SIGINT, SIG_DFL); // a shell's background job (all.sh) ignores it, Python then too
         std::vector<const char*> argv = {"python3", remote_py.c_str(), "--device",
                                          slave_path.c_str()};
         for (const std::string& a : args)
@@ -109,6 +116,11 @@ static int Remote(const std::vector<std::string>& args, std::string& out)
         if (waitpid(pid, &status, WNOHANG) == pid)
             break;
         const auto wall = std::chrono::steady_clock::now() - start;
+        if (interrupt && Has(out, interrupt_at))
+        {
+            kill(pid, SIGINT);
+            interrupt = false;
+        }
         if (wall > std::chrono::seconds(30))
         {
             kill(pid, SIGKILL);
@@ -130,7 +142,6 @@ static int Remote(const std::vector<std::string>& args, std::string& out)
     return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
 
-static bool Has(const std::string& s, const std::string& what) { return s.find(what) != std::string::npos; }
 
 static std::string firmware_dir;
 
@@ -284,6 +295,36 @@ os.remove("image.bin")
     if (rc != 0 || !Has(out, "noted 12"))
         printf("%s\n", out.c_str());
 
+    // play --cpu on a FRIZZ that leaves every other ask for the load unanswered: counted, and the
+    // sampling goes on; and one whose load reads 0, the bench
+    const char* const kLoad = R"(
+import remote
+class Stub(remote.Frizz):
+    def __init__(self, zero):
+        self.held, self.zero, self.n = set(), zero, 0
+    def send(self, cmd, payload=b""):
+        pass
+    def raw(self, data):
+        pass
+    def ask(self, cmd, payload=b"", required=True):
+        self.n += 1
+        if self.n % 2 and self.n > 1 and not self.zero:
+            return None
+        return [0, 0, 0, 0] if self.zero else [0, 50 + self.n, 0, 40]
+open("wait.txt", "w").write("wait 1500\n")
+f = Stub(False)
+remote.play(f, "wait.txt", True)
+print("asked", f.n >= 6)
+remote.play(Stub(True), "wait.txt", True)
+)";
+    rc = Python(kLoad, out);
+    Check(rc == 0 && Has(out, "readings unanswered, their time not in the worst") && Has(out, "asked True")
+              && Has(out, "0 throughout: the bench"),
+          "remote: play --cpu counts the load's unanswered asks and samples on; a load of 0 is the bench's");
+    if (rc != 0)
+        printf("%s\n", out.c_str());
+    unlink((tmp_dir + "/wait.txt").c_str());
+
     if (!OpenPty())
     {
         Check(false, "remote: a pseudo-terminal for the twin's USB");
@@ -409,6 +450,32 @@ os.remove("image.bin")
           "remote: and an LED that isn't as expected fails the run, telling which");
     rc = Remote({"state"}, out);
     Check(rc == 0 && Has(out, "knobs on   filter"), "remote: the script's key selected the filter");
+
+    // whatever ends a script, the keys it holds are let go, the switch is the hand's again
+    // (a key goes down on the page shown when the next block reads it: a wait before toggling)
+    Write(script, "booted\ndown KEY_5\nwait 100\ntoggle 1\nwait 200\nwait x\n");
+    rc = Remote({"play", script}, out);
+    const std::string broke = out;
+    RunMs(100);
+    const std::string after_error = Hex(SmtLedFull(kFilterKeyLed));
+    Remote({"state"}, out);
+    Check(rc != 0 && Has(broke, "could not convert") && after_error == off
+              && Has(out, "page       play; the mode switch stands down\n"),
+          "remote: a script that breaks off lets go of its key and gives the switch back");
+    if (after_error != off || !Has(out, "page       play"))
+        printf("%s\n%s\n", broke.c_str(), out.c_str());
+    // (stderr's "skipped" says when it's there, in the wait)
+    Write(script, "booted\ndown KEY_5\nwait 100\ntoggle 1\nbattery 3.0\nwait 5000\nup KEY_5\n");
+    rc = Remote({"play", script, "--cpu"}, out, "skipped (twin only): battery");
+    const std::string interrupted = out;
+    RunMs(100);
+    const std::string after_interrupt = Hex(SmtLedFull(kFilterKeyLed));
+    Remote({"state"}, out);
+    Check(rc != 0 && Has(interrupted, "interrupted: the keys let go") && after_interrupt == off
+              && Has(out, "page       play; the mode switch stands down\n"),
+          "remote: and so does one interrupted (Ctrl-C)");
+    if (after_interrupt != off || !Has(out, "page       play"))
+        printf("%s\n%s\n", interrupted.c_str(), out.c_str());
 
     // the mode switch over SysEx (kCmdSwitch): up shows the settings page, and SysEx keys
     // reach it as the hand's do; `switch hand` gives the real switch back

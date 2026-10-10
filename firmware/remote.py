@@ -107,6 +107,7 @@ class Frizz:
         # for the answer doesn't hold up the clock's ticks or a script's keys
         self.write_lock = threading.Lock()
         self.query_lock = threading.Lock()
+        self.held = set()
 
     def send(self, cmd, payload=b""):
         self.raw(midi_send.HEADER + bytes([cmd]) + bytes(payload) + b"\xF7")
@@ -115,13 +116,27 @@ class Frizz:
         with self.write_lock:
             os.write(self.link.fd, bytes(data))
 
-    def ask(self, cmd, payload=b""):
+    def ask(self, cmd, payload=b"", required=True):
+        """The answer's payload; None if there's none and it isn't required"""
         with self.query_lock:
             self.send(cmd, payload)
             reply = self.link.recv(cmd, 0.5)
-        if reply is None:
+        if reply is None and required:
             sys.exit("no answer to 0x%02X: is FRIZZ running, a build newer than v0.10?" % cmd)
         return reply
+
+    def key(self, name, down):
+        """A key (SW_NAMES) pressed or let go over SysEx; the ones held are kept, for release()"""
+        if name not in SW_NAMES:
+            print("unknown key %s" % name, file=sys.stderr)
+            return
+        self.send(KEY, [SW_NAMES.index(name), 1 if down else 0])
+        (self.held.add if down else self.held.discard)(name)
+
+    def release(self):
+        """Lets go of every key held"""
+        for name in sorted(self.held):
+            self.key(name, False)
 
     def leds(self):
         """[(r, g, b)] * 10 for the panel, * 25 for the keys, as the LEDs get them"""
@@ -167,9 +182,10 @@ def show_state(f):
             {0: "", 2: ", SysEx holds it down", 4: ", SysEx holds it up"}.get(d[23] & 6, "")))
 
 
-def load(f):
-    d = f.ask(LOAD)
-    return get14(d[0], d[1]) / 10, get14(d[2], d[3]) / 10
+def load(f, required=True):
+    """(max, mean) in % of the block since the last ask; None if unanswered and not required"""
+    d = f.ask(LOAD, required=required)
+    return d and (get14(d[0], d[1]) / 10, get14(d[2], d[3]) / 10)
 
 
 def scene_get(f, slot):
@@ -243,11 +259,14 @@ def settings_use(path, up):
 
 
 def play(f, path, cpu):
-    """A twin script on the device; returns how many expectations failed"""
+    """A twin script on the device; returns how many expectations failed. Whatever ends it
+    (an error, Ctrl-C, no answer), the keys it holds are let go and the mode switch it set is
+    given back to the hand"""
     start = time.monotonic()
     clock = {"bpm": 0.0}
     stop = threading.Event()
     worst = [0.0, 0.0]
+    readings = {"asked": 0, "missed": 0, "zero": 0}
     failed = 0
 
     def clock_thread():
@@ -263,9 +282,18 @@ def play(f, path, cpu):
             f.raw([0xF8])
 
     def cpu_thread():
+        # an unanswered ask is counted, not the thread's end: the worst covers the whole run
         while not stop.is_set():
-            mx, mean = load(f)
-            worst[0], worst[1] = max(worst[0], mx), max(worst[1], mean)
+            try:
+                got = load(f, required=False)
+            except OSError:
+                got = None
+            readings["asked"] += 1
+            if got is None:
+                readings["missed"] += 1
+            else:
+                worst[0], worst[1] = max(worst[0], got[0]), max(worst[1], got[1])
+                readings["zero"] += got == (0.0, 0.0)
             time.sleep(0.25)
 
     threads = [threading.Thread(target=clock_thread, daemon=True)]
@@ -280,72 +308,80 @@ def play(f, path, cpu):
         if left > 0:
             time.sleep(left)
 
-    def key(name, down):
-        if name not in SW_NAMES:
-            print("unknown key %s" % name, file=sys.stderr)
-            return
-        f.send(KEY, [SW_NAMES.index(name), 1 if down else 0])
-
     skipped = set()
     at_base = 0.0
     toggled = False
-    with open(path) as src:
-        for line_no, line in enumerate(src, 1):
-            words = line.split("#", 1)[0].split()
-            if not words or line.startswith("|"):
-                continue
-            cmd, args = words[0], words[1:]
-            now_ms = (time.monotonic() - start) * 1000
-            if cmd == "wait":
-                wait_until(now_ms + float(args[0]))
-            elif cmd == "at":
-                wait_until(at_base + float(args[0]))
-            elif cmd == "booted":
-                at_base = now_ms
-            elif cmd in ("down", "up"):
-                key(args[0], cmd == "down")
-            elif cmd == "tap":
-                key(args[0], True)
-                time.sleep((float(args[1]) if len(args) > 1 else 60) / 1000)
-                key(args[0], False)
-            elif cmd == "turn":
-                detents = int(args[1])
-                while detents:
-                    step = max(-64, min(63, detents))
-                    f.send(TURN, [int(args[0]), step & 0x7F])
-                    detents -= step
-            elif cmd in ("midi", "usb"):
-                f.raw(int(b, 16) for b in args)
-            elif cmd == "clock":
-                clock["bpm"] = float(args[0])
-            elif cmd == "toggle":
-                f.send(SWITCH, [2 if int(args[0]) else 1])
-                toggled = True
-            elif cmd == "leds":
-                print("%7d %s" % (now_ms, led_line(*f.leds())))
-            elif cmd == "expect" and args[0] == "led":
-                pth, smt = f.leds()
-                chain, index, want = args[1], int(args[2]), args[3].lower()
-                rgb = (pth if chain == "pth" else smt)[index]
-                got = "%02x%02x%02x" % tuple(min(255, c * (11 if chain == "pth" else 4))
-                                             for c in rgb)
-                if got != want:
-                    print("line %d: %s %d is %s, not %s" % (line_no, chain, index, got, want),
-                          file=sys.stderr)
-                    failed += 1
-            else:
-                if cmd not in skipped:
-                    print("skipped (twin only): %s" % cmd, file=sys.stderr)
-                skipped.add(cmd)
-    stop.set()
-    for t in threads:
-        t.join(1)
-    if toggled:
-        f.send(SWITCH, [0])  # the real switch again
+    try:
+        with open(path) as src:
+            for line_no, line in enumerate(src, 1):
+                words = line.split("#", 1)[0].split()
+                if not words or line.startswith("|"):
+                    continue
+                cmd, args = words[0], words[1:]
+                now_ms = (time.monotonic() - start) * 1000
+                if cmd == "wait":
+                    wait_until(now_ms + float(args[0]))
+                elif cmd == "at":
+                    wait_until(at_base + float(args[0]))
+                elif cmd == "booted":
+                    at_base = now_ms
+                elif cmd in ("down", "up"):
+                    f.key(args[0], cmd == "down")
+                elif cmd == "tap":
+                    f.key(args[0], True)
+                    time.sleep((float(args[1]) if len(args) > 1 else 60) / 1000)
+                    f.key(args[0], False)
+                elif cmd == "turn":
+                    detents = int(args[1])
+                    while detents:
+                        step = max(-64, min(63, detents))
+                        f.send(TURN, [int(args[0]), step & 0x7F])
+                        detents -= step
+                elif cmd in ("midi", "usb"):
+                    f.raw(int(b, 16) for b in args)
+                elif cmd == "clock":
+                    clock["bpm"] = float(args[0])
+                elif cmd == "toggle":
+                    toggled = True
+                    f.send(SWITCH, [2 if int(args[0]) else 1])
+                elif cmd == "leds":
+                    print("%7d %s" % (now_ms, led_line(*f.leds())))
+                elif cmd == "expect" and args[0] == "led":
+                    pth, smt = f.leds()
+                    chain, index, want = args[1], int(args[2]), args[3].lower()
+                    rgb = (pth if chain == "pth" else smt)[index]
+                    got = "%02x%02x%02x" % tuple(min(255, c * (11 if chain == "pth" else 4))
+                                                 for c in rgb)
+                    if got != want:
+                        print("line %d: %s %d is %s, not %s" % (line_no, chain, index, got, want),
+                              file=sys.stderr)
+                        failed += 1
+                else:
+                    if cmd not in skipped:
+                        print("skipped (twin only): %s" % cmd, file=sys.stderr)
+                    skipped.add(cmd)
+    finally:
+        stop.set()
+        for t in threads:
+            t.join(1)
+        try:
+            f.release()
+            if toggled:
+                f.send(SWITCH, [0])  # the real switch again
+        except OSError:
+            pass  # the device went away: what ended the run says more
     if cpu:
-        mx, mean = load(f)
-        print("load: worst max %.1f%%, worst mean %.1f%% of the block"
-              % (max(worst[0], mx), max(worst[1], mean)))
+        last = load(f, required=False)
+        if last:
+            worst = [max(worst[0], last[0]), max(worst[1], last[1])]
+        print("load: worst max %.1f%%, worst mean %.1f%% of the block" % tuple(worst))
+        if readings["missed"]:
+            print("load: %d of %d readings unanswered, their time not in the worst"
+                  % (readings["missed"], readings["asked"]))
+        answered = readings["asked"] - readings["missed"]
+        if answered and readings["zero"] == answered:
+            print("load: 0 throughout: the bench (FRIZZ-bench.bin) answers as FRIZZ does, but "
+                  "doesn't count its load")
     return failed
 
 
@@ -445,7 +481,10 @@ def main():
                 sys.exit("line %d: %s. FRIZZ would save it to /FRIZZ/frizz_master.txt, on the card "
                          "the FRIZZ on key 10 shares, with no .bak (#58): not played. --force "
                          "plays it anyway" % used)
-        sys.exit(1 if play(f, a.script, a.cpu) else 0)
+        try:
+            sys.exit(1 if play(f, a.script, a.cpu) else 0)
+        except KeyboardInterrupt:
+            sys.exit("interrupted: the keys let go, the mode switch back with the hand")
 
 
 if __name__ == "__main__":
