@@ -101,11 +101,10 @@ public:
                 // the last one's second sent halfway to the next; more than one came only in
                 // a bunch (USB's frames), and goes on as it came, every tick counted
                 const bool twice = clock_->Factor() == ClockFactor::DOUBLE;
-                const uint32_t per = twice ? 2 : 1;
                 uint32_t n = ticks - last_ticks_;
-                if (n > kMaxBunch * per)
-                    n = kMaxBunch * per;
-                for (uint32_t i = per; i < n; i++)
+                if (n > kMaxBunch)
+                    n = kMaxBunch;
+                for (uint32_t i = twice ? 2 : 1; i < n; i++)
                     SendTick(back);
                 if (n > 0)
                     Tick(twice ? clock_->GetTickPeriod() : 0.f, 0.f, back);
