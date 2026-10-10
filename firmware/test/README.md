@@ -284,6 +284,19 @@ its level at first (`kHpGain` .2 to the line out's .3), silent with it under a l
 stop, the input alone with the cue up (CC 59, VOLUME's page 4) while the master stays silent,
 and the master again with the cue down.
 
+The battery: VOLUME's LED on the settings page white on the cable, green once it's pulled, yellow
+below 3.3 V at the next 30 s read, white again with the cable (known: red never shows below 3 V,
+as the amber countdown comes first, #43), and the charger plugged in during the countdown
+stopping it. The scene keys: a saved slot dim, the active one bright, pulsing from a fifth up
+to full once a second once edited; a morph's key blinking on the beat, SHIFT + another scene key
+during it and a 9th bar each blinking red 3 times. The compressor's key without a card: 3 red
+blinks for the failed save and for each of its 3 retries, 2 s apart. And the controllers the
+other MIDI cases don't send: 18 and 19 (the transport and VOLUME turned), 53-55, 57, 58, 60, 61
+above 8, 63 and 120 (keys held by notes and by SysEx let go), and the mod wheel, pitch bend and
+aftertouch changing nothing.
+
+`CASES="scene-leds scene-morph" ./unit.sh ui` runs only those cases, while working on them.
+
 The flicker #7 fixed in the transport LED (a value just over 1 wrapping to dark) doesn't show
 on the twin before the fix either, so that check guards only what it can see.
 
