@@ -53,8 +53,18 @@ def say(*args):
 
 # ---- the lock: one process at a time ------------------------------------------------------
 
-LOCK = os.environ.get("FRIZZ_CHOMPI_LOCK") or os.path.join(
-    os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "frizz-chompi.lock")
+def _runtime_dir():
+    """The user's /run/user/UID, as the desktop's XDG_RUNTIME_DIR is, whatever a shell set: one
+    lock for every tool of the user; ~/.cache where there's none"""
+    run = "/run/user/%d" % os.getuid()
+    if os.path.isdir(run) and os.access(run, os.W_OK):
+        return run
+    cache = os.path.join(os.path.expanduser("~"), ".cache")
+    os.makedirs(cache, exist_ok=True)
+    return cache
+
+
+LOCK = os.environ.get("FRIZZ_CHOMPI_LOCK") or os.path.join(_runtime_dir(), "frizz-chompi.lock")
 HELD = "FRIZZ_CHOMPI_HELD"
 _lock = None
 
