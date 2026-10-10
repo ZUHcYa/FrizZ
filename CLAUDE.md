@@ -174,7 +174,9 @@ cd firmware && tools/chompi.py hold sh -c '
 ```
 
 (the bench runs ~100 s by itself; `card.py get` fetches its `cpu.txt` into `card/`), and
-leaves FRIZZ on key 10 running at the end. The user takes the CHOMPI for playing with
+leaves FRIZZ on key 10 running at the end. Stage 2 plays no scenario that uses the settings
+page (`settings.txt`): what it changes is saved to the card key 10 shares, so `remote.py play`
+refuses it without `--force` (#58). The user takes the CHOMPI for playing with
 `tools/chompi.py hold` (until Ctrl-C), or by telling a session, which then runs it for them.
 Within that, stage 2 needs no asking. Ask the user first only for what needs their hands or
 changes what they play: sending to key 10, anything when the lock's holder is the user, a

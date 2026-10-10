@@ -14,7 +14,8 @@
                                       or the real one again; until power-off
     ./remote.py scene get SLOT [FILE] a scene (1-4, 0 the blank one) as JSON
     ./remote.py scene put SLOT FILE   one into slot 1-4, and onto the card
-    ./remote.py play SCRIPT [--cpu]   a twin script (twin/README.md) on the device
+    ./remote.py play SCRIPT [--cpu] [--force]
+                                      a twin script (twin/README.md) on the device
 
 `play` presses the keys and turns the knobs of a script over FRIZZ's SysEx, at the script's
 times, sends its `midi` and `clock` to the device, and checks its `expect led` lines against the
@@ -25,6 +26,12 @@ and prints the worst, the way to try a scenario for crackles on FRIZZ.bin itself
 the bench's build. A bug report (/FRIZZ/bug-N.txt) plays too, from where the device is. From
 the computer everything goes over USB, `midi` lines too: with the device's clock source on TRS,
 a script's clock and Start / Stop are ignored there (MANUAL.md, "Clock source").
+
+`play` refuses a script that uses the settings page (twin/scenarios/settings.txt, most bug
+reports, which end with SHIFT + VOLUME held there): a key or knob while the mode switch is up,
+or a settings SysEx. FRIZZ saves what the keys there change to /FRIZZ/frizz_master.txt 2 s
+later, on the card the FRIZZ on key 10 shares, with no .bak to go back to (#58). It reads where
+the device's switch stands before it decides; --force plays it anyway.
 
 FRIZZ is started first if the CHOMPI is elsewhere: at the launcher's picker, in its USB storage
 firmware, or in the bench (tools/chompi.py); --no-start leaves it be, as --device does.
@@ -203,6 +210,33 @@ def scene_put(f, slot, scene):
         sys.exit("refused: slots 1-4 only")
 
 
+def settings_use(path, up):
+    """Where a script uses the settings page, (line, what), or None: a key or a knob while the
+    mode switch is up (up: where it stands when the script starts), or a SETTING SysEx"""
+    by_toggle = up
+    with open(path) as src:
+        for line_no, line in enumerate(src, 1):
+            words = line.split("#", 1)[0].split()
+            if not words or line.startswith("|"):
+                continue
+            cmd, args = words[0], words[1:]
+            if cmd == "toggle":
+                up = by_toggle = bool(int(args[0]))
+            elif cmd in ("down", "tap", "turn") and up:
+                return line_no, "%s %s on the settings page" % (cmd, args[0])
+            elif cmd in ("midi", "usb"):
+                data = [int(b, 16) for b in args]
+                if bytes(data[:4]) != midi_send.HEADER or len(data) < 6:
+                    continue
+                if data[4] == SETTING:
+                    return line_no, "a setting over SysEx"
+                if data[4] == SWITCH:
+                    up = {0: by_toggle, 1: False, 2: True}.get(data[5], up)
+                elif data[4] == KEY and up:
+                    return line_no, "a SysEx key on the settings page"
+    return None
+
+
 def play(f, path, cpu):
     """A twin script on the device; returns how many expectations failed"""
     start = time.monotonic()
@@ -345,6 +379,8 @@ def main():
     p = sub.add_parser("play", parents=[common])
     p.add_argument("script")
     p.add_argument("--cpu", action="store_true")
+    p.add_argument("--force", action="store_true",
+                   help="play a script that uses the settings page, which saves to the card")
     a = ap.parse_args()
 
     if not a.device and not a.no_start:
@@ -392,6 +428,14 @@ def main():
         with open(a.file) as src:
             scene_put(f, a.slot, json.load(src))
     elif a.cmd == "play":
+        if not a.force:
+            # the page the device shows (STATE's flags, bit 6), where the script's keys land
+            # until it toggles
+            used = settings_use(a.script, bool(f.ask(STATE)[6] & 64))
+            if used:
+                sys.exit("line %d: %s. FRIZZ would save it to /FRIZZ/frizz_master.txt, on the card "
+                         "the FRIZZ on key 10 shares, with no .bak (#58): not played. --force "
+                         "plays it anyway" % used)
         sys.exit(1 if play(f, a.script, a.cpu) else 0)
 
 

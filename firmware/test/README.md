@@ -22,7 +22,7 @@ STRESS=1 ./run.sh work out.bin
 | `scenes`, `store` | the scene and master files and the card: formats, a card not read at boot, backups |
 | `controls`, `keys`, `looper`, `tempo` | the play page's logic classes on their own: FX keys and knobs, SHIFT and the confirm, the looper, the tempo clock |
 | `ui` | the whole firmware from power-on on the virtual CHOMPI: keys through the 4021s, LEDs, the headphones and the master out, the card (full too), bug reports, MIDI (notes, CCs, NRPN, program changes, Start/Stop, the SysEx and its USB answers); each case on a fresh device |
-| `remote` | `../remote.py` itself against the virtual CHOMPI: the twin's USB MIDI on a pseudo-terminal, remote.py run as it is (`--device`) while the twin keeps the wall clock's pace: state, LEDs, load, settings, scenes there and back, a script played with its `expect led` lines; needs `python3` |
+| `remote` | `../remote.py` itself against the virtual CHOMPI: the twin's USB MIDI on a pseudo-terminal, remote.py run as it is (`--device`) while the twin keeps the wall clock's pace: state, LEDs, load, settings, scenes there and back, a script played with its `expect led` lines, one that uses the settings page refused without `--force` (#58); needs `python3` |
 | `bench` | the CPU bench's firmware on the twin: it runs through and writes its file (the loads themselves need the device) |
 | `midi`, `sync` | MIDI in on the twin: ticks among and inside other messages, the jack and USB, which clock locks; and timing against a clock with a real sender's jitter: the FX's tempo, quantized loops' length and drift, the clock lost or switched mid-recording, the 2:45 limit, tap tempo |
 | `midiout` | MIDI out on the twin (`MidiOut.h`), timed as the UART sends: off at first; an incoming clock passed on tick for tick, by the clock factor, never back to its input; a free clock at the last tempo; a loop's Start, Stop, Song Position and Continue; the handover from a DAW's clock to a quantized loop |
@@ -409,8 +409,9 @@ ms jitter); one that sends its ticks in pairs, both in one USB frame; and one ca
 other tick late, a frame before the next. Each case prints what it measured; the limits are at the top of `sync.cpp`.
 
 - The FX's tempo from the clock, no loop, for 30 s at 60, 90, 120, 174 and 300 BPM and at 120.4:
-  how often it changes (it should hold still), and a pulse every 2 ticks. A ramp from 100 to
-  140 BPM: the tempo there within 0.5 s of its end.
+  how often it changes (it should hold still), and a pulse every 2 ticks. A step from 120 to
+  121 BPM: the tempo there within 5 s, and still after. A ramp from 100 to 140 BPM: the tempo
+  there within 0.5 s of its end.
 - Quantized loops (PLAY + LOOP from the panel) of 1 and 4 bars at 90, 120 and 174 BPM: closed on
   their bars, their length against the bars the clock played, the drift of their loop point
   against the clock over 30 s (nothing pulls a loop back to the clock once it plays), 12 FX

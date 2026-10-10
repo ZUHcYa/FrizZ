@@ -11,6 +11,7 @@
 static const double kMaxLoopError = 24.;  // samples: a quantized loop within a block of its bars
 static const double kMaxDriftPerMin = 1.; // ms a minute against the clock, once it loops
 static const double kMaxRampLagMs = 500.; // the FX at a ramp's end tempo this soon after it
+static const double kMaxStepLagMs = 5000.; // the FX at a 1 BPM step's tempo this soon after it
 
 // the senders: exact; a hardware sequencer (its timer's jitter, its crystal 50 ppm slow); a DAW
 // over USB (1 ms frames, its scheduling's jitter); a host that sends its ticks in pairs, so two
@@ -264,6 +265,30 @@ int main()
     for (const Sender* s : kSenders)
         cases.push_back({"tempo-between", [s] { TempoCase(*s, 120.4); }});
 
+    // a step of 1 BPM, inside the clock's jitter: the FX follow it in a few seconds, then hold
+    for (const Sender* s : kSenders)
+        cases.push_back({"tempo-step", [s] {
+            StartClock(*s, 120.);
+            RunMs(kReadyMs);
+            RunMs(3000);
+            const int before = Probe().tempo;
+            StartClock(*s, 121.);
+            const double t0 = BlockMs();
+            const bool follows = RunUntil([] { return Probe().tempo == 121; }, 8000);
+            const double lag = BlockMs() - t0;
+            int changes = 0, last = Probe().tempo;
+            each_block = [&] {
+                changes += Probe().tempo != last;
+                last = Probe().tempo;
+            };
+            RunMs(10000);
+            each_block = nullptr;
+            Report("%-9s 120 -> 121 BPM: FX at %d, at 121 after %.0f ms, %d changes in 10 s after",
+                   s->name, before, lag, changes);
+            Record("tempo-step-lag", follows ? lag : 1e9);
+            Record("tempo-step-after", changes + (last != 121));
+        }});
+
     // a ramp over USB: how far behind the FX's tempo stays
     cases.push_back({"ramp", [] {
         RunMs(kReadyMs);
@@ -510,10 +535,15 @@ int main()
                std::max(0., Worst(r, "tempo-between") - 1));
         Check(Worst(r, "tempo-to-120") == 0.,
               "tempo: a clock at whole BPM up to 120, from every sender: the FX's tempo holds still");
-        Known(Worst(r, "tempo-above-120") == 0.,
-              "tempo: a clock at 174 or 300 BPM, from every sender: the FX's tempo holds still (#19)");
-        Known(Worst(r, "tempo-between") == 0.,
-              "tempo: a clock between two whole BPM (120.4), from every sender: the FX's tempo holds still (#19)");
+        Check(Worst(r, "tempo-above-120") == 0.,
+              "tempo: a clock at 174 or 300 BPM, from every sender: the FX's tempo holds still");
+        Check(Worst(r, "tempo-between") == 0.,
+              "tempo: a clock between two whole BPM (120.4), from every sender: the FX's tempo holds still");
+        Report("a 1 BPM step, worst: at the new tempo after %.0f ms", Worst(r, "tempo-step-lag"));
+        Check(Worst(r, "tempo-step-lag") < kMaxStepLagMs,
+              "tempo: a clock 1 BPM faster, from every sender: the FX follow within 5 s");
+        Check(Worst(r, "tempo-step-after") == 0.,
+              "tempo: a clock 1 BPM faster, from every sender: the FX hold still at it after");
         Report("loop length error, worst: %.1f samples from an exact clock, %.1f from a sequencer or "
                "DAW, %.1f from a host catching up; drift, worst: %.2f ms a minute",
                Worst(r, "loop-error-exact"), Worst(r, "loop-error-real"), Worst(r, "loop-error-catch-up"),

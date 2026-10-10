@@ -192,7 +192,10 @@ script (`twin/scenarios/`, a bug report) on the device: its keys and knobs over 
 script's times, its MIDI and clock, its `expect led` lines checked against the device's LEDs.
 With `--cpu` it reports the worst load FRIZZ.bin itself had, measured in the audio callback as
 the bench does, so a scenario can be tried for crackles on the build that plays, not the
-bench's. Linux only, Python 3, no packages, like `flash.py`.
+bench's. It refuses a script that uses the settings page (`twin/scenarios/settings.txt`, most
+bug reports): FRIZZ saves those settings to `/FRIZZ/frizz_master.txt` on the card that key 10's
+FRIZZ shares, with no `.bak` (#58); `--force` plays it anyway. Linux only, Python 3, no
+packages, like `flash.py`.
 
 **From the card:** copy `build/FRIZZ.bin` to the SD card and power on, as described in
 [`INSTALL.md`](../INSTALL.md). FRIZZ is a `BOOT_SRAM` app: CHOMPI's bootloader copies it from
