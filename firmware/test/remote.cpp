@@ -306,7 +306,15 @@ int main()
     Check(rc == 0 && Has(out, "page       settings; the mode switch stands down, SysEx holds it up"),
           "remote: switch up shows the settings page, and state says so");
     Write(script, "booted\ntap KEY_18\nwait 100\n"); // F#: mono
-    Remote({"play", script}, out);
+    rc = Remote({"play", script}, out);
+    const std::string refused = out;
+    Remote({"state"}, out);
+    Check(rc != 0 && Has(refused, "line 2: tap KEY_18 on the settings page") && Has(refused, "--force")
+              && !Has(out, ", mono"),
+          "remote: play refuses a key on the settings page the device shows, saying why, and sends none (#58)");
+    if (rc == 0 || !Has(refused, "--force"))
+        printf("%s\n", refused.c_str());
+    Remote({"play", script, "--force"}, out);
     Remote({"switch", "hand"}, out);
     rc = Remote({"state"}, out);
     Check(rc == 0 && Has(out, ", mono") && Has(out, "page       play; the mode switch stands down\n"),
@@ -314,12 +322,27 @@ int main()
     // a script's toggle: up and down over SysEx, the real switch again at its end
     Write(script, "booted\ntoggle 1\nwait 100\ntap KEY_18\nwait 100\ntoggle 0\nwait 100\n");
     rc = Remote({"play", script}, out);
+    Check(rc != 0 && Has(out, "line 4: tap KEY_18 on the settings page"),
+          "remote: and one the script toggles up to, by the line (#58)");
+    rc = Remote({"play", script, "--force"}, out);
     const int played = rc;
     rc = Remote({"state"}, out);
     Check(played == 0 && rc == 0 && !Has(out, ", mono") && Has(out, "page       play; the mode switch stands down\n"),
           "remote: play's toggle 1 / toggle 0 reach the settings page (mono off again), the real switch after");
     if (!Has(out, "page       play"))
         printf("%s\n", out.c_str());
+    // the settings page only looked at plays; a setting over SysEx doesn't
+    Write(script, "booted\ntoggle 1\nwait 100\ntoggle 0\nwait 100\ntap KEY_18\n");
+    rc = Remote({"play", script}, out);
+    Check(rc == 0, "remote: a script that toggles up and down again, no key there, plays");
+    if (rc != 0)
+        printf("%s\n", out.c_str());
+    Write(script, "booted\nmidi F0 7D 43 48 13 00 05 F7\n");
+    rc = Remote({"play", script}, out);
+    const std::string refused_sysex = out;
+    Remote({"settings"}, out);
+    Check(rc != 0 && Has(refused_sysex, "line 2: a setting over SysEx") && Has(out, "channel all,"),
+          "remote: and a script that sets the channel over SysEx is refused, the channel kept");
 
     unlink(blank.c_str());
     unlink(mine.c_str());
