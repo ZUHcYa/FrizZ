@@ -11,16 +11,32 @@ what FRIZZ does.
 
 - **A second page for the FX knobs:** press any of knobs 1-4 and all four turn over to the
   selected effect's page 2, with their LEDs pulsing; press again for page 1. On an effect
-  without a page 2 (all but the shifter, for now) the press does nothing. Pressing or
+  without a page 2 (the resonator and the tape stop, for now) the press does nothing. Pressing or
   selecting another effect, or the compressor, brings page 1 back. Scenes, recalls and morphs
   carry page 2 along; scene files from v0.11 load with page 2 on its defaults. Over MIDI,
   page 2 is NRPN MSB 1 with the page-1 CC as LSB. See MANUAL.md, "Page 2".
-- **Shifter mix** on its page 2, knob 1: the dry signal under the shifted one, for harmonies.
-  At the top (the default) it's fully shifted, as before. The other effects' page 2 comes
-  later (#40).
+- **Mix, Band and Level on every effect's page 2,** on the same knobs everywhere (#40):
+  knob 1 Mix (the dry sound against the effect's: parallel distortion, harmonies under the
+  shifter), knob 3 Band (the effect only on the lows or only on the highs, the rest passing
+  dry; on the delay and reverb a low or high cut on what goes in) and knob 4 Level (the
+  effect's output, off to +12 dB). The flanger has Band and Level, the delay and reverb
+  Band; knob 2 is left for each effect's own parameter later. At the defaults every effect
+  sounds as before. See MANUAL.md, "Page 2".
+- **A page 2 for the master compressor:** Mix and Makeup (0 to +24 dB), on the knobs an
+  effect has its Mix and Level on (#38).
 
 ### Changed
 
+- **Nothing sets a level by itself any more but the safety limiter.** The folder is no longer
+  matched to its input's level, and the crusher no longer held to it: driven, they get
+  louder, and page 2's Level sets how loud. Scenes with the folder come back different in
+  level: about 2.5 dB quieter where it was turned up, louder where it was turned down.
+- **The master compressor is a plain one** (#38): its makeup is no longer automatic (it added
+  up to +14 dB, to everything) but a knob on page 2, at 0 dB at first. Speed is split into
+  Attack (knob 3) and Release (knob 4), and Mix moves to page 2's knob 1. Saved settings
+  come back with Speed as both and Makeup at 0 dB, so a compressor you had turned up is
+  quieter until you set its makeup. Over MIDI, CC 54 is now the attack and CC 55 the release;
+  the mix and the makeup are NRPN 1/52 and 1/55.
 - **Transport knob in semitones:** while a loop plays, turning it changes the speed a
   semitone every 2 detents, from 2× down to 1/16×, and stops at both ends. SHIFT + turn
   jumps in fifths and octaves as turning did before (from between two of them, to the next

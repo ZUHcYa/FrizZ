@@ -16,9 +16,9 @@ namespace chompi
 /** TEMPO's sample-rate reducer, plus bit-depth reduction, a tone control, and two extras
  *  from Kastle's crusher: XOR, which flips fixed bits of every 16-bit sample for a digital
  *  buzz, and a dive on every key press, the rate dropping up to 10x over 0.1s and
- *  recovering over 0.4s. Fully wet while on. The XOR's flips and the coarsest steps are a
- *  fixed size whatever the level, so a quiet signal would come out far louder than it went
- *  in: a LevelGuard (FxCommon.h) holds the output to the input's level.
+ *  recovering over 0.4s. Fully wet while on (page 2's Mix blends in the dry signal). The
+ *  XOR's flips and the coarsest steps are a fixed size whatever the level, so on a quiet
+ *  signal they come out louder than it went in: page 2's Level (FxOutput.h) is for that.
  *  Params: 0 rate, 1 bits, 2 tone, 3 XOR (0 = off). */
 class Crusher : public FxBase
 {
@@ -44,7 +44,6 @@ public:
         dive_decay_coeff_ = Decay60dBCoeff(.4f, sample_rate);
 
         lp_l_ = lp_r_ = 0.f;
-        guard_.Init(sample_rate, 1.f);
         gate_.Init();
 
         for (size_t i = 0; i < kNumFxParams; i++)
@@ -59,8 +58,7 @@ public:
         const float tone_coeff = tone_coeff_.Process();
 
         // off and faded out: only what a punch-in starts from goes on: the reducer (so its
-        // grid runs on unbroken), the XOR's DC blockers (so its offset doesn't thump in) and
-        // the guard's ear on the input
+        // grid runs on unbroken) and the XOR's DC blockers (so its offset doesn't thump in)
         if (gate_.Asleep())
         {
             srr_l_.SetFreq(rate_knob);
@@ -77,19 +75,17 @@ public:
                 xor_dc_l_.Process(0.f);
                 xor_dc_r_.Process(0.f);
             }
-            guard_.Listen(*l, *r);
             asleep_samples_++;
             return;
         }
         if (asleep_samples_ > 0)
         {
             // back: the dive where it would have decayed to, the tone's lowpass settled on
-            // the input, the guard measuring from the input's level
+            // the input
             dive_.value *= powf(dive_decay_coeff_, static_cast<float>(asleep_samples_));
             asleep_samples_ = 0;
             lp_l_ = *l;
             lp_r_ = *r;
-            guard_.Wake();
         }
 
         if (gate_.TakePress())
@@ -128,13 +124,8 @@ public:
         lp_l_ += tone_coeff * (wl - lp_l_);
         lp_r_ += tone_coeff * (wr - lp_r_);
 
-        // never louder than what came in: the XOR's buzz and the coarsest bits are a fixed
-        // size whatever the level, so on a quiet signal they'd be far over it
-        float outl = lp_l_, outr = lp_r_;
-        guard_.Process(*l, *r, &outl, &outr);
-
-        *l += gate * (outl - *l);
-        *r += gate * (outr - *r);
+        *l += gate * (lp_l_ - *l);
+        *r += gate * (lp_r_ - *r);
     }
 
     /** The slewed parameters jump to their targets, at Init */
@@ -203,7 +194,6 @@ private:
     float step_; // quantizer step, 2^(1 - bits)
     int16_t xor_ = 0;
     daisysp::DcBlock xor_dc_l_, xor_dc_r_;
-    LevelGuard guard_; // the output held to the input's level
     PressEnvelope dive_;
     uint32_t asleep_samples_ = 0; // how long it hasn't run (FxGate::Asleep)
     float dive_attack_inc_, dive_decay_coeff_;

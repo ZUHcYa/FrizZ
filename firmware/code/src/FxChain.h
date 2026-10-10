@@ -19,9 +19,11 @@
  *  output.
  *
  *  Three kinds:
- *   - insert: replaces the signal while its key is on; only the wet amount is faded.
+ *   - insert: replaces the signal while its key is on; only the wet amount is faded. Page 2's
+ *     Mix, Band and Level wrap it (FxOutput.h), except the tape stop's and the resonator's.
  *   - send (delay, reverb): the key fades what goes into the effect, and its return is added
- *     to the signal, so tails ring out after the key is released.
+ *     to the signal, so tails ring out after the key is released. Page 2's Band filters what
+ *     goes in.
  *   - loop (resonator): a comb feedback loop from after the flanger back to after the
  *     freezer, so the filter is in the loop and the slicer outside it.
  */
@@ -34,6 +36,7 @@
 #include "FxFlanger.h"
 #include "FxFolder.h"
 #include "FxFreezer.h"
+#include "FxOutput.h"
 #include "FxResonator.h"
 #include "FxReverb.h"
 #include "FxShifter.h"
@@ -119,7 +122,10 @@ public:
         fx_[FX_REVERB] = &reverb_;
 
         for (size_t fx = 0; fx < kNumFx; fx++)
+        {
             meter_[fx].Init();
+            out_[fx].Init(sample_rate);
+        }
         fast_slew_left_ = 0;
     }
 
@@ -148,7 +154,7 @@ public:
         if (fast_slew_left_ > 0 && --fast_slew_left_ == 0)
             FxSlew::coeff = kFxParamCoeff;
 
-        freezer_.Process(l, r);
+        out_[FX_FREEZER].Process(freezer_, l, r);
         if (!freezer_.Idle())
             Meter(FX_FREEZER, *l + *r);
         BENCH_MARK_FX(FX_FREEZER);
@@ -157,33 +163,33 @@ public:
         if (!resonator_.Idle())
             Meter(FX_RESONATOR, resonator_.Return());
         BENCH_MARK_FX(FX_RESONATOR);
-        shifter_.Process(l, r);
+        out_[FX_SHIFTER].Process(shifter_, l, r);
         if (!shifter_.Idle())
             Meter(FX_SHIFTER, *l + *r);
         BENCH_MARK_FX(FX_SHIFTER);
-        folder_.Process(l, r);
+        out_[FX_FOLDER].Process(folder_, l, r);
         if (!folder_.Idle())
             Meter(FX_FOLDER, *l + *r);
         BENCH_MARK_FX(FX_FOLDER);
-        crusher_.Process(l, r);
+        out_[FX_CRUSHER].Process(crusher_, l, r);
         if (!crusher_.Idle())
             Meter(FX_CRUSHER, *l + *r);
         BENCH_MARK_FX(FX_CRUSHER);
-        filter_.Process(l, r);
+        out_[FX_FILTER].Process(filter_, l, r);
         if (!filter_.Idle())
             Meter(FX_FILTER, *l + *r);
         BENCH_MARK_FX(FX_FILTER);
-        flanger_.Process(l, r);
+        out_[FX_FLANGER].Process(flanger_, l, r);
         if (!flanger_.Idle())
             Meter(FX_FLANGER, *l + *r);
         BENCH_MARK_FX(FX_FLANGER);
         resonator_.Tap(*l, *r);
         BENCH_MARK_FX(FX_RESONATOR);
-        slicer_.Process(l, r);
+        out_[FX_SLICER].Process(slicer_, l, r);
         if (!slicer_.Idle())
             Meter(FX_SLICER, *l + *r);
         BENCH_MARK_FX(FX_SLICER);
-        warble_.Process(l, r);
+        out_[FX_WARBLE].Process(warble_, l, r);
         if (!warble_.Idle())
             Meter(FX_WARBLE, *l + *r);
         BENCH_MARK_FX(FX_WARBLE);
@@ -195,12 +201,19 @@ public:
         // sends: the delay from the inserts' output, the reverb from that plus the delay's
         // return, so the echoes are reverberated. Both returns are added on top.
         const float sendl = *l, sendr = *r;
-        delay_.Process(sendl, sendr, l, r);
+        float inl = sendl, inr = sendr;
+        if (!delay_.Idle()) // what goes in is faded with the key
+            out_[FX_DELAY].Band(&inl, &inr);
+        delay_.Process(inl, inr, l, r);
         const float delayl = *l, delayr = *r;
         if (!delay_.Sleeping())
             Meter(FX_DELAY, delayl - sendl + delayr - sendr);
         BENCH_MARK_FX(FX_DELAY);
-        reverb_.Process(delayl, delayr, l, r);
+        inl = delayl;
+        inr = delayr;
+        if (!reverb_.Idle())
+            out_[FX_REVERB].Band(&inl, &inr);
+        reverb_.Process(inl, inr, l, r);
         if (!reverb_.Sleeping())
             Meter(FX_REVERB, *l - delayl + *r - delayr);
         BENCH_MARK_FX(FX_REVERB);
@@ -208,7 +221,15 @@ public:
 
     /** From the UI or the morph */
     inline void SetOn(size_t fx, bool on) { fx_[fx]->SetOn(on); }
-    inline void SetParam(size_t fx, size_t param, float val) { fx_[fx]->SetParam(param, val); }
+    __attribute__((noinline)) void SetParam(size_t fx, size_t param, float val)
+    {
+        // page 2's shared knobs go to the effect's FxOutput, where it has one
+        if (!(Shared(fx) && out_[fx].SetParam(param, val)))
+            fx_[fx]->SetParam(param, val);
+    }
+    /** Whether fx has page 2's shared knobs (FxOutput.h): the sends only Band, which the
+     *  FxOutput takes as well */
+    static inline bool Shared(size_t fx) { return fx != FX_RESONATOR && fx != FX_TAPESTOP; }
     /** Before a scene recall's SetParams: the knobs slew at kFxRecallCoeff for
      *  kFxRecallSlewSamples, so the new scene lands at once */
     void FastSlew()
@@ -248,6 +269,7 @@ private:
     DelaySend delay_;
     ReverbSend reverb_;
     FxBase* fx_[kNumFx];
+    FxOutput out_[kNumFx]; // page 2's Mix, Band and Level (FxOutput.h), where Shared
     EnvFollower meter_[kNumFx];
     uint32_t fast_slew_left_; // samples of FastSlew to go
 };

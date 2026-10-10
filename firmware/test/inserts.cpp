@@ -1,7 +1,7 @@
 // inserts.cpp: checks the two effects that had none of their own, the folder (FxFolder.h) and
-// the slicer (FxSlicer.h): the folder's bypass when off and its level match, the slicer's
-// patterns on the clock's 16ths, its chance and its stereo; and the shifter's mix (FxShifter.h,
-// page 2). Exits 0 when everything passes.
+// the slicer (FxSlicer.h): the folder's bypass when off, its level at 1x and that nothing
+// matches it to the input, the slicer's patterns on the clock's 16ths, its chance and its
+// stereo; and page 2's Mix on the shifter (FxOutput.h). Exits 0 when everything passes.
 // Run by unit.sh inserts.
 #include <cmath>
 #include <cstdio>
@@ -21,6 +21,7 @@ static float FolderOver(float drive, float amp)
     Folder f;
     f.Init(kSr);
     f.SetParam(Folder::DRIVE, drive);
+    f.SetParam(Folder::TONE, 1.f);
     f.SnapParams();
     f.SetOn(true);
     double in_sum = 0., out_sum = 0.;
@@ -55,15 +56,14 @@ static void TestFolder()
     }
     Check(same, "folder: off, the input passes untouched, bit for bit");
 
-    const float quiet = FolderOver(1.f, .03f), loud = FolderOver(1.f, .5f), low = FolderOver(0.f, .5f);
-    printf("  folder: %+.1fdB at -30dBFS, %+.1fdB at -6dBFS (full drive), %+.1fdB at no drive\n", quiet,
-           loud, low);
-    Check(fabsf(quiet) < 3.f && fabsf(low) < 3.f, "folder: on, level-matched to its input within 3dB");
-    // a loud input at full drive with the tone at its darkest (the effect's Init, not the
-    // panel's open default) folds most of it into harmonics the tone takes out: the match
-    // turns up by at most kMaxMatch (6dB), so it comes out up to 4dB quieter, never louder;
-    // with the tone half open or more it matches to 0.1dB
-    Check(loud < 1.f && loud > -6.5f, "folder: full drive on a loud input: no louder, at most 6dB down");
+    // the tone open (the panel's default; the effect's Init leaves it at its darkest)
+    const float unity = FolderOver(0.f, .03f), driven = FolderOver(1.f, .03f);
+    printf("  folder: %+.1fdB at 1x, %+.1fdB at full drive, both on a sine at -30dBFS\n", unity,
+           driven);
+    // within 1dB: its DC blocker (daisysp::DcBlock, about 76Hz) takes 0.5dB off 220Hz
+    Check(fabsf(unity) < 1.f, "folder: at 1x a quiet signal comes out at its own level");
+    Check(driven > 15.f, "folder: driven, a quiet signal comes out far louder: nothing matches "
+                         "it to the input (page 2's Level is for that)");
 }
 
 // ======== the slicer ========
@@ -134,19 +134,22 @@ static void TestSlicer()
     Check(sl != sr, "slicer: stereo plays different patterns left and right");
 }
 
-// ======== the shifter's mix (page 2, #35) ========
+// ======== page 2's Mix on the shifter (FxOutput.h) ========
 
 static void TestShifterMix()
 {
     // three shifters a fifth up on the same input, the mix at 1, .5 and 0: what each adds to
-    // the input is in that proportion, since the mix only scales where the key's fade ends
+    // the input is in that proportion
     static Shifter sh[3];
+    static FxOutput out[3];
     const float mixes[3] = {1.f, .5f, 0.f};
     for (size_t k = 0; k < 3; k++)
     {
         sh[k].Init(kSr);
+        out[k].Init(kSr);
         sh[k].SetParam(Shifter::SHIFT, .5f + 7.f / 24.f);
-        sh[k].SetParam(Shifter::MIX, mixes[k]);
+        out[k].SetParam(FxOutput::kMix, mixes[k]);
+        out[k].Snap();
         sh[k].SnapParams();
         sh[k].SetOn(true);
     }
@@ -158,7 +161,7 @@ static void TestShifterMix()
         for (size_t k = 0; k < 3; k++)
         {
             l[k] = r[k] = in;
-            sh[k].Process(&l[k], &r[k]);
+            out[k].Process(sh[k], &l[k], &r[k]);
         }
         if (i < 4800)
             continue;
@@ -169,7 +172,7 @@ static void TestShifterMix()
     printf("  shifter mix: full adds up to %.3f, half off by %.2g, none by %.2g\n", wet, worst_half,
            worst_dry);
     Check(wet > .1f && worst_half < 1e-5f, "shifter mix: at .5, half of what fully shifted adds");
-    Check(worst_dry == 0.f, "shifter mix: at 0, the input passes untouched, bit for bit");
+    Check(worst_dry < 1e-6f, "shifter mix: at 0, the input passes");
 }
 
 int main()

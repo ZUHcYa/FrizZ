@@ -9,7 +9,7 @@
  *  scene file (FxScenes.h):
  *
  *    FRIZZ master 1
- *    compressor 300000 500000 500000 1000000
+ *    compressor2 300000 500000 500000 500000 1000000 0 0 0
  *    mono 0
  *    midi_channel 16
  *    midi_transport 0
@@ -18,7 +18,9 @@
  *
  *  clock_factor is how FRIZZ follows a MIDI clock, in percent of its tempo: 50, 100 or 200;
  *  led_brightness the LEDs' in percent of FRIZZ's full: 100, 75 or 50. Another value keeps the
- *  default.
+ *  default. compressor2 has the compressor's eight parameters, both pages (MasterComp.h); a
+ *  file from before has "compressor" with four, threshold, ratio, speed and mix, which loads
+ *  with the speed as both attack and release and the makeup at 0dB (it was automatic then).
  *  Reading, unknown lines are skipped and a setting the file leaves out keeps its default, so
  *  more settings can join later. A file from before the randomizer was removed still has its
  *  line; it's skipped, and the next write leaves it out.
@@ -35,7 +37,7 @@ static const size_t kMasterFileMax = 512;
 
 struct MasterSettings
 {
-    float comp[kNumFxKnobs];
+    float comp[kNumFxParams];
     bool mono;  // the AUX input's left channel to both sides, for a mono (TS) cable
     uint8_t midi_channel; // the channel FRIZZ listens on, 1-16, or 0 for all
     bool midi_transport;  // MIDI Start, Continue and Stop play and pause the loop
@@ -45,7 +47,7 @@ struct MasterSettings
     /** Every setting on its default */
     void Reset()
     {
-        for (size_t p = 0; p < kNumFxKnobs; p++)
+        for (size_t p = 0; p < kNumFxParams; p++)
             comp[p] = kCompParams.defaults[p];
         mono = false;
         midi_channel = kDefaultMidiChannel;
@@ -70,8 +72,8 @@ inline size_t FormatMaster(const MasterSettings& settings, char* buf, size_t siz
     using namespace scenefile;
     size_t pos = 0;
     Put(buf, size, pos, masterfile::kHeader);
-    Put(buf, size, pos, "\ncompressor");
-    PutValues(buf, size, pos, settings.comp, kNumFxKnobs);
+    Put(buf, size, pos, "\ncompressor2");
+    PutValues(buf, size, pos, settings.comp, kNumFxParams);
     Put(buf, size, pos, settings.mono ? "\nmono 1" : "\nmono 0");
     Put(buf, size, pos, "\nmidi_channel ");
     PutUint(buf, size, pos, settings.midi_channel);
@@ -95,6 +97,7 @@ inline bool ParseMaster(const char* text, MasterSettings& settings)
     const char* p = AfterHeader(text, masterfile::kHeader);
     if (!p)
         return false;
+    bool new_comp = false; // compressor2 read: an old line after it is ignored
 
     while (*p)
     {
@@ -140,8 +143,23 @@ inline bool ParseMaster(const char* text, MasterSettings& settings)
                 settings.led_brightness = static_cast<uint8_t>(v);
             continue;
         }
-        if (word && Is(word, len, "compressor"))
-            ReadValues(p, settings.comp, kNumFxKnobs);
+        if (word && Is(word, len, "compressor2"))
+        {
+            ReadValues(p, settings.comp, kNumFxParams);
+            new_comp = true;
+            continue;
+        }
+        if (word && Is(word, len, "compressor") && !new_comp)
+        {
+            // before page 2: threshold, ratio, speed (attack and release together), mix
+            float old[kNumFxKnobs] = {settings.comp[0], settings.comp[1], settings.comp[2],
+                                      settings.comp[4]};
+            ReadValues(p, old, kNumFxKnobs);
+            settings.comp[0] = old[0];
+            settings.comp[1] = old[1];
+            settings.comp[2] = settings.comp[3] = old[2];
+            settings.comp[4] = old[3];
+        }
     }
     return true;
 }

@@ -69,10 +69,6 @@ struct Smoothed
     }
 };
 
-// The level matches' envelope floor (LevelGuard, FxFolder.h): -70dB, so silence doesn't
-// read as a gain to make up
-static constexpr float kLevelEnvFloor = 1e-7f;
-
 /** An effect's key: on while held or latched, faded in and out over ~5ms so punching in
  *  doesn't click, and the press itself for the effects that react to it */
 class FxGate
@@ -104,6 +100,8 @@ public:
     }
 
     inline bool IsOn() const { return on_; }
+    /** The fade, as the last Process left it */
+    inline float Value() const { return value_; }
 
     /** After Process: off and faded out, so the effect's output is its input and it can skip
      *  the work that only shapes what's heard. The fade's last 120dB snap to 0, so the output
@@ -146,6 +144,8 @@ public:
 
     /** Off and faded out: its output is its input, and its meter isn't shown */
     inline bool Idle() const { return gate_.Silent(); }
+    /** The key's fade now, 0..1 (FxOutput.h) */
+    inline float Fade() const { return gate_.Value(); }
 
 protected:
     FxGate gate_;
@@ -311,64 +311,5 @@ struct StereoRing
     size_t pos;
 };
 
-/** A level guard: what comes out of an effect is held to at most headroom over what went in,
- *  so feedback, resonance, XOR or coarse bits can't blast. It only turns down, and glides
- *  back to unity once inactive. No lookahead, so no latency: a sudden jump gets through for
- *  the first 1-2ms, which the safety limiter (limiter.h) keeps below full scale. Its followers
- *  are on the power, linked stereo, both alike so their ratio is the gain the effect adds.
- *  The crusher uses one, at 0dB. */
-struct LevelGuard
-{
-    static constexpr float kEnvFloor = kLevelEnvFloor; // a buzz or ring on silence is held down too
-
-    void Init(float sample_rate, float headroom)
-    {
-        headroom_ = headroom;
-        att_ = TimeCoeff(.001f, sample_rate);
-        rel_ = TimeCoeff(.1f, sample_rate);
-        down_ = TimeCoeff(.002f, sample_rate);
-        up_ = TimeCoeff(.06f, sample_rate);
-        env_in_ = env_out_ = 0.f;
-        gain_ = 1.f;
-    }
-
-    /** in: what went into the effect; l, r: what came out, turned down in place. Inactive,
-     *  it glides back to unity, and once there leaves the signal alone, bit for bit */
-    void Process(float in_l, float in_r, float* l, float* r, bool active = true)
-    {
-        Follow(&env_in_, in_l * in_l + in_r * in_r);
-        Follow(&env_out_, *l * *l + *r * *r);
-        if (!active && gain_ == 1.f)
-            return;
-        float target = 1.f;
-        if (active)
-            target = fminf(1.f, headroom_ * sqrtf((env_in_ + kEnvFloor) / (env_out_ + kEnvFloor)));
-        gain_ += (target < gain_ ? down_ : up_) * (target - gain_);
-        if (!active && gain_ > 1.f - 1e-3f)
-            gain_ = 1.f;
-        *l *= gain_;
-        *r *= gain_;
-    }
-
-    inline float Gain() const { return gain_; }
-
-    /** While the effect doesn't run: only the input is followed */
-    inline void Listen(float in_l, float in_r) { Follow(&env_in_, in_l * in_l + in_r * in_r); }
-    /** Back from Listen: the output taken to be at the input's level, the gain where it was
-     *  left, until the output is measured again (a 1ms attack): never louder than that */
-    inline void Wake() { env_out_ = env_in_; }
-
-private:
-    inline void Follow(float* env, float power) const
-    {
-        *env += (power > *env ? att_ : rel_) * (power - *env);
-    }
-
-    float headroom_;  // the most the output may be over the input, as a gain
-    float att_, rel_; // the followers: attack, release
-    float down_, up_; // the gain: turning down, coming back
-    float env_in_, env_out_;
-    float gain_;
-};
 
 } // namespace chompi

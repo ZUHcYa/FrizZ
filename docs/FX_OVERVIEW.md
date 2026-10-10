@@ -46,8 +46,11 @@ drive the VU LEDs.
   saturation → pan.
 - **FRIZZ** (`FxChain.h`): AUX input → input/loop mix with the looper → freezer → shifter →
   folder → crusher → filter → flanger → slicer → wow & flutter → tape stop → delay → reverb
-  (fed the delay's echoes too) → master compressor (`MasterComp.h`: amount, ratio, speed, mix,
-  on its own key) → output gain → safety limiter (`limiter.h` at its lowest setting). The
+  (fed the delay's echoes too) → master compressor (`MasterComp.h`: threshold, ratio, attack,
+  release, and mix and makeup on page 2, on its own key) → output gain → safety limiter
+  (`limiter.h` at its lowest setting), the only thing that sets a level by itself. Every
+  insert but the resonator and tape stop sits inside page 2's Mix, Band and Level
+  (`FxOutput.h`); the sends get its Band on their input. The
   resonator's comb loops from after the flanger back to after the freezer.
   Each effect is a punch-in key, and the keys run in this order left to right, with a free
   key between the inserts and the sends and another before the compressor. (A randomizer
@@ -91,13 +94,21 @@ their keys' order left to right (see the FRIZZ chain above). Their controls are 
 | 14th white | Free | — |
 | 15th white | Master compressor (always on, after the chain) | FRIZZ's own (`MasterComp.h`) |
 
-## Page 2 candidates (not decided, #40)
+## Page 2 candidates (#40)
 
 Candidates for the second knob page: all four knobs switched together by pressing any of
 them, and back to page 1 when another effect is pressed or selected. #35 built that page
-(parameters 4-7 of every effect, `FxParams.h`, in scenes, morphs, NRPN bank 1 and SysEx)
-with a single pilot parameter, the shifter's Mix; which parameters the others get is #40,
-picked from this table. Nothing else here is decided.
+(parameters 4-7 of every effect, `FxParams.h`, in scenes, morphs, NRPN bank 1 and SysEx).
+
+**Decided (2026-10-10), the first round:** page 2 is the same on every effect (`FxOutput.h`),
+after the SP-404MK2's BALANCE and LEVEL and Elektron's per-machine MIX: knob 1 **Mix**, knob 3
+**Band** (the effect on the lows or the highs only, the rest dry: a one-pole crossover, which
+adds back up exactly), knob 4 **Level** (the effect's output, off, -36 to +12 dB). Knob 2 is
+left for one parameter of each effect's own, picked from the table below in a later round.
+The level matches (the folder's, the crusher's `LevelGuard`) and the compressor's automatic
+makeup are gone (#38): nothing sets a level by itself but the safety limiter. The tables
+below were the candidates before that; knob 4's "key press" role and knob 1's low cut on the
+sends are taken by Level and Band.
 
 ### How the SP-404MK2 does it
 
@@ -169,7 +180,8 @@ mix*).
 
 ### Level and mix
 
-Two effects hold their output to their input's level, so punching one in changes the sound,
+(How it was before the decision above, and why the match went: the player sets the level.)
+Two effects held their output to their input's level, so punching one in changed the sound,
 not the loudness:
 
 - **Folder:** a real level match, up and down, by up to +6 dB (`FxFolder.h`). A folder's

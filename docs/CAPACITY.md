@@ -22,6 +22,10 @@ So a feature of more than ~40 KB of code, or ~7 KB of data in internal RAM, need
 first (below), or the bench build stops linking before `FRIZZ.bin` does. Data grows into
 SDRAM or DTCM where it can; for internal RAM, step 4 below frees 64 KB.
 
+Page 2's Mix, Band and Level on every effect and the compressor's page 2 (#40, #38,
+`FxOutput.h`) then took ~7.3 KB of code: `FRIZZ.bin` at 224,548 B (~53 KB free), the bench
+build at 241,964 B (~37 KB) with its data at 238,764 B (~7 KB free).
+
 The split moved by 40 KB (step 1 below) after the FX knobs' page 2 (#35) had left ~21 KB of
 code, ~3.4 KB in the bench build. The scene work (`Recall`, `Morph`, the scene file) is
 compiled `-Os` and out of line (`FX_SCENE_ONCE`), as the event log's and MIDI's are.

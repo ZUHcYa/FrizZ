@@ -223,7 +223,7 @@ on the 14th, and the last key was the randomizer's, which is gone.)
 | Knobs 1-4 | The parameters of the most recently pressed or selected FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo, tape stop and spin-up times) move one step per 3 detents |
 | SHIFT + knobs 1-4 | Coarse: jumps to the next point of the parameter's grid per detent (see below) |
 | SHIFT + press knobs 1-4 | Resets that parameter to its default, on the page shown |
-| Press knobs 1-4 | **Page 2:** all four knobs turn over to the effect's second page, and their LEDs pulse; press any knob again for page 1. Pressing or selecting another effect, or the compressor's key, goes back to page 1; pressing the same effect's key keeps page 2. On an effect without a page 2 (all but the shifter, for now) the press does nothing. See [Page 2](#page-2) |
+| Press knobs 1-4 | **Page 2:** all four knobs turn over to the effect's second page, and their LEDs pulse; press any knob again for page 1. Pressing or selecting another effect, or the compressor's key, goes back to page 1; pressing the same effect's key keeps page 2. The compressor has one too. On an effect without a page 2 (the resonator and the tape stop, for now) the press does nothing. See [Page 2](#page-2) |
 
 The FX keys are dimly lit in their effect's colour while off and at full brightness while
 on, where the audio coming out of the effect pushes the colour towards white, from -30 dBFS
@@ -256,7 +256,7 @@ SHIFT + press on a knob takes it back there.
 |---|---|---|---|---|---|
 | 1st white | Freezer: Kastle 2 FX Wizard's, as a beat repeat | Length: 1/16, 1/8T, 1/8, 1/4T, 1/4, 1/2T, 1/2, 1 bar (default 1 bar) | Feedback: the input overdubbed into the repeats (default 0, pure repeat) | Roll: the loop halves as it repeats, down to 1/64 bar: off, slow, … fast, one step per 3 detents (default off) | Stereo: the left loop up to 45 ms longer (default off) |
 | 2nd white | Shifter: a two-tap pitch shifter, with Kastle 2 FX Wizard's swoop and feedback | Shift in semitones, -12 to +12, one step per 3 detents; centre off (default 0, off) | Feedback: the shifted sound spirals (default off) | Swoop: on the key press, the shift pushes up to 2 octaves further and falls back over 1 s (default off) | Stereo: the right channel up to a semitone higher (default off) |
-| 3rd white | Folder: a sine-to-triangle wavefolder, antialiased and level-matched | Drive: 1x up to 32x, from barely folding to many folds (default 1x) | Shape: sine (smooth) to triangle (bright) (default sine) | Tone, lowpass 200 Hz to open (default open) | Symmetry: a bias for uneven folds and even harmonics (default off) |
+| 3rd white | Folder: a sine-to-triangle wavefolder, antialiased | Drive: 1x up to 32x, from barely folding to many folds (default 1x) | Shape: sine (smooth) to triangle (bright) (default sine) | Tone, lowpass 200 Hz to open (default open) | Symmetry: a bias for uneven folds and even harmonics (default off) |
 | 4th white | Crusher: TEMPO's sample-rate reducer plus bit reduction | Rate, 21.6 kHz down to 480 Hz, halving every 18% of the knob (default 21.6 kHz) | Bits, 16 down to 2 (default 16 bits) | Tone, lowpass 200 Hz to open (default open) | XOR: flips bits of every sample for a digital buzz, from Kastle 2 FX Wizard's crusher (default off) |
 | 5th white | Filter: the DJ filter from TAPE, TEMPO and WAVE (WAVE's copy) | Cutoff: lowpass left of centre, highpass right, flat at centre (default centre, flat) | Resonance (default 50%) | LFO depth (default off) | LFO division: 1/16, 1/8, 1/4, 1/2, 1 bar, 2 bars, 4 bars (default 1 bar) |
 | 6th white | Flanger: Kastle 2 FX Wizard's | Rate, 0.02 Hz to 50 Hz (default 0.55 Hz) | Feedback, up to 85% (default 50%) | Amount: sweep depth and mix together, the top is pure vibrato (default 0, dry) | Stereo: the right LFO runs free and detuned (default off) |
@@ -270,7 +270,8 @@ SHIFT + press on a knob takes it back there.
 ### Page 2
 
 A press on any of knobs 1-4 turns all four over to a second page of the selected effect's
-parameters, the ones you set and leave rather than play; another press turns them back. On
+(or the compressor's) parameters, the ones you set and leave rather than play; another
+press turns them back. On
 page 2 the knob LEDs pulse, so you can't mistake which page you're turning, and a knob the
 effect has nothing on is dark and does nothing. On an effect without a page 2, the press does
 nothing. Selecting another effect or the compressor
@@ -278,11 +279,27 @@ always brings back page 1, so the main controls are under your fingers whenever 
 effect. SHIFT + turn and SHIFT + press work on page 2 as on page 1. Turning the page doesn't
 edit the scene, and scenes, recalls and morphs carry page 2's values along with page 1's.
 
-Only the shifter has a page 2 yet; which parameters the other effects get comes later:
+Page 2 is the same on every effect, so your hand learns it once:
 
-| Key | Effect | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
-|---|---|---|---|---|---|
-| 2nd white | Shifter | Mix: the dry signal under the shifted one, a harmony; at the top fully shifted, as before (default fully shifted) | — | — | — |
+| Knob | Page 2 | Default |
+|---|---|---|
+| 1 | **Mix:** the dry sound against the effect's, for parallel distortion, a harmony under the shifter, a half-frozen loop | fully the effect |
+| 2 | Free: for a parameter of the effect's own, later (#40) | — |
+| 3 | **Band:** which part of the sound the effect works on. In the middle, all of it. Turned left, only the lows, below a split that falls from 20 kHz to 40 Hz; turned right, only the highs, above one that rises from 20 Hz to 8 kHz. The rest passes dry, so a folder can grind the highs and leave the bass clean | the middle, all of it |
+| 4 | **Level:** the effect's output, after Mix's dry sound is set aside: off at the bottom, then -36 dB to +12 dB | 0 dB, at 3/4 |
+
+- **Which effects:** the freezer, shifter, folder, crusher, filter, slicer and wow & flutter
+  have all three. The flanger has Band and Level: its Amount already sets the depth and mix
+  together. The delay and reverb have Band alone, on what goes into them (their level is
+  page 1's knob 4): turned right it's a low cut, so the bass stays out of the echoes and the
+  room, turned left a high cut. The resonator and the tape stop have no page 2 yet.
+- **Nothing evens out levels by itself.** An effect that adds level, like the folder driven
+  or the crusher's XOR on a quiet sound, comes out louder, and Level is how you set it.
+  Level and Mix fade in and out with the key, as the effect does; with the key off, the
+  sound passes untouched whatever page 2 says.
+- **At the defaults** an effect sounds exactly as without page 2.
+- Scenes from before this page (v0.11, or a test build with only the shifter's mix) load
+  with page 2 on its defaults, the shifter's mix kept.
 
 SHIFT + turn moves one point of a fixed grid per detent, always to the next point in the
 direction you turn, so a value set finely snaps onto the grid with the first coarse move:
@@ -292,7 +309,8 @@ direction you turn, so a value set finely snaps onto the grid with the first coa
 | Resonator pitch | The notes at A440 (110 Hz is A2), F#0 to A5 |
 | Shifter shift | -12, -7, -5, 0, +5, +7, +12 semitones (octaves, fifths, fourths) |
 | Shifter stereo | Quarter semitones |
-| Shifter mix (page 2) | 10% |
+| Mix and Band (page 2) | 10% |
+| Level (page 2) | 6 dB steps, with 0 dB on one |
 | Crusher rate | 48 kHz divided by 4, 8, 16, 32, 64: 12 kHz, 6 kHz, 3 kHz, 1.5 kHz, 750 Hz |
 | Crusher bits | Whole bits |
 | Folder drive | Doublings: 1x, 2x, 4x, 8x, 16x, 32x |
@@ -362,9 +380,10 @@ Folder details:
 - **The fold:** past the fold point the signal is mirrored back, again and again as the
   drive rises, each fold adding harmonics. Drive is the folding: on loud material the folds
   start low on the knob, on quiet material higher up.
-- **Level:** a folder's output is about full scale whatever goes in, so the output is
-  matched to the input's level (over ~50 ms, by up to 2x louder): punching in changes the
-  sound, not the loudness.
+- **Level:** at 1x a quiet sound comes out at its own level. Driven, a folder's output
+  rises towards full scale whatever goes in, so the folder gets louder as you drive it, the
+  more so on quiet material. Nothing evens that out by itself: page 2's Level and Mix are
+  there for it.
 - **Symmetry** shifts the fold by up to a quarter of its period: at the top, the sine fold
   becomes a cosine, all even harmonics, an octave-ish edge. The DC the bias adds is blocked.
 - **Aliasing:** the sine fold hardly aliases: on a sine below about 1.5 kHz the aliases stay
@@ -383,8 +402,9 @@ Crusher details:
   that's loudest where the signal crosses zero. On its own XOR would turn silence into a
   constant offset, so what it adds is DC-blocked.
 - **Level:** the XOR's flips and the coarsest bits are a fixed size whatever the signal's
-  level, so on a quiet sound they'd come out far louder than it. The crusher's output is held
-  to its input's level instead: turned down within a couple of milliseconds, never up.
+  level, so on a quiet sound they come out louder than it (XOR at full on a sound 40 dB down:
+  about 22 dB louder). Nothing turns that down by itself: page 2's Level and Mix are there
+  for it.
 
 Resonator details:
 - The loop holds a soft clipper, a lowpass (Tone) and a 50 Hz highpass, as on Kastle, so it
@@ -447,26 +467,35 @@ Reverb details:
 ## Master compressor
 
 A stereo compressor on the master out, after the effects and before VOLUME, so turning
-VOLUME doesn't change how hard it works. It's always on; at its default amount it's off.
-The last white key, the 15th, selects it for knobs 1-4, which then turn
-it the way they turn an effect: 1% per detent, SHIFT + turn coarse, SHIFT + press resets.
+VOLUME doesn't change how hard it works. It's always on; at its default threshold it's off.
+It is a plain compressor: it only turns loud parts down, and turns anything up only by its
+Makeup knob. The last white key, the 15th, selects it for knobs 1-4, which then turn
+it the way they turn an effect: 1% per detent, SHIFT + turn coarse, SHIFT + press resets,
+and a knob press for its [page 2](#page-2).
 Pressing an FX key gives the knobs back to that effect. The key does nothing else: it has no
 latch, and holding it doesn't switch anything. With SHIFT it's a select, as an FX key's is.
 
-| Knob | Function |
-|---|---|
-| 1 | Amount: the threshold, from 0 dB down to -30 dB, with makeup gain giving back half of what a loud signal loses (default 0, off) |
-| 2 | Ratio: 1.5:1, 2:1, 4:1, 8:1, 20:1 across the knob, which are also its coarse points (default 4:1) |
-| 3 | Speed: attack 1 ms to 30 ms and release 40 ms to 600 ms together, fast to slow (default attack 5.5 ms, release 150 ms) |
-| 4 | Mix: dry to fully compressed, for parallel compression (default fully compressed) |
+| Knob | Page 1 | Page 2 |
+|---|---|---|
+| 1 | Threshold, from 0 dB down to -30 dB (default 0, off) | Mix: dry to fully compressed, for parallel compression (default fully compressed) |
+| 2 | Ratio: 1.5:1, 2:1, 4:1, 8:1, 20:1 across the knob, which are also its coarse points (default 4:1) | — |
+| 3 | Attack, 1 ms to 30 ms (default 5.5 ms) | — |
+| 4 | Release, 40 ms to 600 ms (default 155 ms) | Makeup: 0 dB to +24 dB, 3 dB a coarse step (default 0 dB) |
+
+Mix and Makeup sit on the knobs an effect has its Mix and Level on.
 
 - **Linked:** one detector for both channels, so the stereo image doesn't shift. It has a
   soft knee, 6 dB wide.
 - **Level:** 0 dB is the AUX input about 7 dB below full scale, with the input gain at its
-  default. At amount 0 the signal passes untouched.
+  default. At threshold 0 and makeup 0 dB the signal passes untouched; at threshold 0 with
+  makeup, it's that gain alone.
+- **Settings from before** (v0.11): the old Speed knob becomes both Attack and Release, Mix
+  moves to page 2, and Makeup starts at 0 dB, so a compressor you had set comes back quieter
+  than before, by what the automatic makeup added (half of what a 0 dB signal lost).
 - **Safety limiter:** after VOLUME, every output has a fixed limiter: the old one-knob
   compressor at its lowest setting, which was its default. It keeps the outputs within full
-  scale; it is what FRIZZ always had, so nothing changes until you turn the amount up.
+  scale; it is what FRIZZ always had, so nothing changes until you turn the threshold down.
+  It's the only thing FRIZZ does to the level by itself.
 - **Kept:** the settings are saved to `FRIZZ/frizz_master.txt` on the card 2 s after the
   last turn, and come back at power-on. They're not part of a scene. Without a card, or when
   the card can't be written, the key blinks red 3 times instead, and FRIZZ tries again 2 s
@@ -668,7 +697,7 @@ or C2 in Ableton Live): the white keys from 48 up, the dark keys on the sharps. 
 | 18 | The transport knob turned, relative, in semitones. SHIFT held (the CHOMPI key's note, 45) turns it in 5ths and octaves, as by hand |
 | 19 | VOLUME turned, relative, on the page it's on |
 | 20-31 | An effect's latch, by its key left to right (20 the freezer, 30 the delay, 31 the reverb): 64 and above latched, below off |
-| 52, 53, 54, 55 | The master compressor's amount, ratio, speed and mix |
+| 52, 53, 54, 55 | The master compressor's threshold, ratio, attack and release (page 2: NRPN, below) |
 | 56 | Output gain |
 | 57 | Input gain |
 | 58 | Input/loop mix |
@@ -687,9 +716,10 @@ or C2 in Ableton Live): the white keys from 48 up, the dark keys on the sharps. 
 - **14 bits:** NRPN with the CC's number as the parameter (NRPN MSB 0, LSB the CC) sets it
   in 16,384 steps (8192 the centre): CC 99 0, CC 98 the CC number, CC 6 the value's top 7
   bits, CC 38 its bottom 7.
-- **[Page 2](#page-2)** of an effect's knobs has no CCs (none are left): NRPN MSB 1 with the
-  same knob's page-1 CC number as LSB sets it, so the shifter's page-2 knob 1 (its mix) is
-  CC 99 1, CC 98 74, then CC 6 and CC 38 as above. Notes 36-39, the knob presses, turn the
+- **[Page 2](#page-2)** of an effect's or the compressor's knobs has no CCs (none are left):
+  NRPN MSB 1 with the same knob's page-1 CC number as LSB sets it, so the shifter's page-2
+  knob 1 (its mix) is CC 99 1, CC 98 74, and the compressor's makeup CC 99 1, CC 98 55,
+  then CC 6 and CC 38 as above. Notes 36-39, the knob presses, turn the
   page as your hand does.
 - Mod wheel, pitch bend, aftertouch and other controllers are ignored.
 

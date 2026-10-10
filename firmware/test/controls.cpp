@@ -26,7 +26,7 @@ struct FakeEngine
         param_calls++;
     }
     void FastFxSlew() { fast_slews++; }
-    float comp[kNumFxKnobs] = {};
+    float comp[kNumFxParams] = {};
     void SetCompParam(size_t p, float v) { comp[p] = v; }
 
     // the morph: what it was started with, and its bar lines
@@ -311,8 +311,8 @@ static void TestPages()
     Check(fx.Page() == 0 && fx.KnobUsed(1), "pages: page 1 at first, every knob of it used");
     Check(fx.KnobPressed(2, false) && fx.Page() == 1, "pages: a plain press on any knob turns to page 2");
     Check(!fx.Edited(), "pages: turning the page isn't an edit");
-    Check(fx.KnobUsed(0) && !fx.KnobUsed(1) && !fx.KnobUsed(3),
-          "pages: the shifter's page 2 has its mix on knob 1, nothing else");
+    Check(fx.KnobUsed(0) && !fx.KnobUsed(1) && fx.KnobUsed(2) && fx.KnobUsed(3),
+          "pages: the shifter's page 2: Mix, Band and Level on knobs 1, 3 and 4, knob 2 free");
     Check(fx.Knob(0) == 1.f, "pages: the mix starts fully shifted");
     fx.KnobTurned(0, -40.f, false);
     Check(Near(fx.Param(FX_SHIFTER, 4), .6f) && Near(e.params[FX_SHIFTER][4], .6f)
@@ -330,10 +330,14 @@ static void TestPages()
     fx.KeyPressed(FX_SHIFTER, false, false);
     fx.KeyPressed(FX_SHIFTER, true, false);
     Check(fx.Page() == 1, "pages: the same FX pressed again keeps page 2");
-    fx.KeyPressed(FX_FILTER, true, true);
+    fx.KeyPressed(FX_TAPESTOP, true, true);
     Check(fx.Page() == 0, "pages: another FX, also selected with SHIFT, goes back to page 1");
     Check(!fx.KnobPressed(0, false) && fx.Page() == 0 && fx.KnobUsed(0),
           "pages: an FX without page-2 parameters stays on page 1, the press does nothing");
+    fx.KeyPressed(FX_DELAY, true, true);
+    fx.KnobPressed(0, false);
+    Check(fx.Page() == 1 && !fx.KnobUsed(0) && fx.KnobUsed(2) && !fx.KnobUsed(3),
+          "pages: a send's page 2 has Band alone, on knob 3");
     fx.KeyPressed(FX_SHIFTER, true, false);
     fx.KnobPressed(0, false);
     fx.KnobPressed(0, false);
@@ -341,11 +345,20 @@ static void TestPages()
     fx.KnobPressed(0, false);
     fx.CompKeyPressed(false);
     Check(fx.Page() == 0, "pages: the compressor's key goes back to page 1");
-    Check(!fx.KnobPressed(0, false) && fx.Page() == 0, "pages: the compressor has no page 2");
+    Check(fx.KnobPressed(0, false) && fx.Page() == 1, "pages: the compressor has a page 2");
+    Check(fx.KnobUsed(0) && !fx.KnobUsed(1) && !fx.KnobUsed(2) && fx.KnobUsed(3)
+              && fx.Knob(0) == 1.f && fx.Knob(3) == 0.f,
+          "pages: the compressor's page 2: Mix on knob 1 (fully compressed), Makeup on knob 4 (0dB)");
+    fx.KnobTurned(3, 25.f, false);
+    Check(Near(fx.CompParam(7), .25f) && Near(e.comp[7], .25f) && fx.CompParam(3) == .5f,
+          "pages: the compressor's knob 4 there turns its makeup, not its release");
+    fx.KnobPressed(3, true);
+    Check(fx.CompParam(7) == 0.f, "pages: SHIFT + press resets the makeup to 0dB");
+    fx.KnobPressed(0, false);
     // MIDI: page 2 outright, but not where an effect has none
     fx.SetParamTo(FX_SHIFTER, 4, .25f);
-    fx.SetParamTo(FX_FILTER, 4, .25f);
-    Check(fx.Param(FX_SHIFTER, 4) == .25f && fx.Param(FX_FILTER, 4) == kFxParams[FX_FILTER].defaults[4],
+    fx.SetParamTo(FX_TAPESTOP, 4, .25f);
+    Check(fx.Param(FX_SHIFTER, 4) == .25f && fx.Param(FX_TAPESTOP, 4) == kFxParams[FX_TAPESTOP].defaults[4],
           "pages: set outright on page 2, only where the FX uses it");
     // a scene keeps page 2, and a recall puts it back
     FxScene scene;

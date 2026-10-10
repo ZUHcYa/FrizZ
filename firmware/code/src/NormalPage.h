@@ -172,7 +172,7 @@ namespace chompi
 
             fx_.Init(engine_);
             // the compressor's knobs as they were left, from the card
-            for (size_t p = 0; p < kNumFxKnobs; p++)
+            for (size_t p = 0; p < kNumFxParams; p++)
                 fx_.SetComp(p, scenes_->master.comp[p]);
             fx_.TakeCompChanged();
             // and the settings page's: the mono input, the clock's factor, the LEDs
@@ -455,12 +455,12 @@ namespace chompi
             if (ctl >= kParamCC && ctl < kParamCC + kNumFx * kNumFxKnobs)
                 fx_.SetParamTo((ctl - kParamCC) / kNumFxKnobs,
                                (ctl - kParamCC) % kNumFxKnobs + bank * kNumFxKnobs, value);
+            else if (ctl >= kCompCC && ctl < kCompCC + kNumFxKnobs)
+                fx_.SetComp(ctl - kCompCC + bank * kNumFxKnobs, value);
             else if (bank)
                 return;
             else if (cc >= kLatchCC && cc < kLatchCC + kNumFx)
                 fx_.SetLatch(cc - kLatchCC, raw >= 64);
-            else if (cc >= kCompCC && cc < kCompCC + kNumFxKnobs)
-                fx_.SetComp(cc - kCompCC, value);
             else if (cc == kOutGainCC)
             {
                 out_gain_ = value;
@@ -549,11 +549,11 @@ namespace chompi
                 break;
             }
             case kCmdParams:
-                // both pages of an effect, the compressor's one
+                // both pages of an effect's or the compressor's
                 if (q.a > kNumFx)
                     return;
                 d[n++] = q.a;
-                for (size_t p = 0; p < (q.a == kNumFx ? kNumFxKnobs : kNumFxParams); p++)
+                for (size_t p = 0; p < kNumFxParams; p++)
                     n = Put14(d, n, KnobToMidi14(q.a == kNumFx ? fx_.CompParam(p)
                                                                : fx_.Param(q.a, p)));
                 break;
@@ -746,7 +746,7 @@ namespace chompi
             }
             if (master_unsaved_ && now - master_changed_at_ > kMasterSaveDelayMs)
             {
-                for (size_t p = 0; p < kNumFxKnobs; p++)
+                for (size_t p = 0; p < kNumFxParams; p++)
                     scenes_->master.comp[p] = fx_.CompParam(p);
                 settings_.Store(scenes_->master);
                 scenes_->RequestMasterSave();

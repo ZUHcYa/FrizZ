@@ -1,4 +1,5 @@
-# The master compressor: selected, every knob swept up and down on a loud input
+# The master compressor: selected, every knob of page 1 (threshold, ratio, attack, release)
+# swept up and down on a loud input
 input sine 110 0.8
 at 6000
 tap KEY_15
@@ -21,5 +22,5 @@ wait 2000
 expect led pth 1 8fe7fd
 expect led pth 2 8fe7fd
 expect led pth 3 fde7d1
-expect led pth 4 fdfdfd
+expect led pth 4 00d1fd
 expect on

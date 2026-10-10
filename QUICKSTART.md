@@ -85,7 +85,8 @@ and reverb. The freezer, slicer and tape stop work from the first press: the fre
 a whole bar, the slicer pumps gently and the tape stop stops.
 
 **Master compressor:** press the last white key, and knobs 1-4 set the compressor on the
-master out: amount (off at first), ratio, speed and mix. Its key lights up as it compresses.
+master out: threshold (off at first), ratio, attack and release; press a knob for its mix
+and makeup. Its key lights up as it compresses.
 It's always on, and FRIZZ remembers its settings when you switch off. Press an effect key to
 give the knobs back to the effect.
 

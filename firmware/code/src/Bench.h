@@ -357,7 +357,7 @@ private:
         const Segment& seg = kSegments[s];
         engine.SetMainGain(.75f);
         engine.SetInputGain(.75f);
-        engine.SetCompParam(MasterComp::kAmount, seg.flags & (COMP | SCENE4) ? 1.f : .3f);
+        engine.SetCompParam(MasterComp::kThreshold, seg.flags & (COMP | SCENE4) ? 1.f : .3f);
         for (size_t fx = 0; fx < kNumFx; fx++)
             for (size_t p = 0; p < kNumFxKnobs; p++) // page 1's: page 2 on its defaults
                 engine.SetFxParam(fx, p, .5f);
