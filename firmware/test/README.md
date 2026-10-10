@@ -407,8 +407,9 @@ ms jitter); one that sends its ticks in pairs, both in one USB frame; and one ca
 other tick late, a frame before the next. Each case prints what it measured; the limits are at the top of `sync.cpp`.
 
 - The FX's tempo from the clock, no loop, for 30 s at 60, 90, 120, 174 and 300 BPM and at 120.4:
-  how often it changes (it should hold still), and a pulse every 2 ticks. A ramp from 100 to
-  140 BPM: the tempo there within 0.5 s of its end.
+  how often it changes (it should hold still), and a pulse every 2 ticks. A step from 120 to
+  121 BPM: the tempo there within 5 s, and still after. A ramp from 100 to 140 BPM: the tempo
+  there within 0.5 s of its end.
 - Quantized loops (PLAY + LOOP from the panel) of 1 and 4 bars at 90, 120 and 174 BPM: closed on
   their bars, their length against the bars the clock played, the drift of their loop point
   against the clock over 30 s (nothing pulls a loop back to the clock once it plays), 12 FX

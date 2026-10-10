@@ -80,6 +80,13 @@ what FRIZZ does.
   does nothing now, so a report can't be written by accident while playing. See MANUAL.md,
   "Bug reports".
 
+### Fixed
+
+- **The effects' tempo holds still on a MIDI clock** (#19): at fast tempos (around 174 and
+  300 BPM) and between two whole BPM (say 120.4), it used to flip between neighbouring
+  BPM many times a second, moving the delay time with it. It's now measured over the last
+  few seconds; a jump in tempo is still followed at once.
+
 ## v0.11 (2026-10-10)
 
 ### Added
