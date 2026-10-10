@@ -287,15 +287,11 @@ private:
             // Start and Stop from the clock source's input only, from both in Auto and internal
             if (!transport_ || !FromSource(clock_->GetSource(), usb))
                 return;
-            int t = 0;
-            if (e.srt_type == Start || e.srt_type == Continue)
-                t = 1;
-            else if (e.srt_type == Stop)
-                t = -1;
+            const uint8_t t = TransportByte(e);
             if (t)
             {
-                transport_cmd_ = t;
-                Log(e.srt_type == Start ? 0xFA : e.srt_type == Continue ? 0xFB : 0xFC, 0, 0, usb);
+                transport_cmd_ = t == 0xFC ? -1 : 1;
+                Log(t, 0, 0, usb);
             }
             return;
         }
