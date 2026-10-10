@@ -160,17 +160,13 @@ namespace chompi
             engine_ = engine;
             scenes_ = scenes;
 
-            out_gain_ = kDefaultOutGain;
-            in_gain_ = kDefaultInGain;
-            mix_ = kDefaultMix;
-            hp_cue_ = 0.f; // the headphones mirror the master at power-on
             page_ = kOutGainPage;
 
             // the engine only hears about a value when it changes, so push them all now
-            engine_->SetMainGain(out_gain_);
-            engine_->SetInputGain(in_gain_);
-            engine_->SetMix(mix_);
-            engine_->SetHeadphoneCue(hp_cue_);
+            SetOutGain(kDefaultOutGain);
+            SetInGain(kDefaultInGain);
+            SetMix(kDefaultMix);
+            SetHpCue(0.f); // the headphones mirror the master at power-on
 
             fx_.Init(engine_);
             // the compressor's knobs as they were left, from the card
@@ -463,22 +459,13 @@ namespace chompi
             else if (cc == kChaosLatchCC)
                 fx_.SetLatch(FX_CHAOS, raw >= 64);
             else if (cc == kOutGainCC)
-            {
-                out_gain_ = value;
-                engine_->SetMainGain(out_gain_);
-            }
+                SetOutGain(value);
             else if (cc == kInGainCC)
-            {
-                in_gain_ = value;
-                engine_->SetInputGain(in_gain_);
-            }
+                SetInGain(value);
             else if (cc == kMixCC)
                 SetMix(value);
             else if (cc == kHpCueCC)
-            {
-                hp_cue_ = value;
-                engine_->SetHeadphoneCue(hp_cue_);
-            }
+                SetHpCue(value);
             else if (cc == kMonoCC && settings_.SetMono(raw >= 64))
                 MasterChanged(System::GetNow());
             else if (cc == kMorphBarsCC)
@@ -760,21 +747,11 @@ namespace chompi
             if (Shift())
                 SetMix(mix_ + detents * kMixStep);
             else if (page_ == kOutGainPage)
-            {
-                out_gain_ = fclamp(out_gain_ + inc, 0.f, 1.f);
-                engine_->SetMainGain(out_gain_);
-            }
+                SetOutGain(out_gain_ + inc);
             else if (page_ == kInGainPage)
-            {
-                in_gain_ = fclamp(in_gain_ + inc, 0.f, 1.f);
-                engine_->SetInputGain(in_gain_);
-            }
+                SetInGain(in_gain_ + inc);
             else
-            {
-                // left towards the dry input, right back to the master
-                hp_cue_ = fclamp(hp_cue_ - detents * kHpCueStep, 0.f, 1.f);
-                engine_->SetHeadphoneCue(hp_cue_);
-            }
+                SetHpCue(hp_cue_ - detents * kHpCueStep); // left towards the dry input
         }
 
         /** A tempo tap: with a loop, it refits the loop's beats; without one, it sets the
@@ -801,6 +778,22 @@ namespace chompi
             master_tries_ = 0;
         }
 
+        // VOLUME's pages and the mix, 0..1, to the engine
+        void SetOutGain(float gain)
+        {
+            out_gain_ = fclamp(gain, 0.f, 1.f);
+            engine_->SetMainGain(out_gain_);
+        }
+        void SetInGain(float gain)
+        {
+            in_gain_ = fclamp(gain, 0.f, 1.f);
+            engine_->SetInputGain(in_gain_);
+        }
+        void SetHpCue(float cue)
+        {
+            hp_cue_ = fclamp(cue, 0.f, 1.f);
+            engine_->SetHeadphoneCue(hp_cue_);
+        }
         void SetMix(float mix)
         {
             mix_ = fclamp(mix, 0.f, 1.f);
