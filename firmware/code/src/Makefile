@@ -33,3 +33,6 @@ DAISYSP_DIR = ../libs/DaisySP
 # Core location, and generic Makefile
 SYSTEM_FILES_DIR = $(LIBDAISY_DIR)/core
 include $(SYSTEM_FILES_DIR)/Makefile
+
+# A change to the memory layout relinks
+$(BUILD_DIR)/$(TARGET).elf: $(LDSCRIPT)
