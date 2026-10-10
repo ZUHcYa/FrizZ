@@ -117,6 +117,8 @@ public:
     }
 
     inline bool HasLoop() const { return loop_length_ > 0; }
+    /** The loop's length in pulses, its beats' worth; 0 without a loop */
+    inline uint32_t LoopPulses() const { return HasLoop() ? loop_pulses_ : 0; }
     /** Whether a tempo was set (by a clock, a loop or taps), for fitting a new loop to */
     inline bool TempoSet() const { return tempo_set_; }
     /** The tempo without a loop: the clock's or the free one, for fitting a new loop to */

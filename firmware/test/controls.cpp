@@ -20,6 +20,8 @@ struct FakeEngine
     int fast_slews = 0;
 
     void SetFxOn(size_t fx, bool o) { on[fx] = o; }
+    uint16_t pool = 0; // the chaos key's
+    void SetFxPool(uint16_t p) { pool = p; }
     void SetFxParam(size_t fx, size_t p, float v)
     {
         params[fx][p] = v;
@@ -752,6 +754,39 @@ static void TestTails()
     sc.Recall(kBlankSlot);
 }
 
+/** The chaos key's pool (FxControls::Pool): the effects latched and not held */
+static void TestPool()
+{
+    FakeEngine e;
+    Fx fx;
+    Fresh(e, fx);
+    Latch(fx, FX_FILTER);
+    Latch(fx, FX_DELAY);
+    Check(e.pool == ((1u << FX_FILTER) | (1u << FX_DELAY)), "pool: the effects latched");
+    Latch(fx, FX_CHAOS);
+    Check(e.pool == ((1u << FX_FILTER) | (1u << FX_DELAY)), "pool: never the chaos key itself");
+    fx.KeyPressed(FX_FILTER, true, false);
+    Check(e.pool == (1u << FX_DELAY), "pool: a latched key held is the hand's, out of it");
+    fx.KeyPressed(FX_FILTER, false, false); // a plain press: unlatched
+    Check(e.pool == (1u << FX_DELAY), "pool: unlatched, out of it");
+    fx.KeyPressed(FX_CRUSHER, true, false);
+    Check(e.pool == (1u << FX_DELAY), "pool: a key held, not latched, isn't in it");
+    fx.KeyPressed(FX_CRUSHER, false, false);
+    fx.SetLatch(FX_SLICER, true);
+    Check(e.pool == ((1u << FX_DELAY) | (1u << FX_SLICER)), "pool: a latch over MIDI");
+
+    // a recall and a morph send the scene's
+    FxScene store[kNumSlots] = {};
+    Scenes sc;
+    sc.Init(store, &fx);
+    store[1] = store[kBlankSlot];
+    store[1].latched = (1u << FX_FOLDER) | (1u << FX_CHAOS);
+    sc.Recall(1);
+    Check(e.pool == (1u << FX_FOLDER) && e.on[FX_CHAOS], "pool: a recall's, the chaos key latched in it on");
+    sc.Morph(kBlankSlot);
+    Check(e.pool == 0, "pool: a morph's, at once");
+}
+
 int main()
 {
     TestInit();
@@ -762,5 +797,6 @@ int main()
     TestScenes();
     TestMorph();
     TestTails();
+    TestPool();
     return Finish();
 }

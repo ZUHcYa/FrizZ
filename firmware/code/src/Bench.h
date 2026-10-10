@@ -301,6 +301,8 @@ private:
         SCENE4 = 4,   // PR #7's scene 4: shifter +7, folder, crusher, slicer, compressor at 1
         COMP = 8,     // the compressor's amount at 1
         RECORD = 16,  // records the loop, 4 s
+        CHAOS = 64,   // the chaos key on the inserts, every 16th: half its chances, the loop
+                      // scrambled too
         PAGE2 = 32,   // page 2 off its defaults on every effect: its Mix, Band and Level, so
                       // FxOutput.h's crossover and blend run (at their defaults they don't),
                       // and each effect's own knobs (the sends' freeze stays off)
@@ -312,14 +314,15 @@ private:
         uint8_t flags;
     };
     static constexpr uint16_t Bit(int fx) { return static_cast<uint16_t>(1u << fx); }
-    static const uint16_t kAllFx = (1u << kNumFx) - 1;
+    // the effects with a sound: the chaos key has a segment of its own
+    static const uint16_t kAllFx = (1u << kNumSoundFx) - 1;
     // everything but the tape stop, which would silence the rest
     static const uint16_t kEverything = kAllFx & ~(1u << FX_TAPESTOP);
     static const uint16_t kInserts = kEverything & ~(1u << FX_DELAY) & ~(1u << FX_REVERB);
     static const uint16_t kScene4 = (1u << FX_SHIFTER) | (1u << FX_FOLDER) | (1u << FX_CRUSHER)
                                     | (1u << FX_SLICER);
 
-    static constexpr size_t kNumSegments = 23;
+    static constexpr size_t kNumSegments = 24;
     static const Segment kSegments[kNumSegments];
 
     static const size_t kMaxBlock = 48;
@@ -392,6 +395,9 @@ private:
         }
         if (seg.flags & SCENE4)
             engine.SetFxParam(FX_SHIFTER, 0, .5f + 7.f / 24.f);
+        engine.SetFxPool(seg.flags & CHAOS ? kInserts : 0);
+        if (seg.flags & CHAOS)
+            engine.SetFxParam(FX_CHAOS, Chaos::GRID, 0.f);
         for (size_t fx = 0; fx < kNumFx; fx++)
             engine.SetFxOn(fx, seg.fx & (1u << fx));
         if (seg.flags & RECORD)
@@ -519,7 +525,7 @@ private:
                 marked += parts_[s][p];
             for (size_t p = 0; p < fx; p++)
                 row[p] = parts_[s][p];
-            for (size_t e = 0; e < kNumFx; e++)
+            for (size_t e = 0; e < kNumSoundFx; e++)
                 row[fx] += parts_[s][fx + e];
             row[fx + 1] = parts_[s][BenchProfile::COMP];
             row[fx + 2] = parts_[s][BenchProfile::OUTPUT];
@@ -528,9 +534,9 @@ private:
             PartsRow(t, s, row, 11, period, 7);
         }
         t.Put("\n# the FX chain by effect, % of the block, each with its meter\n");
-        PartsHeader(t, kFxNames, kNumFx, 10);
+        PartsHeader(t, kFxNames, kNumSoundFx, 10);
         for (size_t s = 0; s < kNumSegments; s++)
-            PartsRow(t, s, &parts_[s][fx], kNumFx, period_[s], 10);
+            PartsRow(t, s, &parts_[s][fx], kNumSoundFx, period_[s], 10);
     }
 
     static void PartsHeader(Text& t, const char* const* names, size_t n, size_t width)
@@ -673,6 +679,9 @@ const Bench::Segment Bench::kSegments[Bench::kNumSegments] = {
     {"loop+everything", Bench::kEverything, Bench::LOOP | Bench::COMP},
     // last, so the 22 before stay comparable with older cpu.txt files
     {"loop+everything+page2", Bench::kEverything, Bench::LOOP | Bench::COMP | Bench::PAGE2},
+    // and after it, so the 23 before likewise stay comparable: the chaos key gating the
+    // inserts on the loop, every 16th, and scrambling it
+    {"loop+inserts+chaos", Bench::kInserts | Bench::Bit(FX_CHAOS), Bench::LOOP | Bench::CHAOS},
 };
 constexpr uint8_t Bench::kKeyLeds[];
 

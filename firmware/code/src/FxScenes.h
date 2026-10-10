@@ -39,7 +39,8 @@ static const size_t kNumScenes = 4;
 // holding the file's scene s
 static const size_t kBlankSlot = 0;
 static const size_t kNumSlots = kNumScenes + 1;
-// The file's size at most: 4 scenes of 12 effects with both pages take under 3.6KB
+// The file's size at most: 4 scenes of 13 effects with both pages, every value 7 digits, take
+// under 3.9KB (test/scenes.cpp)
 static const size_t kSceneFileMax = 4096;
 
 struct FxScene

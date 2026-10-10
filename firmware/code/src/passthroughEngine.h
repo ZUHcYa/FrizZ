@@ -118,6 +118,10 @@ public:
                 block_loop_pulse_[block_pulses_++] = tempo_clock_.LoopPulse();
         }
         morph_.Process(size, tempo_clock_.PulseSamples());
+        // the keys, what the chaos key drops of them, and where it plays the loop
+        float jump;
+        if (fx_.Block(&jump))
+            Scramble(jump);
         BENCH_MARK(TEMPO);
 
         for (size_t i = 0; i < size; i++)
@@ -238,6 +242,10 @@ public:
     inline uint32_t Next16th() const { return next_16th_; }
     static const uint32_t kMaxBlockPulses = 4;
 
+    /** The chaos key's pool, the effects it may drop (FxChaos.h, FxControls::Pool) */
+    inline void SetFxPool(uint16_t pool) { fx_.SetPool(pool); }
+    /** Bit fx: dropped by the chaos key now, for the key LEDs */
+    inline uint16_t FxDropped() const { return fx_.Dropped(); }
     /** The FX clock's position, 0..TempoClock's kPulsesPerCycle - 1, for blinking on its beats */
     inline uint32_t FxClockPosition() const { return tempo_clock_.Position(); }
     /** The tempo the effects follow, for MIDI's state query (MidiControl.h) */
@@ -257,6 +265,21 @@ public:
     chompi::Looper looper;
 
 private:
+    /** A chaos step's scramble (FxChaos.h): the loop plays the step jump of the way round its
+     *  other steps (on the chaos key's grid), or in place at 0, or while it isn't playing */
+    void Scramble(float jump)
+    {
+        const uint32_t steps = tempo_clock_.LoopPulses() / fx_.ChaosGridPulses();
+        size_t offset = 0;
+        if (jump > 0.f && steps >= 2 && looper.GetState() == chompi::Looper::State::PLAYING)
+        {
+            uint32_t n = 1 + static_cast<uint32_t>(jump * static_cast<float>(steps - 1));
+            n = n >= steps ? steps - 1 : n;
+            offset = static_cast<size_t>(static_cast<uint64_t>(n) * looper.GetLength() / steps);
+        }
+        looper.Scramble(offset);
+    }
+
     /** Hands a loop that just closed to the tempo clock, and takes an erased one away. A
      *  quantized loop knows its beats; an unquantized one fits the tempo set before it, or
      *  is guessed */

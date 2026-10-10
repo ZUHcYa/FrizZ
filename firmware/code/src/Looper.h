@@ -23,6 +23,10 @@
  *  sample and read with 4-point Hermite interpolation. Speed moves in semitones (StepSemitone)
  *  or along TAPE's ladder of 5ths and octaves (StepSpeed), glides to each new step like TAPE's
  *  default tape slew, and runs in reverse when negative. While paused, the transport knob scrubs instead (Scrub).
+ *
+ *  Scramble (the chaos key, FxChaos.h): the loop is heard from a number of frames on from the
+ *  read head, which itself runs on as ever, so the loop's position, the FX clock and its end
+ *  don't move. A new offset crossfades from the old over kXfadeFrames.
  */
 #pragma once
 #include "FrizzHot.h"
@@ -113,6 +117,19 @@ public:
     /** Transport turns while paused, in encoder detents */
     void Scrub(int turns) { scrub_turns_.fetch_add(turns); }
 
+    /** Heard offset frames on from the read head, 0 in place (see the file comment). From the
+     *  audio callback, between blocks */
+    void Scramble(size_t offset)
+    {
+        if (offset >= length_)
+            offset = 0;
+        if (offset == offset_)
+            return;
+        from_offset_ = offset_;
+        offset_ = offset;
+        jump_left_ = kXfadeFrames;
+    }
+
     // ===== state, readable from the UI =====
 
     inline State GetState() const { return state_; }
@@ -202,7 +219,10 @@ public:
 
                     if (fade_ > .0001f)
                     {
-                        ReadInterpolated(&out_l[i], &out_r[i]);
+                        if (__builtin_expect((offset_ | jump_left_) != 0, 0))
+                            ReadScrambled(&out_l[i], &out_r[i]);
+                        else
+                            ReadInterpolated(play_pos_, &out_l[i], &out_r[i]);
                         out_l[i] *= fade_;
                         out_r[i] *= fade_;
                         // an erase waiting for the loop point starts its fade there
@@ -574,6 +594,8 @@ private:
         scrub_ = scrub_target_ = 0.f;
         scrub_turns_.store(0);
         scrub_count_ = 0;
+        offset_ = from_offset_ = 0;
+        jump_left_ = 0;
     }
 
     static inline int Mod12(int semis) { return ((semis % 12) + 12) % 12; }
@@ -630,15 +652,34 @@ private:
         return static_cast<size_t>(f);
     }
 
-    /** 4-point Hermite interpolation around the read head */
-    void ReadInterpolated(float* l, float* r) const
+    /** 4-point Hermite interpolation around frame pos, at the read head's fraction */
+    void ReadInterpolated(size_t pos, float* l, float* r) const
     {
         float xl[4], xr[4];
         for (int k = 0; k < 4; k++)
-            Read(Wrap(play_pos_, k - 1), &xl[k], &xr[k]);
+            Read(Wrap(pos, k - 1), &xl[k], &xr[k]);
 
         *l = Hermite(xl, play_frac_);
         *r = Hermite(xr, play_frac_);
+    }
+
+    /** The read head offset_ on, crossfading from from_offset_ while jump_left_ runs */
+    __attribute__((noinline, cold)) void ReadScrambled(float* l, float* r)
+    {
+        ReadInterpolated(Shifted(offset_), l, r);
+        if (jump_left_ == 0)
+            return;
+        float ol, or_;
+        ReadInterpolated(Shifted(from_offset_), &ol, &or_);
+        const float old = static_cast<float>(jump_left_) / kXfadeFrames;
+        *l += (ol - *l) * old;
+        *r += (or_ - *r) * old;
+        jump_left_--;
+    }
+    inline size_t Shifted(size_t offset) const
+    {
+        const size_t pos = play_pos_ + offset;
+        return pos >= length_ ? pos - length_ : pos;
     }
 
     static inline float Hermite(const float* x, float t)
@@ -702,6 +743,10 @@ private:
     bool reverse_ = false;
     volatile float speed_target_ = 1.f;
     float speed_ = 1.f;
+
+    // the scramble: heard offset_ frames on, crossfading from from_offset_ for jump_left_ more
+    size_t offset_ = 0, from_offset_ = 0;
+    size_t jump_left_ = 0;
 
     // scrubbing while paused
     std::atomic<int> scrub_turns_{0};

@@ -21,7 +21,7 @@ static const char* const kSegments[] = {
     "filter",     "flanger",   "resonator",    "slicer",      "warble",
     "tapestop",   "compressor", "inserts",     "recording",   "loop",
     "loop+inserts", "loop+delay", "loop+scene4+delay", "loop+reverb", "everything",
-    "stress",     "loop+everything",
+    "stress",     "loop+everything", "loop+everything+page2", "loop+inserts+chaos",
 };
 static const size_t kNum = sizeof(kSegments) / sizeof(kSegments[0]);
 // the bench waits before each segment for what it doesn't use to rest, so nothing may still
@@ -63,7 +63,7 @@ int main()
         failures++;
 
     Boot();
-    // the boot animation, about 10 s for the delay to rest, then 23 segments of 3 s with the
+    // the boot animation, about 10 s for the delay to rest, then 24 segments of 3 s with the
     // 4 s recording among them and the pauses for tails between them, until cpu.txt is
     // written; the input is the bench's own tune, so none is fed here
     std::vector<float> rms; // the master out's level every 3 s from when the bench starts

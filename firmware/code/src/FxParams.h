@@ -137,6 +137,11 @@ static const FxParams kFxParams[] = {
     {0xff, {.6f, .6f, .6f, 0.f, 0.f, 0.f, kP2Band, 0.f}, {0, 0, 0, 0},
      {kGrid10, kGrid10, kGrid10, kGrid10, kGrid10, kGrid10, kGrid10, kGrid10},
      0x8, 0x40},
+    // chaos: FX chance (off), scramble chance (off), grid (1/8), random to pattern (random);
+    // no page 2. Both chances fade it in and out
+    {0x0f, {0.f, 0.f, .25f, 0.f, kP2Mix, 0.f, kP2Band, kP2Level}, {0, 0, Chaos::kNumGrids, 0},
+     {kGrid10, kGrid10, StepGrid(Chaos::kNumGrids), kGrid10, kGrid10, kGrid10, kGrid10, kGrid10},
+     0x3, 0},
 };
 static_assert(sizeof(kFxParams) / sizeof(kFxParams[0]) == kNumFx, "one per FxId");
 static_assert(kNumFxParams <= 8, "a bit per parameter in knobs and fade");
