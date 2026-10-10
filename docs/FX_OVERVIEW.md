@@ -91,11 +91,12 @@ their keys' order left to right (see the FRIZZ chain above). Their controls are 
 | 14th white | Free | — |
 | 15th white | Master compressor (always on, after the chain) | FRIZZ's own (`MasterComp.h`) |
 
-## Page 2 candidates (draft for #35)
+## Page 2 candidates (not decided, #40)
 
-Not built: a proposal for a second knob page, all four knobs switched together by pressing
-any of them, and back to page 1 when another effect is pressed or selected (#35). The user
-picks from this table first. Nothing here is decided.
+Not built: candidates for a second knob page, all four knobs switched together by pressing
+any of them, and back to page 1 when another effect is pressed or selected. #35 builds that
+page with a single pilot parameter; which parameters each effect gets is #40, picked from
+this table once #35 is merged. Nothing here is decided.
 
 ### How the SP-404MK2 does it
 
