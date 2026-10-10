@@ -166,7 +166,7 @@ the live signal passes bit for bit to the next 16th and one loop past it, then i
 came in from the 16th, sample for sample past each seam's crossfade, a 16th each. The roll at
 its shortest stage halves the loop after 1 repeat, after 2 more, and stops at 1/64 bar; at its
 longest it holds 8 repeats first. Released, the live signal is back bit for bit once it has
-faded out. (The gate fades in to 1 - 7e-6, not 1, so a repeat carries the live input 100 dB
+faded out. (The gate fades in to 1 - 7e-6, not 1, #45, so a repeat carries the live input 100 dB
 down: the check feeds silence once a capture is recorded.)
 
 ## Master compressor check

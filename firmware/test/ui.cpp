@@ -399,30 +399,40 @@ int main()
         Check(Powered() && RunMs(300) > .05f, "charging: below 3V on the charger, it keeps playing");
     }});
 
-    // the charger plugged in during the 15 s countdown: it stops and FRIZZ plays on
-    cases.push_back({"charger-countdown", [] {
+    // the charger plugged in during the 15 s countdown: it stops and FRIZZ plays on. Looked at
+    // while the countdown would still run, 5.5-8 s into it; unplugged, the same window flashes
+    auto countdown = [](bool plug) {
+        auto amber = [] {
+            const Rgb c = PthLedFull(kTransportRevLed);
+            return c.r > 100 && c.g > 100 && c.b < 50;
+        };
         RunMs(kReadyMs);
         SetBattery(2.9f, false);
-        RunMs(4000);
-        bool flashing = false;
-        for (int i = 0; i < 40; i++)
+        uint32_t waited = 0;
+        while (!amber() && waited++ < 10000)
+            RunMs(1);
+        RunMs(5000);
+        if (plug)
+            SetBattery(2.9f, true);
+        RunMs(500);
+        int lit = 0;
+        for (int i = 0; i < 2500; i++)
         {
-            RunMs(25);
-            const Rgb c = PthLedFull(kTransportRevLed);
-            flashing |= c.r > 100 && c.g > 100 && c.b < 50;
+            RunMs(1);
+            lit += amber();
         }
-        SetBattery(2.9f, true);
-        RunMs(15000);
-        bool amber = false;
-        for (int i = 0; i < 40; i++)
-        {
-            RunMs(25);
-            const Rgb c = PthLedFull(kTransportRevLed);
-            amber |= c.r > 100 && c.g > 100 && c.b < 50;
-        }
-        Check(flashing && Powered(), "charger-countdown: unplugged below 3V, the panel flashes amber");
-        Check(Powered() && !amber && RunMs(300) > .05f,
-              "charger-countdown: the charger plugged in 5 s into it, it stops and FRIZZ plays on");
+        return std::make_pair(waited < 10000, lit);
+    };
+    cases.push_back({"charger-countdown", [countdown] {
+        const auto seen = countdown(true);
+        Check(seen.first, "charger-countdown: unplugged below 3V, the panel flashes amber");
+        Check(seen.second == 0 && Powered() && RunMs(300) > .05f,
+              "charger-countdown: the charger plugged in 5 s into it, the flashing stops and FRIZZ plays on");
+    }});
+    cases.push_back({"charger-countdown-unplugged", [countdown] {
+        const auto seen = countdown(false);
+        Check(seen.first && seen.second > 500,
+              "charger-countdown: (without the charger, the panel still flashes then)");
     }});
 
     // VOLUME's LED on the settings page shows the battery (MANUAL.md, Settings page)
@@ -598,10 +608,9 @@ int main()
         while (NowMs() < wrap - 300)
             RunMs(1);
         // a refused scene key (an empty slot), 300 ms before
-        Press("KEY_19", true);
-        RunMs(60);
-        Press("KEY_19", false);
-        RunMs(1000);
+        const int blinks = RedBlinks("KEY_19", kSlot1Led + 2); // to 400 ms past the wrap
+        Check(blinks == 3, "clock-wrap: a scene key refused 300 ms before it blinks red 3 times across it");
+        RunMs(300);
         const std::vector<int> slot = Watch(false, kSlot1Led + 2, 3000);
         Check(*std::max_element(slot.begin(), slot.end()) == 0,
               "clock-wrap: a refused scene key's red blinks just before the wrap end and don't come back");

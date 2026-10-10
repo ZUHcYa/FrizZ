@@ -100,7 +100,9 @@ scenes saved, recalled, morphed, copied and deleted, VOLUME's pages and the mix,
 Their `expect` lines (LEDs that show a state, not a meter: LOOP recording, the transport, the
 scene and mode keys, the settings page's keys, the knobs where they were turned) make them
 checks too: `unit.sh ui` plays every scenario and fails on one that doesn't hold, so a change
-that means to alter what a scenario shows updates its `expect` lines with it.
+that means to alter what a scenario shows updates its `expect` lines with it. Against an older
+version, `compare.sh` prints the `expect` lines that don't hold there (`line N: ...`) and goes on
+comparing: they don't make it fail.
 A new one is just another `scenarios/NAME.txt`. Both versions run with the working tree's twin,
 so a firmware from before the twin compares too (back to the move from `firmware/frizz/`).
 
