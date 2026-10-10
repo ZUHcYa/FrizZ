@@ -1121,6 +1121,67 @@ int main()
         Check(state().size() > 6 && !(state()[6] & 2), "midi fader: without a morph, nothing");
     }});
 
+    // a CHOMPI tap while CC 118 holds a morph: the morph stays MIDI's (only the hand's fader
+    // ends where SHIFT is let go), so CC 118 still lands it, and at 0 the tap doesn't take it
+    // back to where it started
+    cases.push_back({"midi-fader-tap", [] {
+        freq = 3000.f;
+        RunMs(kReadyMs);
+        const float dry = RunMs(300);
+        auto state = [] { return Ask({0x20}); };
+        auto landed = [&] {
+            const std::string st = state();
+            return st.size() > 9 && !(st[6] & 3) && st[5] == 1 && st[9] == 0
+                   && RunMs(300) > dry * .85f;
+        };
+        Latch("KEY_5");
+        Turn(kKnob1Encoder, -60);
+        RunMs(300);
+        Save(1);
+        RunMs(1000);
+
+        Trs({kCC, 62, 0}); // to the blank scene
+        RunMs(20);
+        Trs({kCC, 118, 64});
+        RunMs(400);
+        Tap("KEY_26");
+        RunMs(300);
+        Check(state().size() > 6 && (state()[6] & 2),
+              "midi-fader-tap: halfway, a CHOMPI tap leaves CC 118 its morph");
+        Trs({kCC, 118, 127});
+        RunMs(300);
+        Check(landed(), "midi-fader-tap: and CC 118 at 127 then lands it");
+
+        Tap("KEY_17"); // scene 1 again
+        RunMs(300);
+        Trs({kCC, 62, 0});
+        RunMs(20);
+        Trs({kCC, 118, 0});
+        RunMs(400);
+        Tap("KEY_26");
+        RunMs(300);
+        Check(state().size() > 6 && (state()[6] & 2),
+              "midi-fader-tap: at 0, the tap doesn't take the morph back");
+        Trs({kCC, 118, 127});
+        RunMs(300);
+        Check(landed(), "midi-fader-tap: and CC 118 at 127 lands it");
+
+        // CC 62 to the scene it runs to: no bar more while the fader has it, nothing else
+        Tap("KEY_17");
+        RunMs(300);
+        Trs({kCC, 62, 0});
+        RunMs(20);
+        Trs({kCC, 118, 64});
+        RunMs(400);
+        Trs({kCC, 62, 0});
+        RunMs(300);
+        Check(state().size() > 6 && (state()[6] & 2),
+              "midi-fader-tap: CC 62 to the same scene meanwhile leaves CC 118 its morph");
+        Trs({kCC, 118, 127});
+        RunMs(300);
+        Check(landed(), "midi-fader-tap: which CC 118 at 127 lands");
+    }});
+
     // a scene sent over SysEx into the active slot: the sound stays, so it's edited (as COPY
     // onto it), and SAVE stores what plays
     cases.push_back({"scene-put-active", [] {

@@ -28,6 +28,7 @@
  *  SHIFT + PLAY stops a morph where it is; without one, PLAY works as ever. The transport knob
  *  turned while SHIFT still holds a morph is its crossfader (#66, SceneControls::FaderTurned):
  *  the glide in the hand, until SHIFT is let go (ReleaseMorph); the transport LEDs show it.
+ *  A morph on MIDI's crossfader (CC 118) stays MIDI's: letting go of SHIFT doesn't end it.
  *  The card is written from MainLoop (SceneStore::Process), never here.
  *
  *  MIDI (MidiControl.h): notes and FRIZZ's SysEx keys and detents come as the hand's do (ui.h);
@@ -291,10 +292,14 @@ namespace chompi
             switch (buttonID)
             {
             case static_cast<uint16_t>(Hardware::SwId::KEY_26):
+            {
+                // a release whose press the boot page had lets go of nothing
+                const bool held = Shift();
                 keys_.Chompi(rising);
-                if (!rising)
+                if (!rising && held)
                     ReleaseMorph();
                 return true;
+            }
             case static_cast<uint16_t>(Hardware::SwId::KEY_27):
                 keys_.Play(rising);
                 return true;
@@ -675,13 +680,15 @@ namespace chompi
             ScopedIrqBlocker irq;
             return scene_ctl_.FreezeMorph();
         }
-        /** SHIFT let go: a morph started with it glides now (FxMorph::Release), or the
-         *  crossfader ends where it is (SceneControls::EndFade) */
+        /** SHIFT let go: a morph started with it glides now (FxMorph::Release), or the hand's
+         *  crossfader ends where it is (SceneControls::EndFade). One on MIDI's crossfader
+         *  (CC 118) stays MIDI's */
         void ReleaseMorph()
         {
             ScopedIrqBlocker irq;
-            if (!scene_ctl_.EndFade())
+            if (!(hand_fader_ && scene_ctl_.EndFade()))
                 engine_->ReleaseFxMorph();
+            hand_fader_ = false;
         }
         inline void Refused() { loop_refused_.Start(System::GetNow()); }
         inline uint32_t Now() const { return System::GetNow(); }
@@ -1130,6 +1137,7 @@ namespace chompi
                 }
                 if (fader)
                 {
+                    hand_fader_ = true;
                     keys_.Used();
                     return;
                 }
@@ -1268,6 +1276,8 @@ namespace chompi
 
         bool vol_down_ = false;     // VOLUME's press was seen here, not by the boot page
         bool vol_shift_ = false;    // VOLUME's press was SHIFT + press
+        bool hand_fader_ = false;   // the transport knob has had the crossfader since SHIFT
+                                    // went down (TransportTurned)
         LedSignal page_flash_;      // a page picked: its number in blinks
     };
 
