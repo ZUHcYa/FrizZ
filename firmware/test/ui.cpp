@@ -28,10 +28,10 @@ static const int kVolumeEncoder = 6, kKnob1Encoder = 4; // SW6, SW4
 static const int kTransportRevLed = 5, kTransportFwdLed = 6, kVolumeLed = 9;
 static const int kSlot1Led = 1, kCompKeyLed = 10, kTapeStopKeyLed = 15;
 // the settings page's (SettingsPage.h): white keys 1, 3, 11, 14, 15 (channels; the 15th is 15
-// and 16), the lower octave's D#, F#, G#, A#, the upper octave's G#
+// and 16), the lower octave's D#, F#, G#, A#, the upper octave's D# and G#
 static const int kChannel1Led = 24, kChannel3Led = 22, kChannel11Led = 14, kChannel14Led = 11,
                  kChannel1516Led = 10, kTransportKeyLed = 1, kMonoKeyLed = 2, kFactorKeyLed = 3,
-                 kBrightnessKeyLed = 4, kSourceKeyLed = 8;
+                 kBrightnessKeyLed = 4, kMidiOutKeyLed = 6, kSourceKeyLed = 8;
 static const int kSaveKeyLed = 9; // KEY_25, the play page's SAVE
 
 static bool sine = true;
@@ -1112,12 +1112,12 @@ int main()
                   && master.find("midi_transport 1") != std::string::npos,
               "settings-channel: both saved");
         const std::string settings = Ask({0x24});
-        Check(settings.size() == 3 && settings[0] == 1 && settings[1] == 1,
+        Check(settings.size() == 4 && settings[0] == 1 && settings[1] == 1,
               "settings-channel: and in force (SysEx settings)");
         Tap("KEY_16"); // C#: every channel
         RunMs(300);
         const std::string all = Ask({0x24});
-        Check(all.size() == 3 && all[0] == 0, "settings-channel: C# listens on every channel");
+        Check(all.size() == 4 && all[0] == 0, "settings-channel: C# listens on every channel");
     }});
 
     // the battery on VOLUME's LED, all the time; the transport LEDs purple
@@ -1256,7 +1256,7 @@ int main()
         const std::string state = Ask({0x20});
         Check(state.size() > 6 && (state[6] & 32), "settings-kept: mono from the card");
         const std::string settings = Ask({0x24});
-        Check(settings.size() == 3 && settings[0] == 3 && settings[1] == 1 && settings[2] == 1,
+        Check(settings.size() == 4 && settings[0] == 3 && settings[1] == 1 && settings[2] == 1,
               "settings-kept: channel 3, transport following and the clock source TRS from the card");
         SetToggle(true);
         RunMs(300);
@@ -1394,6 +1394,44 @@ int main()
         Check(Probe().has_clock, "clock-source: a fourth press is Auto again: a clock counts");
     }});
 
+    // MIDI out (MidiOut.h): off, the jack, the jack and USB, on the upper D#
+    cases.push_back({"midi-out-key", [] {
+        RunMs(kReadyMs);
+        SetToggle(true);
+        RunMs(300);
+        const Rgb off = SmtLedFull(kMidiOutKeyLed);
+        Check(off.r == off.g && off.g == off.b && off.r > 0 && off.r < 60,
+              "midi-out-key: upper D# dim white: off at first");
+        TakeMidiOut();
+        RunMs(500);
+        Check(TakeMidiOut().empty(), "midi-out-key: and nothing goes out");
+        Tap("KEY_22");
+        RunMs(500);
+        std::vector<MidiOutByte> sent = TakeMidiOut();
+        bool trs = !sent.empty(), usb = false;
+        for (const MidiOutByte& m : sent)
+            usb = usb || m.usb;
+        Check(Same(SmtLedFull(kMidiOutKeyLed), Rgb{252, 152, 60}) && trs && !usb,
+              "midi-out-key: a press: the jack, orange, its clock going out");
+        Tap("KEY_22");
+        RunMs(500);
+        sent = TakeMidiOut();
+        usb = false;
+        for (const MidiOutByte& m : sent)
+            usb = usb || m.usb;
+        Check(Same(SmtLedFull(kMidiOutKeyLed), Rgb{252, 252, 252}) && usb,
+              "midi-out-key: another: the jack and USB, white");
+        RunMs(2500);
+        Check(Card("/FRIZZ/frizz_master.txt").find("midi_out 2") != std::string::npos,
+              "midi-out-key: saved");
+        Tap("KEY_22");
+        RunMs(300);
+        TakeMidiOut();
+        RunMs(500);
+        Check(TakeMidiOut().empty() && Same(SmtLedFull(kMidiOutKeyLed), off),
+              "midi-out-key: a third: off again");
+    }});
+
     // MIDI Start / Stop only from the chosen input, from both in Auto and internal; the source
     // over SysEx (0x13 2 N), and its answer's third byte
     cases.push_back({"clock-source-transport", [] {
@@ -1406,7 +1444,7 @@ int main()
         Usb({0xF0, 0x7D, 0x43, 0x48, 0x13, 1, 1, 0xF7}); // transport following on
         Usb({0xF0, 0x7D, 0x43, 0x48, 0x13, 2, 1, 0xF7}); // the source: TRS
         RunMs(20);
-        Check(Ask({0x24}).size() == 3 && Ask({0x24})[2] == 1,
+        Check(Ask({0x24}).size() == 4 && Ask({0x24})[2] == 1,
               "clock-source-transport: SysEx sets TRS, and a query over USB is still answered");
         Usb({0xFC});
         RunMs(300);
@@ -1435,7 +1473,7 @@ int main()
         Check(RunMs(300) > .05f, "clock-source-transport: and USB's");
         Usb({0xF0, 0x7D, 0x43, 0x48, 0x13, 2, 4, 0xF7}); // no such source
         RunMs(20);
-        Check(Ask({0x24}).size() == 3 && Ask({0x24})[2] == 3, "clock-source-transport: a source past 3 is ignored");
+        Check(Ask({0x24}).size() == 4 && Ask({0x24})[2] == 3, "clock-source-transport: a source past 3 is ignored");
     }});
 
     // a bug report with USB's clock counted: the replay plays it over USB, or the card's source
@@ -2165,7 +2203,7 @@ int main()
         Trs({0x90, kFilterNote, 100});
         RunMs(100);
         Check(Max(SmtLedFull(kFilterKeyLed)) > 80, "midi sysex: 13 sets the channel: now 1");
-        Check(Ask({0x24}) == std::string("\x01\x00\x00", 3), "midi sysex: 24 answers the settings");
+        Check(Ask({0x24}) == std::string("\x01\x00\x00\x00", 4), "midi sysex: 24 answers the settings");
         RunMs(2500);
         Check(Card("/FRIZZ/frizz_master.txt").find("midi_channel 1\n") != std::string::npos,
               "midi sysex: the channel goes to the card");
@@ -2281,7 +2319,7 @@ int main()
     cases.push_back({"midi-kept", [] {
         TakeCard();
         RunMs(kReadyMs);
-        Check(Ask({0x24}) == std::string("\x01\x01\x00", 3),
+        Check(Ask({0x24}) == std::string("\x01\x01\x00\x00", 4),
               "midi kept: channel 1 and transport following are back after power-on");
         Trs({0x90, kFilterNote, 100});
         RunMs(100);

@@ -48,6 +48,13 @@ what FRIZZ does.
 - **The beat on the settings page:** the clock factor's key (G# of the lower octave) is lit
   for the first half of every beat of the tempo the effects follow, with the factor applied,
   and dim for the second.
+- **MIDI out** on the settings page (D# of the upper octave): off (the default), TRS, or TRS
+  and USB. FRIZZ sends its clock, always running while it's on, at the tempo it thinks in: the
+  loop's, a MIDI clock coming in (passed on with the clock factor), or the last tempo. A new
+  loop sends Start, a pause Stop, PLAY Song Position and Continue, so a drum machine follows
+  the loop; without a loop, a DAW's Start and Stop are passed on. Nothing goes back where a
+  clock comes from. Saved on the card; `firmware/remote.py out` sets it. See MANUAL.md, "MIDI
+  out" (#60).
 
 ### Changed
 

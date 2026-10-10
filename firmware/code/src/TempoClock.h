@@ -184,6 +184,7 @@ public:
         if (HasLoop() && paused_)
         {
             free_idx_ = (free_idx_ + 1) % loop_pulses_;
+            loop_pulse_ = free_idx_;
             pulse_count_ = free_idx_ % kPulsesPerCycle;
             return pulse_count_;
         }
@@ -199,6 +200,7 @@ public:
                 crossed = loop_idx_;
                 loop_idx_ = (loop_idx_ + loop_pulses_ - 1) % loop_pulses_;
             }
+            loop_pulse_ = crossed;
             pulse_count_ = crossed % kPulsesPerCycle;
             return pulse_count_;
         }
@@ -236,6 +238,18 @@ public:
     }
     /** The position the last Pulse() returned */
     inline uint32_t Position() const { return pulse_count_; }
+    /** With a loop: the last Pulse()'s place in it, 0 at its start, up to its pulses - 1:
+     *  where a pulse that's a multiple of 3 is a 16th, for MIDI out's Song Position */
+    inline uint32_t LoopPulse() const { return loop_pulse_; }
+    /** With a loop playing: the loop pulse the next one on a multiple of every will be, in
+     *  the direction it plays (an estimate: it may turn, pause or jump on the way) */
+    uint32_t NextLoopPulseOn(uint32_t every) const
+    {
+        if (dir_ < 0)
+            return loop_idx_ - loop_idx_ % every; // the next pulse crosses loop_idx_
+        const uint32_t next = (loop_idx_ + 1) % loop_pulses_;
+        return (next + (every - next % every) % every) % loop_pulses_;
+    }
 
     /** The FX's tempo, whole BPM */
     inline int GetTempo() const { return tempo_; }
@@ -342,6 +356,7 @@ private:
     float pulse_bpm_ = kDefaultBpm; // the loop's pulses' real rate (PulseSamples)
     float loop_fx_bpm_ = kDefaultBpm; // the loop's tempo at its speed, clamped (GetFxBpm)
     uint32_t free_idx_ = 0; // while paused, the grid's last pulse
+    uint32_t loop_pulse_ = 0; // the last pulse's place in the loop (LoopPulse)
 };
 
 } // namespace chompi

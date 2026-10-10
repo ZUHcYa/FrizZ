@@ -71,13 +71,14 @@ enum MidiCmd : uint8_t
     kCmdKey = 0x11,      // KEY DOWN: a key (Hardware::SwId) held or let go
     kCmdTurn = 0x12,     // ENC DETENTS: encoder 1-6 (SW1-SW6), detents in 7-bit two's complement
     kCmdSetting = 0x13,  // ID VALUE: 0 the channel (0 all, 1-16), 1 transport following (0/1),
-                         // 2 the clock source (0 Auto, 1 TRS, 2 USB, 3 internal)
+                         // 2 the clock source (0 Auto, 1 TRS, 2 USB, 3 internal), 3 MIDI
+                         // out (0 off, 1 the jack, 2 the jack and USB)
     kCmdSwitch = 0x14,   // POS: the mode switch, 0 as it stands, 1 down, 2 up, until power-off
     kCmdState = 0x20,    // what the play page shows
     kCmdParams = 0x21,   // FX: an effect's knobs (12: the compressor's), 14 bits each
     kCmdLeds = 0x22,     // PART: the LEDs as their bytes, part 0 the panel's, 1-3 the keys'
     kCmdLoad = 0x23,     // the audio callback's load since the last ask
-    kCmdSettings = 0x24, // the channel, transport following and the clock source
+    kCmdSettings = 0x24, // the channel, transport following, the clock source, MIDI out
     kCmdSceneGet = 0x30, // SLOT PART: a scene, in kSceneParts parts
     kCmdScenePut = 0x31, // SLOT PART DATA: likewise; the last part stores it
     kCmdReply = 0x40,
@@ -226,6 +227,9 @@ public:
     inline void SetClockFactor(ClockFactor factor) { clock_->SetFactor(factor); }
     inline void SetClockSource(ClockSource source) { clock_->SetSource(source); }
     inline ClockSource GetClockSource() const { return clock_->GetSource(); }
+    /** Where MIDI out goes (MidiOut.h), read by the audio callback every block */
+    inline void SetMidiOut(MidiOutPorts ports) { out_ = ports; }
+    inline MidiOutPorts GetMidiOut() const { return out_; }
 
     /** The load since the last call, max and mean, in 1/1000 of a block */
     void TakeLoad(uint16_t& max, uint16_t& mean)
@@ -460,15 +464,18 @@ private:
             switch_ = arg[0];
             break;
         case kCmdSetting:
-            if (n < 2 || arg[0] > 2 || (arg[0] == 0 && arg[1] > 16)
-                || (arg[0] == 2 && arg[1] >= kNumClockSources))
+            if (n < 2 || arg[0] > 3 || (arg[0] == 0 && arg[1] > 16)
+                || (arg[0] == 2 && arg[1] >= kNumClockSources)
+                || (arg[0] == 3 && arg[1] >= kNumMidiOutPorts))
                 return;
             if (arg[0] == 0)
                 channel_ = arg[1];
             else if (arg[0] == 1)
                 transport_ = arg[1] != 0;
-            else
+            else if (arg[0] == 2)
                 clock_->SetSource(static_cast<ClockSource>(arg[1]));
+            else
+                out_ = static_cast<MidiOutPorts>(arg[1]);
             settings_changed_ = true;
             break;
         default:
@@ -499,6 +506,7 @@ private:
     EventLog* log_ = nullptr;
     volatile uint8_t channel_ = 0;
     volatile bool transport_ = false;
+    volatile MidiOutPorts out_ = MidiOutPorts::OFF;
     volatile bool settings_changed_ = false;
 
     /** One detent of a count, taken: +-1, or 0 */

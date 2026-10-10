@@ -203,7 +203,7 @@ checks need only `g++` and `python3`; the browser twin needs Emscripten in `~/op
 `firmware/test/all.sh` runs everything (a few minutes): `check.sh` (the engine against HEAD;
 a refactor must come out `bit-identical`) and every unit check, `./unit.sh NAME` for one:
 `pitch`, `tape`, `crusher`, `freezer`, `scenes`, `store`, `clicks`, `delay`, `controls`, `keys`, `looper`, `tempo`,
-`comp`, `level`, `sleep`, `inserts`, `ui`, `remote`, `bench`, `midi`, `sync`. A new check is just a new
+`comp`, `level`, `sleep`, `inserts`, `ui`, `remote`, `bench`, `midi`, `sync`, `midiout`. A new check is just a new
 `NAME.cpp`; [`firmware/test/README.md`](firmware/test/README.md) says what each covers.
 `check.h`'s `Known()` marks a fault found and not yet fixed: it reports, doesn't fail.
 
@@ -245,7 +245,9 @@ master compressor's knobs, the mono input or the MIDI settings rest (`SceneStore
 `/FRIZZ` (`frizz_scenes.txt`, `frizz_master.txt`, `.bak` copies, `bug-N.txt`), which
 `EnterFrizzDir()` creates at boot on a card without it. MIDI: clock in over TRS and USB
 (`MidiClock.h` → `TempoClock.h`, `TapTempo.h` as the fallback), notes, CCs, program changes and
-FRIZZ's SysEx (`MidiControl.h`), answered over USB from `MainLoop()`; no other MIDI out.
+FRIZZ's SysEx (`MidiControl.h`), answered over USB from `MainLoop()`. MIDI out
+(`MidiOut.h`, off unless the settings page asks): the clock and the loop's transport, out of
+the jack from the audio callback without waiting, over USB from `MainLoop()`.
 
 The play page is `NormalPage.h`; the engine is `passthroughEngine.h` → `Looper.h` +
 `FxMorph.h` → `FxChain.h` → `MasterComp.h` → output gain → `limiter.h`. Large buffers live in
