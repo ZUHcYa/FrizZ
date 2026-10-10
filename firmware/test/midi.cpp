@@ -231,5 +231,35 @@ int main()
               "timeout: a clock again locks again, at its tempo");
     }});
 
+    // a lone late tick among steady ones (a sender's hiccup, a busy jack): the tempo stays
+    for (double late_ms : {3., 10.})
+        cases.push_back({late_ms < 5. ? "late-tick-3ms" : "late-tick-10ms", [late_ms] {
+            RunMs(kReadyMs);
+            const double t0 = BlockMs();
+            float lo = 1000.f, hi = 0.f;
+            int tempo_lo = 1000, tempo_hi = 0;
+            for (int k = 0; k < 960; k++)
+            {
+                // one tick in 48 (every other beat) late, its neighbours on time
+                const double at = t0 + k * kTick120 + (k % 48 == 47 ? late_ms : 0.);
+                while (BlockMs() < at)
+                {
+                    RunBlocks(1);
+                    if (k < 96) // settling
+                        continue;
+                    const ClockState c = Probe();
+                    lo = fminf(lo, c.midi_bpm);
+                    hi = fmaxf(hi, c.midi_bpm);
+                    tempo_lo = std::min(tempo_lo, c.tempo);
+                    tempo_hi = std::max(tempo_hi, c.tempo);
+                }
+                Midi(0xF8);
+            }
+            Report("a tick %.0f ms late every 2 beats: %.2f..%.2f BPM, FX at %d..%d", late_ms, lo,
+                   hi, tempo_lo, tempo_hi);
+            Check(lo > 119.5f && hi < 120.5f && tempo_lo == 120 && tempo_hi == 120,
+                  "a lone late tick doesn't move the tempo");
+        }});
+
     return RunCases();
 }

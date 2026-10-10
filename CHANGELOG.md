@@ -50,6 +50,9 @@ what FRIZZ does.
 - LOOP's blink while a quantized recording closes or an erase waits for the loop's end is
   slower, the same as a picked scene slot's, so it doesn't look like a refusal's 3 quick blinks.
 
+- Switching on is a little quicker: FRIZZ clears only the part of its sample memory it
+  uses (43 of 64 MB), not all of it.
+
 ### Fixed
 
 - A quantized loop is now as long as its bars to a fraction of a millisecond, so it stays with
@@ -64,9 +67,9 @@ what FRIZZ does.
 - The freezer clicked when pressed again right after a release: the repeats now play on until
   the next 16th and hand over to the new capture.
 - The flanger clicked when its stereo knob went back to 0, as a scene recall or morph does.
-- A card put in after switching on without one lost its saved scenes and master settings
-  to the first save. Its scenes are now read into the empty slots, and what a save would
-  overwrite is kept as `.bak`.
+- A card FRIZZ couldn't read at power-on lost its saved scenes and master settings to the
+  first save that got through. A card not read at power-on is now never written until the
+  next power-on: saves flash red, and the card's files stay as they are.
 - A failed write of the compressor's settings or the mono switch is tried again 3 times,
   as the manual says (it was twice, and not at all for a mono change after earlier failures).
 - LEDs at full brightness no longer flicker dark: a value a hair above full wrapped to off
@@ -85,6 +88,12 @@ what FRIZZ does.
 - A restart over MIDI (FRIZZ's own SysEx, which `flash.py`, `card.py` and `remote.py` send to
   get back to the multi-firmware launcher) right after a setting changed lost the setting; it
   now goes to the card first (waiting a second at most).
+- The battery colour didn't follow the charging cable: it stayed green while charging and
+  stayed white for 20 minutes after a full charge was unplugged. VOLUME's LED on the settings
+  page is now white while the cable is in, and shows the battery within seconds of pulling it.
+- A single MIDI clock tick that came a little late (a few ms, a sender's hiccup) moved the
+  effects' tempo for a moment: 10 ms late at 120 BPM showed 114. A late tick and the next one
+  now count together, so the tempo holds.
 
 ## v0.10 (2026-10-08)
 

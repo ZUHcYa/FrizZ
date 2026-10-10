@@ -210,8 +210,8 @@ cd firmware/tools
 ```
 
 - `clock` paces a MIDI clock over USB by the computer's clock (to about 0.1 ms) and reads
-  FRIZZ's tempo every 50 ms: single ticks, `pairs` (two in one USB packet) or `catchup` (every
-  other tick late, a frame before the next).
+  FRIZZ's tempo every 50 ms: single ticks, `pairs` (two in one USB packet), `catchup` (every
+  other tick late, a frame before the next) or `late` (one tick in 48 sent 10 ms late).
 - `drift` plays generated material into AUX, records a quantized loop with PLAY + LOOP over
   SysEx against a clock on the TRS jack, records the line out, and finds the loop's length
   by cross-correlating every pass with the first. The computer's and the interface's clocks

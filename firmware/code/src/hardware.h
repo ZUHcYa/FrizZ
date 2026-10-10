@@ -176,7 +176,7 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
         }
 
         enum BatteryLevel {
-            FULL, // on the charger, and hit the full state
+            FULL, // on the charger: charging or full
             HIGH, // > 3V3, not fully charged
             MEDIUM, // < 3V3
             LOW, // < 3V, the lockout's threshold: shuts down soon unless it's charging
@@ -187,6 +187,9 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
 
         inline BatteryLevel GetBatteryLevel()
         {
+            // the cable, as the lockout reads it, so it shows as soon as it's in or out
+            if (vin_gd_bounce != 0x00)
+                return BatteryLevel::FULL;
             if (batt_level != BatteryLevel::FULL && batt_low_bounce == 0xff)
                 return BatteryLevel::LOW;
             return batt_level;
@@ -251,7 +254,7 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
         }
 
         uint32_t batt_level_checkt;
-        uint32_t batt_fullt;
+        bool plugged_ = true; // the cable at the last check, as vin_gd_bounce starts
         /** Called periodically from MainLoop() (see chompi_main.cpp) to protect the
          *  battery from running on too low battery. */
         void LowBatteryLockoutCheck()
@@ -263,6 +266,13 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
             // not during the level check, whose threshold is raised to 3V3 (BMCMediumBattCheck)
             if(batt_check_state == 0)
                 MpReadAll();
+
+            // the cable just pulled: the level read a second on, not up to 30 s later (what
+            // the last check read while charging was the charger's voltage)
+            const bool plugged = vin_gd_bounce != 0x00;
+            if(plugged_ && !plugged && batt_check_state == 0)
+                batt_level_checkt = System::GetNow() - kBattLevelCheckMs + 1000;
+            plugged_ = plugged;
 
             if(batt_low_bounce == 0xff && vin_gd_bounce == 0x00) // unplugged and low battery
             {
@@ -300,7 +310,10 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
                 MpWrite(0x08, 0B10111111); // SHIPPING MODE
             }
             
-            // plugged into low current source with low batt
+            // plugged into low current source with low batt: sleeps for good, as the stock
+            // firmware does. Nothing in here reads the battery again, and STOP stops the clocks,
+            // which a wake-up wouldn't restore; the charger IC goes on charging by itself, and
+            // the power switch starts FRIZZ again
             while(batt_low_bounce == 0xff && (legacy_cable_bounce == 0xff || iindpm_stat_bounce == 0xff))
             {
                 LedsOff();
@@ -372,20 +385,13 @@ uint8_t DMA_BUFFER_MEM_SECTION mp_dma_buff[6];
             self->iindpm_stat_bounce  = (self->iindpm_stat_bounce << 1) | iindpm_stat;
 
             const uint8_t chg_stat = (buff[2] >> 5) & 0B111;
+            // full: until it isn't (the cable pulled), then HIGH until the next level check.
+            // The stock firmware held FULL 20 minutes on; the cable shows by itself now
+            // (GetBatteryLevel)
             if(chg_stat == 0B101)
-            {
-                self->batt_fullt = System::GetNow();
                 self->batt_level = Hardware::BatteryLevel::FULL;
-            }
-            else if((System::GetNow() - self->batt_fullt < 0x124f80)
-                    && self->batt_level == Hardware::BatteryLevel::FULL)
-            {
-                // do nothing
-            }
             else if(self->batt_level == Hardware::BatteryLevel::FULL)
-            {
                 self->batt_level = Hardware::BatteryLevel::HIGH;
-            }
         }
 
         // the MP2722's status, received by DMA: in the uncached D2 RAM (mp_dma_buff)

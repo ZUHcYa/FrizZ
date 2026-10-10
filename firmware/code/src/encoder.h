@@ -43,6 +43,7 @@ class ChompiEncoder
     uint32_t last_update_;
     bool     updated_;
     daisy::Switch   sw_;
+    bool     click_ = false; // the switch has a pin: without one, it's never read
     dsy_gpio hw_a_, hw_b_;
     uint8_t  a_, b_;
     int32_t  inc_;

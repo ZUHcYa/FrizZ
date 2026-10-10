@@ -18,7 +18,7 @@ STRESS=1 ./run.sh work out.bin
 |---|---|
 | `check.sh` | the engine harness (below): every output sample and FX meter of a fixed script, two versions compared; a refactor must be `bit-identical` |
 | `pitch`, `tape`, `delay`, `comp`, `clicks`, `level`, `sleep`, `inserts` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up events, the master compressor, moves that used to click, the level guard (an effect no louder than its input), effects that are off costing no time, the folder's bypass and level match and the slicer's patterns, chance and stereo |
-| `scenes`, `store` | the scene and master files and the card: formats, a late card, backups |
+| `scenes`, `store` | the scene and master files and the card: formats, a card not read at boot, backups |
 | `controls`, `keys`, `looper`, `tempo` | the play page's logic classes on their own: FX keys and knobs, SHIFT and the confirm, the looper, the tempo clock |
 | `ui` | the whole firmware from power-on on the virtual CHOMPI: keys through the 4021s, LEDs, the headphones and the master out, the card (full too), bug reports, MIDI (notes, CCs, NRPN, program changes, Start/Stop, the SysEx and its USB answers); each case on a fresh device |
 | `remote` | `../remote.py` itself against the virtual CHOMPI: the twin's USB MIDI on a pseudo-terminal, remote.py run as it is (`--device`) while the twin keeps the wall clock's pace: state, LEDs, load, settings, scenes there and back, a script played with its `expect led` lines; needs `python3` |
@@ -111,11 +111,10 @@ play page.
 
 Runs `SceneStore.h` against an SD card in memory (`host/fatfs.h`): the boot read, a `.tmp`
 left by a cut save, the move from the card's root to `/FRIZZ`, an unreadable or oversized
-scene file kept as `.bak`, and one deleted before the save. Then a card first put in after
-booting without one: its scenes fill the empty slots, a scene of its own the session would
-overwrite sends its file to `.bak` first, its master settings are kept as
-`frizz_master.bak`, and a read-only card refuses without touching anything. It doesn't cover
-FatFs itself or a card swapped while mounted.
+scene file kept as `.bak`, and one deleted before the save. Then a card that couldn't be
+read at boot: no save of that session writes it, scenes or master settings, even once it
+answers, and after the next boot it's written again. It doesn't cover FatFs itself, or a
+card pulled or swapped while FRIZZ runs, which isn't looked after.
 
 ## Clicks check
 
@@ -258,10 +257,9 @@ And PR #7's hardware checklist, each of which fails on the firmware before it (`
 - no click from a recall that takes the flanger's stereo back to 0 (after the LFOs have
   drifted, in either channel), nor from the freezer pressed again in its release fade (8 ms
   after letting go: a key takes 7 ms to count as let go);
-- a late card over four power cycles: a save without a card flashes the slot red; put in, the
-  next save keeps the card's scenes and adds its own, `frizz_master.bak` holds the card's
-  compressor; after a reboot both scenes are there; saving into a slot the card also has
-  keeps its file as `frizz_scenes.bak`.
+- the card over three power cycles: one that couldn't be read at boot flashes a save red and
+  isn't written by that session, even once it answers, scenes or compressor; after a reboot
+  the card's scene is there and a save adds to it.
 
 And the bug report (`code/src/EventLog.h`): after a session (a latch, knob 1 with and without
 SHIFT, a loop recorded and sped up, a scene recalled and another saved), SHIFT + transport

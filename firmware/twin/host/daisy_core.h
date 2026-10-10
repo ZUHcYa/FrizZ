@@ -104,9 +104,13 @@ inline int32_t f2s16(float x)
 #define DSY_GPIOD daisy::PORTD
 #define DSY_GPIOX daisy::PORTX
 
-// The firmware clears the 64 MB SDRAM at boot (chompi_main.cpp's ZeroSDRAM: std::fill from
-// its fixed address, 0xc0000000). Here the buffers it holds are ordinary statics, zero from
-// the start, and nothing is mapped there: that one fill is skipped, every other goes ahead
+// The firmware clears its SDRAM buffers at boot (chompi_main.cpp's ZeroSDRAM). Here they are
+// ordinary statics, zero from the start, and nothing is mapped at the SDRAM's address.
+// Today's firmware clears from the linker script's _ssdram_bss to _esdram_bss: here both are
+// one word (twin.cpp), an empty range
+#define _esdram_bss _ssdram_bss
+// One before #29 cleared all 64 MB from the fixed address, 0xc0000000 (compare.sh and
+// ui-at.sh build older firmwares too): that one fill is skipped, every other goes ahead
 namespace std
 {
 template <>
