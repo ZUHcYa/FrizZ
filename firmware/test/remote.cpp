@@ -84,6 +84,7 @@ static int Remote(const std::vector<std::string>& args, std::string& out)
         dup2(pipe_fd[1], 2);
         close(pipe_fd[0]);
         setenv("PYTHONDONTWRITEBYTECODE", "1", 1); // no __pycache__ in the repo
+        setenv("FRIZZ_CHOMPI_HELD", "1", 1); // the twin, not the CHOMPI: no lock (tools/chompi.py)
         std::vector<const char*> argv = {"python3", remote_py.c_str(), "--device",
                                          slave_path.c_str()};
         for (const std::string& a : args)

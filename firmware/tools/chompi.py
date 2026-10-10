@@ -15,7 +15,8 @@ two need a hand instead, and this says which.
 
 One process at a time has the CHOMPI: importing this takes a lock (LOCK, flock) for the
 process's life, and waits, saying who has it, while another holds it. A tool started by one
-that holds it (FRIZZ_CHOMPI_HELD set) shares it. To keep the CHOMPI over several tools, or
+that holds it (FRIZZ_CHOMPI_HELD set) shares it; one that talks to the twin, not the CHOMPI
+(test/remote.cpp), sets it too. To keep the CHOMPI over several tools, or
 for playing it by hand:
 
     tools/chompi.py hold                 holds it until Ctrl-C

@@ -168,7 +168,7 @@ holds it for the whole sequence, so nothing slips in between:
 
 ```bash
 cd firmware && tools/chompi.py hold sh -c '
-  ./flash.py --bench --no-build && sleep 150 && ./card.py get --then none &&
+  ./flash.py --bench --no-build && sleep 150 && ./card.py --then none get &&
   ./flash.py --test --no-build && ./remote.py play twin/scenarios/fx-each.txt --cpu
   ./flash.py --run 10'
 ```
@@ -253,7 +253,7 @@ SDRAM (`DSY_SDRAM_BSS`), cleared by `ZeroSDRAM()` at boot because startup code d
 buffers live in internal RAM, 32-byte aligned, written in whole sectors (`EventLog::Flush`).
 
 **Memory**: the firmware runs from SRAM, loaded by CHOMPI's bootloader (`APP_TYPE=BOOT_SRAM`).
-Code has about 23 KB left (`SRAM_EXEC`), the bench build less; `docs/CAPACITY.md` lists every
+Code has about 60 KB left (`SRAM_EXEC`), the bench build ~43 KB, and its data only ~7 KB; `docs/CAPACITY.md` lists every
 region and the ways to make room. Never use `make program-boot`, and never swap in upstream
 libDaisy: the vendored copy is patched (`THIRD_PARTY.md`).
 `__attribute__((optimize("-O0")))` and similar per-function overrides (`ProcessAllControls`)

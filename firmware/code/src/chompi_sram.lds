@@ -15,8 +15,11 @@ MEMORY
 {
 	FLASH (RX)    : ORIGIN = 0x08000000, LENGTH = 128K
 	DTCMRAM (RWX) : ORIGIN = 0x20000000, LENGTH = 128K
-	SRAM_EXEC (RWX): ORIGIN = 0x24000000, LENGTH = 232K
-	SRAM (RWX)    : ORIGIN = 0x24000000 + 232K, LENGTH = 280K
+	/* FRIZZ moved this split by 40K for code (#26). The image the bootloader and the launcher
+	 * copy is the code plus .data's initial values, which they take up to 480K and 512K of;
+	 * the split is ours. SRAM keeps room for the bench build's .data and .bss. */
+	SRAM_EXEC (RWX): ORIGIN = 0x24000000, LENGTH = 272K
+	SRAM (RWX)    : ORIGIN = 0x24000000 + 272K, LENGTH = 240K
 	RAM_D2 (RWX)  : ORIGIN = 0x30000000, LENGTH = 32K
 	RAM_D2CACHE (RWX)  : ORIGIN = 0x30000000 + 32K, LENGTH = 288K - 32K
 	RAM_D3 (RWX)  : ORIGIN = 0x38000000, LENGTH = 64K
