@@ -263,6 +263,17 @@ int main()
               && h[3].params[FX_FREEZER][1] == defaults[FX_FREEZER][1],
           "a short line keeps the rest at defaults");
     Check(h[3].params[FX_SHIFTER][2] == defaults[FX_SHIFTER][2], "a missing effect gets its defaults");
+    Check(!(h[3].latched >> FX_CHAOS & 1) && h[3].params[FX_CHAOS][0] == defaults[FX_CHAOS][0]
+              && h[3].params[FX_CHAOS][2] == defaults[FX_CHAOS][2],
+          "a file from before the chaos key: it loads off, on its defaults");
+    {
+        const char* chaos = "FRIZZ scenes 1\nlayout 3\nscene 2\nchaos 1 300000 600000 750000 1000000\n";
+        FxScene c[kNumScenes];
+        Check(ParseScenes(chaos, defaults, c) && (c[1].latched >> FX_CHAOS & 1)
+                  && fabsf(c[1].params[FX_CHAOS][1] - .6f) < 1e-6f
+                  && fabsf(c[1].params[FX_CHAOS][2] - .75f) < 1e-6f,
+              "the chaos key's line: latched, its knobs");
+    }
 
     // 4. not a scene file, and an empty one
     FxScene bad[kNumScenes];

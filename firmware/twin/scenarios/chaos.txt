@@ -1,0 +1,68 @@
+# The chaos key (#65): a loop under five latched effects, chaos latched with both chances high on
+# 16ths, then as a pattern, then off. Nothing is saved. (turn: 4 is knob 1, 1-3 knobs 2-4)
+input sine 220 0.3
+at 6000
+tap KEY_28
+wait 2000
+tap KEY_28
+wait 500
+down KEY_5
+wait 80
+tap KEY_26
+up KEY_5
+wait 200
+turn 4 -20
+wait 300
+down KEY_6
+wait 80
+tap KEY_26
+up KEY_6
+wait 200
+turn 2 40
+wait 450
+down KEY_4
+wait 80
+tap KEY_26
+up KEY_4
+wait 200
+turn 4 30
+wait 350
+down KEY_2
+wait 80
+tap KEY_26
+up KEY_2
+wait 200
+turn 4 14
+wait 250
+down KEY_12
+wait 80
+tap KEY_26
+up KEY_12
+wait 200
+turn 3 60
+wait 600
+# chaos latched: its key lit, rose
+down KEY_11
+wait 80
+tap KEY_26
+up KEY_11
+wait 200
+expect led smt 14 fc144c
+# FX chance and scramble high, the grid at 1/16
+turn 4 80
+wait 750
+turn 1 80
+wait 750
+turn 2 -12
+wait 4000
+# random to pattern: a bar that repeats
+turn 3 100
+wait 4000
+# off again: its key dim
+down KEY_11
+wait 80
+tap KEY_26
+up KEY_11
+wait 1000
+expect led smt 14 240008
+wait 1000

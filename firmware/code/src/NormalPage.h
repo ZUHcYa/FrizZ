@@ -462,15 +462,19 @@ namespace chompi
             using namespace midimap;
             // page 1's from the CC, page 2's from its NRPN in bank 1 (MidiControl.h)
             const size_t bank = cc / 128, ctl = cc % 128;
-            if (ctl >= kParamCC && ctl < kParamCC + kNumFx * kNumFxKnobs)
+            if (ctl >= kParamCC && ctl < kParamCC + kMidiFx * kNumFxKnobs)
                 fx_.SetParamTo((ctl - kParamCC) / kNumFxKnobs,
                                (ctl - kParamCC) % kNumFxKnobs + bank * kNumFxKnobs, value);
             else if (ctl >= kCompCC && ctl < kCompCC + kNumFxKnobs)
                 fx_.SetComp(ctl - kCompCC + bank * kNumFxKnobs, value);
+            else if (ctl >= kChaosNrpn && ctl < kChaosNrpn + kNumFxKnobs)
+                fx_.SetParamTo(FX_CHAOS, ctl - kChaosNrpn + bank * kNumFxKnobs, value);
             else if (bank)
                 return;
-            else if (cc >= kLatchCC && cc < kLatchCC + kNumFx)
+            else if (cc >= kLatchCC && cc < kLatchCC + kMidiFx)
                 fx_.SetLatch(cc - kLatchCC, raw >= 64);
+            else if (cc == kChaosLatchCC)
+                fx_.SetLatch(FX_CHAOS, raw >= 64);
             else if (cc == kOutGainCC)
             {
                 out_gain_ = value;
@@ -638,7 +642,8 @@ namespace chompi
             const size_t first = part % kFxParts * kFxPerPart, page = part / kFxParts;
             for (size_t fx = first; fx < first + kFxPerPart; fx++)
                 for (size_t k = 0; k < kNumFxKnobs; k++)
-                    n = Put14(d, n, KnobToMidi14(scene.params[fx][page * kNumFxKnobs + k]));
+                    n = Put14(d, n, fx < kNumFx ? KnobToMidi14(scene.params[fx][page * kNumFxKnobs + k])
+                                                : 0);
             return n;
         }
 
@@ -671,7 +676,7 @@ namespace chompi
             if (q.len < kFxPerPart * kNumFxKnobs * 2)
                 return false;
             const size_t first = q.b % kFxParts * kFxPerPart, page = q.b / kFxParts;
-            for (size_t i = 0; i < kFxPerPart * kNumFxKnobs; i++)
+            for (size_t i = 0; i < kFxPerPart * kNumFxKnobs && first + i / kNumFxKnobs < kNumFx; i++)
                 put_scene_.params[first + i / kNumFxKnobs][page * kNumFxKnobs + i % kNumFxKnobs]
                     = MidiToKnob(static_cast<uint16_t>((v[2 * i] << 7) | v[2 * i + 1]), true);
             put_parts_ |= 1u << q.b;
@@ -963,7 +968,8 @@ namespace chompi
                 const float meter = fclamp(1.f - db / kFxMeterFloorDb, 0.f, 1.f);
                 float level = kFxOffLevel;
                 float whiten = 0.f; // how far towards white
-                if (fx_.IsOn(fx))
+                // dropped from this step by the chaos key: dim, as if off
+                if (fx_.IsOn(fx) && !(engine_->FxDropped() >> fx & 1))
                 {
                     level = 1.f;
                     // squared, so normal levels stay coloured and the peaks flash white

@@ -58,6 +58,11 @@ static const uint8_t kMorphCC = 62;     // morph to the scene 0-4
 static const uint8_t kStopMorphCC = 63; // stops a morph where it is
 static const uint8_t kParamCC = 70;     // 70-117: effect FX's knob P at 70 + 4 FX + P
 static const uint8_t kFaderCC = 118;    // the crossfader: a running morph from its start to its scene
+// the effects with CCs: the first 12 FxIds; the chaos key (FX_CHAOS) has CC 119 for its
+// latch and its knobs on NRPN alone (bank 0, 122-125), since 118-121 are taken or reserved
+static const size_t kMidiFx = 12;
+static const uint8_t kChaosLatchCC = 119;
+static const uint8_t kChaosNrpn = 122;
 static const uint8_t kAllSoundOffCC = 120, kAllNotesOffCC = 123;
 // NRPN: in bank (MSB) 0, parameter number = the CC above, its value in 14 bits; in bank 1,
 // page 2 of the FX knobs and the compressor's (FxControls.h), numbered as page 1's CCs
@@ -76,7 +81,7 @@ enum MidiCmd : uint8_t
                          // out (0 off, 1 the jack, 2 the jack and USB)
     kCmdSwitch = 0x14,   // POS: the mode switch, 0 as it stands, 1 down, 2 up, until power-off
     kCmdState = 0x20,    // what the play page shows
-    kCmdParams = 0x21,   // FX: an effect's knobs (12: the compressor's), 14 bits each
+    kCmdParams = 0x21,   // FX: an effect's knobs (12 the chaos key's, 13 the compressor's), 14 bits each
     kCmdLeds = 0x22,     // PART: the LEDs as their bytes, part 0 the panel's, 1-3 the keys'
     kCmdLoad = 0x23,     // the audio callback's load since the last ask
     kCmdSettings = 0x24, // the channel, transport following, the clock source, MIDI out
@@ -85,9 +90,9 @@ enum MidiCmd : uint8_t
     kCmdReply = 0x40,
 };
 static const uint8_t kMidiHeader[] = {0x7D, 0x43, 0x48};
-// a scene over SysEx: 4 parts of 3 effects' page-1 knobs, the same 4 for page 2, then the
-// latches
-static const size_t kFxPerPart = 3;
+// a scene over SysEx: 4 parts of 4 effects' page-1 knobs, the same 4 for page 2, then the
+// latches. The last part of a page has the chaos key and room for 3 more (zeros)
+static const size_t kFxPerPart = 4;
 static const size_t kFxParts = 4;
 static const size_t kSceneParts = 2 * kFxParts + 1;
 static const uint16_t kMidiMax14 = 16383;
@@ -115,7 +120,7 @@ public:
     struct Query
     {
         uint8_t cmd, a, b;
-        uint8_t data[30]; // a scene part's
+        uint8_t data[32]; // a scene part's
         uint8_t len;
     };
 
@@ -364,9 +369,11 @@ private:
             // bank 0: an absolute controller; bank 1: page 2 of an effect's or the
             // compressor's knobs
             const bool page2 = nrpn_msb_ == kPage2Bank
-                               && ((nrpn_lsb_ >= kParamCC && nrpn_lsb_ < kParamCC + kNumFx * kNumFxKnobs)
+                               && ((nrpn_lsb_ >= kParamCC && nrpn_lsb_ < kParamCC + kMidiFx * kNumFxKnobs)
                                    || (nrpn_lsb_ >= kCompCC && nrpn_lsb_ < kCompCC + kNumFxKnobs));
-            const bool page1 = nrpn_msb_ == 0 && Absolute(nrpn_lsb_);
+            const bool page1 = nrpn_msb_ == 0
+                               && (Absolute(nrpn_lsb_)
+                                   || (nrpn_lsb_ >= kChaosNrpn && nrpn_lsb_ < kChaosNrpn + kNumFxKnobs));
             if (!page1 && !page2)
                 return false;
             if (cc == kDataMsbCC)
@@ -384,9 +391,9 @@ private:
     static bool Absolute(uint8_t cc)
     {
         using namespace midimap;
-        return (cc >= kLatchCC && cc < kLatchCC + kNumFx)
+        return (cc >= kLatchCC && cc < kLatchCC + kMidiFx) || cc == kChaosLatchCC
                || (cc >= kCompCC && cc <= kStopMorphCC) || cc == kFaderCC
-               || (cc >= kParamCC && cc < kParamCC + kNumFx * kNumFxKnobs);
+               || (cc >= kParamCC && cc < kParamCC + kMidiFx * kNumFxKnobs);
     }
 
     void Set(uint16_t cc, uint16_t v, bool fine)
