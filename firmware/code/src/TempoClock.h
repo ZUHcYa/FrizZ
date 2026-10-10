@@ -13,7 +13,11 @@
  *     80-160 BPM (GuessBeats). A tap (Tap) refits the beats.
  *  2. MIDI clock: the tempo follows MidiClock rounded to whole BPM (so the delay time
  *     doesn't wobble with the clock's jitter), and pulses are counted from the incoming
- *     ticks, one pulse per 2 ticks (12 PPQN, what TEMPO's delay counts in).
+ *     ticks, one pulse per 2 ticks (12 PPQN, what TEMPO's delay counts in). The whole BPM
+ *     comes from the ticks counted over the last 2-4 s (FollowClock), which holds still under
+ *     jitter that MidiClock's smoothed period doesn't (at 174 and 300 BPM, between two whole
+ *     BPM), and moves only once the count is past the half by kTempoMargin; a jump in the
+ *     tempo is followed at once.
  *  3. Neither: the last tempo is kept (120 BPM until one is set by a clock, a loop or taps)
  *     and pulses come from an internal phase at that tempo. A tap sets the tempo and puts a
  *     beat on the tap.
@@ -47,6 +51,12 @@ static const uint32_t kPulsesPerBar = kPulsesPerBeat * kBeatsPerBar;
 static const uint32_t kPulsesPerCycle = 4 * kPulsesPerBar;
 // An unquantized loop with no tempo set before it is guessed into this range
 static const float kGuessMinBpm = 80.f;
+// From a clock: the whole BPM moves once the counted tempo is this far past the half
+static const float kTempoMargin = .1f;
+// From a clock: the ticks are counted over this long at least, twice this at most, in samples
+static const uint32_t kTempoSpan = 2 * 48000;
+// From a clock: before the count is this long, the smoothed period's tempo stands in for it
+static const uint32_t kTempoMinSpan = 48000;
 
 inline float ClampBpm(float bpm)
 {
@@ -112,6 +122,7 @@ public:
         loop_length_ = 0;
         paused_ = false;
         had_clock_ = false; // a running clock locks again, from here
+        counting_ = false;
         phase_ = 0.f;
         dir_ = 1;
     }
@@ -162,7 +173,7 @@ public:
             // 0 between the first and second tick of a new lock: keep the last tempo
             const float bpm = midi_clock_->GetBpm();
             if (bpm > 0.f)
-                SetFreeTempo(bpm);
+                FollowClock(bpm);
 
             const uint32_t ticks = midi_clock_->GetTicks();
             if (!had_clock_)
@@ -173,6 +184,7 @@ public:
         }
         else
         {
+            counting_ = false;
             pulses = FreePulses(size, bpm_);
         }
 
@@ -270,6 +282,53 @@ private:
         tempo_set_ = true;
     }
 
+    /** A clock's tempo to the FX, from its smoothed period's tempo (smoothed): the line
+     *  through the ticks counted since the older of two starts kTempoSpan apart, so over
+     *  2-4 s, whose error shrinks with the span (the ticks' jitter doesn't add up, a late
+     *  tick pulls a line through hundreds only a little) where the smoothed period's grows
+     *  with the tempo (block and USB frame jitter on a short period). A smoothed tempo
+     *  further off than its jitter is a new tempo: followed at once, and counted anew. */
+    void FollowClock(float smoothed)
+    {
+        const uint32_t ticks = midi_clock_->GetTicks();
+        const uint32_t at = midi_clock_->GetLastTickTime();
+        const uint32_t locks = midi_clock_->GetLocks();
+        if (counting_ && locks == count_locks_ && ticks != count_last_)
+        {
+            count_[0].Add(ticks, at);
+            count_[1].Add(ticks, at);
+            count_last_ = ticks;
+        }
+        const float counted = at - count_[0].at0 >= kTempoMinSpan
+                                  ? 60.f * sample_rate_ / (kTicksPerBeat * count_[0].Period())
+                                  : smoothed;
+        if (!counting_ || locks != count_locks_ || fabsf(smoothed - counted) > ClockJitter(counted))
+        {
+            count_[0].Start(ticks, at);
+            count_[1] = count_[0];
+            count_locks_ = locks;
+            count_last_ = ticks;
+            counting_ = true;
+            SetFreeTempo(smoothed);
+            return;
+        }
+        if (at - count_[1].at0 >= kTempoSpan)
+        {
+            count_[0] = count_[1];
+            count_[1].Start(ticks, at);
+        }
+        if (fabsf(ClampBpm(counted) - static_cast<float>(tempo_)) > .5f + kTempoMargin)
+            SetFreeTempo(counted);
+    }
+
+    /** How far a clock's smoothed tempo strays at bpm, at most, from a DAW over USB: its
+     *  period is a few blocks at 300 BPM, so it grows with the tempo squared (3 BPM there) */
+    static float ClockJitter(float bpm)
+    {
+        const float r = bpm / static_cast<float>(kMaxBpm);
+        return 1.f + 4.f * r * r;
+    }
+
     /** The internal phase advanced by a block at bpm: the pulses it crossed */
     uint32_t FreePulses(size_t size, float bpm)
     {
@@ -345,6 +404,39 @@ private:
     bool had_clock_;
     uint32_t last_ticks_;
     uint32_t pulse_count_; // the position, mod kPulsesPerCycle
+
+    /** A least-squares line through the ticks' arrival times since a start: the period */
+    struct TickLine
+    {
+        uint32_t ticks0, at0;
+        double n, x, y, xy, xx; // sums of the ticks and times since the start
+
+        void Start(uint32_t ticks, uint32_t at)
+        {
+            ticks0 = ticks;
+            at0 = at;
+            n = 1.;
+            x = y = xy = xx = 0.;
+        }
+        void Add(uint32_t ticks, uint32_t at)
+        {
+            const double dx = static_cast<double>(ticks - ticks0);
+            const double dy = static_cast<double>(at - at0);
+            n += 1.;
+            x += dx;
+            y += dy;
+            xy += dx * dy;
+            xx += dx * dx;
+        }
+        /** Samples per tick */
+        float Period() const { return static_cast<float>((n * xy - x * y) / (n * xx - x * x)); }
+    };
+
+    // a clock's ticks counted for its tempo (FollowClock): from two starts, the older first
+    bool counting_ = false;
+    uint32_t count_locks_ = 0;
+    uint32_t count_last_ = 0; // the ticks at the last block that had any
+    TickLine count_[2];
 
     // the loop, while there is one (loop_length_ > 0)
     size_t loop_length_;

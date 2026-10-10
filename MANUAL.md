@@ -157,7 +157,9 @@ The effects that follow a tempo (the delay, the filter LFO, the freezer, the sli
    or slicer can jump there. Once a loop exists, MIDI clock
    no longer matters: a tempo change in your DAW moves neither the loop nor the effects.
 2. **MIDI clock**, when there's no loop, from the input the [clock source](#clock-source)
-   picks (none when it's internal).
+   picks (none when it's internal). The effects get it in whole BPM, measured over the last
+   few seconds, so it holds still however unsteady the clock: a jump in tempo is followed at
+   once, a change of a BPM or so within about 2 seconds.
 3. **The last tempo**: tapped, from the last loop or from the clock. 120 BPM at power-on.
 
 A loop gets a whole number of beats:
