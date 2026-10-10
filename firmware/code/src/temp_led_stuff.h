@@ -18,10 +18,6 @@ namespace chompi
     /** Global timer refs. */
     daisy::TimerHandle tim3_smt, tim5_pth;
     daisy::TimChannel ledPthPwm, ledSmtPwm;
-    daisy::TimerHandle::Config tim3_cfg;
-    daisy::TimerHandle::Config tim5_cfg;
-    daisy::TimChannel::Config t3chn2_cfg;
-    daisy::TimChannel::Config t5chn4_cfg;
 
     /** The LEDs: the panel's 10 and the keys' 25. Each chain sends kPorchSize LEDs' worth
      *  of zero pulses before and after them, which only the DMA buffers hold */
@@ -58,7 +54,9 @@ namespace chompi
         std::fill(output_pth_data, output_pth_data + kOutPthDataSize, 0);
         std::fill(output_smt_data, output_smt_data + kOutSmtDataSize, 0);
 
-        /** Config */
+        /** Config: Init copies it, so it needn't outlive the setup */
+        daisy::TimerHandle::Config tim3_cfg, tim5_cfg;
+        daisy::TimChannel::Config t3chn2_cfg, t5chn4_cfg;
         tim3_cfg.periph = daisy::TimerHandle::Config::Peripheral::TIM_3;
         tim5_cfg.periph = daisy::TimerHandle::Config::Peripheral::TIM_5;
         tim3_cfg.dir = daisy::TimerHandle::Config::CounterDir::UP;
@@ -213,8 +211,8 @@ namespace chompi
         }
     }
 
-    // ======== helper functions for color crossfading ========
-    // TODO: condense this to one RGB thing with the daisy::Color rather than 3 calls
+    // ======== helper functions for color crossfading, a channel at a time (NormalPage.h's
+    // Xfade does all three) ========
     float color_xfade(float start, float end, float idx)
     {
         return (1.f - idx) * start + idx * end;
