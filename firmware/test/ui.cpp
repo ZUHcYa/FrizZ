@@ -1409,7 +1409,8 @@ int main()
               "restart: under a stream of compressor CCs, within a second of being asked");
     }});
 
-    // the event log (EventLog.h): a session, SHIFT + transport press, its file on the card
+    // the event log (EventLog.h): a session, SHIFT + VOLUME held on the settings page, its
+    // file on the card
     cases.push_back({"bug-log", [] {
         TakeCard(); // card-3's: scenes in slots 1 and 2
         CardFiles().erase("/FRIZZ/frizz_scenes.bak");
@@ -1457,20 +1458,26 @@ int main()
             run(600);
         }
         run(500);
+        SetToggle(true); // the settings page
+        run(300);
         Press("KEY_26", true);
         run(100);
         const uint32_t combo = NowMs();
-        Press("ENC_5_SW", true);
+        Press("ENC_6_SW", true);
         leds << "# combo " << combo << '\n';
-        bool white = false;
-        for (int i = 0; i < 400; i++)
+        // nothing for 2 s, then the transport LEDs blink white over the page's purple
+        bool early = false, white = false;
+        for (int i = 0; i < 2500; i++)
         {
             RunMs(1);
             const Rgb rev = PthLedFull(kTransportRevLed), fwd = PthLedFull(kTransportFwdLed);
-            white |= std::min({rev.r, rev.g, rev.b, fwd.r, fwd.g, fwd.b}) > 200;
+            const bool lit = std::min({rev.r, rev.g, rev.b, fwd.r, fwd.g, fwd.b}) > 200;
+            (i < 1990 ? early : white) |= lit;
         }
-        Press("ENC_5_SW", false);
+        Press("ENC_6_SW", false);
         Press("KEY_26", false);
+        RunMs(300);
+        SetToggle(false);
         RunMs(1000);
         const std::string log = Card("/FRIZZ/bug-1.txt");
         // the card goes on as before: a save and the compressor land in /FRIZZ
@@ -1484,8 +1491,8 @@ int main()
                   && Card("/frizz_scenes.txt").empty() && Card("/frizz_master.txt").empty(),
               "bug log: saves after it still go to /FRIZZ");
         Check(log.rfind("# FRIZZ event log 1:", 0) == 0 && log.find("# written here") != std::string::npos,
-              "bug log: SHIFT + transport press writes /FRIZZ/bug-1.txt");
-        Check(white, "bug log: and the transport LEDs blink white");
+              "bug log: SHIFT + VOLUME held 2 s on the settings page writes /FRIZZ/bug-1.txt");
+        Check(!early && white, "bug log: and the transport LEDs blink white, after the 2 s");
         Check(log.find("card file /FRIZZ/frizz_scenes.txt\n|") != std::string::npos
                   && log.find("|scene 3") == std::string::npos,
               "bug log: with the card's scenes as they were at power-on, not as saved since");
@@ -1522,20 +1529,22 @@ int main()
         Tap("KEY_6");
         RunMs(500);
         SetCardSpace(300); // the head of the file (the card's scenes) doesn't fit
+        SetToggle(true);
+        RunMs(300);
         auto combo = [] {
             Press("KEY_26", true);
             RunMs(100);
-            Press("ENC_5_SW", true);
+            Press("ENC_6_SW", true);
             bool red = false, white = false;
-            for (int i = 0; i < 1500; i++)
+            for (int i = 0; i < 3500; i++)
             {
                 RunMs(1);
                 const Rgb rev = PthLedFull(kTransportRevLed);
                 red |= rev.r > 200 && rev.g < 80 && rev.b < 80;
                 white |= std::min({rev.r, rev.g, rev.b}) > 200;
-                if (i == 300)
+                if (i == 2300)
                 {
-                    Press("ENC_5_SW", false);
+                    Press("ENC_6_SW", false);
                     Press("KEY_26", false);
                 }
             }
@@ -1560,7 +1569,7 @@ int main()
         const std::string log = Card("/FRIZZ/bug-1.txt");
         CardFiles().clear(); // the card is what the log says
         FILE* leds = tmpfile();
-        std::istringstream script(log + "\nwait 1000\n");
+        std::istringstream script(log + "\nwait 3000\n"); // past the 2 s hold that wrote it
         const int failed = PlayScript(script, leds, nullptr);
         Check(failed == 0 && !log.empty(), "bug log: the twin plays it without a fault");
 
@@ -1610,6 +1619,48 @@ int main()
         Check(again.find("booted\n") != std::string::npos && events(again) == events(log),
               "bug log: and the replay writes the same log again");
         unlink((card_file + ".leds").c_str());
+    }});
+
+    // the bug report's hold: SHIFT + transport press on the play page no longer writes one
+    // (it did until v0.11), nor SHIFT + VOLUME let go before 2 s on the settings page; held
+    // long, in either order, it writes one, once
+    cases.push_back({"bug-hold", [] {
+        auto bugs = [] {
+            int n = 0;
+            for (auto& f : CardFiles())
+                n += f.first.rfind("/FRIZZ/bug-", 0) == 0;
+            return n;
+        };
+        RunMs(kReadyMs);
+        const int before = bugs();
+        Press("KEY_26", true);
+        RunMs(100);
+        Press("ENC_5_SW", true);
+        RunMs(3000);
+        Press("ENC_5_SW", false);
+        Press("KEY_26", false);
+        RunMs(1000);
+        Check(bugs() == before, "bug hold: SHIFT + transport press on the play page writes nothing");
+        SetToggle(true);
+        RunMs(300);
+        Press("KEY_26", true);
+        RunMs(100);
+        Press("ENC_6_SW", true);
+        RunMs(1500);
+        Press("ENC_6_SW", false);
+        RunMs(100);
+        Press("KEY_26", false);
+        RunMs(1000);
+        Check(bugs() == before, "bug hold: SHIFT + VOLUME let go after 1.5 s writes nothing");
+        const int short_hold = bugs();
+        Press("ENC_6_SW", true);
+        RunMs(100);
+        Press("KEY_26", true);
+        RunMs(5000);
+        Press("KEY_26", false);
+        Press("ENC_6_SW", false);
+        RunMs(1000);
+        Check(bugs() == short_hold + 1, "bug hold: VOLUME + SHIFT held 5 s writes one report");
     }});
 
     // notes press the keys, on FRIZZ's channel only, and a key held by the hand and by MIDI

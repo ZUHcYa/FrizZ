@@ -19,6 +19,13 @@ what FRIZZ does.
   At the top (the default) it's fully shifted, as before. The other effects' page 2 comes
   later (#40).
 
+### Changed
+
+- **Bug reports** moved to the settings page: with the mode switch up, hold SHIFT (CHOMPI)
+  and the VOLUME knob pressed for 2 seconds. SHIFT + press the transport knob on the play page
+  does nothing now, so a report can't be written by accident while playing. See MANUAL.md,
+  "Bug reports".
+
 ## v0.11 (2026-10-10)
 
 ### Added

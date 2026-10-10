@@ -134,7 +134,7 @@ it with SHIFT held: leave the gaps a hand would.
 
 ## Bug reports from the device
 
-SHIFT + transport press on a CHOMPI writes `/FRIZZ/bug-N.txt` (`code/src/EventLog.h`, MANUAL.md's
+SHIFT + VOLUME press held 2 s on a CHOMPI's settings page writes `/FRIZZ/bug-N.txt` (`code/src/EventLog.h`, MANUAL.md's
 *Bug reports*): a script of this kind. It puts the card's `frizz_scenes.txt` and
 `frizz_master.txt` as they were at power-on on the twin's card (`card file`), plays a 220 Hz
 tone into AUX (the audio in isn't recorded: change the `input` line to play a WAV instead),

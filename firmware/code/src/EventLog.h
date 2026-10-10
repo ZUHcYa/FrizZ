@@ -1,6 +1,7 @@
 /** @file EventLog.h
  *  @brief The event recorder: every key, knob detent, mode-switch flip, MIDI clock change and
- *  MIDI message FRIZZ acted on (MidiControl.h) since power-on, written to /FRIZZ/bug-N.txt on SHIFT + transport press (MANUAL.md, "Bug
+ *  MIDI message FRIZZ acted on (MidiControl.h) since power-on, written to /FRIZZ/bug-N.txt when
+ *  SHIFT + VOLUME press are held 2 s on the settings page (SettingsPage.h; MANUAL.md, "Bug
  *  reports"). The file is a script for the virtual CHOMPI (firmware/twin/README.md): the
  *  card's FRIZZ files as they were at power-on, then the controls at the times they were
  *  used, so the twin plays the session again from power-on.
@@ -131,7 +132,8 @@ public:
         }
     }
 
-    /** From the play page: SHIFT + transport press. Ignored while a file is being written */
+    /** From the play page, as SHIFT + VOLUME press have been held 2 s on the settings page.
+     *  Ignored while a file is being written */
     void RequestWrite()
     {
         if (!writing_)
@@ -363,8 +365,8 @@ private:
 
         Put("# FRIZZ event log ");
         PutNum(number_);
-        Put(": the keys, knobs, mode switch and MIDI from power-on to SHIFT + transport\n"
-            "# press, the card's FRIZZ files as they were at power-on. The virtual CHOMPI plays\n"
+        Put(": the keys, knobs, mode switch and MIDI from power-on to SHIFT + VOLUME\n"
+            "# held, the card's FRIZZ files as they were at power-on. The virtual CHOMPI plays\n"
             "# it again: firmware/twin/run.sh -o out.wav -l leds.txt bug-N.txt\n"
             "# The audio in isn't in it: the replay plays a tone into AUX (the input line).\n"
             "# Nor are scenes sent over MIDI: the replay has the card's.\n");

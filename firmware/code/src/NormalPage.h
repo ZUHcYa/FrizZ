@@ -226,7 +226,11 @@ namespace chompi
             }
             if (show_settings_)
             {
+                // SHIFT + VOLUME held there: a bug report, its blink over the transport LEDs
+                if (settings_.BugReportHeld(now))
+                    log_->RequestWrite();
                 settings_.Draw();
+                DrawLogLeds(now);
                 fill_led_data();
                 return;
             }
@@ -274,7 +278,9 @@ namespace chompi
             const bool rising = numberOfPresses == 1;
             if (buttonID >= kSettingsKeyBase)
             {
-                if (rising && settings_.Key(buttonID - kSettingsKeyBase))
+                const int key = buttonID - kSettingsKeyBase;
+                settings_.Held(key, rising, System::GetNow());
+                if (rising && settings_.Key(key))
                     MasterChanged(System::GetNow());
                 return true;
             }
@@ -343,16 +349,11 @@ namespace chompi
             // something count as a SHIFT combo (keys_.Used): a key without a function doesn't
             // cancel a confirm or a latch in the making.
 
-            // transport press: back to 1x forward. SHIFT + press writes the event log to the
-            // card for a bug report (EventLog.h)
+            // transport press: back to 1x forward; SHIFT + press does nothing (it wrote a bug
+            // report until v0.11, now held on the settings page)
             if (buttonID == ENC_5_SW)
             {
-                if (Shift())
-                {
-                    keys_.Used();
-                    log_->RequestWrite();
-                }
-                else if (LoopExists())
+                if (!Shift() && LoopExists())
                 {
                     keys_.Used();
                     engine_->looper.ResetSpeed();
@@ -1016,8 +1017,9 @@ namespace chompi
             }
         }
 
-        /** The event log (SHIFT + transport press): both transport LEDs blink white while it's
-         *  written, then 3 blinks: white when it's on the card, red when it isn't */
+        /** The event log (SHIFT + VOLUME held on the settings page): both transport LEDs blink
+         *  white while it's written, then 3 blinks: white when it's on the card, red when it
+         *  isn't; on either page */
         void DrawLogLeds(uint32_t now)
         {
             if (log_->Written() != log_written_ || log_->Failed() != log_failed_)
