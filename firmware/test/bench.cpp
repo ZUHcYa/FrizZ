@@ -49,6 +49,7 @@ static int NoCard()
 
 int main()
 {
+    // the run without a card in a process of its own, side by side with the one with a card
     fflush(stdout);
     const pid_t pid = fork();
     if (pid == 0)
@@ -57,10 +58,6 @@ int main()
         fflush(stdout);
         _exit(result);
     }
-    int status = 0;
-    waitpid(pid, &status, 0);
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-        failures++;
 
     Boot();
     // the boot animation, about 10 s for the delay to rest, then 24 segments of 3 s with the
@@ -150,5 +147,11 @@ int main()
     for (size_t w = 1; w < rms.size(); w++)
         quiet += rms[w] < .002f;
     Check(rms.size() >= kNum && quiet <= 2, "bench: its tune reaches the master out throughout");
+
+    fflush(stdout);
+    int status = 0;
+    waitpid(pid, &status, 0);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+        failures++;
     return Finish();
 }
