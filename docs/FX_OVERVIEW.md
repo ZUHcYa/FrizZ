@@ -90,3 +90,124 @@ their keys' order left to right (see the FRIZZ chain above). Their controls are 
 | 13th white | Reverb (send, also fed the delay's echoes) | TEMPO's `reverb.h` + `fx_engine.h` |
 | 14th white | Free | — |
 | 15th white | Master compressor (always on, after the chain) | FRIZZ's own (`MasterComp.h`) |
+
+## Page 2 candidates (not decided, #40)
+
+Not built: candidates for a second knob page, all four knobs switched together by pressing
+any of them, and back to page 1 when another effect is pressed or selected. #35 builds that
+page with a single pilot parameter; which parameters each effect gets is #40, picked from
+this table once #35 is merged. Nothing here is decided.
+
+### How the SP-404MK2 does it
+
+Roland's SP-404MK2 has the same problem: dozens of effects, only three knobs (CTRL 1-3).
+From its reference manual ([editing the effects][sp-edit], [MFX list][sp-mfx]):
+
+- **One toggle for all knobs.** Pressing VALUE switches all three knobs between the main
+  parameters and the sub-parameters, and back. Holding VALUE gives the sub-parameters only
+  while it's held. That's the grouped page #35 proposes, plus a momentary variant.
+- **Page 1 is for playing, page 2 for setting up.** The main page has what you turn while
+  playing (Sync Delay: time, feedback, level; Reverb: type, time, level; Resonator: root,
+  brightness, feedback). The sub-page has the set-and-forget values: damping and low/high cut
+  (Sync Delay, Reverb), tempo sync on/off (Flanger, Slicer), mode or type (Slicer, Filter+
+  Drive), panning, and pre-delay.
+- **Dry/wet mix is a recurring sub-parameter:** BALANCE on the Flanger, Crusher and Chromatic
+  PS.
+- **Not every effect fills the page.** Crusher has 3 parameters, Scatter 4, Chromatic PS 5.
+  Empty slots are normal.
+- **Its display names the page.** FRIZZ has only LEDs, so the cue that page 2 is active has
+  to be unmistakable.
+
+Analogues worth stealing: Slicer's DEPTH (closed steps duck instead of mute) and SHUFFLE;
+Stopper's DEPTH (slow down to a fraction rather than stop), FLT MOD (darker as it slows) and
+AMP MOD; Resonator's CHORD (more than one comb) and ENV MOD (feedback follows the input);
+Cassette Sim's DRIVE and AGE; Reverb's PRE DELAY.
+
+[sp-edit]: https://static.roland.com/manuals/sp-404mk2_reference_v300/eng/62588913.html
+[sp-mfx]: https://static.roland.com/manuals/sp-404mk2_reference_v300/eng/62589045.html
+
+### A role per knob on page 2
+
+As on page 1 (main, feedback, tone, stereo), each knob would have one kind of job on page 2:
+
+| Knob | Page 2 role |
+|---|---|
+| 1 | **Mix**: dry against wet, for an insert. A send has its level on page 1, so its knob 1 is its low cut |
+| 2 | **Time and groove**: sync, shuffle, step rate, grain, pre-delay |
+| 3 | **Colour 2**: what page 1's tone doesn't do: a pre-filter, damping, drive |
+| 4 | **The key press**: what pressing the key does (dive, swoop, restart, freeze, capture timing) |
+
+A Mix for the inserts is the cheapest and most general candidate. Today an insert replaces
+the signal while its key is on, and only its wet amount is faded (`FxChain.h`, `FxGate`), so
+a Mix only scales where that fade ends: no new DSP. It also gives harmonies on the shifter
+(dry + shifted) and parallel distortion on the folder and crusher.
+
+### Per effect
+
+Cost: **cheap** = a multiply or exposing a fixed constant (in brackets); **small** = a
+one-pole filter, a noise source or a soft clip; **moderate** = a buffer or ported code;
+**heavy** = a second copy of the effect's DSP (CPU, the callback is at its limit).
+
+| Effect | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
+|---|---|---|---|---|
+| Freezer | Mix: the live signal under the repeats (cheap) | Gate: each repeat's length, a stutter (cheap) | Darken: the repeats lose highs each pass (small) | Capture: on the next 16th (now), 8th, beat, bar or at once (cheap, now fixed at 1/16) |
+| Shifter | Mix: dry + shifted, a harmony (cheap) | Grain: the 30 ms window shorter (glitchy) or longer (smooth) (cheap, `kWindowFrames`, within the 4096 buffer) | Fine: ±50 cents (cheap) | Swoop time: the 1 s fall (cheap, now fixed) |
+| Folder | Mix: parallel folding (cheap) | — | Low pass-through: a highpass before the fold, the lows stay clean (small) | Level: a trim after the level match, about −12 to +6 dB (cheap; see *Level and mix*) |
+| Crusher | Mix (cheap; the SP's BALANCE) | Jitter: the rate wobbles at random (small) | Pre-filter before the reduction (small; the SP's FILTER) | Dive depth: now 10x over 0.1 s (cheap, fixed) |
+| Filter | Mix (cheap) | LFO shape: triangle, square, sample and hold (cheap) | Drive into the filter (small) | Press restarts the LFO: on or off (cheap) |
+| Flanger | Polarity: negative feedback (hollow) to positive (metallic) (cheap). Not a Mix: page 1's Amount already sets depth and mix together | Sync: the rate as tempo divisions (cheap, `TempoClock.h`; the SP's SYNC) | Manual: the sweep's centre, 11.6 ms now (cheap, `kCentreFrames`) | Press restarts the sweep: on or off (cheap) |
+| Resonator | Chord: a second comb at an interval (heavy; the SP's CHORD) | Glide: the pitch slides to a new note (cheap) | Env mod: feedback follows the input level (small, `EnvFollower.h`; the SP's ENV MOD) | — |
+| Slicer | Depth: closed steps duck instead of mute (cheap; the SP's DEPTH) | Shuffle: the even steps late (cheap; the SP's SHUFFLE) | Step rate: 32nds, 16ths (now), 16th triplets, 8ths (cheap) | Attack: the 10 ms click to soft (cheap, now fixed) |
+| Wow & flutter | Wow depth, apart from page 1's rate (cheap, `kWowSpanFrames`) | Flutter rate: 7.3 / 11.7 Hz now (cheap, `kFlutterHz`) | Saturation (small; Cassette Sim's DRIVE) | Dropouts: worn tape's level dips at random (small; Cassette Sim's AGE) |
+| Tape stop | Depth: slow down to a fraction rather than stop (cheap; Stopper's DEPTH). Could also go on page 1's dark knob 4 | — | Darken as it slows (small; Stopper's FLT MOD) | Quiet: from which speed the level falls with it, 5% now (cheap, `kTapeQuietRate`; Stopper's AMP MOD) |
+| Delay | Low cut in the feedback (small; the SP's L DAMP) | Ducking: the echoes duck under the input (moderate, TEMPO's `SimpleCompressor.h`) | High cut in the feedback, darker each repeat (small; the SP's H DAMP) | Freeze while the key is held: the buffer loops (moderate, TEMPO's buffer lock, dropped in FRIZZ, `granularDelay.h`) |
+| Reverb | Low cut (small; the SP's LOW CUT) | Pre-delay (moderate: a buffer in SDRAM; the SP's PRE DELAY) | Ducking, as the delay's (moderate) | Freeze while the key is held (cheap: Rings' freeze, taken out in FRIZZ, `reverb.h`) |
+
+The master compressor has its own key and knobs and isn't part of this (but see *Level and
+mix*).
+
+### Level and mix
+
+Two effects hold their output to their input's level, so punching one in changes the sound,
+not the loudness:
+
+- **Folder:** a real level match, up and down, by up to +6 dB (`FxFolder.h`). A folder's
+  output is about full scale whatever goes in, so without it the folder would mostly be a
+  volume jump.
+- **Crusher:** a ceiling only (`LevelGuard`, 0 dB headroom): never louder than its input,
+  never turned up. It stops XOR and coarse bits on a quiet signal from blasting.
+
+What the player can't do today is set the level themselves: both are fully wet and their four
+knobs are taken. Page 2 fixes that without dropping the match:
+
+- **Mix needs the match.** A Mix blends two signals at the same level, as the SP-404's
+  BALANCE does; without the match, a folder at 32x against a quiet dry signal would make
+  Mix mostly a volume knob.
+- **Level is the way out.** A trim after the match, on the folder's free knob 4, is the
+  usual hardware pattern: drive and level side by side (Elektron puts AMP VOL on the same page
+  as overdrive and bit reduction; a drive pedal has Drive and Level). The crusher keeps its
+  ceiling; its Mix is enough there.
+- **The folder's tone should get quieter when darker,** as the crusher's does: its level
+  match measures after the tone lowpass today (#37), a fix independent of page 2.
+- **The master compressor's makeup** is fixed by its knobs, up to +14 dB at full amount and
+  20:1, and can't be turned off (#38). A page 2 for the compressor, with a Makeup knob (auto,
+  or a fixed amount), would settle it the same way; not for the first round.
+
+### Recommendation
+
+The mechanism (the page toggle, the LED cue, scenes, morph, MIDI CCs) costs the same for one
+parameter as for forty. The first round should prove it with the cheap ones that change the
+sound the most:
+
+1. **Mix** on the shifter, folder, crusher, filter and freezer
+2. **Depth** and **shuffle** on the slicer
+3. **Freeze while the key is held** on the reverb, which is cheap; the delay's later
+4. **High cut** and **low cut** in the delay's feedback
+5. **Sync** on the flanger
+
+The heavy ones (the resonator's chord) and the ones that need a buffer (pre-delay, ducking)
+come later, each after a bench run. Tape stop depth may go on page 1's free knob 4 instead.
+
+What it touches besides the effects: the scene file (`SceneStore.h`, which must still read
+old files), the morph (`FxMorph.h`), the MIDI CC map (`MidiControl.h`), the LED cue for page
+2, and ~23 KB of code space (`docs/CAPACITY.md`).
