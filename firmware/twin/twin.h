@@ -31,6 +31,11 @@ void SetCardPresent(bool present);
 void SetCardSpace(size_t bytes);
 int CardOpenFiles();
 
+/** Before the first Run(): the firmware's clock (System::GetNow, GetUs, GetTick) starts at ms
+ *  instead of 0, so a check can cross the millisecond counter's wrap. NowMs() and the scripts
+ *  still count from power-on */
+void SetClockStartMs(uint32_t ms);
+
 /** Power on: starts the firmware's main(). The card and any keys held should be set first */
 void Boot();
 

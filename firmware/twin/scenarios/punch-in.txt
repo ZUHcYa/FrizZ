@@ -16,6 +16,11 @@ turn 2 100
 wait 850
 turn 3 100
 wait 850
+# the crusher's knobs all the way up: red
+expect led pth 1 fd0000
+expect led pth 2 fd0000
+expect led pth 3 fd0000
+expect led pth 4 fd0000
 up KEY_4
 wait 1000
 tap KEY_4 300
@@ -64,3 +69,4 @@ wait 700
 tap KEY_7 900
 wait 700
 wait 1000
+expect on

@@ -17,3 +17,9 @@ turn 3 -50
 wait 800
 turn 4 -30
 wait 2000
+# the compressor's knobs where they were turned
+expect led pth 1 8fe7fd
+expect led pth 2 8fe7fd
+expect led pth 3 fde7d1
+expect led pth 4 fdfdfd
+expect on

@@ -295,6 +295,12 @@ other MIDI cases don't send: 18 and 19 (the transport and VOLUME turned), 53-55,
 above 8, 63 and 120 (keys held by notes and by SysEx let go), and the mod wheel, pitch bend and
 aftertouch changing nothing.
 
+The millisecond counter's wrap (after 49.7 days on; `SetClockStartMs()` starts the firmware's
+clock 9 s before it): a refused scene key's blinks just before it end and don't come back, a
+loop recorded across it is as long as it was recorded, the compressor's knob turned before it
+is saved after it, a scene saves and CHOMPI's pending blink keeps its pace after it. And every
+scenario of `../twin/scenarios/` played from power-on, with its `expect` lines.
+
 `CASES="scene-leds scene-morph" ./unit.sh ui` runs only those cases, while working on them.
 
 The flicker #7 fixed in the transport LED (a value just over 1 wrapping to dark) doesn't show

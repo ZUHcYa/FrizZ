@@ -14,9 +14,9 @@ public:
         DAISY_SKIP_TIMEOUT
     };
 
-    static uint32_t GetNow() { return static_cast<uint32_t>(twin::NowNs() / 1000000); }
-    static uint32_t GetUs() { return static_cast<uint32_t>(twin::NowNs() / 1000); }
-    static uint32_t GetTick() { return static_cast<uint32_t>(twin::NowNs() / 5); } // 200 MHz
+    static uint32_t GetNow() { return static_cast<uint32_t>(twin::FirmwareNs() / 1000000); }
+    static uint32_t GetUs() { return static_cast<uint32_t>(twin::FirmwareNs() / 1000); }
+    static uint32_t GetTick() { return static_cast<uint32_t>(twin::FirmwareNs() / 5); } // 200 MHz
     static void Delay(uint32_t ms) { twin::DelayNs(uint64_t(ms) * 1000000); }
     static void DelayUs(uint32_t us) { twin::DelayNs(uint64_t(us) * 1000); }
     static void DelayTicks(uint32_t ticks) { twin::DelayNs(uint64_t(ticks) * 5); }

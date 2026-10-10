@@ -10,6 +10,7 @@
 #include <fstream>
 #include <algorithm>
 #include <functional>
+#include <list>
 #include <map>
 #include <sstream>
 #include <string>
@@ -571,6 +572,64 @@ int main()
         RunMs(20000);
         Check(Ask({0x20}).size() > 6 && !(Ask({0x20})[6] & 2) && Ask({0x20})[5] == 3,
               "scene-morph: SHIFT let go, it glides and lands on scene 2");
+    }});
+
+    // the millisecond counter wrapping (after 49.7 days on): the signals started just before it
+    // end on time and don't come back, and timing across it holds
+    cases.push_back({"clock-wrap", [] {
+        const uint32_t wrap = kReadyMs + 3000; // ms after power-on
+        SetClockStartMs(static_cast<uint32_t>(0x100000000ull - wrap));
+        RunMs(kReadyMs);
+        Check(RunMs(300) > .05f, "clock-wrap: it boots on a clock 9 s before its wrap");
+        Tap("KEY_15"); // the compressor's amount: saved 2 s after, across the wrap
+        RunMs(300);
+        Turn(4, 20);
+        RunMs(300);
+        // a refused quantized record: LOOP's quick red blinks, then a loop recorded across it
+        Press("KEY_27", true);
+        RunMs(80);
+        Tap("KEY_28");
+        Press("KEY_27", false);
+        RunMs(1000);
+        while (NowMs() < wrap - 800)
+            RunMs(1);
+        const uint32_t rec_at = NowMs();
+        Tap("KEY_28");
+        while (NowMs() < wrap - 300)
+            RunMs(1);
+        // a refused scene key (an empty slot), 300 ms before
+        Press("KEY_19", true);
+        RunMs(60);
+        Press("KEY_19", false);
+        RunMs(1000);
+        const std::vector<int> slot = Watch(false, kSlot1Led + 2, 3000);
+        Check(*std::max_element(slot.begin(), slot.end()) == 0,
+              "clock-wrap: a refused scene key's red blinks just before the wrap end and don't come back");
+        const std::vector<int> loop = Watch(true, kLoopLed, 500);
+        Check(Probe().loop_state == 1 && *std::min_element(loop.begin(), loop.end()) > 100,
+              "clock-wrap: LOOP refused before, records on, lit, without blinking");
+        const float recorded = (NowMs() - rec_at) / 1000.f;
+        Tap("KEY_28");
+        RunMs(300);
+        printf("      the loop: %.3f s, recorded for %.3f s\n", Probe().loop_length / kSampleRate, recorded);
+        Check(Probe().loop_state == 2 && fabsf(Probe().loop_length / kSampleRate - recorded) < .02f,
+              "clock-wrap: the loop recorded across it plays, as long as it was recorded");
+        Check(Card("/FRIZZ/frizz_master.txt").find("comp") != std::string::npos,
+              "clock-wrap: the compressor's knob turned before it is saved after it");
+        // a scene saved after it, and SAVE's pending blink on CHOMPI
+        Latch("KEY_5");
+        Save(1);
+        RunMs(1000);
+        Check(SavedLatch(Card("/FRIZZ/frizz_scenes.txt"), 1, "filter") == 1,
+              "clock-wrap: a scene saved after it is on the card");
+        Tap("KEY_25");
+        RunMs(100);
+        Tap("KEY_18");
+        const std::vector<int> pending = Runs(Watch(true, 0, 1200), 128);
+        bool steady = pending.size() >= 3;
+        for (int r : pending)
+            steady &= r >= 230 && r <= 270;
+        Check(steady, "clock-wrap: CHOMPI blinks steadily while a save waits after it");
     }});
 
     // ---- PR #7's hardware checklist, as far as it isn't about the CPU ----
@@ -1806,6 +1865,34 @@ int main()
               "midi automation: 3000 CCs in 1.5 s, and the cutoff lands on the last one");
     }});
 
+    // every scenario of ../twin/scenarios played from power-on, its expect lines holding
+    static std::vector<std::string> scenarios;
+    {
+        const std::string dir = std::string(__FILE__).substr(0, std::string(__FILE__).rfind('/') + 1)
+                                + "../twin/scenarios/";
+        FILE* ls = popen(("ls " + dir + "*.txt").c_str(), "r");
+        char path[512];
+        while (ls && fgets(path, sizeof(path), ls))
+        {
+            scenarios.push_back(path);
+            scenarios.back().erase(scenarios.back().find_last_not_of("\n") + 1);
+        }
+        if (ls)
+            pclose(ls);
+    }
+    Check(scenarios.size() >= 10, "scenarios: found in twin/scenarios");
+    for (const std::string& path : scenarios)
+    {
+        static std::list<std::string> names; // the cases keep pointers into it
+        const std::string file = path.substr(path.rfind('/') + 1);
+        names.push_back("scenario:" + file.substr(0, file.size() - 4));
+        cases.push_back({names.back().c_str(), [path] {
+            std::ifstream script(path);
+            const int failed = PlayScript(script, nullptr, nullptr);
+            Check(failed == 0, (path.substr(path.rfind('/') + 1) + ": played from power-on, every expect holds").c_str());
+        }});
+    }
+
     char card_name[] = "/tmp/frizz-ui-card-XXXXXX";
     const int card_fd = mkstemp(card_name);
     close(card_fd);
@@ -1824,7 +1911,7 @@ int main()
         if (pid == 0)
         {
             // a replay boots by its script
-            if (strcmp(c.first, "bug-replay") != 0)
+            if (strcmp(c.first, "bug-replay") != 0 && strncmp(c.first, "scenario:", 9) != 0)
                 Boot();
             c.second();
             fflush(stdout);
@@ -1841,6 +1928,6 @@ int main()
             failed += WEXITSTATUS(status);
     }
     unlink(card_name);
-    failures = failed;
+    failures += failed;
     return Finish();
 }
