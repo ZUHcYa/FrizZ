@@ -59,9 +59,9 @@ what FRIZZ does.
 - The freezer clicked when pressed again right after a release: the repeats now play on until
   the next 16th and hand over to the new capture.
 - The flanger clicked when its stereo knob went back to 0, as a scene recall or morph does.
-- A card put in after switching on without one lost its saved scenes and master settings
-  to the first save. Its scenes are now read into the empty slots, and what a save would
-  overwrite is kept as `.bak`.
+- A card FRIZZ couldn't read at power-on lost its saved scenes and master settings to the
+  first save that got through. A card not read at power-on is now never written until the
+  next power-on: saves flash red, and the card's files stay as they are.
 - A failed write of the compressor's settings or the mono switch is tried again 3 times,
   as the manual says (it was twice, and not at all for a mono change after earlier failures).
 - LEDs at full brightness no longer flicker dark: a value a hair above full wrapped to off

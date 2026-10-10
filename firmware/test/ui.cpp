@@ -572,7 +572,7 @@ int main()
         Check(again < frozen * 1.5f, "freezer-click: pressed again while the repeats fade: no click");
     }});
 
-    // a late card: three power cycles on one card
+    // the card across power cycles; one boot that couldn't read it never writes it
     cases.push_back({"card-1", [] {
         RunMs(kReadyMs);
         Latch("KEY_6");
@@ -584,6 +584,8 @@ int main()
         KeepCard();
     }});
 
+    // the mount fails at boot (FRIZZ itself came from the card): a save flashes red, and once
+    // the card answers, the session still doesn't write it, scenes or compressor
     cases.push_back({"card-2", [] {
         TakeCard();
         const std::string old_scenes = Card("/FRIZZ/frizz_scenes.txt");
@@ -603,7 +605,7 @@ int main()
             const Rgb c = SmtLedFull(kSlot1Led);
             red += c.r > 150 && c.g < 60 && c.b < 60;
         }
-        Check(red > 0, "card: without a card, a save flashes the slot red");
+        Check(red > 0, "card: not read at boot, a save flashes the slot red");
         Tap("KEY_15");
         Turn(4, 40); // a compressor of this session
         RunMs(3000);
@@ -611,37 +613,25 @@ int main()
         RunMs(500);
         Save(1);
         RunMs(2500);
-        const std::string scenes = Card("/FRIZZ/frizz_scenes.txt");
-        Check(SavedLatch(scenes, 1, "filter") == 1 && SavedLatch(scenes, 2, "flanger") == 1, "card: put in, the next save keeps the card's scene and adds this one");
-        Check(Card("/FRIZZ/frizz_master.bak") == old_master && !old_master.empty(), "card: frizz_master.bak holds the card's old compressor");
-        Check(Card("/FRIZZ/frizz_master.txt") != old_master && !Card("/FRIZZ/frizz_master.txt").empty(), "card: frizz_master.txt the one played with");
-        Check(Card("/FRIZZ/frizz_scenes.bak").empty(), "card: no scene of the card overwritten, so no frizz_scenes.bak");
+        Check(Card("/FRIZZ/frizz_scenes.txt") == old_scenes && Card("/FRIZZ/frizz_master.txt") == old_master &&
+                  !old_master.empty() && CardFiles().size() == 2,
+              "card: not read at boot, the session never writes it, even once it answers");
         KeepCard();
-        (void)old_scenes;
     }});
 
+    // the next boot reads it, and saves go to it again
     cases.push_back({"card-3", [] {
         TakeCard();
         RunMs(kReadyMs);
-        Check(Max(SmtLedFull(kSlot1Led)) > 0 && Max(SmtLedFull(kSlot1Led + 1)) > 0 && Max(SmtLedFull(kSlot1Led + 2)) == 0,
-              "card: after a reboot both scenes are there, the empty slot dark");
-        // a session without the card saves into slot 2, which the card also has
-        KeepCard();
-    }});
-
-    cases.push_back({"card-4", [] {
-        TakeCard();
-        const std::string old_scenes = Card("/FRIZZ/frizz_scenes.txt");
-        SetCardPresent(false);
-        RunMs(kReadyMs);
-        Latch("KEY_2");
-        Save(2);
-        SetCardPresent(true);
-        RunMs(500);
-        Save(2);
+        Check(Max(SmtLedFull(kSlot1Led)) == 0 && Max(SmtLedFull(kSlot1Led + 1)) > 0,
+              "card: after a reboot the card's scene is there, the slot saved without it dark");
+        Latch("KEY_5");
+        Save(1);
         RunMs(2500);
-        Check(Card("/FRIZZ/frizz_scenes.bak") == old_scenes, "card: saving into a slot the card also has keeps the card's scenes as frizz_scenes.bak");
-        Check(SavedLatch(Card("/FRIZZ/frizz_scenes.txt"), 2, "shifter") == 1, "card: and frizz_scenes.txt has the new one");
+        const std::string scenes = Card("/FRIZZ/frizz_scenes.txt");
+        Check(SavedLatch(scenes, 1, "filter") == 1 && SavedLatch(scenes, 2, "flanger") == 1,
+              "card: read at boot, a save adds its scene to the card's");
+        KeepCard();
     }});
 
     // the headphone outputs (passthroughEngine.h): the master out at first, the dry input
@@ -724,7 +714,6 @@ int main()
     cases.push_back({"bug-log", [] {
         TakeCard(); // card-3's: scenes in slots 1 and 2
         CardFiles().erase("/FRIZZ/frizz_scenes.bak");
-        CardFiles().erase("/FRIZZ/frizz_master.bak");
         std::ofstream leds(card_file + ".leds");
         auto run = [&](uint32_t ms) {
             for (uint32_t t = 0; t < ms; t++)

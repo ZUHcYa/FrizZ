@@ -1,6 +1,6 @@
 // store.cpp: checks SceneStore.h's card handling against an SD card in memory (host/fatfs.h):
 // the boot read, a .tmp left by a cut save, an unreadable or oversized file kept as .bak, and
-// a card first put in after boot, whose scenes and master settings a save mustn't overwrite.
+// a card that couldn't be read at boot, which that session never writes.
 // Exits 0 when everything passes. Run by unit.sh store.
 #include <cstdio>
 #include <string>
@@ -15,7 +15,6 @@ static FATFS fs;
 static const std::string kScenes = "/FRIZZ/frizz_scenes.txt";
 static const std::string kScenesBak = "/FRIZZ/frizz_scenes.bak";
 static const std::string kMaster = "/FRIZZ/frizz_master.txt";
-static const std::string kMasterBak = "/FRIZZ/frizz_master.bak";
 
 static void NewCard(bool present)
 {
@@ -138,73 +137,39 @@ static void TestUnreadable()
     Check(Saves(store) && card.files[kScenesBak] == big, "... and kept as .bak on the first save");
 }
 
-static void TestLateCard()
+static void TestNotRead()
 {
-    // booted without a card, a scene saved in RAM only
+    // the mount failed at boot (FRIZZ itself came from the card, so it's there)
     NewCard(false);
     SceneStore store;
     store.Init(&fs, "");
     SaveInRam(store, 3, .5f);
-    Check(!Saves(store), "no card: the save fails");
+    Check(!Saves(store), "not read at boot: the save fails");
 
-    // a card with scenes 1 and 2 and master settings put in
+    // the card answers now, with scenes 1 and 2 and master settings: none of it is touched
     NewCard(true);
     card.dirs["/FRIZZ"] = true;
-    card.files[kScenes] = SceneText(0x3, .25f);
-    card.files[kMaster] = "FRIZZ master 1\ncompressor 300000 0 0 0\nmono 1\n";
-    Check(Saves(store), "late card: the save works");
-    Check(store.scenes[1].used && store.scenes[2].used && store.scenes[3].used,
-          "late card: its scenes fill the empty slots");
-    Check(UsedIn(card.files[kScenes]) == 0x7 && !card.files.count(kScenesBak),
-          "late card, no clash: one file holds all three, no .bak");
-    Check(card.files[kMasterBak] == "FRIZZ master 1\ncompressor 300000 0 0 0\nmono 1\n",
-          "late card: its master settings are kept as .bak");
-
-    // a clash: the session saved scene 1, the card has its own
-    NewCard(false);
-    store.Init(&fs, "");
-    SaveInRam(store, 1, .5f);
-    store.Process();
-    NewCard(true);
-    card.dirs["/FRIZZ"] = true;
-    const std::string old = SceneText(0x5, .25f);
-    card.files[kScenes] = old;
-    float first = 0.f;
-    Check(Saves(store), "late card with a clash: the save works");
-    Check(card.files[kScenesBak] == old, "... the card's file is kept as .bak");
-    Check(UsedIn(card.files[kScenes], 1, &first) == 0x5 && first == .5f,
-          "... and the new one has the session's scene 1 and the card's scene 3");
-
-    // the master settings written first: the scenes are still read before any scene save
-    NewCard(false);
-    store.Init(&fs, "");
-    NewCard(true);
-    card.dirs["/FRIZZ"] = true;
-    card.files[kScenes] = SceneText(0x2, .25f);
+    const std::string scenes = SceneText(0x3, .25f);
+    const std::string master = "FRIZZ master 1\ncompressor 300000 0 0 0\nmono 1\n";
+    card.files[kScenes] = scenes;
+    card.files[kMaster] = master;
+    Check(!Saves(store), "not read at boot: a save fails while the card answers too");
     store.RequestMasterSave();
     store.Process();
-    Check(!store.TakeMasterFailed() && card.files.count(kMaster), "late card, master first: written");
-    Check(store.scenes[2].used, "... and the card's scenes read");
-    SaveInRam(store, 4, .5f);
-    Check(Saves(store) && UsedIn(card.files[kScenes]) == 0xa && !card.files.count(kScenesBak),
-          "... so the next scene save keeps them");
+    Check(store.TakeMasterFailed(), "not read at boot: so does a master save");
+    Check(card.files[kScenes] == scenes && card.files[kMaster] == master && card.files.size() == 2,
+          "... and the card is untouched");
 
-    // a read-only card: refused, nothing lost, tried again later
-    NewCard(false);
+    // after a power cycle it's read, and written again
     store.Init(&fs, "");
-    SaveInRam(store, 1, .5f);
-    NewCard(true);
-    card.dirs["/FRIZZ"] = true;
-    card.files[kScenes] = old;
-    card.files[kMaster] = "FRIZZ master 1\n";
-    card.read_only = true;
-    Check(!Saves(store) && card.files[kScenes] == old, "late read-only card: refused, its file untouched");
+    SaveInRam(store, 3, .5f);
+    Check(Saves(store) && UsedIn(card.files[kScenes]) == 0x7, "read at the next boot: written again");
 }
 
 int main()
 {
     TestBoot();
     TestUnreadable();
-    TestLateCard();
+    TestNotRead();
     return Finish();
 }
