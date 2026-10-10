@@ -350,6 +350,10 @@ int main()
         Tap("KEY_5"); // another FX: page 1
         RunMs(100);
         Check(page() == 0, "fx-page2: another FX goes back to page 1");
+        Tap("ENC_4_SW"); // the filter has no page 2
+        RunMs(100);
+        Check(page() == 0 && swing() < 10 && Max(PthLedFull(kKnob1Led)) > 0,
+              "fx-page2: on an FX without a page 2 the press does nothing");
         Tap("KEY_2");
         RunMs(100);
         Check(page() == 0, "fx-page2: and its page 1 is what comes back with the shifter");

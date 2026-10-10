@@ -332,9 +332,10 @@ static void TestPages()
     Check(fx.Page() == 1, "pages: the same FX pressed again keeps page 2");
     fx.KeyPressed(FX_FILTER, true, true);
     Check(fx.Page() == 0, "pages: another FX, also selected with SHIFT, goes back to page 1");
+    Check(!fx.KnobPressed(0, false) && fx.Page() == 0 && fx.KnobUsed(0),
+          "pages: an FX without page-2 parameters stays on page 1, the press does nothing");
+    fx.KeyPressed(FX_SHIFTER, true, false);
     fx.KnobPressed(0, false);
-    Check(fx.Page() == 1 && !fx.KnobUsed(0) && !fx.KnobUsed(3),
-          "pages: an FX without page-2 parameters turns to a dark page 2");
     fx.KnobPressed(0, false);
     Check(fx.Page() == 0, "pages: a second press turns back to page 1");
     fx.KnobPressed(0, false);

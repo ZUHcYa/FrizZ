@@ -5,7 +5,8 @@
  *  knobs here and draws the LEDs from it; test/controls.cpp runs it on the host.
  *
  *  The knobs have two pages, switched together: a plain press on any of them turns all four
- *  over to the selected FX's page 2 (its parameters 4-7, FxParams.h) and back. Selecting
+ *  over to the selected FX's page 2 (its parameters 4-7, FxParams.h) and back; on an FX with
+ *  nothing on page 2 it does nothing. Selecting
  *  another FX, or the compressor, goes back to page 1, so the main controls are under the
  *  fingers whenever an effect is picked. SHIFT + turn and SHIFT + press act on the page shown.
  *
@@ -216,13 +217,13 @@ public:
     }
 
     /** Knob 0-3 pressed: with SHIFT, resets that parameter to its default, on a knob the page
-     *  uses. A plain press turns the page, all four knobs together, for an FX; the compressor
-     *  has only one. True if the press did something */
+     *  uses. A plain press turns the page, all four knobs together, for an FX with a page 2;
+     *  the compressor has only one. True if the press did something */
     bool KnobPressed(size_t knob, bool shift)
     {
         if (!shift)
         {
-            if (selected_ == kCompSelected)
+            if (!HasPage2())
                 return false;
             page_ ^= 1;
             ClearChunks();
@@ -507,7 +508,12 @@ public:
             return kCompParams;
         return kFxParams[selected_];
     }
-    /** The page the knobs show, 0 or 1; always 0 for the compressor */
+    /** Whether the knobs' FX has parameters on page 2; never the compressor */
+    inline bool HasPage2() const
+    {
+        return selected_ != kCompSelected && (kFxParams[selected_].knobs >> kNumFxKnobs) != 0;
+    }
+    /** The page the knobs show, 0 or 1; always 0 without a page 2 */
     inline size_t Page() const { return page_; }
     /** The parameter knob 0-3 edits on the page shown */
     inline size_t ParamOf(size_t knob) const { return knob + kNumFxKnobs * page_; }

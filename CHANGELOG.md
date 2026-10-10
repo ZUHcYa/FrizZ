@@ -10,7 +10,8 @@ what FRIZZ does.
 ### Added
 
 - **A second page for the FX knobs:** press any of knobs 1-4 and all four turn over to the
-  selected effect's page 2, with their LEDs pulsing; press again for page 1. Pressing or
+  selected effect's page 2, with their LEDs pulsing; press again for page 1. On an effect
+  without a page 2 (all but the shifter, for now) the press does nothing. Pressing or
   selecting another effect, or the compressor, brings page 1 back. Scenes, recalls and morphs
   carry page 2 along; scene files from v0.11 load with page 2 on its defaults. Over MIDI,
   page 2 is NRPN MSB 1 with the page-1 CC as LSB. See MANUAL.md, "Page 2".
