@@ -97,6 +97,7 @@ class Frizz:
         device = device or midi_send.find_device()
         if not device:
             sys.exit("no CHOMPI on USB MIDI")
+        chompi.claim()
         self.link = midi_send.Link(device)
         # one write at a time, so messages don't interleave; one query at a time, whose wait
         # for the answer doesn't hold up the clock's ticks or a script's keys

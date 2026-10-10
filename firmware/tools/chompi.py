@@ -13,17 +13,19 @@ into it on its SysEx F0 7D 43 48 10 F7 (MidiClock.h), the storage firmware on an
 the launcher starts a slot on its RUN (05). Launchers and storage firmwares from before those
 two need a hand instead, and this says which.
 
-One process at a time has the CHOMPI: importing this takes a lock (LOCK, flock) for the
-process's life, and waits, saying who has it, while another holds it. A tool started by one
-that holds it (FRIZZ_CHOMPI_HELD set) shares it; one that talks to the twin, not the CHOMPI
-(test/remote.cpp), sets it too. To keep the CHOMPI over several tools, or
-for playing it by hand:
+One process at a time has the CHOMPI: the first time a tool reaches for it (state(), a link
+to it, a restart), it takes a lock (LOCK, flock) for the process's life, and waits, saying who
+has it, while another holds it; what doesn't touch the CHOMPI (measure.py compare) never
+waits. A tool started by one that holds it (FRIZZ_CHOMPI_HELD set) shares it; one that talks
+to the twin, not the CHOMPI (test/remote.cpp), sets it too. To keep the CHOMPI over several
+tools, or for playing it by hand:
 
     tools/chompi.py hold                 holds it until Ctrl-C
     tools/chompi.py hold CMD ARGS...     holds it while CMD runs (sh -c for a sequence)
 
 Linux only: ALSA's raw MIDI and udisks, Python 3 without packages.
 """
+import contextlib
 import fcntl
 import os
 import re
@@ -90,24 +92,27 @@ def hold(cmd):
         pass
 
 
-if not {"-h", "--help"} & set(sys.argv[1:]) and sys.argv[1:2] != ["hold"]:
-    claim()
-
 
 # ---- MIDI ---------------------------------------------------------------------------------
+
+@contextlib.contextmanager
+def link(node):
+    """A midi_send.Link to the raw MIDI node, closed afterwards; takes the CHOMPI first"""
+    claim()
+    to = midi_send.Link(node)
+    try:
+        yield to
+    finally:
+        os.close(to.fd)
+
 
 def ask_midi(device):
     """frizz, launcher or other, by one query to the device"""
     try:
-        link = midi_send.Link(device)
+        with link(device) as to:
+            reply = to.call(SETTINGS, timeout=0.3, retries=2, required=False)
     except OSError:
-        return None
-    try:
-        reply = link.call(SETTINGS, timeout=0.3, retries=2, required=False)
-    except OSError:
-        return None  # it went away mid-way
-    finally:
-        os.close(link.fd)
+        return None  # not there, or it went away mid-way
     if reply is None:
         return "other"
     return "frizz" if len(reply) >= 2 else "launcher"
@@ -116,14 +121,10 @@ def ask_midi(device):
 def restart(device):
     """Asks a running FRIZZ to restart into the launcher; the launcher ignores it"""
     try:
-        fd = os.open(device, os.O_WRONLY | os.O_NONBLOCK)
-        try:
-            os.write(fd, RESTART)
-        finally:
-            os.close(fd)
-        return True
+        with link(device) as to:
+            os.write(to.fd, RESTART)
     except OSError:
-        return False
+        pass
 
 
 # ---- the card, as a drive -----------------------------------------------------------------
@@ -201,6 +202,7 @@ def eject(part):
 
 def state(device=None):
     """(state, the raw MIDI node or the drive's partition), or (None, None)"""
+    claim()
     part = storage_partition()
     if part:
         return "storage", part
@@ -253,11 +255,8 @@ def to_launcher(timeout=120, device=None):
 def run(slot, wanted, timeout=120, device=None):
     """Starts slot SLOT from wherever the CHOMPI is and waits for state WANTED (None: don't)"""
     node = to_launcher(timeout, device)
-    link = midi_send.Link(node)
-    try:
-        reply = link.call(RUN, bytes([slot]), timeout=1.0, retries=2, required=False)
-    finally:
-        os.close(link.fd)
+    with link(node) as to:
+        reply = to.call(RUN, bytes([slot]), timeout=1.0, retries=2, required=False)
     if reply and reply[0] == BAD_SLOT:
         sys.exit("the launcher has nothing in slot %d" % slot)
     if reply and reply[0] == BAD_MESSAGE:
@@ -274,15 +273,12 @@ def run(slot, wanted, timeout=120, device=None):
 def slot_file(node, slot):
     """The file on key SLOT ("" for none), as the launcher at NODE lists it; None from a
     launcher before 1.5, which can't say"""
-    link = midi_send.Link(node)
-    try:
-        reply = link.call(midi_send.PING, timeout=0.3, retries=3, required=False)
+    with link(node) as to:
+        reply = to.call(midi_send.PING, timeout=0.3, retries=3, required=False)
         if not reply or len(reply) < 8 or not reply[7] & midi_send.FEATURE_LIST:
             return None
-        reply = link.call(midi_send.LIST, bytes([slot]), timeout=2.0, retries=2,
-                          required=False, match=midi_send.for_slot(slot))
-    finally:
-        os.close(link.fd)
+        reply = to.call(midi_send.LIST, bytes([slot]), timeout=2.0, retries=2,
+                        required=False, match=midi_send.for_slot(slot))
     if not reply or reply[0] != 0 or len(reply) < 3:
         return None
     return reply[3:3 + reply[2]].decode("ascii", "replace")

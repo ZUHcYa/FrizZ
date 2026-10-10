@@ -3,6 +3,7 @@
 // (--device), while the twin plays at the wall clock's pace: remote.py's SysEx, its parsing of
 // the answers and its script player are checked, end to end, against the firmware's.
 #include <fcntl.h>
+#include <sys/file.h>
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
@@ -131,6 +132,30 @@ static int Remote(const std::vector<std::string>& args, std::string& out)
 
 static bool Has(const std::string& s, const std::string& what) { return s.find(what) != std::string::npos; }
 
+static std::string firmware_dir;
+
+/** python3 on CODE with tools/ and firmware/ on its path, the lock (tools/chompi.py) a file in
+ *  the temp folder and not held, 20 s at most: never the CHOMPI's own. Its exit code (-1 for a
+ *  signal); out gets what it printed, stdout and stderr */
+static int Python(const std::string& code, std::string& out)
+{
+    const std::string file = tmp_dir + "/tools.py";
+    std::ofstream(file) << code;
+    const std::string cmd = "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH='" + firmware_dir + "/tools:"
+                            + firmware_dir + "' FRIZZ_CHOMPI_LOCK='" + tmp_dir
+                            + "/lock' FRIZZ_CHOMPI_HELD= timeout -s KILL 20 python3 '" + file
+                            + "' 2>&1";
+    out.clear();
+    FILE* p = popen(cmd.c_str(), "r");
+    char buf[512];
+    size_t n;
+    while (p && (n = fread(buf, 1, sizeof(buf), p)) > 0)
+        out.append(buf, n);
+    const int status = p ? pclose(p) : -1;
+    unlink(file.c_str());
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+}
+
 static std::string Hex(const Rgb& c)
 {
     char s[8];
@@ -169,9 +194,27 @@ static float JsonParam(const std::string& json, const char* fx, int index)
 
 int main()
 {
-    remote_py = std::string(__FILE__).substr(0, std::string(__FILE__).rfind('/')) + "/../remote.py";
+    firmware_dir = std::string(__FILE__).substr(0, std::string(__FILE__).rfind('/')) + "/..";
+    remote_py = firmware_dir + "/remote.py";
     char dir[] = "/tmp/frizz-remote-XXXXXX";
     tmp_dir = mkdtemp(dir);
+    std::string out;
+
+    // the tools without the CHOMPI: the lock is taken only when one reaches for it
+    {
+        const int lock = open((tmp_dir + "/lock").c_str(), O_RDWR | O_CREAT, 0644);
+        flock(lock, LOCK_EX);
+        int rc = Python("import chompi, remote, card, flash\nprint('imported')\n", out);
+        Check(rc == 0 && Has(out, "imported"),
+              "tools: importing them doesn't wait for the CHOMPI another holds (measure.py compare)");
+        if (rc != 0)
+            printf("%s\n", out.c_str());
+        rc = Python("import signal, chompi\nsignal.alarm(1)\nchompi.claim()\nprint('claimed')\n", out);
+        Check(rc != 0 && Has(out, "the CHOMPI is in use") && !Has(out, "claimed"),
+              "tools: reaching for it does, saying so");
+        close(lock);
+        unlink((tmp_dir + "/lock").c_str());
+    }
     if (!OpenPty())
     {
         Check(false, "remote: a pseudo-terminal for the twin's USB");
@@ -179,7 +222,6 @@ int main()
     }
     Boot();
     RunMs(kReadyMs);
-    std::string out;
 
     int rc = Remote({"state"}, out);
     Check(rc == 0 && Has(out, "looper     empty") && Has(out, "knobs on   freezer")
