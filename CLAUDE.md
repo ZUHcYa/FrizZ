@@ -37,13 +37,26 @@ Hand-written source is `firmware/code/src/` (~60 files). Everything under `libs/
 exclude it from greps. `reference/` holds three more independent copies of a similar tree, so
 scope searches to `firmware/`.
 
-## Git workflow: branches first, main only after testing
+## Git workflow: branches first, checked by the sessions, merged by the user
 
 Never commit development work to `main`. Start every change (feature, fix, refactor, docs) on
 its own branch off `main`, named for what it does (e.g. `loop-length`, `fix-crusher-level`),
-and commit and push there. Merge into `main` only after the user has tested the branch (on
-hardware where it touches the firmware) and said so; passing `firmware/test/` or a clean build
-is not that approval.
+and commit and push there.
+
+**Testing has three stages** (decided 2026-10-10):
+
+1. **Every branch, on the host and the virtual CHOMPI:** `firmware/test/all.sh`, new cases for
+   what changed, `compare.sh` with every difference explained (below).
+2. **Every firmware branch, on the device, by the session, without the user:** its build to
+   the test slot (12), a bench run, its scenarios played there, and `measure.py` where the
+   change is about timing or sound and the audio interface is wired (*The CHOMPI is shared*,
+   below). This catches what the twin can't: the CPU load and the memory layout.
+3. **Every release, by the user:** ears, hands and real gear on a release candidate, from a
+   release-test issue that collects what stages 1 and 2 can't judge (*Releases*, below).
+
+A branch merges into `main` once stages 1 and 2 pass and are in its PR. **The user presses
+merge**; sessions never merge into `main`. `main` is therefore checked, not played: what the
+user has tested is a release tag.
 
 **One worktree per branch.** Several sessions work on this repo at once, so never switch
 branches in the main checkout (`~/git-projects/FrizZ` stays on `main`). Work on a branch in its
@@ -57,20 +70,18 @@ and remove it (`git worktree remove`, `git branch -d`, delete the remote branch)
 merged. A tool that sends a build (`flash.py --no-build`) sends that worktree's
 `firmware/bin/`: run it from the branch's worktree, or name the file.
 
-Keep **one untested firmware branch at a time**: test it, merge it, and start the next one off
-the new `main`. A branch with no firmware change (docs, tooling) doesn't count. A branch still
-open when another reaches `main` merges `main` in, so it's tested against what's there. Stack
-a branch on an unmerged one only when it really builds on it (or would conflict heavily
-without it), and say so in its PR; the top branch's build is then the test build for the
-whole stack, its PRs merge bottom-up once it passes, and a fix goes on the branch it belongs
-to, merged upwards. Don't start a third level: get the stack tested and merged first.
+Branches don't wait for each other: each merges on its own once it passes, and a branch still
+open when another reaches `main` merges `main` in and runs its checks again. Stack a branch
+on an unmerged one only when it really builds on it (or would conflict heavily without it),
+and say so in its PR; its PRs merge bottom-up, and a fix goes on the branch it belongs to,
+merged upwards.
 
-The branch always carries a built firmware for the user to test: every commit that changes
+The branch always carries a built firmware for its checks: every commit that changes
 the bytes of `FRIZZ.bin` rebuilds with `make` and `make BENCH=1` in `firmware/code/src` (GCC
 10.3, below) and includes both fresh binaries (`build/FRIZZ.bin`, `build-bench/FRIZZ-bench.bin`)
 in `firmware/bin/`, in the same commit. A comment-only commit may leave them, saying in its
 message that the md5 is unchanged. On a merge conflict over a binary, rebuild rather than pick
-a side. `main` holds the last tested build; releases for users are on GitHub's Releases page.
+a side. `main` holds the last checked build; releases for users are on GitHub's Releases page.
 `firmware/tools/install-hooks.sh` installs a pre-commit hook that refuses commits on `main` and
 warns when `firmware/code/` is staged without the binary or `CHANGELOG.md`.
 
@@ -96,12 +107,20 @@ working on a branch:
   developer docs stay out unless they change behaviour. A release renames Unreleased to the
   version and its GitHub release notes start from it.
 - **A pull request per branch into `main`**, opened (as a draft is fine) once the branch is
-  pushed. Its description lists what changed and carries a **hardware test checklist**
-  (`- [ ]` items, one per thing the user should try on the CHOMPI, with what to expect).
-  Update the description (`gh pr edit`) whenever a commit adds or changes something to test.
-  The user ticks the list while testing; merging the PR is the approval to reach `main`.
-  **Before merging, every box is ticked or struck through with why** (`~~item~~ deferred by
-  the user to …`), so the PR records what was tested. A branch built on another unmerged
+  pushed. Its description lists what changed and three sections, kept current
+  (`gh pr edit`) with every commit:
+  - **Checked on the twin** (stage 1, below).
+  - **Checked on the device** (stage 2): which build (md5), the bench's `cpu.txt` against
+    `main`'s (`firmware/bin/cpu.txt`), the scenarios played with `remote.py play --cpu` and
+    their worst load, `measure.py` results where they apply. A docs- or tooling-only branch
+    says it has none.
+  - **For the release test** (stage 3): `- [ ]` items, one per thing only the user can
+    judge on the CHOMPI (feel, sound by ear, real MIDI gear), with what to expect. Merging
+    doesn't wait for them: when the user merges, the session copies them into the open
+    release-test issue (*Releases*).
+
+  The PR is ready when stages 1 and 2 pass: mark it ready (`gh pr ready`) and tell the user,
+  with a short summary; merging it is the user's approval. A branch built on another unmerged
   branch either gets a PR covering both or a stacked PR based on that branch (retarget the
   upper PR to `main` before deleting the lower branch, or GitHub closes it). Merge an outside
   contributor's commit unchanged (no squash, rebase or cherry-pick) so GitHub credits them.
@@ -111,17 +130,27 @@ working on a branch:
   `firmware/twin/ui-at.sh origin/main` shows it failing without the change. `git fetch`
   first: the local `main` can lag. `firmware/twin/compare.sh origin/main HEAD` goes into the
   PR with every difference explained. The PR lists those under **Checked on the twin** (no
-  boxes); the hardware checklist keeps what only the device can show: the CPU load and
-  crackles, sound judged by ear, the codec, real MIDI, USB and card hardware.
+  boxes); what only the device shows goes to stage 2, what only the user can judge to the
+  release test.
 
-### Test builds
+### Releases and the release test
+
+The open **release-test issue** (label `release test`, one at a time, titled for the next
+version) collects every merged PR's *For the release test* items, under the PR's number, plus
+the standing ones (a bench run on the candidate, a session of playing). When the user wants
+to prepare a release, the session cuts a release candidate from `main` as a test build
+(below) and links it in the issue; the user plays it and ticks the items. A problem found
+becomes an issue and a fix branch (stages 1 and 2 as always), then the next candidate. The
+release is made from the candidate the user signed off, once every box is ticked or struck
+through with why, and the issue is closed with it; the next one opens.
 
 A build handed out for testing goes on GitHub as a **pre-release**, never as Latest:
 
-- Each test round gets a numbered one, `v<next>-beta.N` (next: `v0.12-beta.1`), tagged on the
-  branch's pushed head, with that commit's `firmware/bin/FRIZZ.bin` attached and the notes
-  taken from `CHANGELOG.md`'s Unreleased section plus a link to the branch's PR. The number
-  never moves, so feedback can name the build.
+- Each release candidate (or other test round the user asks for) gets a numbered one,
+  `v<next>-beta.N` (next: `v0.12-beta.1`), tagged on the pushed commit, with that commit's
+  `firmware/bin/FRIZZ.bin` attached and the notes taken from `CHANGELOG.md`'s Unreleased
+  section plus a link to the release-test issue (or the PR). The number never moves, so
+  feedback can name the build.
 - The pre-release **`beta`** always carries the newest numbered one (until v0.12-beta.1: v0.11
   itself), and moves only with a new one, at a fixed link
   (`https://github.com/ZUHcYa/FrizZ/releases/download/beta/FRIZZ.bin`): `git tag -f beta
@@ -130,14 +159,32 @@ A build handed out for testing goes on GitHub as a **pre-release**, never as Lat
 - Cut one only when the user asks for a test build; a release for everyone is a normal
   release on `main`.
 
-## The CHOMPI is shared: ask first
+## The CHOMPI is shared: the lock and the slots
 
-There is one CHOMPI, and other sessions test on it too. **Before anything that uses the real
-device** (`flash.py`, `card.py`, `remote.py`, a bench run, or asking the user to try a
-build), make sure no other test is running on it, or simply ask the user. Sending replaces a
-launcher slot's file: never send to a slot the user didn't name (FRIZZ is on key 10, the bench
-on 11, USB storage on 15). The tools reach the device over USB through the multi-firmware
-launcher (`firmware/README.md`, *Put it on the CHOMPI*); while it is switched off, they can't.
+There is one CHOMPI, and other sessions and the user use it too. The device tools
+(`flash.py`, `card.py`, `remote.py`, `tools/measure.py`) take a lock through
+`tools/chompi.py` and wait while someone else has it, saying who. A session's stage-2 run
+holds it for the whole sequence, so nothing slips in between:
+
+```bash
+cd firmware && tools/chompi.py hold sh -c '
+  ./flash.py --bench --no-build && sleep 150 && ./card.py get --then none &&
+  ./flash.py --test --no-build && ./remote.py play twin/scenarios/fx-each.txt --cpu
+  ./flash.py --run 10'
+```
+
+(the bench runs ~100 s by itself; `card.py get` fetches its `cpu.txt` into `card/`), and
+leaves FRIZZ on key 10 running at the end. The user takes the CHOMPI for playing with
+`tools/chompi.py hold` (until Ctrl-C), or by telling a session, which then runs it for them.
+Within that, stage 2 needs no asking. Ask the user first only for what needs their hands or
+changes what they play: sending to key 10, anything when the lock's holder is the user, a
+cable to plug.
+
+The slots: FRIZZ on key 10 is the user's and gets only `main`'s or a release's build, when
+they ask; a branch's build goes to the **test slot, key 12** (`flash.py --test`, as
+`FRIZZ-TEST`); the bench on 11, USB storage on 15. Never send to another slot. The tools
+reach the device over USB through the multi-firmware launcher (`firmware/README.md`, *Put it
+on the CHOMPI*); while it is switched off, they can't.
 `firmware/tools/measure.py` measures timing and sound there (a MIDI clock in pairs, a loop's
 drift against a TRS clock, an effect's A/B between builds): `firmware/README.md`, *Measure
 timing and sound on the device*.
@@ -177,9 +224,11 @@ the device (b5c658c) while the host stayed bit-identical, so suspect the CPU whe
 appear that the twin can't reproduce. The host can't measure the load; the device can:
 `make BENCH=1` builds `FRIZZ-bench.bin` (`Bench.h`, compiled in only then), which runs 22
 segments by itself and writes `/FRIZZ/cpu.txt`; `firmware/remote.py load` and `remote.py play
-SCRIPT --cpu` read `FRIZZ.bin`'s own load. A branch that touches the engine, the effects or
-the memory layout asks for a bench run in its hardware checklist, and its `cpu.txt` goes into
-the PR, compared with the last one there. Details: `firmware/README.md`, *Measure the CPU load*.
+SCRIPT --cpu` read `FRIZZ.bin`'s own load. Every firmware branch runs the bench in stage 2,
+on its final build: its `cpu.txt` goes into `firmware/bin/cpu.txt` (the load of the build next
+to it, so `main` always has its own) and into the PR, compared with `main`'s. A segment
+noticeably higher is explained or fixed before the PR is ready. Details:
+`firmware/README.md`, *Measure the CPU load*.
 
 ## Firmware architecture
 

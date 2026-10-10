@@ -141,7 +141,12 @@ cd firmware
 ./flash.py --bench    # FRIZZ-bench.bin to slot 11
 ./flash.py --no-build # bin/FRIZZ.bin as committed
 ./flash.py --run 11   # starts what's in slot 11 already, sending nothing
+./flash.py --test     # a branch's build to the test slot (12), as FRIZZ-TEST
 ```
+
+**One at a time.** Every tool here takes a lock (`tools/chompi.py`) and waits while another
+has the CHOMPI, saying who. `tools/chompi.py hold CMD` keeps it over a whole sequence of
+tools, `tools/chompi.py hold` until Ctrl-C (for playing it by hand).
 
 Sending replaces whatever is in that slot, so set yours (`FRIZZ_SLOT=4 ./flash.py`,
 `BENCH_SLOT`, or `--slot`) if FRIZZ isn't on key 10. Linux only (ALSA), Python 3, no
@@ -292,10 +297,11 @@ Work on a branch off `main`, never on `main` itself, in a worktree of its own
    under *Unreleased*, and a changed control into [`MANUAL.md`](../MANUAL.md).
 
 The pull request lists what changed, what the twin checked (with `twin/compare.sh origin/main
-HEAD`'s output, every difference explained), and a checklist of what only the device can
-show: the CPU load and crackles (with a bench run's `cpu.txt` when the engine, the effects
-or the memory layout changed), the sound by ear, the codec, real MIDI, USB and the card.
-[`CLAUDE.md`](../CLAUDE.md) has the full workflow, including test builds and releases.
+HEAD`'s output, every difference explained), what was checked on the device (a firmware
+branch's build on the test slot, key 12: the bench's `cpu.txt` against `main`'s
+`bin/cpu.txt`, scenarios played with `remote.py play --cpu`), and what only a player can
+judge, for the release test (feel, sound by ear, real MIDI gear).
+[`CLAUDE.md`](../CLAUDE.md) has the full workflow, including the release test and test builds.
 
 ## 5. Debug
 

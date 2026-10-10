@@ -3,9 +3,10 @@
 
     ./flash.py               builds FRIZZ.bin from the working tree, sends it to slot 10
     ./flash.py --bench       builds FRIZZ-bench.bin, sends it to slot 11
+    ./flash.py --test        a branch's build for a session's own checks: to slot 12
     ./flash.py --no-build    sends bin/FRIZZ.bin (the branch's committed build) instead
     ./flash.py FILE --slot N sends any .bin to slot N
-    ./flash.py --run N       starts what's in slot N already (10 FRIZZ, 11 the bench)
+    ./flash.py --run N       starts what's in slot N already (10 FRIZZ, 11 the bench, 12 a test)
 
 The launcher (github.com/sfaber02/CHOMPI, firmware/chompi-launcher, its releases) is
 CHOMPI.bin in the card's root, and keeps the firmwares in /FIRMWARE/NN_NAME.bin, NN being the
@@ -14,7 +15,8 @@ its slot, replacing whatever is there, and starts it (tools/midi_send.py, the la
 own client). The CHOMPI is first brought to the launcher from wherever it is: a running
 FRIZZ restarts into it over USB MIDI (MidiClock.h), the USB storage firmware on an eject
 (tools/chompi.py); a FRIZZ from before that, or another firmware, needs the power switch, and
-this says so. It then sends, and FRIZZ starts. FRIZZ_SLOT and BENCH_SLOT set other slots.
+this says so. It then sends, and FRIZZ starts. FRIZZ_SLOT, BENCH_SLOT and TEST_SLOT set other
+slots. It waits while another tool has the CHOMPI (tools/chompi.py, the lock).
 
 Linux only (ALSA's raw MIDI), Python 3 without packages; building needs the ARM toolchain
 (README.md).
@@ -60,6 +62,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("image", nargs="?", help="a .bin to send instead of building one")
     ap.add_argument("--bench", action="store_true", help="the CPU bench (FRIZZ-bench.bin)")
+    ap.add_argument("--test", action="store_true",
+                    help="to the test slot (12), as FRIZZ-TEST: a branch's build, checked by a session")
     ap.add_argument("--no-build", action="store_true", help="send the build in bin/")
     ap.add_argument("--slot", type=int, help="the launcher slot (key) to put it in")
     ap.add_argument("--run", type=int, metavar="SLOT", help="start what's in SLOT, sending nothing")
@@ -69,8 +73,8 @@ def main():
     args = ap.parse_args()
 
     if args.run:
-        chompi.run(args.run, "frizz" if args.run == chompi.FRIZZ_SLOT else None, args.wait,
-                   args.device)
+        frizz = args.run in (chompi.FRIZZ_SLOT, chompi.TEST_SLOT)
+        chompi.run(args.run, "frizz" if frizz else None, args.wait, args.device)
         return
     if args.image:
         image = args.image
@@ -78,8 +82,9 @@ def main():
         image = os.path.join(HERE, "bin", "FRIZZ-bench.bin" if args.bench else "FRIZZ.bin")
     else:
         image = build(args.bench)
-    slot = args.slot or (chompi.BENCH_SLOT if args.bench else chompi.FRIZZ_SLOT)
-    name = args.name or ("FRIZZ-BENCH" if args.bench else "FRIZZ")
+    slot = args.slot or (chompi.BENCH_SLOT if args.bench
+                         else chompi.TEST_SLOT if args.test else chompi.FRIZZ_SLOT)
+    name = args.name or ("FRIZZ-BENCH" if args.bench else "FRIZZ-TEST" if args.test else "FRIZZ")
     if args.image and not args.slot:
         sys.exit("a file of your own needs --slot: sending replaces what's in it")
 
