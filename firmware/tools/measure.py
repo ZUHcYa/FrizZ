@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """measure.py: measurements on the real CHOMPI, with no hands at the panel.
 
-    ./measure.py clock [--mode single|pairs|catchup] [--bpm 120] [--seconds 20]
+    ./measure.py clock [--mode single|pairs|catchup|late] [--bpm 120] [--seconds 20]
         a MIDI clock over USB, paced by this computer, and FRIZZ's tempo read every 50 ms:
         how steady it holds. pairs: two ticks in one write every 2 ticks' time (a host that
-        batches); catchup: every other tick held back and sent 1 ms before the next
+        batches); catchup: every other tick held back and sent 1 ms before the next; late:
+        one tick in 48 (every other beat) 10 ms late, the rest on time
     ./measure.py drift [--bpm 120] [--bars 1] [--seconds 180] [--mode M] [--out NAME]
         a quantized loop against a MIDI clock on the TRS jack (its ticks as `clock --mode`
         sends them): generated material into AUX,
@@ -150,6 +151,10 @@ class Clock:
                 wait_until(t0 + (n + 1) * self.period)
                 self.write(b"\xF8\xF8")
                 n += 2
+            elif self.mode == "late":
+                wait_until(t0 + n * self.period + (.010 if n % 48 == 47 else 0.))
+                self.write(b"\xF8")
+                n += 1
             elif self.mode == "catchup":
                 wait_until(t0 + (n + 1) * self.period - .001)
                 self.write(b"\xF8")
@@ -401,13 +406,13 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("clock")
-    p.add_argument("--mode", choices=["single", "pairs", "catchup"], default="single")
+    p.add_argument("--mode", choices=["single", "pairs", "catchup", "late"], default="single")
     p.add_argument("--bpm", type=float, default=120.)
     p.add_argument("--seconds", type=float, default=20.)
     p = sub.add_parser("drift")
     p.add_argument("--bpm", type=float, default=120.)
     p.add_argument("--bars", type=int, default=1)
-    p.add_argument("--mode", choices=["single", "pairs", "catchup"], default="single")
+    p.add_argument("--mode", choices=["single", "pairs", "catchup", "late"], default="single")
     p.add_argument("--seconds", type=float, default=180.)
     p.add_argument("--out", help="keep the recording as OUT.f32 and the material as OUT.material.wav")
     p = sub.add_parser("fx")
