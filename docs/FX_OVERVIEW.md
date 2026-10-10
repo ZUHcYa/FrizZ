@@ -211,4 +211,4 @@ come later, each after a bench run. Tape stop depth may go on page 1's free knob
 
 What it touches besides the effects: the scene file (`SceneStore.h`, which must still read
 old files), the morph (`FxMorph.h`), the MIDI CC map (`MidiControl.h`), the LED cue for page
-2, and ~23 KB of code space (`docs/CAPACITY.md`).
+2, and code space (`docs/CAPACITY.md`).
