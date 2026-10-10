@@ -7,16 +7,19 @@
     ./flash.py --no-build    sends bin/FRIZZ.bin (the branch's committed build) instead
     ./flash.py FILE --slot N sends any .bin to slot N
     ./flash.py --run N       starts what's in slot N already (10 FRIZZ, 11 the bench, 12 a test)
+    ./flash.py --list        what's on each key (the CHOMPI stays at the launcher's picker)
 
-The launcher (github.com/sfaber02/CHOMPI, firmware/chompi-launcher, its releases) is
-CHOMPI.bin in the card's root, and keeps the firmwares in /FIRMWARE/NN_NAME.bin, NN being the
-key that starts it. While its picker shows, it takes a firmware over USB MIDI, writes it to
-its slot, replacing whatever is there, and starts it (tools/midi_send.py, the launcher's
-own client). The CHOMPI is first brought to the launcher from wherever it is: a running
+The launcher (github.com/sfaber02/CHOMPI-MULTI-FIRMWARE, firmware/chompi-launcher, its
+releases) is CHOMPI.bin in the card's root, and keeps the firmwares in /FIRMWARE/NN_NAME.bin,
+NN being the key that starts it. While its picker shows, it takes a firmware over USB MIDI,
+writes it to its slot, replacing whatever is there, and starts it (tools/midi_send.py, the
+launcher's own client). The CHOMPI is first brought to the launcher from wherever it is: a running
 FRIZZ restarts into it over USB MIDI (MidiClock.h), the USB storage firmware on an eject
 (tools/chompi.py); a FRIZZ from before that, or another firmware, needs the power switch, and
 this says so. It then sends, and FRIZZ starts. FRIZZ_SLOT, BENCH_SLOT and TEST_SLOT set other
-slots. It waits while another tool has the CHOMPI (tools/chompi.py, the lock).
+slots; without --slot, a key that holds another firmware than FRIZZ is refused (launcher 1.5
+lists its keys; an older one can't, and isn't asked). It waits while another tool has the
+CHOMPI (tools/chompi.py, the lock).
 
 Linux only (ALSA's raw MIDI), Python 3 without packages; building needs the ARM toolchain
 (README.md).
@@ -67,6 +70,7 @@ def main():
     ap.add_argument("--no-build", action="store_true", help="send the build in bin/")
     ap.add_argument("--slot", type=int, help="the launcher slot (key) to put it in")
     ap.add_argument("--run", type=int, metavar="SLOT", help="start what's in SLOT, sending nothing")
+    ap.add_argument("--list", action="store_true", help="show what's on each key, sending nothing")
     ap.add_argument("--name", help="its name on the card (default FRIZZ or FRIZZ-BENCH)")
     ap.add_argument("--wait", type=int, default=120, help="seconds to wait for the launcher")
     ap.add_argument("--device", help="its raw MIDI node, e.g. /dev/snd/midiC1D0 (default: found)")
@@ -75,6 +79,11 @@ def main():
     if args.run:
         frizz = args.run in (chompi.FRIZZ_SLOT, chompi.TEST_SLOT)
         chompi.run(args.run, "frizz" if frizz else None, args.wait, args.device)
+        return
+    if args.list:
+        device = chompi.to_launcher(args.wait, args.device)
+        sys.argv = ["midi_send.py", "--list", "--device", device]
+        midi_send.main()
         return
     if args.image:
         image = args.image
@@ -89,6 +98,12 @@ def main():
         sys.exit("a file of your own needs --slot: sending replaces what's in it")
 
     device = chompi.to_launcher(args.wait, args.device)
+    if not args.slot:
+        # the default keys are FRIZZ's: never replace another firmware on them unasked
+        there = chompi.slot_file(device, slot)
+        if there and not there.upper().split("_", 1)[-1].startswith("FRIZZ"):
+            sys.exit("key %d holds %s, not FRIZZ: give --slot %d to replace it anyway, "
+                     "or set FRIZZ_SLOT / BENCH_SLOT / TEST_SLOT" % (slot, there, slot))
     sys.argv = ["midi_send.py", image, "--slot", str(slot), "--name", name, "--device", device]
     midi_send.main()
 

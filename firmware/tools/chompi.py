@@ -271,6 +271,23 @@ def run(slot, wanted, timeout=120, device=None):
     return None
 
 
+def slot_file(node, slot):
+    """The file on key SLOT ("" for none), as the launcher at NODE lists it; None from a
+    launcher before 1.5, which can't say"""
+    link = midi_send.Link(node)
+    try:
+        reply = link.call(midi_send.PING, timeout=0.3, retries=3, required=False)
+        if not reply or len(reply) < 8 or not reply[7] & midi_send.FEATURE_LIST:
+            return None
+        reply = link.call(midi_send.LIST, bytes([slot]), timeout=2.0, retries=2,
+                          required=False, match=midi_send.for_slot(slot))
+    finally:
+        os.close(link.fd)
+    if not reply or reply[0] != 0 or len(reply) < 3:
+        return None
+    return reply[3:3 + reply[2]].decode("ascii", "replace")
+
+
 def to_frizz(slot=FRIZZ_SLOT, timeout=120, device=None):
     """FRIZZ's raw MIDI node, starting it from the launcher if it isn't running"""
     now, where = state(device)
