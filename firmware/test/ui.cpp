@@ -964,6 +964,146 @@ int main()
         Check(elsewhere(150) == 0, "chaos-scramble: chaos off, the loop in place again");
     }});
 
+    // the crossfader (#66): SHIFT + a scene key, then the transport knob, no loop needed;
+    // scene 1 has the filter latched and closed, quiet, the blank scene opens it again
+    cases.push_back({"scene-fader", [] {
+        freq = 3000.f; // high, so the filter halfway open still takes some
+        RunMs(kReadyMs);
+        const float dry = RunMs(300);
+        auto state = [] { return Ask({0x20}); };
+        Latch("KEY_5");
+        Turn(kKnob1Encoder, -60); // the cutoff closed: a lowpass far below the sine
+        RunMs(300);
+        Save(1);
+        RunMs(1000);
+        const float closed = RunMs(300);
+        printf("      dry %.3f, filter closed %.3f\n", dry, closed);
+        Check(closed < dry * .3f, "scene-fader: scene 1, the filter closed, is quiet");
+
+        Press("KEY_26", true);
+        RunMs(80);
+        Tap("KEY_16"); // to the blank scene, held
+        RunMs(100);
+        Turn(5, 12); // halfway
+        RunMs(400);
+        const float half = RunMs(300);
+        const int a = Max(SmtLedFull(kSlot1Led)), b = Max(SmtLedFull(kSlot1Led - 1));
+        const Rgb rev = PthLedFull(kTransportRevLed), fwd = PthLedFull(kTransportFwdLed);
+        printf("      halfway %.3f; keys A %d, B %d; transport %d %d\n", half, a, b, Max(rev), Max(fwd));
+        Check(half > closed * 1.5f && half < dry * .9f,
+              "scene-fader: halfway, the sound halfway between the scenes");
+        Check(a > 100 && a < 200 && b > 100 && b < 200,
+              "scene-fader: the two scene keys at half brightness each");
+        Check(Max(rev) > 100 && Max(rev) < 160 && rev.r == rev.g && rev.g == rev.b
+                  && Max(fwd) > 100 && Max(fwd) < 160 && fwd.r == fwd.b,
+              "scene-fader: the transport LEDs show where it is, in white, without a loop");
+        Turn(5, 12);
+        RunMs(400);
+        const float at_b = RunMs(300);
+        Check(at_b > dry * .85f && Max(SmtLedFull(kSlot1Led - 1)) > 240
+                  && Max(SmtLedFull(kSlot1Led)) < 60,
+              "scene-fader: all the way right, the blank scene, its key bright");
+        Turn(5, -24);
+        RunMs(400);
+        Check(RunMs(300) < closed * 1.3f, "scene-fader: and all the way back, scene 1 again");
+        RunMs(5000);
+        Check(state().size() > 6 && (state()[6] & 2) && RunMs(300) < closed * 1.3f,
+              "scene-fader: held, the bar lines don't land it");
+
+        // let go halfway: it stays there, the blank scene edited
+        Turn(5, 12);
+        RunMs(300);
+        Press("KEY_26", false);
+        RunMs(300);
+        const float left = RunMs(300);
+        RunMs(5000);
+        std::string st = state();
+        Check(st.size() > 6 && !(st[6] & 2) && (st[6] & 1) && st[5] == 1
+                  && fabsf(RunMs(300) - left) < left * .1f && left > closed * 1.5f,
+              "scene-fader: let go halfway, it stays there, the blank scene active and edited");
+
+        // let go at the end: landed on the blank scene; at the start: scene 1 as it was
+        Tap("KEY_17");
+        RunMs(500);
+        Press("KEY_26", true);
+        RunMs(80);
+        Tap("KEY_16");
+        RunMs(100);
+        Turn(5, 30);
+        RunMs(300);
+        Press("KEY_26", false);
+        RunMs(500);
+        st = state();
+        Check(st.size() > 9 && !(st[6] & 3) && st[5] == 1 && st[9] == 0 && RunMs(300) > dry * .85f,
+              "scene-fader: let go at the end, it lands on the blank scene, nothing latched");
+        Tap("KEY_17");
+        RunMs(500);
+        Press("KEY_26", true);
+        RunMs(80);
+        Tap("KEY_16");
+        RunMs(100);
+        Turn(5, 6);
+        RunMs(300);
+        Turn(5, -6);
+        RunMs(300);
+        Press("KEY_26", false);
+        RunMs(500);
+        st = state();
+        Check(st.size() > 9 && !(st[6] & 3) && st[5] == 2 && (st[9] & (1 << 4))
+                  && RunMs(300) < closed * 1.3f,
+              "scene-fader: let go at the start, scene 1 is back as it was, not edited");
+
+        // SHIFT + turn without a held morph: the speed as ever, no fader
+        Press("KEY_26", true);
+        RunMs(80);
+        Turn(5, 6);
+        RunMs(300);
+        Check(Max(PthLedFull(kTransportRevLed)) == 0 && Max(PthLedFull(kTransportFwdLed)) == 0,
+              "scene-fader: SHIFT + turn without a morph shows nothing (no loop)");
+        Press("KEY_26", false);
+        RunMs(300);
+    }});
+
+    // the crossfader over MIDI (CC 118): a morph started by CC 62, taken to where the CC says
+    cases.push_back({"midi-fader", [] {
+        freq = 3000.f; // high, so the filter halfway open still takes some
+        RunMs(kReadyMs);
+        const float dry = RunMs(300);
+        auto state = [] { return Ask({0x20}); };
+        Latch("KEY_5");
+        Turn(kKnob1Encoder, -60);
+        RunMs(300);
+        Save(1);
+        RunMs(1000);
+        const float closed = RunMs(300);
+        Trs({kCC, 62, 0}); // to the blank scene, gliding over a bar
+        RunMs(20);
+        Trs({kCC, 118, 0});
+        RunMs(3000);
+        Check(state().size() > 6 && (state()[6] & 2) && RunMs(300) < closed * 1.3f,
+              "midi fader: CC 118 takes the morph; at 0 it waits at the start, past the bar line");
+        Trs({kCC, 118, 64});
+        RunMs(400);
+        const float half = RunMs(300);
+        printf("      dry %.3f, closed %.3f, at 64 %.3f\n", dry, closed, half);
+        Check(half > closed * 1.5f && half < dry * .9f, "midi fader: at 64, halfway");
+        Trs({kCC, 118, 0});
+        RunMs(300);
+        std::string st = state();
+        Check(st.size() > 9 && !(st[6] & 3) && st[5] == 2 && (st[9] & (1 << 4)),
+              "midi fader: back to 0, scene 1 as it was");
+        Trs({kCC, 62, 0});
+        RunMs(20);
+        Trs({kCC, 118, 127});
+        RunMs(300);
+        st = state();
+        Check(st.size() > 9 && !(st[6] & 3) && st[5] == 1 && st[9] == 0 && RunMs(300) > dry * .85f,
+              "midi fader: at 127, landed on the blank scene");
+        Trs({kCC, 118, 64});
+        RunMs(300);
+        Check(state().size() > 6 && !(state()[6] & 2), "midi fader: without a morph, nothing");
+    }});
+
     // the millisecond counter wrapping (after 49.7 days on): the signals started just before it
     // end on time and don't come back, and timing across it holds
     cases.push_back({"clock-wrap", [] {

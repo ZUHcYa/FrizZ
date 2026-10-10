@@ -21,7 +21,7 @@ static const char* const kSegments[] = {
     "filter",     "flanger",   "resonator",    "slicer",      "warble",
     "tapestop",   "compressor", "inserts",     "recording",   "loop",
     "loop+inserts", "loop+delay", "loop+scene4+delay", "loop+reverb", "everything",
-    "stress",     "loop+everything", "loop+everything+page2", "loop+inserts+chaos",
+    "stress",     "loop+everything", "loop+inserts+chaos", "loop+everything+page2",
 };
 static const size_t kNum = sizeof(kSegments) / sizeof(kSegments[0]);
 // the bench waits before each segment for what it doesn't use to rest, so nothing may still

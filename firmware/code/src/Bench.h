@@ -677,11 +677,12 @@ const Bench::Segment Bench::kSegments[Bench::kNumSegments] = {
     {"everything", Bench::kEverything, Bench::COMP},
     {"stress", Bench::kEverything, Bench::STRESS | Bench::COMP},
     {"loop+everything", Bench::kEverything, Bench::LOOP | Bench::COMP},
-    // last, so the 22 before stay comparable with older cpu.txt files
-    {"loop+everything+page2", Bench::kEverything, Bench::LOOP | Bench::COMP | Bench::PAGE2},
-    // and after it, so the 23 before likewise stay comparable: the chaos key gating the
-    // inserts on the loop, every 16th, and scrambling it
+    // after the 22 above, so they stay comparable with older cpu.txt files: the chaos key
+    // gating the inserts on the loop, every 16th, and scrambling it
     {"loop+inserts+chaos", Bench::kInserts | Bench::Bit(FX_CHAOS), Bench::LOOP | Bench::CHAOS},
+    // last: the segment after it would start with every insert's page 2 settling back to its
+    // defaults, page 2's cost, as the chaos segment did after it (114 % for a block)
+    {"loop+everything+page2", Bench::kEverything, Bench::LOOP | Bench::COMP | Bench::PAGE2},
 };
 constexpr uint8_t Bench::kKeyLeds[];
 

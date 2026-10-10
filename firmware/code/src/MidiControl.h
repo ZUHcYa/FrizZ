@@ -57,6 +57,7 @@ static const uint8_t kMorphBarsCC = 61; // how many bars a morph over MIDI takes
 static const uint8_t kMorphCC = 62;     // morph to the scene 0-4
 static const uint8_t kStopMorphCC = 63; // stops a morph where it is
 static const uint8_t kParamCC = 70;     // 70-117: effect FX's knob P at 70 + 4 FX + P
+static const uint8_t kFaderCC = 118;    // the crossfader: a running morph from its start to its scene
 // the effects with CCs: the first 12 FxIds; the chaos key (FX_CHAOS) has CC 119 for its
 // latch and its knobs on NRPN alone (bank 0, 122-125), since 118-121 are taken or reserved
 static const size_t kMidiFx = 12;
@@ -391,7 +392,7 @@ private:
     {
         using namespace midimap;
         return (cc >= kLatchCC && cc < kLatchCC + kMidiFx) || cc == kChaosLatchCC
-               || (cc >= kCompCC && cc <= kStopMorphCC)
+               || (cc >= kCompCC && cc <= kStopMorphCC) || cc == kFaderCC
                || (cc >= kParamCC && cc < kParamCC + kMidiFx * kNumFxKnobs);
     }
 

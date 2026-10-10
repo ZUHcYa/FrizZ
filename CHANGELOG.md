@@ -9,6 +9,14 @@ what FRIZZ does.
 
 ### Added
 
+- **A scene crossfader by hand** (#66), after the Octatrack's: SHIFT + a scene key, and
+  while you still hold SHIFT, turn the transport knob: the morph is in your hand, the scene
+  you're in on the left, the one you picked on the right, back and forth as often as you
+  like (24 detents from end to end), with or without a loop. Let go all the way right and
+  you're in the new scene; all the way left and you're back where you were; in between it
+  stays there, as SHIFT + PLAY leaves a morph. The two scene keys light in their mix, the
+  transport LEDs show where it is. Over MIDI, CC 118 does the same for a morph CC 62 started.
+  See MANUAL.md, "Crossfading by hand".
 - **The chaos key** on the 11th white key (#65), after the Red Panda Tensor's RAND and the
   Chase Bliss Blooper's Scrambler: an effect slot like any other (hold, latch, scenes) that
   makes no sound of its own. Knob 1 lets the effects you've latched drop out and come back on
