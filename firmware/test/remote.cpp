@@ -234,6 +234,33 @@ int main()
           "tools: card.py --then 12 waits for FRIZZ-TEST as for FRIZZ, not for the bench");
     if (rc != 0)
         printf("%s\n", out.c_str());
+    // card.py: a mount that fails still ejects the card and starts FRIZZ; mount alone needs a
+    // hold, as the card stays mounted after it
+    rc = Python(R"(
+import os, sys, chompi, card
+chompi.to_storage = lambda *rest: "/dev/sdx1"
+def mount(part):
+    sys.exit("udisksctl mount: refused")
+chompi.mount = mount
+card.finish = lambda then: print("finished", then)
+sys.argv = ["card.py", "ls"]
+try:
+    card.main()
+except SystemExit as e:
+    print("exit:", e)
+sys.argv = ["card.py", "mount"]
+try:
+    card.main()
+except SystemExit as e:
+    print("exit:", e)
+)", out);
+    Check(rc == 0 && Has(out, "finished None\nexit: udisksctl mount: refused"),
+          "tools: card.py ejects the card and starts FRIZZ again when the mount fails");
+    Check(Has(out, "exit: card.py mount leaves the card mounted") && !Has(out, "refused\nfinished"),
+          "tools: card.py mount needs a hold");
+    if (rc != 0 || !Has(out, "finished None"))
+        printf("%s\n", out.c_str());
+
     // which slot runs, no firmware says (the bench answers as FRIZZ does): the tools note the
     // one they started, and go by it. chompi's way to the CHOMPI stubbed: states in turn
     const char* const kSlots = R"(

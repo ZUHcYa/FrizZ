@@ -371,9 +371,8 @@ def to_frizz(slot=None, timeout=120, device=None):
 
 
 def to_storage(timeout=120):
-    """The card's mount point, with the CHOMPI in its USB storage firmware"""
-    part = storage_partition() or run(STORAGE_SLOT, "storage", timeout)
-    return mount(part), part
+    """The card's partition, with the CHOMPI in its USB storage firmware (mount() mounts it)"""
+    return storage_partition() or run(STORAGE_SLOT, "storage", timeout)
 
 
 if __name__ == "__main__":
