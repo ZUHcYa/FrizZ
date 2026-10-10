@@ -53,6 +53,11 @@
 #include "passthroughEngine.h"
 #include "temp_led_stuff.h"
 
+// the play page's logic, a key or a frame now and then and never per sample: built for size,
+// as FRIZZ's code space is tight (SRAM_EXEC, docs/CAPACITY.md)
+#pragma GCC push_options
+#pragma GCC optimize("Os")
+
 namespace chompi
 {
     // per detent: the gains 2%, the mix (SHIFT) 4%, the headphone feed 1% like the FX knobs
@@ -193,10 +198,15 @@ namespace chompi
             return !master_unsaved_;
         }
 
+        // called from the audio callback (ui.h's GenerateEvents, and DoEvents while it boots):
+        // built as the callback is, so it inlines them rather than calling -Os copies
+#pragma GCC pop_options
         /** From ui.h, as the mode switch goes: up shows the settings page */
         inline void ShowSettings(bool show) { show_settings_ = show; }
 
         inline void ResetSmtLeds() { SmtLedsOff(); }
+#pragma GCC push_options
+#pragma GCC optimize("Os")
 
         void Draw(const daisy::UiCanvasDescriptor &canvasDescriptor) override
         {
@@ -1252,3 +1262,5 @@ namespace chompi
     };
 
 } // namespace chompi
+
+#pragma GCC pop_options
