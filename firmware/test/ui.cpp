@@ -397,7 +397,7 @@ int main()
         const float flat = RunMs(300);
         Trs({kCC, 99, 1, kCC, 98, 55, kCC, 6, 64, kCC, 38, 0});
         RunMs(300);
-        const std::string comp = Ask({0x21, 12});
+        const std::string comp = Ask({0x21, 13});
         Check(comp.size() == 17 && comp[15] == 64 && comp[16] == 0,
               "fx-level: NRPN 1/55 is the compressor's page-2 knob 4, its makeup");
         const float made_up = RunMs(300);
@@ -854,6 +854,116 @@ int main()
               "scene-morph: SHIFT let go, it glides and lands on scene 2");
     }});
 
+    // the chaos key (#65), the 11th white key: the effects latched drop out on random steps
+    cases.push_back({"chaos-gates", [] {
+        RunMs(kReadyMs);
+        const float dry = RunMs(300);
+        static const int kChaosKeyLed = 14;
+        Latch("KEY_5");
+        Turn(kKnob1Encoder, -60); // the filter closed: quiet while it's in
+        RunMs(300);
+        const float closed = RunMs(300);
+        Latch("KEY_11");
+        Turn(kKnob1Encoder, 100); // its FX chance at the top
+        RunMs(300);
+        const Rgb chaos = SmtLedFull(kChaosKeyLed);
+        Check(Max(chaos) > 200 && chaos.r > 2 * chaos.g, "chaos-gates: latched, its key lit, rose");
+        // 16ths at 120 BPM: 125 ms; the filter out of about half of them
+        int out = 0, in = 0, dim = 0, lit = 0;
+        for (int w = 0; w < 64; w++)
+        {
+            const float rms = RunMs(62);
+            out += rms > dry * .5f;
+            in += rms < closed * 2.f + .001f;
+            const int led = Max(SmtLedFull(kFilterKeyLed));
+            dim += led < 60;
+            lit += led > 200;
+        }
+        printf("      dry %.3f, closed %.3f; of 64 windows %d open, %d closed; its key %d dim, %d lit\n",
+               dry, closed, out, in, dim, lit);
+        Check(out > 10 && in > 10, "chaos-gates: the filter drops out on some steps and is back on others");
+        Check(dim > 10 && lit > 10, "chaos-gates: the filter's key dims while it's out");
+
+        // held, the filter is the hand's: on all the time
+        Press("KEY_5", true);
+        RunMs(100);
+        int open_held = 0;
+        for (int w = 0; w < 32; w++)
+            open_held += RunMs(62) > dry * .5f;
+        Press("KEY_5", false); // a plain press: it unlatches
+        RunMs(100);
+        Check(open_held == 0, "chaos-gates: a latched key held stays on, out of chaos's hands");
+
+        // unlatched chaos: the filter stays in
+        Latch("KEY_5");
+        Latch("KEY_11");
+        RunMs(300);
+        int open_off = 0;
+        for (int w = 0; w < 32; w++)
+            open_off += RunMs(62) > dry * .5f;
+        Check(open_off == 0 && Max(SmtLedFull(kFilterKeyLed)) > 200,
+              "chaos-gates: chaos unlatched, the filter steady");
+
+        // over MIDI: CC 119 latches it, NRPN 0/122 its FX chance
+        const std::string before = Ask({0x21, 12});
+        Trs({kCC, 99, 0, kCC, 98, 122, kCC, 6, 0, kCC, 38, 0});
+        Trs({kCC, 119, 127});
+        RunMs(300);
+        const std::string st = Ask({0x20}), after = Ask({0x21, 12});
+        Check(st.size() > 9 && ((static_cast<uint8_t>(st[8]) << 7 | static_cast<uint8_t>(st[9])) >> 12 & 1),
+              "chaos-gates: CC 119 latches the chaos key");
+        Check(before.size() > 2 && after.size() > 2 && before[1] != 0 && after[1] == 0 && after[2] == 0,
+              "chaos-gates: NRPN 0/122 sets its FX chance (to 0)");
+        int open_midi = 0;
+        for (int w = 0; w < 32; w++)
+            open_midi += RunMs(62) > dry * .5f;
+        Check(open_midi == 0, "chaos-gates: at a chance of 0, nothing drops out");
+    }});
+
+    // the chaos key's scramble: on random steps the loop plays from elsewhere, its position
+    // running on. A 2 s loop, silent in its first half
+    cases.push_back({"chaos-scramble", [] {
+        RunMs(kReadyMs);
+        amp = 0.f;
+        Tap("KEY_28");
+        RunMs(1000);
+        amp = .3f;
+        RunMs(940);
+        Tap("KEY_28");
+        RunMs(500);
+        const float loud = RunMs(1000) * 2.f; // half of it is the tone
+        auto elsewhere = [loud](int windows) {
+            // windows in the silent half that sound
+            int n = 0;
+            for (int w = 0; w < windows; w++)
+            {
+                const float pos = Probe().loop_pos;
+                const float rms = RunMs(40);
+                const float end = Probe().loop_pos;
+                if (pos > .05f && end < .45f && end > pos)
+                    n += rms > loud * .3f;
+            }
+            return n;
+        };
+        amp = 0.f; // only the loop from here
+        const int before = elsewhere(150);
+        Latch("KEY_11");
+        Turn(1, 100); // knob 2 (SW1), scramble chance at the top
+        RunMs(300);
+        const int during = elsewhere(150);
+        const float pos = Probe().loop_pos;
+        RunMs(500);
+        const float moved = Probe().loop_pos - pos;
+        printf("      loop %.3f s; loud %.3f; sounding in the silent half: %d before, %d scrambled; moved %.3f in 0.5 s\n",
+               Probe().loop_length / kSampleRate, loud, before, during, moved);
+        Check(before == 0 && during > 5, "chaos-scramble: the loop's silent half plays from elsewhere");
+        Check(fabsf((moved < 0.f ? moved + 1.f : moved) - .25f) < .02f,
+              "chaos-scramble: the loop's position runs on as ever");
+        Latch("KEY_11");
+        RunMs(300);
+        Check(elsewhere(150) == 0, "chaos-scramble: chaos off, the loop in place again");
+    }});
+
     // the crossfader (#66): SHIFT + a scene key, then the transport knob, no loop needed;
     // scene 1 has the filter latched and closed, quiet, the blank scene opens it again
     cases.push_back({"scene-fader", [] {
@@ -1241,8 +1351,10 @@ int main()
         RunMs(300);
         SetToggle(false);
         RunMs(300);
-        Check(Max(SmtLedFull(kChannel11Led)) == 0 && Max(SmtLedFull(kChannel14Led)) == 0,
-              "settings-channel: back on the play page, the keys it doesn't use are dark");
+        // the 11th white key is the chaos key's there: dimly in its own colour, rose
+        const Rgb chaos = SmtLedFull(kChannel11Led);
+        Check(Max(chaos) < 60 && chaos.r > 2 * chaos.g && Max(SmtLedFull(kChannel14Led)) == 0,
+              "settings-channel: back on the play page, the 14th key dark, the 11th the chaos key's, dim");
         SetToggle(true);
         RunMs(300);
         Tap("KEY_17"); // D#: transport following
@@ -2292,7 +2404,7 @@ int main()
               "midi cc: NRPN 86 sets the cutoff in 14 bits, 8192 its centre");
         Trs({kCC, kCompAmountCC, 127});
         RunMs(50);
-        const std::string comp = Ask({0x21, 12});
+        const std::string comp = Ask({0x21, 13});
         Check(comp.size() == 17 && comp[1] == 127, "midi cc: CC 52 is the compressor's threshold");
         Trs({kCC, 56, 0}); // output gain
         RunMs(300);
@@ -2365,10 +2477,10 @@ int main()
         for (int part = 0; part < 9; part++)
         {
             blank[part] = Ask({0x30, 0, static_cast<uint8_t>(part)});
-            all &= blank[part].size() == (part < 8 ? 26u : 5u);
+            all &= blank[part].size() == (part < 8 ? 34u : 5u);
         }
         // the shifter's mix (FX 1, page 2's knob 1: part 4, 2nd effect) on its default, 1
-        all &= blank[4].size() == 26u && blank[4][10] == 127 && blank[4][11] == 127;
+        all &= blank[4].size() == 34u && blank[4][10] == 127 && blank[4][11] == 127;
         Check(all, "midi scenes: 30 answers a scene in 9 parts, page 2 in 4-7");
         if (!all)
             return;
@@ -2377,7 +2489,7 @@ int main()
         {
             std::string data = blank[part].substr(2);
             if (part == 1)
-                data[8] = data[9] = 0; // the filter (FX 4, the 2nd in part 1): cutoff 0
+                data[0] = data[1] = 0; // the filter (FX 4, the 1st in part 1): cutoff 0
             if (part == 8)
                 data[2] = 1 << 4;              // latched: the filter
             TakeUsbOut();
@@ -2517,7 +2629,7 @@ int main()
 
         Trs({kCC, 53, 0, kCC, 54, 64, kCC, 55, 127});
         RunMs(50);
-        const std::string comp = Ask({0x21, 12});
+        const std::string comp = Ask({0x21, 13});
         Check(comp.size() == 17 && at14(comp, 3) == 0 && at14(comp, 5) == 8192 && at14(comp, 7) == 16383,
               "midi cc more: CCs 53-55 are the compressor's knobs 2-4");
 

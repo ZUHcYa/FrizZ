@@ -1,8 +1,9 @@
 /** @file FxSlots.h
  *  @brief The punch-in FX keys: one entry per FxId (FxChain.h), in the same order, with the
  *  key, LED and colours the play page (NormalPage.h) gives each, and the master compressor's
- *  key. The 11th and 14th white keys are left free, setting the inserts, the sends and the
- *  compressor apart. Their knobs (defaults, steps, coarse grids) are in FxParams.h. The controls are
+ *  key. The 14th white key is left free, setting the sends and the compressor apart; the 11th
+ *  is the chaos key's (FxChaos.h), between the inserts and the sends, though it comes last in
+ *  FxId (FxChain.h). Their knobs (defaults, steps, coarse grids) are in FxParams.h. The controls are
  *  described in MANUAL.md.
  */
 #pragma once
@@ -18,6 +19,7 @@ enum class FxKind
     INSERT, // replaces the signal while on
     SEND,   // adds its return; the key LED also glows with the tail after release
     LOOP,   // a feedback loop around some of the inserts (the resonator)
+    CHAOS,  // no sound of its own: plays with the others (FxChaos.h)
 };
 
 struct FxSlot
@@ -41,10 +43,10 @@ static const FxSlot kFxSlots[] = {
     {Hardware::SwId::KEY_8, 17, yellow, {yellow, white, green}, FxKind::INSERT},      // slicer
     {Hardware::SwId::KEY_9, 16, teal, {teal, white, purple}, FxKind::INSERT},         // wow & flutter
     {Hardware::SwId::KEY_10, 15, amber, {amber, white, red}, FxKind::INSERT},         // tape stop
-    // KEY_11 is free
     {Hardware::SwId::KEY_12, 13, green, {green, white, med_blue}, FxKind::SEND},      // delay
     {Hardware::SwId::KEY_13, 12, blue, {med_blue, blue, purple}, FxKind::SEND},       // reverb
     // KEY_14 is free
+    {Hardware::SwId::KEY_11, 14, rose, {med_blue, white, rose}, FxKind::CHAOS},       // chaos
 };
 static_assert(sizeof(kFxSlots) / sizeof(kFxSlots[0]) == kNumFx, "one per FxId");
 

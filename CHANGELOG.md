@@ -17,6 +17,14 @@ what FRIZZ does.
   stays there, as SHIFT + PLAY leaves a morph. The two scene keys light in their mix, the
   transport LEDs show where it is. Over MIDI, CC 118 does the same for a morph CC 62 started.
   See MANUAL.md, "Crossfading by hand".
+- **The chaos key** on the 11th white key (#65), after the Red Panda Tensor's RAND and the
+  Chase Bliss Blooper's Scrambler: an effect slot like any other (hold, latch, scenes) that
+  makes no sound of its own. Knob 1 lets the effects you've latched drop out and come back on
+  random steps (their keys dim while they're out); knob 2 plays random steps of the loop from
+  elsewhere in it, while the loop itself runs on; knob 3 sets the grid, 1/16 to a bar, on the
+  effects' tempo; knob 4 turns it from every step rolled anew to one bar repeating as a
+  pattern. Chance decides only when your effects act, never how they sound. Over MIDI, CC 119
+  latches it and NRPN 0/122-125 set its knobs. See MANUAL.md, "Chaos key".
 - **A second page for the FX knobs:** press any of knobs 1-4 and all four turn over to the
   selected effect's page 2, with their LEDs pulsing; press again for page 1. Every effect has
   one. Pressing or
@@ -66,6 +74,10 @@ what FRIZZ does.
 
 ### Changed
 
+- **`remote.py` and FRIZZ's SysEx** count the chaos key as effect 12, so the compressor's
+  knobs are asked for as 13, and a scene travels with 4 effects to a part instead of 3. A
+  `remote.py` from before can't send or fetch scenes from this version; scene files saved by
+  it load, with the chaos key off.
 - **The knob LEDs use white only for a neutral point:** a knob with a centre (shift, cutoff,
   random, damping, grain, every Band) and Level (at 0 dB) are white there, blue below and
   orange above, on every effect. Other knobs go between the effect's two colours.

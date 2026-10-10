@@ -55,8 +55,9 @@ STATE, PARAMS, LEDS, LOAD, SETTINGS = 0x20, 0x21, 0x22, 0x23, 0x24
 SOURCES = ["auto", "trs", "usb", "internal"]  # MidiClock.h's ClockSource, as SETTING 2 takes it
 OUTS = ["off", "trs", "all"]  # MidiClock.h's MidiOutPorts, as SETTING 3 takes it
 SCENE_GET, SCENE_PUT = 0x30, 0x31
-# a scene's parts: 4 of 3 effects' page-1 knobs, the same for page 2, then the latches
-FX_PARTS, FX_PER_PART = 4, 3
+# a scene's parts: 4 of 4 effects' page-1 knobs (the last has the chaos key and zeros), the
+# same for page 2, then the latches
+FX_PARTS, FX_PER_PART = 4, 4
 SCENE_PARTS = 2 * FX_PARTS + 1
 
 # Hardware::SwId, in order (code/src/EventLog.h's kSwNames)
@@ -68,7 +69,7 @@ SW_NAMES = [
     "ENC_6_SW", "KEY_27", "KEY_28",
 ]
 FX_NAMES = ["freezer", "shifter", "folder", "crusher", "filter", "flanger", "resonator",
-            "slicer", "warble", "tapestop", "delay", "reverb"]
+            "slicer", "warble", "tapestop", "delay", "reverb", "chaos"]
 LOOPER = ["empty", "recording", "playing", "paused"]
 MODES = ["none", "save", "copy", "delete"]
 PAGES = ["output gain", "input gain", "headphone feed"]
@@ -171,8 +172,11 @@ def scene_get(f, slot):
     params = {n: [] for n in FX_NAMES}
     for p in range(SCENE_PARTS - 1):  # page 1's parts, then page 2's
         for i in range(FX_PER_PART):
+            fx = p % FX_PARTS * FX_PER_PART + i
+            if fx >= len(FX_NAMES):
+                break
             d = parts[p][8 * i:8 * i + 8]
-            params[FX_NAMES[p % FX_PARTS * FX_PER_PART + i]] += [
+            params[FX_NAMES[fx]] += [
                 round(knob(get14(d[2 * k], d[2 * k + 1])), 6) for k in range(4)]
     last = parts[-1]
     latched = get14(last[1], last[2])
@@ -183,15 +187,19 @@ def scene_get(f, slot):
 
 def scene_put(f, slot, scene):
     params = scene["params"]
-    if any(len(v) < 8 for v in params.values()):
-        # four knobs each, from before page 2: page 2 on its defaults, the blank scene's
+    if any(len(v) < 8 for v in params.values()) or any(n not in params for n in FX_NAMES):
+        # four knobs each, from before page 2, or an effect missing (the chaos key, before
+        # it was there): the rest on its defaults, the blank scene's
         blank = scene_get(f, 0)["params"]
-        params = {n: list(params[n][:4]) + blank[n][len(params[n][:4]):] for n in FX_NAMES}
+        params = {n: list(params.get(n, [])[:8]) + blank[n][len(params.get(n, [])[:8]):]
+                  for n in FX_NAMES}
     for p in range(SCENE_PARTS - 1):
         data = []
         for i in range(FX_PER_PART):
             page = p // FX_PARTS
-            for k in params[FX_NAMES[p % FX_PARTS * FX_PER_PART + i]][4 * page:4 * page + 4]:
+            fx = p % FX_PARTS * FX_PER_PART + i
+            knobs = params[FX_NAMES[fx]][4 * page:4 * page + 4] if fx < len(FX_NAMES) else [0] * 4
+            for k in knobs:
                 v = to14(k)
                 data += [v >> 7, v & 0x7F]
         if f.ask(SCENE_PUT, [slot, p] + data)[2] != 0:

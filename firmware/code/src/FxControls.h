@@ -17,7 +17,8 @@
  *  Engine is PassthroughEngine on the device, a fake on the host. It needs SetFxOn(fx, on),
  *  SetFxParam(fx, param, val), SetCompParam(param, val), FastFxSlew() and the morph's
  *  StartFxMorph(plan), AddFxMorphBar(), LandFxMorph(), FreezeFxMorph(params, unswitched,
- *  was_on), FxMorphing(), and the crossfader's FxMorphHeld() and FadeFxMorph(t).
+ *  was_on), FxMorphing(), the crossfader's FxMorphHeld() and FadeFxMorph(t), and
+ *  SetFxPool(pool) for the chaos key (Pool).
  */
 #pragma once
 #include <math.h>
@@ -400,6 +401,7 @@ public:
                 params_[fx][p] = scene.params[fx][p];
             engine_->SetFxOn(fx, IsOn(fx));
         }
+        engine_->SetFxPool(Pool());
         morph_touched_ = 0;
         ClearChunks();
         edited_ = false;
@@ -531,6 +533,16 @@ public:
         return changed;
     }
     inline bool IsLatched(size_t fx) const { return latched_[fx]; }
+    /** The chaos key's pool (FxChaos.h): the effects latched, but not held, nor the chaos key
+     *  itself, so what you play by hand stays on */
+    uint16_t Pool() const
+    {
+        uint16_t pool = 0;
+        for (size_t fx = 0; fx < kNumSoundFx; fx++)
+            if (latched_[fx] && !held_[fx])
+                pool |= Bit(fx);
+        return pool;
+    }
     inline bool IsOn(size_t fx) const { return held_[fx] || latched_[fx]; }
     /** The FX the knobs edit: the last one pressed, or kCompSelected */
     inline size_t Selected() const { return selected_; }
@@ -589,6 +601,7 @@ private:
             stale_ &= static_cast<uint16_t>(~Bit(fx));
         }
         engine_->SetFxOn(fx, IsOn(fx));
+        engine_->SetFxPool(Pool());
     }
 
     /** A recall, morph or stop: the latches are the scene's, and the keys held keep them */
