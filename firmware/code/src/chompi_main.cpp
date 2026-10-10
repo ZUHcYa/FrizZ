@@ -10,7 +10,6 @@
  *      scenes to the SD card, and boot-time stuff.
  */
 #include "FrizzHot.h"
-#include "FaultLog.h"
 #include "hardware.h"
 #include "ui.h"
 #include "fatfs.h"
@@ -252,7 +251,6 @@ static void CopyItcm() {}
 
 int main(void)
 {
-    EnableFaultLog();
     CopyItcm();
     hw.Init();
 
@@ -279,8 +277,6 @@ int main(void)
     System::Delay(100);
     // FRIZZ's files live in /FRIZZ, created on first start (SceneStore.h)
     scene_store.Init(&fsi.GetSDFileSystem(), fsi.GetSDPath());
-    // a fault before the last reset (FaultLog.h) onto the card, now it's up
-    WriteFaultLog();
 
     engine.Init(hw.seed.AudioSampleRate(), loop_mem, &midi_clock,
                 delay_mem, kDelayFrames, &reverb,
