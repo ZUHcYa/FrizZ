@@ -16,13 +16,13 @@ static const float kSr = 48000.f;
 
 /** The folder at a drive, on a sine of amp: the output's level over the input's in dB, over
  *  the last half of a second */
-static float FolderOver(float drive, float amp, float shape = 0.f)
+static float FolderOver(float drive, float amp, float shape = 0.f, float tone = 1.f)
 {
     Folder f;
     f.Init(kSr);
     f.SetParam(Folder::DRIVE, drive);
     f.SetParam(Folder::SHAPE, shape);
-    f.SetParam(Folder::TONE, 1.f);
+    f.SetParam(Folder::TONE, tone);
     f.SnapParams();
     f.SetOn(true);
     double in_sum = 0., out_sum = 0.;
@@ -68,6 +68,10 @@ static void TestFolder()
     Check(fabsf(tri) < 1.f, "folder: so does the triangle: the shape doesn't change the level at 1x");
     Check(driven > 15.f, "folder: driven, a quiet signal comes out far louder: nothing matches "
                          "it to the input (page 2's Level is for that)");
+    // #37: the tone is a tone control: darker is quieter, at the same drive
+    const float open = FolderOver(.6f, .3f, 0.f, 1.f), dark = FolderOver(.6f, .3f, 0.f, .2f);
+    printf("  folder: drive .6 on -10dBFS, tone open %+.1fdB, at .2 %+.1fdB\n", open, dark);
+    Check(dark < open - 3.f, "folder: a darker tone is quieter (#37)");
 }
 
 // ======== the slicer ========
