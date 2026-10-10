@@ -205,12 +205,17 @@ int main()
     Remote({"channel", "5"}, out);
     Remote({"transport", "on"}, out);
     rc = Remote({"settings"}, out);
-    Check(rc == 0 && out == "channel 5, transport on\n", "remote: channel and transport set, settings reads them");
+    Check(rc == 0 && out == "channel 5, transport on, clock auto\n",
+          "remote: channel and transport set, settings reads them");
     Remote({"channel", "0"}, out);
     rc = Remote({"settings"}, out);
-    Check(rc == 0 && out == "channel all, transport on\n", "remote: channel 0 is every channel");
+    Check(rc == 0 && out == "channel all, transport on, clock auto\n", "remote: channel 0 is every channel");
+    Remote({"source", "usb"}, out);
+    rc = Remote({"settings"}, out);
+    Check(rc == 0 && out == "channel all, transport on, clock usb\n", "remote: source sets the clock source");
     RunMs(2500);
-    Check(Has(Card("/FRIZZ/frizz_master.txt"), "midi_channel 0\nmidi_transport 1\n"),
+    Check(Has(Card("/FRIZZ/frizz_master.txt"), "midi_channel 0\nmidi_transport 1\n")
+              && Has(Card("/FRIZZ/frizz_master.txt"), "clock_source 2\n"),
           "remote: and they go to the card");
 
     // a scene: the blank one read, the filter closed and latched in it, sent to slot 2

@@ -12,11 +12,14 @@
  *    D#                  MIDI transport following, on / off  green, lit when on
  *    F#                  mono input, on / off                white, lit when on
  *    G#                  the clock's tempo factor, each press the next: x1, x2, x1/2
- *                                                            yellow, red, light blue
+ *                                                            yellow, red, light blue,
+ *                        lit for the first half of every beat the effects follow, else dim
  *    A#                  the LEDs' brightness, each press the next: 100, 75, 50 %
  *                                                            purple, dimmed as all are
+ *    G# (upper octave)   the clock source, each press the next: Auto, TRS, USB, internal
+ *                                                            white, orange, blue, pink
  *
- *  The upper octave's dark keys are free.
+ *  The upper octave's other dark keys are free.
  *
  *    SHIFT + VOLUME press, both held 2 s     a bug report (EventLog.h), once per hold;
  *                                            the transport LEDs blink as on the play page
@@ -57,6 +60,7 @@ public:
                   : master.clock_factor == 200 ? ClockFactor::DOUBLE
                                                : ClockFactor::ONE;
         midi_->SetClockFactor(factor_);
+        midi_->SetClockSource(static_cast<ClockSource>(master.clock_source));
         quarters_ = master.led_brightness / 25;
         SetLedQuarters(quarters_);
     }
@@ -86,6 +90,13 @@ public:
             // x1, x2, x1/2, x1 ...: ClockFactor's next, round
             factor_ = static_cast<ClockFactor>((static_cast<uint8_t>(factor_) + 1) % 3);
             midi_->SetClockFactor(factor_);
+            return true;
+        }
+        if (key == static_cast<int>(kSourceKey))
+        {
+            // Auto, TRS, USB, internal, Auto ...
+            const uint8_t next = (static_cast<uint8_t>(midi_->GetClockSource()) + 1) % kNumClockSources;
+            midi_->SetClockSource(static_cast<ClockSource>(next));
             return true;
         }
         if (key == static_cast<int>(kBrightnessKey))
@@ -144,6 +155,7 @@ public:
         master.clock_factor = factor_ == ClockFactor::HALF     ? 50
                               : factor_ == ClockFactor::DOUBLE ? 200
                                                                : 100;
+        master.clock_source = static_cast<uint8_t>(midi_->GetClockSource());
         master.led_brightness = quarters_ * 25;
     }
 
@@ -160,7 +172,10 @@ public:
         KeyLed(Hardware::SwId::KEY_16, med_blue, channel == 0);
         KeyLed(Hardware::SwId::KEY_17, green, midi_->Transport());
         KeyLed(Hardware::SwId::KEY_18, white, mono_);
-        KeyLed(kFactorKey, kFactorColors[static_cast<uint8_t>(factor_)], true);
+        // the factor's colour, on the beats of the tempo the effects follow (TempoClock.h)
+        const bool beat = engine_->FxClockPosition() % kPulsesPerBeat < kPulsesPerBeat / 2;
+        KeyLed(kFactorKey, kFactorColors[static_cast<uint8_t>(factor_)], beat);
+        KeyLed(kSourceKey, kSourceColors[static_cast<uint8_t>(midi_->GetClockSource())], true);
         KeyLed(kBrightnessKey, purple, true); // dimmed with every LED: it shows itself
 
         const unsigned level = hw_->GetBatteryLevel();
@@ -210,8 +225,12 @@ private:
     // G# and A# of the lower octave
     static const Hardware::SwId kFactorKey = Hardware::SwId::KEY_19;
     static const Hardware::SwId kBrightnessKey = Hardware::SwId::KEY_20;
+    // G# of the upper octave, where the factor's is in the lower
+    static const Hardware::SwId kSourceKey = Hardware::SwId::KEY_24;
     // the factor's hue, by ClockFactor: x1/2 light blue, x1 yellow, x2 red
     static constexpr const float* kFactorColors[3] = {med_blue, yellow, red};
+    // the source's, by ClockSource: Auto white, TRS orange, USB blue, internal pink
+    static constexpr const float* kSourceColors[kNumClockSources] = {white, orange, blue, pink};
     static constexpr Hardware::SwId kWhiteKeys[15] = {
         Hardware::SwId::KEY_1,  Hardware::SwId::KEY_2,  Hardware::SwId::KEY_3,
         Hardware::SwId::KEY_4,  Hardware::SwId::KEY_5,  Hardware::SwId::KEY_6,
@@ -238,6 +257,7 @@ private:
 };
 
 constexpr const float* SettingsPage::kFactorColors[];
+constexpr const float* SettingsPage::kSourceColors[];
 constexpr Hardware::SwId SettingsPage::kWhiteKeys[];
 constexpr Hardware::SwId SettingsPage::kDarkKeys[];
 constexpr const float* SettingsPage::kBatteryColors[];

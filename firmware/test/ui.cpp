@@ -28,16 +28,18 @@ static const int kVolumeEncoder = 6, kKnob1Encoder = 4; // SW6, SW4
 static const int kTransportRevLed = 5, kTransportFwdLed = 6, kVolumeLed = 9;
 static const int kSlot1Led = 1, kCompKeyLed = 10, kTapeStopKeyLed = 15;
 // the settings page's (SettingsPage.h): white keys 1, 3, 11, 14, 15 (channels; the 15th is 15
-// and 16), the lower octave's D#, F#, G#, A#
+// and 16), the lower octave's D#, F#, G#, A#, the upper octave's G#
 static const int kChannel1Led = 24, kChannel3Led = 22, kChannel11Led = 14, kChannel14Led = 11,
                  kChannel1516Led = 10, kTransportKeyLed = 1, kMonoKeyLed = 2, kFactorKeyLed = 3,
-                 kBrightnessKeyLed = 4;
+                 kBrightnessKeyLed = 4, kSourceKeyLed = 8;
 static const int kSaveKeyLed = 9; // KEY_25, the play page's SAVE
 
 static bool sine = true;
 static float amp = .3f, freq = 220.f, phase = 0.f;
 static float clock_bpm = 0.f; // a MIDI clock into the jack while > 0
 static double clock_next = 0.;
+static float usb_clock_bpm = 0.f; // and one over USB
+static double usb_clock_next = 0.;
 static float last_out[2] = {0.f, 0.f}, max_step = 0.f; // the master out's largest step, L or R
 static float hp_rms = 0.f; // the headphones' (left) RMS over the last RunMs
 
@@ -52,6 +54,11 @@ static float RunMs(uint32_t ms)
         {
             Midi(0xF8);
             clock_next += 60000. / (clock_bpm * 24.);
+        }
+        while (usb_clock_bpm > 0.f && usb_clock_next <= NowMs())
+        {
+            UsbMidi(0xF8);
+            usb_clock_next += 60000. / (usb_clock_bpm * 24.);
         }
         for (size_t i = 0; i < kBlockSize; i++)
         {
@@ -167,6 +174,20 @@ static void Tap(const char* key, uint32_t ms = 60)
 
 static int Max(const Rgb& c) { return std::max(c.r, std::max(c.g, c.b)); }
 
+/** An SMT LED at its brightest over ms: a key that pulses, seen lit */
+static Rgb Peak(int led, uint32_t ms)
+{
+    Rgb peak = SmtLedFull(led);
+    for (uint32_t t = 0; t < ms; t++)
+    {
+        RunMs(1);
+        const Rgb c = SmtLedFull(led);
+        if (Max(c) > Max(peak))
+            peak = c;
+    }
+    return peak;
+}
+
 /** Taps a key and counts the red blinks on a key's LED over the next 700 ms */
 static int RedBlinks(const char* key, int led)
 {
@@ -183,6 +204,29 @@ static int RedBlinks(const char* key, int led)
         blinks += lit && !was_lit;
         was_lit = lit;
     }
+    return blinks;
+}
+
+/** PLAY held, LOOP: a quantized recording. The red blinks on LOOP's LED over 800 ms: 3
+ *  when it's refused */
+static int RedBlinksQuantized()
+{
+    Press("KEY_27", true);
+    RunMs(80);
+    Press("KEY_28", true);
+    int blinks = 0;
+    bool was_lit = false;
+    for (int t = 0; t < 800; t++)
+    {
+        if (t == 60)
+            Press("KEY_28", false);
+        RunMs(1);
+        const Rgb c = PthLedFull(kLoopLed);
+        const bool lit = c.r > 128 && c.g < 40 && c.b < 40;
+        blinks += lit && !was_lit;
+        was_lit = lit;
+    }
+    Press("KEY_27", false);
     return blinks;
 }
 
@@ -1068,12 +1112,12 @@ int main()
                   && master.find("midi_transport 1") != std::string::npos,
               "settings-channel: both saved");
         const std::string settings = Ask({0x24});
-        Check(settings.size() == 2 && settings[0] == 1 && settings[1] == 1,
+        Check(settings.size() == 3 && settings[0] == 1 && settings[1] == 1,
               "settings-channel: and in force (SysEx settings)");
         Tap("KEY_16"); // C#: every channel
         RunMs(300);
         const std::string all = Ask({0x24});
-        Check(all.size() == 2 && all[0] == 0, "settings-channel: C# listens on every channel");
+        Check(all.size() == 3 && all[0] == 0, "settings-channel: C# listens on every channel");
     }});
 
     // the battery on VOLUME's LED, all the time; the transport LEDs purple
@@ -1202,7 +1246,7 @@ int main()
     // a card with every setting on: in force from power-on
     cases.push_back({"settings-kept", [] {
         CardFiles()["/FRIZZ/frizz_master.txt"]
-            = "FRIZZ master 1\nmono 1\nmidi_channel 3\nmidi_transport 1\nclock_factor 200\nled_brightness 50\n";
+            = "FRIZZ master 1\nmono 1\nmidi_channel 3\nmidi_transport 1\nclock_factor 200\nclock_source 1\nled_brightness 50\n";
         clock_bpm = 120.f;
         RunMs(kReadyMs);
         RunMs(2000);
@@ -1212,12 +1256,14 @@ int main()
         const std::string state = Ask({0x20});
         Check(state.size() > 6 && (state[6] & 32), "settings-kept: mono from the card");
         const std::string settings = Ask({0x24});
-        Check(settings.size() == 2 && settings[0] == 3 && settings[1] == 1,
-              "settings-kept: channel 3 and transport following from the card");
+        Check(settings.size() == 3 && settings[0] == 3 && settings[1] == 1 && settings[2] == 1,
+              "settings-kept: channel 3, transport following and the clock source TRS from the card");
         SetToggle(true);
         RunMs(300);
-        Check(Max(SmtLed(kMonoKeyLed)) > 0 && Max(SmtLed(kChannel3Led)) > Max(SmtLed(kChannel1Led)),
-              "settings-kept: and the page shows them");
+        Check(Max(SmtLed(kMonoKeyLed)) > 0 && Max(SmtLed(kChannel3Led)) > Max(SmtLed(kChannel1Led))
+                  && SmtLedFull(kSourceKeyLed).r > 100 && SmtLedFull(kSourceKeyLed).g > SmtLedFull(kSourceKeyLed).b
+                  && SmtLedFull(kSourceKeyLed).b > 0,
+              "settings-kept: and the page shows them, the source key orange");
     }});
 
     // the clock's tempo factor: x1/2, x1, x2 of a 120 BPM clock
@@ -1228,17 +1274,17 @@ int main()
         Check(Probe().tempo == 120, "settings-factor: a 120 BPM clock, the FX at 120");
         SetToggle(true);
         RunMs(300);
-        const Rgb one = SmtLedFull(kFactorKeyLed);
+        const Rgb one = Peak(kFactorKeyLed, 600); // it pulses on the beats: seen lit
         Tap("KEY_19"); // G#: x1 to x2
         RunMs(3000);
         Check(Probe().tempo == 240, "settings-factor: G# doubles it to 240");
-        const Rgb two = SmtLedFull(kFactorKeyLed);
+        const Rgb two = Peak(kFactorKeyLed, 600);
         Check(Card("/FRIZZ/frizz_master.txt").find("clock_factor 200") != std::string::npos,
               "settings-factor: saved");
         Tap("KEY_19"); // x2 to x1/2
         RunMs(3000);
         Check(Probe().tempo == 60, "settings-factor: G# again halves it to 60");
-        const Rgb half = SmtLedFull(kFactorKeyLed);
+        const Rgb half = Peak(kFactorKeyLed, 1100);
         Check(one.r > 200 && one.g > 200 && one.b < 40 && two.r > 200 && two.g < 40
                   && half.b > 200 && half.r < 40,
               "settings-factor: its key yellow at x1, red at x2, light blue at x1/2");
@@ -1256,6 +1302,183 @@ int main()
         Check(c.loop_state == 2 && c.loop_beats == 4 && fabs(c.loop_length - 4. * 48000.) < 48.,
               "settings-factor: a quantized bar at x1/2 holds 4 beats of 60 BPM");
         printf("      loop: %zu frames, %u beats\n", c.loop_length, c.loop_beats);
+    }});
+
+    // the factor's key pulses on the beats the effects follow: lit half a beat, dim half
+    cases.push_back({"settings-beat", [] {
+        clock_bpm = 120.f;
+        RunMs(kReadyMs);
+        RunMs(2000);
+        SetToggle(true);
+        RunMs(300);
+        // the LEDs are drawn from MainLoop, which now and then comes ~20 ms late
+        auto runs_within = [](const std::vector<int>& runs, int lo, int hi) {
+            bool ok = runs.size() >= 4;
+            for (int r : runs)
+                ok &= r >= lo && r <= hi;
+            if (!ok)
+            {
+                printf("      runs:");
+                for (int r : runs)
+                    printf(" %d", r);
+                printf("\n");
+            }
+            return ok;
+        };
+        const std::vector<int> one = Runs(Watch(false, kFactorKeyLed, 2000), 100);
+        Check(runs_within(one, 225, 275), "settings-beat: at 120 BPM, G# lit 250 ms and dim 250 ms");
+        Tap("KEY_19"); // x2
+        RunMs(3000);
+        const std::vector<int> two = Runs(Watch(false, kFactorKeyLed, 2000), 100);
+
+        Check(runs_within(two, 100, 150), "settings-beat: at x2 (240 BPM), 125 ms each");
+        const std::vector<int> dim = Watch(false, kFactorKeyLed, 300);
+        Check(*std::min_element(dim.begin(), dim.end()) > 0, "settings-beat: dim, never dark: its colour shows");
+        // no clock: the last tempo, 240
+        clock_bpm = 0.f;
+        RunMs(2000);
+        Check(runs_within(Runs(Watch(false, kFactorKeyLed, 2000), 100), 100, 150),
+              "settings-beat: the clock gone, it beats on at the last tempo");
+    }});
+
+    // the clock source: whose ticks count (MidiClock.h). A sequencer on the jack at 120, a DAW
+    // over USB at 90
+    cases.push_back({"clock-source", [] {
+        clock_bpm = 120.f;
+        RunMs(1000);
+        usb_clock_bpm = 90.f;
+        usb_clock_next = NowMs();
+        RunMs(kReadyMs - 1000);
+        RunMs(2000);
+        Check(Probe().source == 1 && Probe().tempo == 120,
+              "clock-source: Auto at first: the jack ticked first, so its 120 counts");
+        SetToggle(true);
+        RunMs(300);
+        Check(Same(SmtLedFull(kSourceKeyLed), Rgb{252, 252, 252}), "clock-source: upper G# white for Auto");
+        Tap("KEY_24"); // TRS
+        RunMs(2000);
+        Check(Probe().source == 1 && Probe().tempo == 120 && Same(SmtLedFull(kSourceKeyLed), Rgb{252, 152, 60}),
+              "clock-source: TRS: the jack's still, the key orange");
+        Tap("KEY_24"); // USB
+        RunMs(300);
+        Check(Probe().source == 2, "clock-source: USB: the lock moves to USB's ticks at once");
+        RunMs(2000);
+        Check(Probe().tempo == 90 && Same(SmtLedFull(kSourceKeyLed), Rgb{0, 0, 252}),
+              "clock-source: and the effects follow its 90, the key blue");
+        Tap("KEY_24"); // internal
+        RunMs(1000);
+        Check(!Probe().has_clock && Probe().tempo == 90 && Same(SmtLedFull(kSourceKeyLed), Rgb{252, 88, 156}),
+              "clock-source: internal: no clock while both run, the last tempo kept, the key pink");
+        RunMs(2500);
+        Check(Card("/FRIZZ/frizz_master.txt").find("clock_source 3") != std::string::npos,
+              "clock-source: saved");
+        SetToggle(false);
+        RunMs(300);
+        // a quantized recording: refused, as without a clock
+        Check(RedBlinksQuantized() == 3, "clock-source: internal: a quantized recording is refused");
+        // a tap sets the tempo, as without a clock: 100 BPM
+        Press("KEY_26", true);
+        for (int i = 0; i < 5; i++)
+        {
+            Tap("KEY_28");
+            RunMs(540);
+        }
+        Press("KEY_26", false);
+        RunMs(300);
+        Check(Probe().tempo == 100, "clock-source: internal: tap tempo works while clocks run");
+        printf("      tapped: %d BPM\n", Probe().tempo);
+        SetToggle(true);
+        RunMs(300);
+        Tap("KEY_24"); // Auto again
+        RunMs(2000);
+        Check(Probe().has_clock, "clock-source: a fourth press is Auto again: a clock counts");
+    }});
+
+    // MIDI Start / Stop only from the chosen input, from both in Auto and internal; the source
+    // over SysEx (0x13 2 N), and its answer's third byte
+    cases.push_back({"clock-source-transport", [] {
+        RunMs(kReadyMs);
+        Tap("KEY_28");
+        RunMs(2000);
+        Tap("KEY_28");
+        sine = false;
+        RunMs(500);
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x13, 1, 1, 0xF7}); // transport following on
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x13, 2, 1, 0xF7}); // the source: TRS
+        RunMs(20);
+        Check(Ask({0x24}).size() == 3 && Ask({0x24})[2] == 1,
+              "clock-source-transport: SysEx sets TRS, and a query over USB is still answered");
+        Usb({0xFC});
+        RunMs(300);
+        Check(RunMs(300) > .05f, "clock-source-transport: TRS: USB's Stop doesn't pause the loop");
+        Trs({0xFC});
+        RunMs(300);
+        Check(RunMs(300) < .001f, "clock-source-transport: the jack's does");
+        Usb({0xFA});
+        RunMs(300);
+        Check(RunMs(300) < .001f, "clock-source-transport: nor does USB's Start play it");
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x13, 2, 2, 0xF7}); // USB
+        RunMs(20);
+        Usb({0xFA});
+        RunMs(300);
+        Check(RunMs(300) > .05f, "clock-source-transport: USB: USB's Start plays it");
+        Trs({0xFC});
+        RunMs(300);
+        Check(RunMs(300) > .05f, "clock-source-transport: and the jack's Stop doesn't pause it");
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x13, 2, 3, 0xF7}); // internal
+        RunMs(20);
+        Trs({0xFC});
+        RunMs(300);
+        Check(RunMs(300) < .001f, "clock-source-transport: internal: Start and Stop from both, the jack's");
+        Usb({0xFA});
+        RunMs(300);
+        Check(RunMs(300) > .05f, "clock-source-transport: and USB's");
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x13, 2, 4, 0xF7}); // no such source
+        RunMs(20);
+        Check(Ask({0x24}).size() == 3 && Ask({0x24})[2] == 3, "clock-source-transport: a source past 3 is ignored");
+    }});
+
+    // a bug report with USB's clock counted: the replay plays it over USB, or the card's source
+    // would ignore it (EventLog.h)
+    cases.push_back({"clock-source-log", [] {
+        CardFiles()["/FRIZZ/frizz_master.txt"] = "FRIZZ master 1\nmidi_transport 1\nclock_source 2\n";
+        clock_bpm = 140.f;
+        usb_clock_bpm = 100.f;
+        RunMs(kReadyMs);
+        RunMs(3000);
+        Usb({0xFC});
+        Trs({0xFA});
+        RunMs(500);
+        SetToggle(true); // the bug report: SHIFT + VOLUME held 2 s on the settings page
+        RunMs(300);
+        Press("KEY_26", true);
+        RunMs(100);
+        Press("ENC_6_SW", true);
+        RunMs(2500);
+        Press("ENC_6_SW", false);
+        Press("KEY_26", false);
+        RunMs(300);
+        SetToggle(false);
+        RunMs(1000);
+        Check(Probe().source == 2 && Probe().tempo == 100, "clock-source-log: USB's 100 counts, the jack's 140 doesn't");
+        const std::string log = Card("/FRIZZ/bug-1.txt");
+        const size_t clock = log.find("\nclock 100.");
+        Check(clock != std::string::npos && log.compare(log.find('\n', clock + 1) - 4, 4, " usb") == 0
+                  && log.find("\nclock 140") == std::string::npos,
+              "clock-source-log: the log has USB's clock, as USB's, and not the jack's");
+        Check(log.find("\nusb FC\n") != std::string::npos && log.find("\nmidi FA\n") == std::string::npos,
+              "clock-source-log: and USB's Stop, as USB's; the jack's Start wasn't acted on");
+        KeepCard();
+    }});
+
+    cases.push_back({"bug-replay-usb", [] {
+        TakeCard();
+        const std::string log = Card("/FRIZZ/bug-1.txt");
+        CardFiles().clear();
+        std::istringstream script(log + "\nwait 3000\n");
+        const int failed = PlayScript(script, nullptr, nullptr);
+        Check(failed == 0 && !log.empty() && Probe().source == 2 && Probe().tempo == 100,
+              "clock-source-log: played back, USB's clock counts again: 100 BPM");
     }});
 
     cases.push_back({"select-flash", [] {
@@ -1942,7 +2165,7 @@ int main()
         Trs({0x90, kFilterNote, 100});
         RunMs(100);
         Check(Max(SmtLedFull(kFilterKeyLed)) > 80, "midi sysex: 13 sets the channel: now 1");
-        Check(Ask({0x24}) == std::string("\x01\x00", 2), "midi sysex: 24 answers the settings");
+        Check(Ask({0x24}) == std::string("\x01\x00\x00", 3), "midi sysex: 24 answers the settings");
         RunMs(2500);
         Check(Card("/FRIZZ/frizz_master.txt").find("midi_channel 1\n") != std::string::npos,
               "midi sysex: the channel goes to the card");
@@ -2058,7 +2281,7 @@ int main()
     cases.push_back({"midi-kept", [] {
         TakeCard();
         RunMs(kReadyMs);
-        Check(Ask({0x24}) == std::string("\x01\x01", 2),
+        Check(Ask({0x24}) == std::string("\x01\x01\x00", 3),
               "midi kept: channel 1 and transport following are back after power-on");
         Trs({0x90, kFilterNote, 100});
         RunMs(100);
@@ -2263,7 +2486,7 @@ int main()
         if (pid == 0)
         {
             // a replay boots by its script
-            if (strcmp(c.first, "bug-replay") != 0 && strncmp(c.first, "scenario:", 9) != 0)
+            if (strncmp(c.first, "bug-replay", 10) != 0 && strncmp(c.first, "scenario:", 9) != 0)
                 Boot();
             c.second();
             fflush(stdout);

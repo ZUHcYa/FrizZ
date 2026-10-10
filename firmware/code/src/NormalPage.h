@@ -588,6 +588,7 @@ namespace chompi
             case kCmdSettings:
                 d[n++] = midi_->Channel();
                 d[n++] = midi_->Transport() ? 1 : 0;
+                d[n++] = static_cast<uint8_t>(midi_->GetClockSource());
                 break;
             case kCmdSceneGet:
                 if (q.a >= kNumSlots || q.b >= kSceneParts)

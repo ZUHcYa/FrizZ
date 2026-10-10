@@ -4,9 +4,11 @@
     ./remote.py state                 what the play page shows
     ./remote.py leds                  every LED, as the twin's LED log prints them
     ./remote.py load [--every S]      the audio callback's load (max, mean), once or every S s
-    ./remote.py settings              the MIDI channel and transport following
+    ./remote.py settings              the MIDI channel, transport following, the clock source
     ./remote.py channel N             listen on channel N (1-16), 0 for all
     ./remote.py transport on|off      MIDI Start / Continue / Stop play and pause the loop
+    ./remote.py source auto|trs|usb|internal
+                                      whose MIDI clock counts (the settings page's upper G#)
     ./remote.py switch up|down|hand   the mode switch: up (settings page), down (play page),
                                       or the real one again; until power-off
     ./remote.py scene get SLOT [FILE] a scene (1-4, 0 the blank one) as JSON
@@ -19,7 +21,9 @@ LEDs the device shows; its `toggle 0|1` sets the mode switch (down, up) over Sys
 the real one when the script ends. What only the twin has (the card, the input, the battery, power-on) is
 skipped, and `booted` is when the script starts. With --cpu it asks for the load every 250 ms
 and prints the worst, the way to try a scenario for crackles on FRIZZ.bin itself rather than on
-the bench's build. A bug report (/FRIZZ/bug-N.txt) plays too, from where the device is.
+the bench's build. A bug report (/FRIZZ/bug-N.txt) plays too, from where the device is. From
+the computer everything goes over USB, `midi` lines too: with the device's clock source on TRS,
+a script's clock and Start / Stop are ignored there (MANUAL.md, "Clock source").
 
 FRIZZ is started first if the CHOMPI is elsewhere: at the launcher's picker, in its USB storage
 firmware, or in the bench (tools/chompi.py); --no-start leaves it be, as --device does.
@@ -40,6 +44,7 @@ import midi_send  # noqa: E402
 
 KEY, TURN, SETTING, SWITCH = 0x11, 0x12, 0x13, 0x14
 STATE, PARAMS, LEDS, LOAD, SETTINGS = 0x20, 0x21, 0x22, 0x23, 0x24
+SOURCES = ["auto", "trs", "usb", "internal"]  # MidiClock.h's ClockSource, as SETTING 2 takes it
 SCENE_GET, SCENE_PUT = 0x30, 0x31
 # a scene's parts: 4 of 3 effects' page-1 knobs, the same for page 2, then the latches
 FX_PARTS, FX_PER_PART = 4, 3
@@ -317,6 +322,8 @@ def main():
     p.add_argument("channel", type=int, choices=range(17))
     p = sub.add_parser("transport", parents=[common])
     p.add_argument("on", choices=["on", "off"])
+    p = sub.add_parser("source", parents=[common])
+    p.add_argument("source", choices=SOURCES)
     p = sub.add_parser("switch", parents=[common])
     p.add_argument("pos", choices=["up", "down", "hand"])
     p = sub.add_parser("scene", parents=[common])
@@ -344,11 +351,16 @@ def main():
             time.sleep(a.every)
     elif a.cmd == "settings":
         d = f.ask(SETTINGS)
-        print("channel %s, transport %s" % (d[0] or "all", "on" if d[1] else "off"))
+        line = "channel %s, transport %s" % (d[0] or "all", "on" if d[1] else "off")
+        if len(d) > 2:  # FRIZZ from before the clock source answers two
+            line += ", clock %s" % (SOURCES[d[2]] if d[2] < len(SOURCES) else d[2])
+        print(line)
     elif a.cmd == "channel":
         f.send(SETTING, [0, a.channel])
     elif a.cmd == "transport":
         f.send(SETTING, [1, 1 if a.on == "on" else 0])
+    elif a.cmd == "source":
+        f.send(SETTING, [2, SOURCES.index(a.source)])
     elif a.cmd == "switch":
         f.send(SWITCH, [{"hand": 0, "down": 1, "up": 2}[a.pos]])
     elif a.cmd == "scene" and a.action == "get":

@@ -48,12 +48,12 @@ then on page 4. Mono and the battery check moved to the [settings page](#setting
 ## Settings page
 
 From v0.11. With the mode switch **up**, the keys set what you'd set once for a setup rather
-than play: the MIDI channel, MIDI transport following, the mono input, how FRIZZ follows a
-MIDI clock and how bright its LEDs are. The loop, the effects and MIDI play on meanwhile;
-only your hands are on this page. Switch back down to play.
+than play: the MIDI channel, MIDI transport following, the mono input, where FRIZZ takes a
+MIDI clock from and how it follows it, and how bright its LEDs are. The loop, the effects
+and MIDI play on meanwhile; only your hands are on this page. Switch back down to play.
 
-Each key sets one thing on its press. The white keys pick the MIDI channel; the lower
-octave's dark keys set the rest:
+Each key sets one thing on its press. The white keys pick the MIDI channel; the dark keys
+set the rest:
 
 | Keys | Setting | Colour |
 |---|---|---|
@@ -62,10 +62,16 @@ octave's dark keys set the rest:
 | C# (lower octave) | MIDI on every channel: lit when on | light blue |
 | D# | [MIDI transport following](#start-and-stop): on (lit) / off (dim) | green |
 | F# | [Mono input](#mono-input): mono (lit) / stereo (dim) | white |
-| G# | [Clock factor](#midi-clock), each press the next: as sent (default), double, half | yellow (as sent), red (double), light blue (half) |
+| G# | [Clock factor](#midi-clock), each press the next: as sent (default), double, half. It also shows the [beat](#tempo): lit for the first half of every beat, dim for the second | yellow (as sent), red (double), light blue (half) |
 | A# | [LED brightness](#led-brightness), each press the next: 100 % (default), 75 %, 50 % | purple, as bright as the LEDs are |
+| G# (upper octave) | [Clock source](#clock-source), each press the next: Auto (default), TRS, USB, internal | white (Auto), orange (TRS), blue (USB), pink (internal) |
 
-The upper octave's dark keys do nothing.
+The upper octave's other dark keys do nothing.
+
+- **The beat on G#** is the tempo the effects follow right now (see [Tempo](#tempo)): with a
+  loop, the loop's at its speed; otherwise the MIDI clock's, with the clock factor applied
+  (a 120 BPM clock at double beats at 240); otherwise the last tempo. It's there to see the
+  tempo, not to play to: it can be a little late, up to a few hundredths of a second.
 
 - **VOLUME's LED** shows the battery all the time: white while the charging cable is in,
   green above 3.3 V, yellow below, red below 3 V (about to switch off unless charging). Pull
@@ -103,7 +109,7 @@ hue, and nothing lit at 100 % goes dark. Full is as bright as FRIZZ has always b
 | Looper | Key | Result |
 |---|---|---|
 | Empty | LOOP | Start recording |
-| Empty | hold PLAY, press LOOP | Start a **quantized** recording (needs MIDI clock, otherwise LOOP blinks red 3 times) |
+| Empty | hold PLAY, press LOOP | Start a **quantized** recording (needs MIDI clock from the [clock source](#clock-source), otherwise LOOP blinks red 3 times) |
 | Recording | LOOP | Stop now, or for a quantized recording at the end of the current bar, then play |
 | Loop exists | PLAY | Play / pause |
 | Loop exists | LOOP | Erase now |
@@ -149,7 +155,8 @@ The effects that follow a tempo (the delay, the filter LFO, the freezer, the sli
    the loop resumes, the beat snaps back onto it at the next 1/48 of a bar: a filter LFO
    or slicer can jump there. Once a loop exists, MIDI clock
    no longer matters: a tempo change in your DAW moves neither the loop nor the effects.
-2. **MIDI clock**, when there's no loop.
+2. **MIDI clock**, when there's no loop, from the input the [clock source](#clock-source)
+   picks (none when it's internal).
 3. **The last tempo**: tapped, from the last loop or from the clock. 120 BPM at power-on.
 
 A loop gets a whole number of beats:
@@ -169,6 +176,8 @@ or dark when it's already lit nearly white.
   at double the loop's tempo, for example, doubles the effects' tempo.
 - Without a loop, the taps set the tempo, and the last tap lands on a beat.
 - Without a loop while MIDI clock runs, the clock is the tempo: LOOP blinks red 3 times.
+  With the [clock source](#clock-source) on internal, no clock counts, and the taps set the
+  tempo.
 
 The tempo is limited to 50-300 BPM: at very slow loop speeds the effects stop slowing down
 at 50 BPM.
@@ -675,8 +684,28 @@ answers FRIZZ's own queries (see [Remote control](#remote-control)).
 ### MIDI clock
 
 Quantized recording, and the effects' tempo while there's no loop, follow MIDI clock
-(24 PPQN). Whichever source ticks first is used, until it has been silent for 0.5 s. The clock
-is read on every channel.
+(24 PPQN), from the input the clock source picks. The clock is read on every channel.
+
+### Clock source
+
+The upper octave's G# on the [settings page](#settings-page) picks whose clock counts, each
+press the next:
+
+- **Auto** (the default, and how FRIZZ always did it): whichever input ticks first, TRS or
+  USB, until it has been silent for 0.5 s; then whichever ticks next.
+- **TRS** or **USB**: only that input's clock; the other's is ignored, even while the chosen
+  one is silent. A DAW over USB can then play notes and send CCs without its clock getting in
+  the way of a sequencer on the jack, or the other way round.
+- **Internal**: no MIDI clock at all. The tempo comes from the loop, your taps or the last
+  tempo, and tap tempo works while a clock runs; a quantized recording is refused, as without
+  a clock.
+
+Switching to a source that leaves out the clock FRIZZ was following lets go of it at once, as
+a clock that stops: a quantized recording ends where it is. Notes, controllers, program
+changes and FRIZZ's own SysEx come in from both inputs whatever the source; MIDI Start and
+Stop come only from the chosen input (see [Start and Stop](#start-and-stop)). It's kept as
+`clock_source` in `FRIZZ/frizz_master.txt` (0 Auto, 1 TRS, 2 USB, 3 internal), and
+`firmware/remote.py source auto|trs|usb|internal` sets it too.
 
 The **clock factor** on the [settings page](#settings-page) makes FRIZZ follow the clock at
 half its tempo or at double: a DAW at 70 BPM with FRIZZ thinking in 140, or the other way
@@ -758,14 +787,16 @@ a DAW's play button starts and stops the loop with the song. It's off at first; 
 on the [settings page](#settings-page) (D# of the lower octave), with `firmware/remote.py
 transport on`, or `midi_transport 1` in `FRIZZ/frizz_master.txt`.
 Start plays on from where the loop is, as Continue does: the loop doesn't jump to its start.
+With the [clock source](#clock-source) on TRS or USB, Start and Stop count only from that
+input; on Auto or internal, from both.
 
 ### Remote control
 
 FRIZZ's own SysEx (`F0 7D 43 48 ...`, documented in `firmware/code/src/MidiControl.h`) presses
-keys, turns knobs, sets the channel and holds the mode switch up or down (until power-off) on
+keys, turns knobs, sets the channel, transport following and the clock source, and holds the mode switch up or down (until power-off) on
 every channel; its keys and knobs act as your hands do, on the settings page too, and over USB answers what the play
 page shows, every LED, the processing load, and sends and receives scenes. `firmware/remote.py`
-uses it from a Linux computer: `state`, `leds`, `load`, `switch up|down|hand`, `scene get 2 my.json`, `scene put 3
+uses it from a Linux computer: `state`, `leds`, `load`, `settings`, `source usb`, `switch up|down|hand`, `scene get 2 my.json`, `scene put 3
 my.json`, and `play SCRIPT --cpu`, which plays a scenario of the virtual CHOMPI on the device
 and reports the worst load.
 

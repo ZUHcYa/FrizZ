@@ -40,6 +40,14 @@ what FRIZZ does.
   its Mix, Band and Level on (#38).
 - **The safety limiter shows:** the compressor's key turns red while it limits the outputs,
   so you know when to turn something down.
+- **Clock source** on the settings page (G# of the upper octave): Auto (the default, as
+  before: whichever input ticks first), TRS, USB, or internal (no MIDI clock: the loop, taps
+  or the last tempo, and tap tempo works while a clock runs). On TRS or USB, MIDI Start and
+  Stop count only from that input too. Saved on the card; `firmware/remote.py source` sets it.
+  See MANUAL.md, "Clock source".
+- **The beat on the settings page:** the clock factor's key (G# of the lower octave) is lit
+  for the first half of every beat of the tempo the effects follow, with the factor applied,
+  and dim for the second.
 
 ### Changed
 
