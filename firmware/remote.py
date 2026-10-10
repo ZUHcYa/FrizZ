@@ -296,27 +296,34 @@ def play(f, path, cpu):
 
 
 def main():
+    # --device and --no-start are taken before the subcommand and after it: a default of
+    # SUPPRESS on the subcommands keeps one given before from being overwritten
+    help_device = "the raw MIDI node, if not the first CHOMPI"
+    help_no_start = "don't start FRIZZ if the CHOMPI is elsewhere"
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--device", help="the raw MIDI node, if not the first CHOMPI")
-    ap.add_argument("--no-start", action="store_true",
-                    help="don't start FRIZZ if the CHOMPI is elsewhere")
+    ap.add_argument("--device", help=help_device)
+    ap.add_argument("--no-start", action="store_true", help=help_no_start)
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--device", default=argparse.SUPPRESS, help=help_device)
+    common.add_argument("--no-start", action="store_true", default=argparse.SUPPRESS,
+                        help=help_no_start)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("state")
-    sub.add_parser("leds")
-    p = sub.add_parser("load")
+    sub.add_parser("state", parents=[common])
+    sub.add_parser("leds", parents=[common])
+    p = sub.add_parser("load", parents=[common])
     p.add_argument("--every", type=float)
-    sub.add_parser("settings")
-    p = sub.add_parser("channel")
+    sub.add_parser("settings", parents=[common])
+    p = sub.add_parser("channel", parents=[common])
     p.add_argument("channel", type=int, choices=range(17))
-    p = sub.add_parser("transport")
+    p = sub.add_parser("transport", parents=[common])
     p.add_argument("on", choices=["on", "off"])
-    p = sub.add_parser("switch")
+    p = sub.add_parser("switch", parents=[common])
     p.add_argument("pos", choices=["up", "down", "hand"])
-    p = sub.add_parser("scene")
+    p = sub.add_parser("scene", parents=[common])
     p.add_argument("action", choices=["get", "put"])
     p.add_argument("slot", type=int, choices=range(5))
     p.add_argument("file", nargs="?")
-    p = sub.add_parser("play")
+    p = sub.add_parser("play", parents=[common])
     p.add_argument("script")
     p.add_argument("--cpu", action="store_true")
     a = ap.parse_args()
