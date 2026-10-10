@@ -5,6 +5,9 @@ at 6000
 midi 9F 37 64
 midi BF 56 10
 wait 1500
+# a note holds the filter: its knobs on the panel, CC 86 closing knob 1
+expect led pth 1 fd84b0
+expect led pth 2 fdfdfd
 midi 8F 37 00
 wait 500
 # CC 24 latches the filter, NRPN 86 sweeps its cutoff in 14 bits, CC 24 unlatches it
@@ -23,15 +26,22 @@ wait 500
 # the blank scene by program change: every effect off
 midi CF 00
 wait 1500
+# program change 0: the blank scene, its key bright
+expect led smt 0 fcfcfc
 # notes 45-47: LOOP records, LOOP again plays
 midi 9F 2F 64
 wait 60
+# note 47: LOOP records
+expect led pth 8 fd0000
 midi 8F 2F 00
 wait 2000
 midi 9F 2F 64
 wait 60
+# and plays
+expect led pth 6 79f200
 midi 8F 2F 00
 wait 1500
 # morph to the blank scene over 2 bars
 midi BF 1C 7F BF 3D 02 BF 3E 00
 wait 5000
+expect on

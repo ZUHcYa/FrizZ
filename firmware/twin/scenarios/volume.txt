@@ -20,8 +20,11 @@ wait 400
 down KEY_26
 turn 6 -10
 wait 400
+# SHIFT held: CHOMPI lit white
+expect led pth 0 fdfdfd
 tap ENC_6_SW
 up KEY_26
 wait 400
 tap ENC_6_SW 1500
 wait 1500
+expect on

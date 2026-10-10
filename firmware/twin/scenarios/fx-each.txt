@@ -20,6 +20,11 @@ turn 3 12
 wait 150
 turn 3 -6
 wait 100
+# KEY_1's knobs as turned
+expect led pth 1 8fe7fd
+expect led pth 2 9a21fd
+expect led pth 3 fdfdfd
+expect led pth 4 9a21fd
 wait 300
 up KEY_1
 wait 600
@@ -265,3 +270,4 @@ wait 100
 wait 300
 up KEY_13
 wait 600
+expect on

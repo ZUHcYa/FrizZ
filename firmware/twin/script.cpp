@@ -5,6 +5,7 @@
 #include "script.h"
 #include "clockgen.h"
 #include "twin.h"
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -358,8 +359,17 @@ int PlayScript(std::istream& src_in, FILE* leds, std::vector<float>* out)
             std::string what, chain, want;
             int index = 0;
             in >> what;
-            if (what == "led" && in >> chain >> index >> want)
+            if (what == "led")
             {
+                if (!(in >> chain >> index >> want) || (chain != "pth" && chain != "smt")
+                    || index < 0 || index >= (chain == "pth" ? kNumPthLeds : kNumSmtLeds)
+                    || want.size() != 6)
+                {
+                    Fail(line_no, "expect led pth|smt INDEX RRGGBB");
+                    continue;
+                }
+                for (char& ch : want)
+                    ch = static_cast<char>(tolower(static_cast<unsigned char>(ch)));
                 const std::string got = Hex(chain == "pth" ? PthLedFull(index)
                                                            : SmtLedFull(index));
                 if (got != want)
@@ -382,10 +392,18 @@ int PlayScript(std::istream& src_in, FILE* leds, std::vector<float>* out)
                     Fail(line_no, "usb sent" + (got.empty() ? std::string(" nothing") : got) +
                                       ", not" + want);
             }
-            else if (what == "off" && Powered())
-                Fail(line_no, "still powered");
-            else if (what == "on" && !Powered())
-                Fail(line_no, "powered off");
+            else if (what == "off")
+            {
+                if (Powered())
+                    Fail(line_no, "still powered");
+            }
+            else if (what == "on")
+            {
+                if (!Powered())
+                    Fail(line_no, "powered off");
+            }
+            else
+                Fail(line_no, "expect led, usb, on or off");
         }
         else
             Fail(line_no, "unknown command " + cmd);

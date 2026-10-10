@@ -97,6 +97,12 @@ which may lag behind what's merged.
 and which LEDs differ how often. The scenarios cover every effect on its own, effects latched
 together with coarse turns and resets, the compressor swept, the looper through every speed,
 scenes saved, recalled, morphed, copied and deleted, VOLUME's pages and the mix, and MIDI clock.
+Their `expect` lines (LEDs that show a state, not a meter: LOOP recording, the transport, the
+scene and mode keys, the settings page's keys, the knobs where they were turned) make them
+checks too: `unit.sh ui` plays every scenario and fails on one that doesn't hold, so a change
+that means to alter what a scenario shows updates its `expect` lines with it. Against an older
+version, `compare.sh` prints the `expect` lines that don't hold there (`line N: ...`) and goes on
+comparing: they don't make it fail.
 A new one is just another `scenarios/NAME.txt`. Both versions run with the working tree's twin,
 so a firmware from before the twin compares too (back to the move from `firmware/frizz/`).
 
@@ -124,7 +130,7 @@ it with SHIFT held: leave the gaps a hand would.
 | `card put PATH FILE` / `card remove` / `card insert` / `card dump` | the SD card: put a file on it before power-on (`/FRIZZ/frizz_scenes.txt`), take it out, print it |
 | `card file PATH`, then lines starting with `\|` | a file on the card before power-on, its text in the script: each line after its `\|` |
 | `leds` | print the LEDs now |
-| `expect led pth\|smt N RRGGBB` / `expect on` / `expect off` | fail (exit 1) unless so |
+| `expect led pth\|smt N RRGGBB` / `expect on` / `expect off` | fail (exit 1) unless so; a malformed `expect` fails too |
 
 ## Bug reports from the device
 

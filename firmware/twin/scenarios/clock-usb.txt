@@ -13,8 +13,12 @@ down KEY_27
 tap KEY_28
 up KEY_27
 wait 2200
+# recording on USB's clock: LOOP red
+expect led pth 8 fd0000
 tap KEY_28
 wait 4000
+# playing
+expect led pth 6 79f200
 down KEY_5
 turn 3 30
 wait 2000
@@ -23,3 +27,4 @@ clock 174 usb jitter 0.3 ramp 120 4000
 wait 6000
 clock 0
 wait 2000
+expect on

@@ -6,21 +6,38 @@ down KEY_5
 wait 300
 toggle 1
 wait 500
+# the settings page: the transport purple, VOLUME the battery (green)
+expect led pth 5 8f0bfd
+expect led pth 6 8f0bfd
+expect led pth 9 00fd00
 up KEY_5
 wait 300
 tap KEY_1
 wait 300
+# channel 1 lit
+expect led smt 24 00d4fc
 tap KEY_17
 wait 300
+# transport following on
+expect led smt 1 00fc00
 tap KEY_18
 wait 300
+# mono
+expect led smt 2 fcfcfc
 tap KEY_19
 wait 300
+# the clock factor doubled: red
+expect led smt 3 fc0000
 tap KEY_20
 wait 300
+# the LEDs at 75 %
+expect led smt 4 6c08bc
 tap KEY_10 1500
 wait 1000
 toggle 0
 wait 1000
+# back on the play page: the transport dark
+expect led pth 5 000000
+expect on
 tap KEY_5
 wait 1000
