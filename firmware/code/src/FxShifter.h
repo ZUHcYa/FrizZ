@@ -27,7 +27,8 @@ namespace chompi
  *  the shift up to 2 octaves further in its direction and back. Feedback recirculates the
  *  shifted output, so each pass shifts again and the shift spirals.
  *  Params: 0 shift (kNumShifts steps, -12 to +12 semitones, the centre dry), 1 feedback,
- *  2 swoop, 3 stereo (the right channel up to a semitone higher). */
+ *  2 swoop, 3 stereo (the right channel up to a semitone higher); page 2: 4 mix, the dry
+ *  signal under the shifted one, a harmony (1 fully shifted). */
 class Shifter : public FxBase
 {
 public:
@@ -37,6 +38,7 @@ public:
         FEEDBACK,
         SWOOP,
         STEREO,
+        MIX,
     };
 
     static const size_t kNumShifts = 25; // -12..+12 semitones
@@ -58,6 +60,7 @@ public:
         SetParam(SHIFT, .5f);
         for (size_t i = 1; i < kNumFxParams; i++)
             SetParam(i, 0.f);
+        SetParam(MIX, 1.f);
         SnapParams();
     }
 
@@ -66,6 +69,8 @@ public:
         const float gate = gate_.Process();
         const float dry = dry_.Process();
         const float feedback = feedback_.Process();
+        // exactly 1 at its default, so the fade is the gate's alone, as before the mix
+        const float wet_gate = gate * mix_.Process();
 
         if (gate_.TakePress())
             env_.Press();
@@ -129,7 +134,7 @@ public:
             ring_.Write(c, SoftClip(*io[c] + wet * feedback));
 
             const float out = wet + dry * (*io[c] - wet);
-            *io[c] += gate * (out - *io[c]);
+            *io[c] += wet_gate * (out - *io[c]);
         }
         ring_.Advance();
     }
@@ -139,6 +144,7 @@ public:
     {
         dry_.Snap();
         feedback_.Snap();
+        mix_.Snap();
     }
 
     void SetParam(size_t param, float val) override
@@ -158,6 +164,9 @@ public:
         case STEREO:
             stereo_semitones_ = val;
             break;
+        case MIX:
+            mix_.target = val;
+            return; // the speeds don't change
         default:
             break;
         }
@@ -255,6 +264,7 @@ private:
     float stereo_semitones_ = 0.f;
     Smoothed dry_;
     Smoothed feedback_;
+    Smoothed mix_; // how much of the shifted signal the key brings in
     PressEnvelope env_;
     float env_attack_inc_, env_decay_coeff_;
 };

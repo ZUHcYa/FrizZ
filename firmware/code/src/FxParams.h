@@ -1,12 +1,14 @@
 /** @file FxParams.h
- *  @brief The punch-in FX's knobs: one entry per FxId (FxChain.h), in the same order, with how
- *  many knobs each uses, their defaults, which are stepped and their coarse grids for SHIFT +
+ *  @brief The punch-in FX's knobs: one entry per FxId (FxChain.h), in the same order, with
+ *  which knobs each uses on its two pages, their defaults, which are stepped and their coarse grids for SHIFT +
  *  turn. No hardware here, so the play page's logic (FxControls.h) can be tested on the host.
  *  The keys, LEDs and colours that go with each FX are in FxSlots.h.
  *
  *  Every effect's knobs follow one pattern, so they're guessable without labels: knob 1 is the
  *  main control, 2 feedback (or resonance), 3 tone or colour, 4 stereo or level. An effect
- *  without one of these puts its odd parameter there.
+ *  without one of these puts its odd parameter there. Page 2 (parameters 4-7, a knob press
+ *  away, FxControls.h) holds the set-and-forget ones; knob 1 there is the Mix of an insert.
+ *  Only the shifter has one yet, its Mix (#35); which parameters the others get is #40.
  *
  *  The defaults leave every effect silent or nearly so: the knob that brings it in (shift,
  *  drive, rate and bits, cutoff, amount, feedback, wow and flutter, level) starts neutral, the
@@ -42,11 +44,12 @@ static const float kShiftPoints[] = {0.f, 5.f / 24.f, 7.f / 24.f, .5f, 17.f / 24
 
 struct FxParams
 {
-    uint8_t num_params;           // knobs used, the first num_params of the four
+    uint8_t knobs;                // bit p: parameter p is used, page 1's 0-3, page 2's 4-7;
+                                  // the rest have no effect and their knobs stay dark
     float defaults[kNumFxParams]; // the main knob neutral, see above; stepped ones on their grid
     uint8_t steps[kNumFxParams];  // stepped parameters' number of steps, 0 = continuous
     FxGrid coarse[kNumFxParams];  // SHIFT + turn
-    uint8_t fade;                 // bit knob: the knobs that leave the effect neutral at
+    uint8_t fade;                 // bit p: the parameters that leave the effect neutral at
                                   // their defaults, whatever the others say. A scene morph
                                   // fades the effect in and out with them (FxMorph.h); 0: it
                                   // can't be faded
@@ -55,56 +58,57 @@ struct FxParams
 static const FxParams kFxParams[] = {
     // freezer: length (1 bar: a tap shorter than that hears the live signal), feedback (pure
     // repeat), roll (off), stereo (off)
-    {4, {1.f, 0.f, 0.f, 0.f}, {Freezer::kNumLengths, 0, Freezer::kNumRolls, 0},
+    {0x0f, {1.f, 0.f, 0.f, 0.f}, {Freezer::kNumLengths, 0, Freezer::kNumRolls, 0},
      {StepGrid(Freezer::kNumLengths), kGrid10, StepGrid(Freezer::kNumRolls), kGrid10}, 0},
-    // shifter: shift (0, off), feedback (off), swoop (off), stereo (off).
-    // Coarse stereo: quarter semitones
-    {4, {.5f, 0.f, 0.f, 0.f}, {Shifter::kNumShifts, 0, 0, 0},
+    // shifter: shift (0, off), feedback (off), swoop (off), stereo (off); page 2: mix (fully
+    // shifted). Coarse stereo: quarter semitones
+    {0x1f, {.5f, 0.f, 0.f, 0.f, 1.f}, {Shifter::kNumShifts, 0, 0, 0},
      {{0.f, 1.f, kShiftPoints, sizeof(kShiftPoints) / sizeof(kShiftPoints[0])}, kGrid10, kGrid10,
-      {0.f, .25f, nullptr, 0}}, 0},
+      {0.f, .25f, nullptr, 0}, kGrid10}, 0},
     // folder: drive (1x, barely folding), shape (sine), tone (open), symmetry (off: odd
     // harmonics only). Coarse drive: doublings, 1x to 32x
-    {4, {0.f, 0.f, 1.f, 0.f}, {0, 0, 0, 0},
+    {0x0f, {0.f, 0.f, 1.f, 0.f}, {0, 0, 0, 0},
      {{0.f, .2f, nullptr, 0}, kGrid10, kGridTone, kGrid10}, 0xf},
     // crusher: rate (21.6kHz), bits (16), tone (open), XOR (off). Coarse rate: 48kHz / 4, 8
     // ... 64, so 12k, 6k, 3k, 1.5k, 750Hz; coarse bits: whole bits
-    {4, {0.f, 0.f, 1.f, 0.f}, {0, 0, 0, 0},
+    {0x0f, {0.f, 0.f, 1.f, 0.f}, {0, 0, 0, 0},
      {{.154410f, .182088f, nullptr, 0}, {0.f, 1.f / 14.f, nullptr, 0}, kGridTone, kGrid10}, 0xf},
     // filter: cutoff (centre, flat), resonance, LFO depth (off), LFO division (1 bar). The
     // cutoff is a DJ filter's (lowpass below the centre, highpass above), not in Hz, so
     // coarse is 10%
-    {4, {.5f, .5f, 0.f, .6667f}, {0, 0, 0, Filter::kNumLfoDivisions},
+    {0x0f, {.5f, .5f, 0.f, .6667f}, {0, 0, 0, Filter::kNumLfoDivisions},
      {kGrid10, kGrid10, kGrid10, StepGrid(Filter::kNumLfoDivisions)}, 0x7},
     // flanger: rate (.55Hz), feedback, amount (off: dry), stereo (off)
-    {4, {.45f, .5f, 0.f, 0.f}, {0, 0, 0, 0},
+    {0x0f, {.45f, .5f, 0.f, 0.f}, {0, 0, 0, 0},
      {kGrid10, kGrid10, kGrid10, kGrid10}, 0x4},
     // resonator: pitch (110Hz), feedback (off), tone (6.6kHz), stereo (off). Coarse pitch:
     // the notes at A440, F#0 to A5; coarse tone: octaves down from 15kHz
-    {4, {.4364f, 0.f, .7f, 0.f}, {0, 0, 0, 0},
+    {0x0f, {.4364f, 0.f, .7f, 0.f}, {0, 0, 0, 0},
      {{.436295f, .0156585f, nullptr, 0}, kGrid10, {1.f, .255958f, nullptr, 0}, kGrid10}, 0x2},
     // slicer: pattern (xxxxxxxx), decay (1s: a slight pump), chance (off), stereo (off)
-    {4, {1.f, 1.f, 0.f, 0.f}, {Slicer::kNumPatterns, 0, 0, Slicer::kNumPatterns},
+    {0x0f, {1.f, 1.f, 0.f, 0.f}, {Slicer::kNumPatterns, 0, 0, Slicer::kNumPatterns},
      {StepGrid(Slicer::kNumPatterns), kGrid10, kGrid10, StepGrid(Slicer::kNumPatterns)}, 0},
     // wow & flutter: wow (off), flutter (off), tone (open), stereo (off)
-    {4, {0.f, 0.f, 1.f, 0.f}, {0, 0, 0, 0},
+    {0x0f, {0.f, 0.f, 1.f, 0.f}, {0, 0, 0, 0},
      {kGrid10, kGrid10, kGridTone, kGrid10}, 0x3},
     // tape stop: stop (1/2 bar), spin-up (1/4 bar), curve (linear). Three knobs
-    {3, {.6f, .6f, 0.f, 0.f}, {TapeStop::kNumStops, TapeStop::kNumStarts, 0, 0},
+    {0x07, {.6f, .6f, 0.f, 0.f}, {TapeStop::kNumStops, TapeStop::kNumStarts, 0, 0},
      {StepGrid(TapeStop::kNumStops), StepGrid(TapeStop::kNumStarts), kGrid10, kGrid10}, 0},
     // delay: division (1/4), feedback, random (off), level (off)
-    {4, {.25f, .4f, .5f, 0.f}, {DelaySend::kNumDivisions, 0, 0, 0},
+    {0x0f, {.25f, .4f, .5f, 0.f}, {DelaySend::kNumDivisions, 0, 0, 0},
      {StepGrid(DelaySend::kNumDivisions), kGrid10, kGrid10, kGrid10}, 0x8},
     // reverb: decay, diffusion, tone, level (off)
-    {4, {.6f, .6f, .6f, 0.f}, {0, 0, 0, 0},
+    {0x0f, {.6f, .6f, .6f, 0.f}, {0, 0, 0, 0},
      {kGrid10, kGrid10, kGrid10, kGrid10}, 0x8},
 };
 static_assert(sizeof(kFxParams) / sizeof(kFxParams[0]) == kNumFx, "one per FxId");
+static_assert(kNumFxParams <= 8, "a bit per parameter in knobs and fade");
 
 // The master compressor's knobs (MasterComp.h), edited like an FX's from its own key, but
 // always on and not part of a scene: amount (off), ratio (4:1), speed (attack 4ms, release
 // 150ms), mix (fully compressed). Coarse ratio: its points 1.5, 2, 4, 8 and 20:1
 static const FxParams kCompParams = {
-    4, {0.f, .5f, .5f, 1.f}, {0, 0, 0, 0},
+    0x0f, {0.f, .5f, .5f, 1.f}, {0, 0, 0, 0},
     {kGrid10, {0.f, .25f, nullptr, 0}, kGrid10, kGrid10}, 0};
 
 } // namespace chompi

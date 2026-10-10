@@ -42,7 +42,7 @@ public:
         held_ = 0.f;
         hold_left_ = 0;
         hold_samples_ = static_cast<uint32_t>(kHoldMs * .001f * sample_rate);
-        for (size_t p = 0; p < kNumFxParams; p++)
+        for (size_t p = 0; p < kNumFxKnobs; p++)
             knobs_[p].Reset(0.f);
         knobs_[kMix].Reset(1.f);
         update_pending_ = false;
@@ -59,7 +59,7 @@ public:
         // the knobs slew; what follows from them (several powf and expf) is worked out while
         // one moves, once per kUpdateSamples, and once more where they land
         bool moving = false;
-        for (size_t p = 0; p < kNumFxParams; p++)
+        for (size_t p = 0; p < kNumFxKnobs; p++)
         {
             update_pending_ |= knobs_[p].Settle(kFxParamCoeff);
             moving |= knobs_[p].value != knobs_[p].target;
@@ -158,7 +158,7 @@ private:
     float sample_rate_;
     bool update_pending_ = false; // a knob moved since the last Update
     uint32_t since_update_ = 0;
-    Smoothed knobs_[kNumFxParams];
+    Smoothed knobs_[kNumFxKnobs];
     float reduction_;  // dB, <= 0, smoothed
     float held_;       // the detector's held peak
     uint32_t hold_left_, hold_samples_;

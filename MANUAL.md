@@ -222,8 +222,8 @@ on the 14th, and the last key was the randomizer's, which is gone.)
 | FX key on a latched effect | Clears the latch; the effect stays on until the key is released |
 | Knobs 1-4 | The parameters of the most recently pressed or selected FX key, 1% per detent; stepped ones (shifter shift, filter LFO and delay divisions, freezer length and roll, slicer pattern and stereo, tape stop and spin-up times) move one step per 3 detents |
 | SHIFT + knobs 1-4 | Coarse: jumps to the next point of the parameter's grid per detent (see below) |
-| SHIFT + press knobs 1-4 | Resets that parameter to its default |
-| Press knobs 1-4 | Nothing yet (kept free for a second parameter page). Like the 11th and 14th white keys and the two upper dark keys left of the scene functions, it doesn't cancel a SHIFT combo either |
+| SHIFT + press knobs 1-4 | Resets that parameter to its default, on the page shown |
+| Press knobs 1-4 | **Page 2:** all four knobs turn over to the effect's second page, and their LEDs pulse; press any knob again for page 1. Pressing or selecting another effect, or the compressor's key, goes back to page 1; pressing the same effect's key keeps page 2. See [Page 2](#page-2) |
 
 The FX keys are dimly lit in their effect's colour while off and at full brightness while
 on, where the audio coming out of the effect pushes the colour towards white, from -30 dBFS
@@ -267,6 +267,22 @@ SHIFT + press on a knob takes it back there.
 | 12th white | Delay: TEMPO's tempo-synced delay | Division: 1/8, 1/4T, 1/4, 1/2T, 1/4., 1/2, 1/2., 1 bar, 2 bars (default 1/4) | Feedback (default 40%) | Random: left of centre retrigger / reverse / pitch events, right octave-up shimmer with random pan, centre off (default off) | Level (default 0) |
 | 13th white | Reverb (TEMPO's / WAVE's) | Decay (default 60%) | Diffusion (default 60%) | Tone, dark to open (default 60%) | Level (default 0) |
 
+### Page 2
+
+A press on any of knobs 1-4 turns all four over to a second page of the selected effect's
+parameters, the ones you set and leave rather than play; another press turns them back. On
+page 2 the knob LEDs pulse, so you can't mistake which page you're turning, and a knob the
+effect has nothing on is dark and does nothing. Selecting another effect or the compressor
+always brings back page 1, so the main controls are under your fingers whenever you pick an
+effect. SHIFT + turn and SHIFT + press work on page 2 as on page 1. Turning the page doesn't
+edit the scene, and scenes, recalls and morphs carry page 2's values along with page 1's.
+
+Only the shifter has a page 2 yet; which parameters the other effects get comes later:
+
+| Key | Effect | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
+|---|---|---|---|---|---|
+| 2nd white | Shifter | Mix: the dry signal under the shifted one, a harmony; at the top fully shifted, as before (default fully shifted) | — | — | — |
+
 SHIFT + turn moves one point of a fixed grid per detent, always to the next point in the
 direction you turn, so a value set finely snaps onto the grid with the first coarse move:
 
@@ -275,6 +291,7 @@ direction you turn, so a value set finely snaps onto the grid with the first coa
 | Resonator pitch | The notes at A440 (110 Hz is A2), F#0 to A5 |
 | Shifter shift | -12, -7, -5, 0, +5, +7, +12 semitones (octaves, fifths, fourths) |
 | Shifter stereo | Quarter semitones |
+| Shifter mix (page 2) | 10% |
 | Crusher rate | 48 kHz divided by 4, 8, 16, 32, 64: 12 kHz, 6 kHz, 3 kHz, 1.5 kHz, 750 Hz |
 | Crusher bits | Whole bits |
 | Folder drive | Doublings: 1x, 2x, 4x, 8x, 16x, 32x |
@@ -669,6 +686,10 @@ or C2 in Ableton Live): the white keys from 48 up, the dark keys on the sharps. 
 - **14 bits:** NRPN with the CC's number as the parameter (NRPN MSB 0, LSB the CC) sets it
   in 16,384 steps (8192 the centre): CC 99 0, CC 98 the CC number, CC 6 the value's top 7
   bits, CC 38 its bottom 7.
+- **[Page 2](#page-2)** of an effect's knobs has no CCs (none are left): NRPN MSB 1 with the
+  same knob's page-1 CC number as LSB sets it, so the shifter's page-2 knob 1 (its mix) is
+  CC 99 1, CC 98 74, then CC 6 and CC 38 as above. Notes 36-39, the knob presses, turn the
+  page as your hand does.
 - Mod wheel, pitch bend, aftertouch and other controllers are ignored.
 
 ### Program changes

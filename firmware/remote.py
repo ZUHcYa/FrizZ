@@ -41,7 +41,9 @@ import midi_send  # noqa: E402
 KEY, TURN, SETTING, SWITCH = 0x11, 0x12, 0x13, 0x14
 STATE, PARAMS, LEDS, LOAD, SETTINGS = 0x20, 0x21, 0x22, 0x23, 0x24
 SCENE_GET, SCENE_PUT = 0x30, 0x31
-SCENE_PARTS, FX_PER_PART = 5, 3
+# a scene's parts: 4 of 3 effects' page-1 knobs, the same for page 2, then the latches
+FX_PARTS, FX_PER_PART = 4, 3
+SCENE_PARTS = 2 * FX_PARTS + 1
 
 # Hardware::SwId, in order (code/src/EventLog.h's kSwNames)
 SW_NAMES = [
@@ -125,7 +127,8 @@ def show_state(f):
     print("looper     %s, speed %+.3f, at %d%%" % (
         LOOPER[d[0]] if d[0] < 4 else d[0], knob(get14(d[1], d[2])) * 4 - 2,
         round(d[3] / 1.27)))
-    print("knobs on   %s" % ("compressor" if sel == len(FX_NAMES) else FX_NAMES[sel]))
+    print("knobs on   %s%s" % ("compressor" if sel == len(FX_NAMES) else FX_NAMES[sel],
+                               ", page 2" if len(d) > 24 and d[24] else ""))
     print("scene      %s%s%s, mode %s" % (active - 1 if active else "none",
                                          ", edited" if flags & 1 else "",
                                          ", morphing" if flags & 2 else "", MODES[d[7]]))
@@ -151,11 +154,11 @@ def load(f):
 
 def scene_get(f, slot):
     parts = [f.ask(SCENE_GET, [slot, p])[2:] for p in range(SCENE_PARTS)]
-    params = {}
-    for p in range(SCENE_PARTS - 1):
+    params = {n: [] for n in FX_NAMES}
+    for p in range(SCENE_PARTS - 1):  # page 1's parts, then page 2's
         for i in range(FX_PER_PART):
             d = parts[p][8 * i:8 * i + 8]
-            params[FX_NAMES[p * FX_PER_PART + i]] = [
+            params[FX_NAMES[p % FX_PARTS * FX_PER_PART + i]] += [
                 round(knob(get14(d[2 * k], d[2 * k + 1])), 6) for k in range(4)]
     last = parts[-1]
     latched = get14(last[1], last[2])
@@ -165,10 +168,16 @@ def scene_get(f, slot):
 
 
 def scene_put(f, slot, scene):
+    params = scene["params"]
+    if any(len(v) < 8 for v in params.values()):
+        # four knobs each, from before page 2: page 2 on its defaults, the blank scene's
+        blank = scene_get(f, 0)["params"]
+        params = {n: list(params[n][:4]) + blank[n][len(params[n][:4]):] for n in FX_NAMES}
     for p in range(SCENE_PARTS - 1):
         data = []
         for i in range(FX_PER_PART):
-            for k in scene["params"][FX_NAMES[p * FX_PER_PART + i]]:
+            page = p // FX_PARTS
+            for k in params[FX_NAMES[p % FX_PARTS * FX_PER_PART + i]][4 * page:4 * page + 4]:
                 v = to14(k)
                 data += [v >> 7, v & 0x7F]
         if f.ask(SCENE_PUT, [slot, p] + data)[2] != 0:

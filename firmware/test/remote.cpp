@@ -232,6 +232,21 @@ int main()
           "remote: and scene get reads it back, the same within 14 bits");
     rc = Remote({"scene", "put", "0", mine}, out);
     Check(rc != 0 && Has(out, "refused"), "remote: never into the blank scene");
+    Check(fabsf(JsonParam(json, "shifter", 4) - 1.f) < 1e-4f,
+          "remote: a scene has both pages, the shifter's mix 5th, on its default");
+    // a scene from before page 2, four knobs each: page 2 comes from the blank scene
+    std::string old = "{\"used\": true, \"latched\": [], \"params\": {";
+    for (const char* fx : {"freezer", "shifter", "folder", "crusher", "filter", "flanger",
+                           "resonator", "slicer", "warble", "tapestop", "delay", "reverb"})
+        old += std::string(fx[0] == 'f' && fx[1] == 'r' ? "" : ", ") + "\"" + fx
+               + "\": [0.5, 0.5, 0.5, 0.5]";
+    Write(mine, old + "}}");
+    rc = Remote({"scene", "put", "3", mine}, out);
+    rc |= Remote({"scene", "get", "3", back}, out);
+    json = Read(back);
+    Check(rc == 0 && fabsf(JsonParam(json, "shifter", 0) - .5f) < 1e-4f
+              && fabsf(JsonParam(json, "shifter", 4) - 1.f) < 1e-4f,
+          "remote: a scene of four knobs each puts page 2 on its defaults");
 
     // a script played on the device: the filter's key held, its LED expected as the twin
     // shows it held and let go, with the load

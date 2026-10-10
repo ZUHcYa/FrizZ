@@ -5,6 +5,19 @@ a release renames that section to its version, and its notes on GitHub's Release
 from it. Developer-only changes (refactoring, tests, docs) aren't listed unless they change
 what FRIZZ does.
 
+## Unreleased
+
+### Added
+
+- **A second page for the FX knobs:** press any of knobs 1-4 and all four turn over to the
+  selected effect's page 2, with their LEDs pulsing; press again for page 1. Pressing or
+  selecting another effect, or the compressor, brings page 1 back. Scenes, recalls and morphs
+  carry page 2 along; scene files from v0.11 load with page 2 on its defaults. Over MIDI,
+  page 2 is NRPN MSB 1 with the page-1 CC as LSB. See MANUAL.md, "Page 2".
+- **Shifter mix** on its page 2, knob 1: the dry signal under the shifted one, for harmonies.
+  At the top (the default) it's fully shifted, as before. The other effects' page 2 comes
+  later (#40).
+
 ## v0.11 (2026-10-10)
 
 ### Added

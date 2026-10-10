@@ -58,8 +58,11 @@ static const uint8_t kMorphCC = 62;     // morph to the scene 0-4
 static const uint8_t kStopMorphCC = 63; // stops a morph where it is
 static const uint8_t kParamCC = 70;     // 70-117: effect FX's knob P at 70 + 4 FX + P
 static const uint8_t kAllSoundOffCC = 120, kAllNotesOffCC = 123;
-// NRPN: parameter number = the CC above, its value in 14 bits
+// NRPN: in bank (MSB) 0, parameter number = the CC above, its value in 14 bits; in bank 1,
+// page 2 of the FX knobs (FxControls.h), numbered as page 1's CCs (kParamCC). No CCs are
+// left for page 2
 static const uint8_t kNrpnMsbCC = 99, kNrpnLsbCC = 98, kDataMsbCC = 6, kDataLsbCC = 38;
+static const uint8_t kPage2Bank = 1;
 } // namespace midimap
 
 // FRIZZ's SysEx commands (after F0 7D 43 48)
@@ -79,8 +82,11 @@ enum MidiCmd : uint8_t
     kCmdReply = 0x40,
 };
 static const uint8_t kMidiHeader[] = {0x7D, 0x43, 0x48};
-static const size_t kSceneParts = 5;  // 4 of 3 effects' knobs, then the latches
+// a scene over SysEx: 4 parts of 3 effects' page-1 knobs, the same 4 for page 2, then the
+// latches
 static const size_t kFxPerPart = 3;
+static const size_t kFxParts = 4;
+static const size_t kSceneParts = 2 * kFxParts + 1;
 static const uint16_t kMidiMax14 = 16383;
 
 /** A MIDI value as a knob's 0-1, with the centre exactly on .5: 7 bits (64) or 14 (8192) */
@@ -149,18 +155,19 @@ public:
 
     // ---- from MainLoop (the play page) ----
 
-    /** The next controller changed since it was last taken: its CC number, its value as a
-     *  knob's 0-1 and in 7 bits (raw); false when there's none */
-    MIDI_CONTROL_ONCE bool TakeValue(uint8_t& cc, float& value, uint8_t& raw)
+    /** The next controller changed since it was last taken: its CC number (128 + it for page
+     *  2's, NRPN bank 1), its value as a knob's 0-1 and in 7 bits (raw); false when there's
+     *  none */
+    MIDI_CONTROL_ONCE bool TakeValue(uint16_t& cc, float& value, uint8_t& raw)
     {
         daisy::ScopedIrqBlocker irq;
-        for (size_t w = 0; w < 4; w++)
+        for (size_t w = 0; w < kValueWords; w++)
         {
             if (!changed_[w])
                 continue;
             const uint32_t bit = changed_[w] & (~changed_[w] + 1);
             changed_[w] &= ~bit;
-            cc = static_cast<uint8_t>(w * 32 + __builtin_ctz(bit));
+            cc = static_cast<uint16_t>(w * 32 + __builtin_ctz(bit));
             const bool fine = fine_[w] & bit;
             fine_[w] &= ~bit;
             value = MidiToKnob(values_[cc], fine);
@@ -335,23 +342,26 @@ private:
         }
         if (cc == kNrpnMsbCC)
         {
-            nrpn_ = v == 0 ? nrpn_ : 0xFF; // FRIZZ's parameters are all in bank 0
-            nrpn_msb_zero_ = v == 0;
+            nrpn_msb_ = v;
             return true;
         }
         if (cc == kNrpnLsbCC)
         {
-            nrpn_ = nrpn_msb_zero_ && Absolute(v) ? v : 0xFF;
+            nrpn_lsb_ = v;
             return true;
         }
         if (cc == kDataMsbCC || cc == kDataLsbCC)
         {
-            if (nrpn_ == 0xFF)
+            // bank 0: an absolute controller; bank 1: page 2 of an effect's knobs
+            const bool page1 = nrpn_msb_ == 0 && Absolute(nrpn_lsb_);
+            const bool page2 = nrpn_msb_ == kPage2Bank && nrpn_lsb_ >= kParamCC
+                               && nrpn_lsb_ < kParamCC + kNumFx * kNumFxKnobs;
+            if (!page1 && !page2)
                 return false;
             if (cc == kDataMsbCC)
                 data_msb_ = v;
-            Set(nrpn_, static_cast<uint16_t>((data_msb_ << 7) | (cc == kDataLsbCC ? v : 0)),
-                true);
+            Set(static_cast<uint16_t>(nrpn_msb_ * 128 + nrpn_lsb_),
+                static_cast<uint16_t>((data_msb_ << 7) | (cc == kDataLsbCC ? v : 0)), true);
             return true;
         }
         if (!Absolute(cc))
@@ -365,10 +375,10 @@ private:
         using namespace midimap;
         return (cc >= kLatchCC && cc < kLatchCC + kNumFx)
                || (cc >= kCompCC && cc <= kStopMorphCC)
-               || (cc >= kParamCC && cc < kParamCC + kNumFx * kNumFxParams);
+               || (cc >= kParamCC && cc < kParamCC + kNumFx * kNumFxKnobs);
     }
 
-    void Set(uint8_t cc, uint16_t v, bool fine)
+    void Set(uint16_t cc, uint16_t v, bool fine)
     {
         values_[cc] = v;
         const uint32_t bit = 1u << (cc % 32);
@@ -496,10 +506,11 @@ private:
     volatile int panel_turns_[midimap::kNumKnobs] = {}; // SysEx's
     volatile uint8_t switch_ = 0;
 
-    uint16_t values_[128] = {};
-    uint32_t changed_[4] = {}, fine_[4] = {};
-    uint8_t nrpn_ = 0xFF, data_msb_ = 0;
-    bool nrpn_msb_zero_ = false;
+    // by CC number, and 128 + it for page 2's NRPN (bank 1)
+    static const size_t kValueWords = 256 / 32;
+    uint16_t values_[256] = {};
+    uint32_t changed_[kValueWords] = {}, fine_[kValueWords] = {};
+    uint8_t nrpn_msb_ = 0xFF, nrpn_lsb_ = 0xFF, data_msb_ = 0; // 0xFF: none yet
     volatile int program_ = -1;
     volatile int transport_cmd_ = 0;
 

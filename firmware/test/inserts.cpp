@@ -1,6 +1,7 @@
 // inserts.cpp: checks the two effects that had none of their own, the folder (FxFolder.h) and
 // the slicer (FxSlicer.h): the folder's bypass when off and its level match, the slicer's
-// patterns on the clock's 16ths, its chance and its stereo. Exits 0 when everything passes.
+// patterns on the clock's 16ths, its chance and its stereo; and the shifter's mix (FxShifter.h,
+// page 2). Exits 0 when everything passes.
 // Run by unit.sh inserts.
 #include <cmath>
 #include <cstdio>
@@ -133,8 +134,47 @@ static void TestSlicer()
     Check(sl != sr, "slicer: stereo plays different patterns left and right");
 }
 
+// ======== the shifter's mix (page 2, #35) ========
+
+static void TestShifterMix()
+{
+    // three shifters a fifth up on the same input, the mix at 1, .5 and 0: what each adds to
+    // the input is in that proportion, since the mix only scales where the key's fade ends
+    static Shifter sh[3];
+    const float mixes[3] = {1.f, .5f, 0.f};
+    for (size_t k = 0; k < 3; k++)
+    {
+        sh[k].Init(kSr);
+        sh[k].SetParam(Shifter::SHIFT, .5f + 7.f / 24.f);
+        sh[k].SetParam(Shifter::MIX, mixes[k]);
+        sh[k].SnapParams();
+        sh[k].SetOn(true);
+    }
+    float worst_half = 0.f, worst_dry = 0.f, wet = 0.f;
+    for (size_t i = 0; i < 24000; i++)
+    {
+        const float in = .5f * sinf(2.f * float(M_PI) * 220.f * i / kSr);
+        float l[3], r[3];
+        for (size_t k = 0; k < 3; k++)
+        {
+            l[k] = r[k] = in;
+            sh[k].Process(&l[k], &r[k]);
+        }
+        if (i < 4800)
+            continue;
+        wet = fmaxf(wet, fabsf(l[0] - in));
+        worst_half = fmaxf(worst_half, fabsf((l[1] - in) - .5f * (l[0] - in)));
+        worst_dry = fmaxf(worst_dry, fabsf(l[2] - in));
+    }
+    printf("  shifter mix: full adds up to %.3f, half off by %.2g, none by %.2g\n", wet, worst_half,
+           worst_dry);
+    Check(wet > .1f && worst_half < 1e-5f, "shifter mix: at .5, half of what fully shifted adds");
+    Check(worst_dry == 0.f, "shifter mix: at 0, the input passes untouched, bit for bit");
+}
+
 int main()
 {
+    TestShifterMix();
     TestFolder();
     TestSlicer();
     return Finish();

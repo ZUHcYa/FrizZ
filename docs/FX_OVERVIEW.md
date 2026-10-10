@@ -93,10 +93,11 @@ their keys' order left to right (see the FRIZZ chain above). Their controls are 
 
 ## Page 2 candidates (not decided, #40)
 
-Not built: candidates for a second knob page, all four knobs switched together by pressing
-any of them, and back to page 1 when another effect is pressed or selected. #35 builds that
-page with a single pilot parameter; which parameters each effect gets is #40, picked from
-this table once #35 is merged. Nothing here is decided.
+Candidates for the second knob page: all four knobs switched together by pressing any of
+them, and back to page 1 when another effect is pressed or selected. #35 built that page
+(parameters 4-7 of every effect, `FxParams.h`, in scenes, morphs, NRPN bank 1 and SysEx)
+with a single pilot parameter, the shifter's Mix; which parameters the others get is #40,
+picked from this table. Nothing else here is decided.
 
 ### How the SP-404MK2 does it
 

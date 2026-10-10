@@ -359,7 +359,7 @@ private:
         engine.SetInputGain(.75f);
         engine.SetCompParam(MasterComp::kAmount, seg.flags & (COMP | SCENE4) ? 1.f : .3f);
         for (size_t fx = 0; fx < kNumFx; fx++)
-            for (size_t p = 0; p < kNumFxParams; p++)
+            for (size_t p = 0; p < kNumFxKnobs; p++) // page 1's: page 2 on its defaults
                 engine.SetFxParam(fx, p, .5f);
         if (seg.flags & STRESS)
         {
@@ -397,7 +397,7 @@ private:
         do
             fx = static_cast<size_t>(Random() * kNumFx) % kNumFx;
         while (!(on & (1u << fx)));
-        engine.SetFxParam(fx, static_cast<size_t>(Random() * kNumFxParams) % kNumFxParams,
+        engine.SetFxParam(fx, static_cast<size_t>(Random() * kNumFxKnobs) % kNumFxKnobs,
                           Random());
     }
 

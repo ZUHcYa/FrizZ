@@ -295,6 +295,106 @@ int main()
         Check(Max(SmtLedFull(kShifterKeyLed)) < 80, "select: its key stays dim");
     }});
 
+    // FX page 2 (#35): a plain knob press turns all four knobs over, and back; their LEDs
+    // pulse there. Another FX or the compressor goes back to page 1
+    cases.push_back({"fx-page2", [] {
+        RunMs(kReadyMs);
+        // how far knob 1's LED swings over 700 ms: steady on page 1, a pulse on page 2
+        auto swing = [] {
+            const std::vector<int> seen = Watch(true, kKnob1Led, 700);
+            return *std::max_element(seen.begin(), seen.end())
+                   - *std::min_element(seen.begin(), seen.end());
+        };
+        auto mix = [] { // the shifter's page-2 knob 1, parameter 4
+            const std::string p = Ask({0x21, 1});
+            return p.size() == 17 ? KnobOf(p[9], p[10]) : -1.f;
+        };
+        auto page = [] {
+            const std::string state = Ask({0x20});
+            return state.empty() ? -1 : state.back();
+        };
+        Tap("KEY_2"); // the shifter on the knobs
+        RunMs(200);
+        Check(swing() < 10 && page() == 0, "fx-page2: page 1 at first, its LEDs steady");
+        Check(Max(PthLedFull(kKnob1Led + 1)) > 40, "fx-page2: page 1's knob 2 lit");
+        Tap("ENC_4_SW"); // knob 1 pressed
+        RunMs(100);
+        Check(page() == 1, "fx-page2: a plain knob press turns to page 2");
+        Check(swing() > 100, "fx-page2: page 2's LEDs pulse");
+        bool dark = true;
+        for (int k = 1; k < 4; k++)
+            dark &= Max(PthLedFull(kKnob1Led + k)) == 0;
+        Check(dark, "fx-page2: the shifter's page 2 has only knob 1, the others dark");
+        Check(mix() == 1.f, "fx-page2: the mix starts fully shifted");
+        Turn(kKnob1Encoder, -30); // 8 ms a detent
+        RunMs(400);
+        Check(fabsf(mix() - .7f) < 1e-3f, "fx-page2: knob 1 there turns the mix, 1% a detent");
+        const std::string p1 = Ask({0x21, 1});
+        Check(p1.size() == 17 && KnobOf(p1[1], p1[2]) == .5f, "fx-page2: page 1's shift untouched");
+        Press("KEY_26", true);
+        RunMs(50);
+        Tap("ENC_4_SW");
+        Press("KEY_26", false);
+        RunMs(100);
+        Check(mix() == 1.f && page() == 1, "fx-page2: SHIFT + press resets the mix, on page 2");
+        Turn(kKnob1Encoder, -50);
+        RunMs(600);
+        Tap("ENC_1_SW"); // knob 2: any of the four turns the page
+        RunMs(100);
+        Check(page() == 0 && swing() < 10, "fx-page2: a press on another knob turns back to page 1");
+        Tap("ENC_4_SW");
+        RunMs(100);
+        Tap("KEY_2"); // the same FX again: still page 2
+        RunMs(100);
+        Check(page() == 1, "fx-page2: pressing the same FX keeps page 2");
+        Tap("KEY_5"); // another FX: page 1
+        RunMs(100);
+        Check(page() == 0, "fx-page2: another FX goes back to page 1");
+        Tap("KEY_2");
+        RunMs(100);
+        Check(page() == 0, "fx-page2: and its page 1 is what comes back with the shifter");
+        Tap("ENC_4_SW");
+        RunMs(100);
+        Tap("KEY_15"); // the compressor: page 1, and it has no other
+        RunMs(100);
+        Check(page() == 0, "fx-page2: the compressor's key goes back to page 1");
+        Tap("ENC_4_SW");
+        RunMs(100);
+        Check(page() == 0 && swing() < 10, "fx-page2: the compressor has no page 2");
+        // a page-2 value is part of a scene: saved with it, the blank scene puts it back
+        Tap("KEY_2");
+        RunMs(100);
+        Save(1);
+        RunMs(2500);
+        const std::string file = Card("/FRIZZ/frizz_scenes.txt");
+        Check(file.find("shifter 0 500000 0 0 0 500000 0 0 0") != std::string::npos,
+              "fx-page2: a scene keeps page 2 on the card, after page 1's four");
+        Tap("ENC_4_SW");
+        RunMs(100);
+        const std::string state = Ask({0x20});
+        Check(page() == 1 && state.size() > 6 && !(state[6] & 1),
+              "fx-page2: turning the page leaves the scene unedited");
+        Tap("KEY_16"); // the blank scene
+        RunMs(300);
+        Check(mix() == 1.f, "fx-page2: the blank scene puts the mix back on its default");
+        Tap("KEY_17");
+        RunMs(300);
+        Check(fabsf(mix() - .5f) < 1e-3f, "fx-page2: recalling the scene brings it back");
+        Check(page() == 1, "fx-page2: a recall keeps the page");
+        // MIDI: the knob press's note turns the page; page 2 by NRPN in bank 1
+        Trs({kNoteOn, 36, 100});
+        RunMs(50);
+        Trs({kNoteOff, 36, 0});
+        RunMs(50);
+        Check(page() == 0, "fx-page2: note 36, knob 1's press, turns the page too");
+        Trs({kCC, 99, 1, kCC, 98, 74, kCC, 6, 0, kCC, 38, 0}); // the shifter's knob 1: CC 74
+        RunMs(50);
+        Check(mix() == 0.f, "fx-page2: NRPN 1/74 is the shifter's page-2 knob 1");
+        Trs({kCC, 99, 1, kCC, 98, kFilterLatchCC, kCC, 6, 127}); // not a knob: nothing
+        RunMs(50);
+        Check(Max(SmtLedFull(kFilterKeyLed)) < 80, "fx-page2: NRPN 1 outside the knobs does nothing");
+    }});
+
     cases.push_back({"looper", [] {
         RunMs(kReadyMs);
         Tap("KEY_28");
@@ -1286,7 +1386,7 @@ int main()
         Trs({kCC, 99, 0, kCC, 98, kFilterCutoffCC, kCC, 6, 64, kCC, 38, 0});
         RunMs(50);
         const std::string params = Ask({0x21, 4});
-        Check(params.size() == 9 && params[1] == 64 && params[2] == 0,
+        Check(params.size() == 17 && params[1] == 64 && params[2] == 0,
               "midi cc: NRPN 86 sets the cutoff in 14 bits, 8192 its centre");
         Trs({kCC, kCompAmountCC, 127});
         RunMs(50);
@@ -1315,7 +1415,7 @@ int main()
         Usb({0xF0, 0x7D, 0x43, 0x48, 0x12, 4, 6, 0xF7});
         RunMs(100);
         const std::string delay = Ask({0x21, 10});
-        Check(delay.size() == 9 && delay[1] == 64 && delay[2] == 0,
+        Check(delay.size() == 17 && delay[1] == 64 && delay[2] == 0,
               "midi sysex: 12 turning 6 detents moves the delay's division 2 steps, 1/4 to 1/4.");
         const std::string state = Ask({0x20});
         Check(state.size() >= 12 && state[0] == 0 && state[4] == 10 && (state[11] >> 4 & 1),
@@ -1357,24 +1457,29 @@ int main()
         RunMs(kReadyMs);
         const float dry = RunMs(300);
         // the blank scene, with the filter latched and closed, into slot 1
-        const std::string blank[5] = {Ask({0x30, 0, 0}), Ask({0x30, 0, 1}), Ask({0x30, 0, 2}),
-                                      Ask({0x30, 0, 3}), Ask({0x30, 0, 4})};
+        // parts 0-3 page 1's knobs, 4-7 page 2's, 8 the latches
+        std::string blank[9];
         bool all = true;
-        for (int part = 0; part < 5; part++)
-            all &= blank[part].size() == (part < 4 ? 26u : 5u);
-        Check(all, "midi scenes: 30 answers a scene in 5 parts");
+        for (int part = 0; part < 9; part++)
+        {
+            blank[part] = Ask({0x30, 0, static_cast<uint8_t>(part)});
+            all &= blank[part].size() == (part < 8 ? 26u : 5u);
+        }
+        // the shifter's mix (FX 1, page 2's knob 1: part 4, 2nd effect) on its default, 1
+        all &= blank[4].size() == 26u && blank[4][10] == 127 && blank[4][11] == 127;
+        Check(all, "midi scenes: 30 answers a scene in 9 parts, page 2 in 4-7");
         if (!all)
             return;
         std::string ack;
-        for (int part = 0; part < 5; part++)
+        for (int part = 0; part < 9; part++)
         {
             std::string data = blank[part].substr(2);
             if (part == 1)
                 data[8] = data[9] = 0; // the filter (FX 4, the 2nd in part 1): cutoff 0
-            if (part == 4)
+            if (part == 8)
                 data[2] = 1 << 4;              // latched: the filter
             TakeUsbOut();
-            Usb({0xF0, 0x7D, 0x43, 0x48, 0x31, 1, part});
+            Usb({0xF0, 0x7D, 0x43, 0x48, 0x31, 1, static_cast<uint8_t>(part)});
             for (char c : data)
                 UsbMidi(static_cast<uint8_t>(c));
             Usb({0xF7});
@@ -1382,7 +1487,7 @@ int main()
             const std::string out = TakeUsbOut();
             ack += out.size() >= 9 ? out.substr(5, 3) : "";
         }
-        Check(ack.size() == 15 && ack[14] == 0, "midi scenes: 31 stores one, part by part");
+        Check(ack.size() == 27 && ack[26] == 0, "midi scenes: 31 stores one, part by part");
         RunMs(2500);
         Check(SavedLatch(Card("/FRIZZ/frizz_scenes.txt"), 1, "filter") == 1, "midi scenes: on the card");
         Trs({kPC, 1});
@@ -1396,7 +1501,7 @@ int main()
         const float midway = RunMs(100);
         RunMs(3000);
         Check(midway > dry * .5f && RunMs(300) < dry * .5f, "midi scenes: CC 62 morphs to it, landing on the bar");
-        Usb({0xF0, 0x7D, 0x43, 0x48, 0x31, 0, 4, 1, 0, 0, 0xF7});
+        Usb({0xF0, 0x7D, 0x43, 0x48, 0x31, 0, 8, 1, 0, 0, 0xF7});
         RunMs(20);
         const std::string refused = TakeUsbOut();
         Check(refused.size() == 9 && refused[7] == 1, "midi scenes: never into the blank scene");
@@ -1499,7 +1604,7 @@ int main()
         Usb({kCC, kFilterCutoffCC, 100});
         RunMs(100);
         const std::string params = Ask({0x21, 4});
-        Check(params.size() == 9 && fabsf(KnobOf(params[1], params[2]) - KnobOf7(100)) < 1e-3f,
+        Check(params.size() == 17 && fabsf(KnobOf(params[1], params[2]) - KnobOf7(100)) < 1e-3f,
               "midi automation: 3000 CCs in 1.5 s, and the cutoff lands on the last one");
     }});
 

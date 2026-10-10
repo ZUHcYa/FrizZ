@@ -4,15 +4,17 @@
  *  here, so the format can be tested on the host.
  *
  *  The file, one line per effect, keyed by its name (kFxNames) so scenes outlive new effects
- *  and a new order. The number after the name is the latch, then the parameters in millionths:
+ *  and a new order. The number after the name is the latch, then the parameters in millionths,
+ *  page 1's four and page 2's four (FxControls.h):
  *
  *    FRIZZ scenes 1
  *    scene 2
- *    freezer 1 285714 0 0 0
- *    filter 0 300000 500000 0 666700
+ *    freezer 1 285714 0 0 0 0 0 0 0
+ *    shifter 0 791667 0 0 0 500000 0 0 0
  *
  *  Reading, unknown names and lines are skipped and an effect a scene leaves out gets its
- *  defaults. Millionths because a coarse grid's points must come back on the grid: the
+ *  defaults, as do the parameters a line lacks: a file from before page 2 (v0.11) has four,
+ *  and loads with page 2 on its defaults; v0.11 reads the first four of a newer one. Millionths because a coarse grid's points must come back on the grid: the
  *  resonator's pitch grid is .0157 apart and counts a value within 1.6e-4 as on a point.
  */
 #pragma once
@@ -31,7 +33,7 @@ static const size_t kNumScenes = 4;
 // holding the file's scene s
 static const size_t kBlankSlot = 0;
 static const size_t kNumSlots = kNumScenes + 1;
-// The file's size at most: 4 scenes of 12 effects take under 2.5KB
+// The file's size at most: 4 scenes of 12 effects with both pages take under 3.6KB
 static const size_t kSceneFileMax = 4096;
 
 struct FxScene
@@ -137,9 +139,11 @@ inline void ReadValues(const char*& p, float* vals, size_t n)
 }
 } // namespace scenefile
 
+// once at boot, or on a save: small rather than fast, as the code space is tight
+
 /** The used scenes as the file's text, into buf (terminated). Returns its length, or 0 if it
  *  didn't fit */
-inline size_t FormatScenes(const FxScene* scenes, char* buf, size_t size)
+inline __attribute__((noinline, optimize("Os"))) size_t FormatScenes(const FxScene* scenes, char* buf, size_t size)
 {
     using namespace scenefile;
     size_t pos = 0;
@@ -168,7 +172,7 @@ inline size_t FormatScenes(const FxScene* scenes, char* buf, size_t size)
 /** Reads the file's text into scenes, all of them: a scene the text lacks is unused, an
  *  effect it lacks gets defaults. Returns false, with every scene unused, if it isn't a
  *  scene file */
-inline bool ParseScenes(const char* text,
+inline __attribute__((noinline, optimize("Os"))) bool ParseScenes(const char* text,
                         const float (*defaults)[kNumFxParams],
                         FxScene* scenes)
 {

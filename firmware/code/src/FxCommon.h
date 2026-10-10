@@ -10,8 +10,11 @@ using namespace daisysp;
 namespace chompi
 {
 
-// Parameters per effect, one per knob
-static const size_t kNumFxParams = 4;
+// The FX knobs 1-4, and the parameters per effect: two pages of them, page 1's on parameters
+// 0-3, page 2's on 4-7 (FxControls.h)
+static const size_t kNumFxKnobs = 4;
+static const size_t kNumFxPages = 2;
+static const size_t kNumFxParams = kNumFxKnobs * kNumFxPages;
 
 // fonepole coefficients at 48kHz. A coefficient c has a time constant of 1 / (48000 c) and
 // settles (to under 1%) in about 5 of them.
