@@ -49,11 +49,11 @@ then on page 4. Mono and the battery check moved to the [settings page](#setting
 
 From v0.11. With the mode switch **up**, the keys set what you'd set once for a setup rather
 than play: the MIDI channel, MIDI transport following, the mono input, where FRIZZ takes a
-MIDI clock from and how it follows it, and how bright its LEDs are. The loop, the effects and MIDI play on meanwhile;
-only your hands are on this page. Switch back down to play.
+MIDI clock from and how it follows it, and how bright its LEDs are. The loop, the effects
+and MIDI play on meanwhile; only your hands are on this page. Switch back down to play.
 
-Each key sets one thing on its press. The white keys pick the MIDI channel; the lower
-octave's dark keys set the rest:
+Each key sets one thing on its press. The white keys pick the MIDI channel; the dark keys
+set the rest:
 
 | Keys | Setting | Colour |
 |---|---|---|
