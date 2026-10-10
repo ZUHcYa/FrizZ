@@ -209,15 +209,16 @@ namespace chompi
 
             // the keys the play page doesn't draw would keep the settings page's colours; a
             // scene mode (SAVE, COPY, DELETE) is left on the way up, so CHOMPI can't confirm
-            // it later
-            if (show_settings_ != drew_settings_)
+            // it later. The switch is read once: the audio callback may flip it meanwhile
+            const bool settings = show_settings_;
+            if (settings != drew_settings_)
             {
-                drew_settings_ = show_settings_;
+                drew_settings_ = settings;
                 ResetSmtLeds();
-                if (show_settings_)
+                if (settings)
                     scene_ctl_.Cancel();
             }
-            if (show_settings_)
+            if (settings)
             {
                 // SHIFT + VOLUME held there: a bug report, its blink over the transport LEDs
                 if (settings_.BugReportHeld(now))
