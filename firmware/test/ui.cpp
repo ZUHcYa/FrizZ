@@ -395,6 +395,22 @@ int main()
         Check(Max(SmtLedFull(kFilterKeyLed)) < 80, "fx-page2: NRPN 1 outside the knobs does nothing");
     }});
 
+    // a scene file from v0.11, four values a line: page 2 loads on its defaults, so a latched
+    // shifter keeps its full mix and sounds as it did
+    cases.push_back({"fx-page2-v011", [] {
+        CardFiles()["/FRIZZ/frizz_scenes.txt"]
+            = "FRIZZ scenes 1\nscene 1\nshifter 1 791667 0 0 0\nfilter 0 300000 500000 0 666700\n";
+        RunMs(kReadyMs);
+        Tap("KEY_17"); // scene 1
+        RunMs(300);
+        const std::string p = Ask({0x21, 1});
+        Check(p.size() == 17 && fabsf(KnobOf(p[1], p[2]) - .791667f) < 1e-3f
+                  && KnobOf(p[9], p[10]) == 1.f,
+              "fx-page2-v011: a v0.11 scene recalls page 1 as saved, the shifter's mix on its default");
+        const std::string state = Ask({0x20});
+        Check(state.size() > 9 && (state[9] & 2), "fx-page2-v011: and the shifter latched"); // latches: 8-9
+    }});
+
     cases.push_back({"looper", [] {
         RunMs(kReadyMs);
         Tap("KEY_28");
