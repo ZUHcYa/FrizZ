@@ -606,6 +606,39 @@ int main()
         Check(!(held.r > 100 && held.g > 100 && held.b < 40), "settings-battery: VOLUME held on the play page no longer shows it");
     }});
 
+    // VOLUME on the settings page follows the charger cable: white while it's in, charging or
+    // full, and the battery's colour within a few seconds of pulling it (it held white for 20
+    // minutes after a full charge, and showed green while charging)
+    cases.push_back({"settings-charger", [] {
+        auto white = [] {
+            const Rgb c = PthLedFull(kVolumeLed);
+            return c.r > 150 && c.g > 150 && c.b > 150;
+        };
+        auto green = [] {
+            const Rgb c = PthLedFull(kVolumeLed);
+            return c.g > 100 && c.r < 60 && c.b < 60;
+        };
+        SetBattery(3.9f, true, false); // charging
+        RunMs(kReadyMs);
+        SetToggle(true);
+        RunMs(2000);
+        Check(white(), "settings-charger: charging, VOLUME is white");
+        SetBattery(3.9f, false, false);
+        RunMs(3000);
+        Check(green(), "settings-charger: pulled while charging, green within 3 s");
+        SetBattery(4.1f, true, true); // full
+        RunMs(2000);
+        Check(white(), "settings-charger: full on the charger, white");
+        SetBattery(4.1f, false, false);
+        RunMs(3000);
+        Check(green(), "settings-charger: pulled when full, green within 3 s");
+        SetBattery(3.2f, false, false);
+        RunMs(32000); // the level is read every 30 s while it runs on the battery
+        const Rgb c = PthLedFull(kVolumeLed);
+        Check(c.r > 100 && c.g > 100 && c.b < 40, "settings-charger: on the battery, yellow once below 3.3 V");
+        SetBattery(3.8f, false, false);
+    }});
+
     // the LEDs' brightness: 100, 75, 50 %, no colour gone dark
     cases.push_back({"settings-brightness", [] {
         RunMs(kReadyMs);

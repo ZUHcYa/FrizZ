@@ -67,9 +67,10 @@ octave's dark keys set the rest:
 
 The upper octave's dark keys do nothing.
 
-- **VOLUME's LED** shows the battery all the time: white full or on the charger, green above
-  3.3 V, yellow below, red below 3 V (about to switch off unless charging). It's read every
-  30 s.
+- **VOLUME's LED** shows the battery all the time: white while the charging cable is in,
+  green above 3.3 V, yellow below, red below 3 V (about to switch off unless charging). Pull
+  the cable and it shows the battery's colour within a few seconds; after that the level is
+  read every 30 s.
 - The transport LEDs are purple, so the page can't be mistaken for the play page.
 - The knobs, CHOMPI, PLAY and LOOP do nothing here.
 - A key you're holding when you flip the switch stays where it went down until you let go:

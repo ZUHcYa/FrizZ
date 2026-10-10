@@ -88,6 +88,9 @@ what FRIZZ does.
 - A restart over MIDI (FRIZZ's own SysEx, which `flash.py`, `card.py` and `remote.py` send to
   get back to the multi-firmware launcher) right after a setting changed lost the setting; it
   now goes to the card first (waiting a second at most).
+- The battery colour didn't follow the charging cable: it stayed green while charging and
+  stayed white for 20 minutes after a full charge was unplugged. VOLUME's LED on the settings
+  page is now white while the cable is in, and shows the battery within seconds of pulling it.
 - A single MIDI clock tick that came a little late (a few ms, a sender's hiccup) moved the
   effects' tempo for a moment: 10 ms late at 120 BPM showed 114. A late tick and the next one
   now count together, so the tempo holds.
