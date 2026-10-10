@@ -11,7 +11,8 @@
 Each brings the CHOMPI from wherever it is (FRIZZ, the launcher's picker) into the USB
 storage firmware on the launcher's key 15, mounts the card, does its part, then ejects it,
 which restarts the CHOMPI into the launcher, and starts FRIZZ again (slot 10). --then N starts
-slot N instead, --then none leaves it at the picker; mount leaves the card mounted.
+slot N instead, --then none leaves it at the picker (before or after the subcommand); mount
+leaves the card mounted.
 
 How it gets there, and which launcher and storage firmware do it without a hand:
 tools/chompi.py. FRIZZ_SLOT and STORAGE_SLOT set other slots.
@@ -84,20 +85,35 @@ def finish(then):
         print("started slot %d" % slot)
 
 
+def then_arg(value):
+    """--then's value, checked before the CHOMPI goes anywhere: a slot, or none"""
+    if value == "none":
+        return value
+    try:
+        return int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("a slot number or none, not %r" % value)
+
+
 def main():
+    # --then is taken before the subcommand and after it: a default of SUPPRESS on the
+    # subcommands keeps one given before from being overwritten
+    help_then = "the slot to start afterwards (default FRIZZ's), or none"
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--then", help="the slot to start afterwards (default FRIZZ's), or none")
+    ap.add_argument("--then", type=then_arg, help=help_then)
+    then = argparse.ArgumentParser(add_help=False)
+    then.add_argument("--then", type=then_arg, default=argparse.SUPPRESS, help=help_then)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("get")
+    p = sub.add_parser("get", parents=[then])
     p.add_argument("paths", nargs="*")
     p.add_argument("-o", "--out", default=os.path.join(HERE, "card"))
-    p = sub.add_parser("put")
+    p = sub.add_parser("put", parents=[then])
     p.add_argument("file")
     p.add_argument("path")
-    p = sub.add_parser("ls")
+    p = sub.add_parser("ls", parents=[then])
     p.add_argument("path", nargs="?")
-    sub.add_parser("mount")
-    sub.add_parser("done")
+    sub.add_parser("mount", parents=[then])
+    sub.add_parser("done", parents=[then])
     a = ap.parse_args()
 
     if a.cmd == "put" and not os.path.isfile(a.file):

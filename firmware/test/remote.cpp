@@ -197,6 +197,11 @@ int main()
     rc = Remote({"load"}, out);
     Check(rc == 0 && Has(out, "max") && Has(out, "mean"), "remote: load reads the load");
 
+    rc = Remote({"load", "--device", slave_path}, out);
+    Check(rc == 0 && Has(out, "max"), "remote: --device after the subcommand counts too");
+    if (rc != 0)
+        printf("%s\n", out.c_str());
+
     Remote({"channel", "5"}, out);
     Remote({"transport", "on"}, out);
     rc = Remote({"settings"}, out);
