@@ -13,7 +13,8 @@ build; the numbers below come from it and from `build/FRIZZ.map`.
 | `DTCMRAM` | 128 KB | 65,584 B | ~62 KB, shared with the stack | the reverb (64 KB); the stack grows down from its top |
 | `RAM_D2` | 32 KB | 23,808 B | ~8 KB | DMA buffers (audio, LEDs, SD), not cached |
 | `RAM_D2CACHE` | 256 KB | 0 | **256 KB** | nothing (the `.d2_bss` section points there) |
-| `RAM_D3`, `ITCMRAM` | 64 KB each | 0 | 64 KB each | nothing |
+| `ITCMRAM` | 64 KB | 0 (~40 KB with `make ITCM=1`) | 64 KB | the per-sample code with `make ITCM=1` (`FRIZZ_HOT`, `FrizzHot.h`, #51), copied there at boot; off by default |
+| `RAM_D3` | 64 KB | 0 | 64 KB | nothing |
 | `SDRAM` | 64 MB | 42.7 MB | ~21 MB | the loop (31.7 MB), the delay (3.8 MB), the tape stop (4 MB), the freezer (1.9 MB), the event log (2 MB) |
 
 **The bench build hits the walls first.** `FRIZZ-bench.bin` carries the bench as well: its
@@ -23,8 +24,9 @@ first (below), or the bench build stops linking before `FRIZZ.bin` does. Data gr
 SDRAM or DTCM where it can; for internal RAM, step 4 below frees 64 KB.
 
 Page 2's Mix, Band and Level on every effect and the compressor's page 2 (#40, #38,
-`FxOutput.h`) then took ~7.3 KB of code: `FRIZZ.bin` at 224,564 B (~53 KB free), the bench
-build at 242,148 B (~36 KB) with its data at 238,860 B (~6.7 KB free).
+`FxOutput.h`) then took ~7.3 KB of code, and each effect's own page-2 knob (#40) ~3.8 KB
+more: `FRIZZ.bin` at 228,412 B (~50 KB free), the bench build at 246,508 B (~32 KB) with its
+data at 239,092 B (~6.5 KB free). The reverb's pre-delay took 128 KB of SDRAM.
 
 The split moved by 40 KB (step 1 below) after the FX knobs' page 2 (#35) had left ~21 KB of
 code, ~3.4 KB in the bench build. The scene work (`Recall`, `Morph`, the scene file) is
@@ -100,8 +102,15 @@ its own branch with a device test (the layout can change the timing: b5c658c).
 Not recommended: link-time optimisation (GCC 10.3, and it would merge the `-O0` workarounds
 into their callers), and running code from QSPI flash (slow, and it's the bootloader's).
 
-**For the CPU, not for room:** ITCM (64 KB, unused) is the core's fastest code memory, with no
-cache to miss. Moving the per-sample code there (`FxChain::Process`, the effects,
-`PassthroughEngine::Process`: ~30-40 KB) may cut the load, if I-cache misses are part of it.
-The linker script loads `.itcmram` from internal flash, which a `BOOT_SRAM` app can't use: it
-would need to load from `SRAM_EXEC` and be copied at boot by FRIZZ, so it saves no code room.
+**For the CPU, not for room: ITCM** (an experiment, #51, off by default). ITCM (64 KB) is the
+core's fastest code memory, with no cache to miss. When page 2's knobs grew the per-sample
+code past the 16 KB I-cache, everything in the callback slowed, the compressor included,
+which hadn't changed: the bench showed "everything" at 98 % against main's 83 %. With
+`make ITCM=1` the per-sample functions
+(`FxChain::Process`, the effects that aren't inlined into it, `PassthroughEngine::Process`,
+the looper, the delay's read, the reverb, `AudioCallback`) are marked `FRIZZ_HOT` and run
+from ITCM: `.itcmram` loads from `SRAM_EXEC` (`chompi_sram.lds`) and `main()` copies it
+(`CopyItcm`) before anything else. It saves no code room: the image still carries it. Calls
+out of it go through the linker's long-branch veneers. A function that runs every sample and
+grows big belongs there; mark it `FRIZZ_HOT`. The first device run with it hung (#51), so it
+stays off until that's understood.

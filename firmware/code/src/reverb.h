@@ -29,6 +29,7 @@
 #ifndef RINGS_DSP_FX_REVERB_H_
 #define RINGS_DSP_FX_REVERB_H_
 
+#include "FrizzHot.h"
 #include "fx_engine.h"
 
 namespace daisysp {
@@ -54,7 +55,7 @@ class Reverb {
     lp_decay_2_ = 0.f;
   }
   
-  void Process(float* left, float* right) {
+  FRIZZ_HOT void Process(float* left, float* right) {
     // This is the Griesinger topology described in the Dattorro paper
     // (4 AP diffusers on the input, then a loop of 2x 2AP+1Delay).
     // Modulation is applied in the loop of the first diffuser AP for additional

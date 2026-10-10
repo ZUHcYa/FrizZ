@@ -20,12 +20,13 @@
  *
  *  Three kinds:
  *   - insert: replaces the signal while its key is on; only the wet amount is faded. Page 2's
- *     Mix, Band and Level wrap it (FxOutput.h), except the tape stop's and the resonator's.
+ *     Mix, Band and Level wrap it (FxOutput.h).
  *   - send (delay, reverb): the key fades what goes into the effect, and its return is added
  *     to the signal, so tails ring out after the key is released. Page 2's Band filters what
- *     goes in.
+ *     goes in; the rest of their page 2 is their own.
  *   - loop (resonator): a comb feedback loop from after the flanger back to after the
- *     freezer, so the filter is in the loop and the slicer outside it.
+ *     freezer, so the filter is in the loop and the slicer outside it. Page 2's Band filters
+ *     what goes into the loop, its Level is the return's (FxResonator.h).
  */
 #pragma once
 #include "BenchProfile.h"
@@ -135,6 +136,7 @@ public:
     {
         delay_.SetTempo(bpm);
         filter_.SetPulseSamples(pulse_samples);
+        slicer_.SetPulseSamples(pulse_samples);
         freezer_.SetTempo(bpm);
         tapestop_.SetTempo(bpm);
     }
@@ -149,7 +151,7 @@ public:
 
     /** One sample through the chain. The meters follow each insert's output and each send's
      *  return, so the send keys show the tails. */
-    void Process(float* l, float* r)
+    FRIZZ_HOT void Process(float* l, float* r)
     {
         if (fast_slew_left_ > 0 && --fast_slew_left_ == 0)
             FxSlew::coeff = kFxParamCoeff;
@@ -183,7 +185,14 @@ public:
         if (!flanger_.Idle())
             Meter(FX_FLANGER, *l + *r);
         BENCH_MARK_FX(FX_FLANGER);
-        resonator_.Tap(*l, *r);
+        if (resonator_.Idle())
+            resonator_.Tap(*l, *r);
+        else
+        {
+            float tl = *l, tr = *r;
+            out_[FX_RESONATOR].Band(&tl, &tr);
+            resonator_.Tap(tl, tr);
+        }
         BENCH_MARK_FX(FX_RESONATOR);
         out_[FX_SLICER].Process(slicer_, l, r);
         if (!slicer_.Idle())
@@ -193,7 +202,7 @@ public:
         if (!warble_.Idle())
             Meter(FX_WARBLE, *l + *r);
         BENCH_MARK_FX(FX_WARBLE);
-        tapestop_.Process(l, r);
+        out_[FX_TAPESTOP].Process(tapestop_, l, r);
         if (!tapestop_.Idle())
             Meter(FX_TAPESTOP, *l + *r);
         BENCH_MARK_FX(FX_TAPESTOP);
@@ -223,13 +232,14 @@ public:
     inline void SetOn(size_t fx, bool on) { fx_[fx]->SetOn(on); }
     __attribute__((noinline)) void SetParam(size_t fx, size_t param, float val)
     {
-        // page 2's shared knobs go to the effect's FxOutput, where it has one
-        if (!(Shared(fx) && out_[fx].SetParam(param, val)))
-            fx_[fx]->SetParam(param, val);
+        // page 2's shared knobs go to the effect's FxOutput: all three on an insert, Band
+        // alone on the sends and the resonator, whose other page-2 knobs are their own
+        const bool own = fx == FX_DELAY || fx == FX_REVERB || fx == FX_RESONATOR;
+        if (own ? param == FxOutput::kBand && out_[fx].SetParam(param, val)
+                : out_[fx].SetParam(param, val))
+            return;
+        fx_[fx]->SetParam(param, val);
     }
-    /** Whether fx has page 2's shared knobs (FxOutput.h): the sends only Band, which the
-     *  FxOutput takes as well */
-    static inline bool Shared(size_t fx) { return fx != FX_RESONATOR && fx != FX_TAPESTOP; }
     /** Before a scene recall's SetParams: the knobs slew at kFxRecallCoeff for
      *  kFxRecallSlewSamples, so the new scene lands at once */
     void FastSlew()
@@ -269,7 +279,7 @@ private:
     DelaySend delay_;
     ReverbSend reverb_;
     FxBase* fx_[kNumFx];
-    FxOutput out_[kNumFx]; // page 2's Mix, Band and Level (FxOutput.h), where Shared
+    FxOutput out_[kNumFx]; // page 2's Mix, Band and Level (FxOutput.h)
     EnvFollower meter_[kNumFx];
     uint32_t fast_slew_left_; // samples of FastSlew to go
 };

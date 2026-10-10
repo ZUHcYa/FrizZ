@@ -9,6 +9,7 @@
  *   2. MainLoop() - Lowest priority, handles UI dispatch, battery checks, writing the FX
  *      scenes to the SD card, and boot-time stuff.
  */
+#include "FrizzHot.h"
 #include "hardware.h"
 #include "ui.h"
 #include "fatfs.h"
@@ -117,7 +118,7 @@ void ZeroSDRAM()
  */
 
 // The audio ISR. Called by the Daisy audio driver once per block
-void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, size_t size)
+FRIZZ_HOT_CALLBACK void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, size_t size)
 {
 #if FRIZZ_BENCH
     bench.BlockStart();
@@ -227,8 +228,25 @@ void MainLoop(void* data)
     System::DelayUs(10);
 }
 
+// the per-sample code (FRIZZ_HOT, make ITCM=1), from where the bootloader put it to ITCM
+// (chompi_sram.lds)
+#if defined(__arm__) && defined(FRIZZ_ITCM)
+extern uint32_t _siitcmdata, _sitcmram, _eitcmram;
+static void CopyItcm()
+{
+    const uint32_t* from = &_siitcmdata;
+    for (uint32_t* to = &_sitcmram; to < &_eitcmram;)
+        *to++ = *from++;
+    __DSB();
+    __ISB();
+}
+#else
+static void CopyItcm() {}
+#endif
+
 int main(void)
 {
+    CopyItcm();
     hw.Init();
 
     midi_clock.Init(hw.seed.AudioSampleRate());

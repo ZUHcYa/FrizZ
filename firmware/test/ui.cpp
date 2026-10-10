@@ -23,7 +23,7 @@ using namespace twin;
 
 // the play page's LEDs (NormalPage.h, FxSlots.h)
 static const int kKnob1Led = 1, kPlayLed = 7, kLoopLed = 8;
-static const int kFilterKeyLed = 20, kShifterKeyLed = 23;
+static const int kFilterKeyLed = 20, kShifterKeyLed = 23, kFlangerKeyLed = 19;
 static const int kVolumeEncoder = 6, kKnob1Encoder = 4; // SW6, SW4
 static const int kTransportRevLed = 5, kTransportFwdLed = 6, kVolumeLed = 9;
 static const int kSlot1Led = 1, kCompKeyLed = 10, kTapeStopKeyLed = 15;
@@ -391,6 +391,36 @@ int main()
         amp = .3f;
     }});
 
+    // the knob LEDs: white only at a neutral point. A knob with a centre (the shifter's shift)
+    // white there, blue below, orange above; Level the same around 0dB; others no white
+    cases.push_back({"knob-colors", [] {
+        RunMs(kReadyMs);
+        Tap("KEY_2"); // the shifter
+        RunMs(200);
+        auto white = [](const Rgb& c) { return c.r > 200 && c.g > 200 && c.b > 200; };
+        auto blue = [](const Rgb& c) { return c.b > 200 && c.r < 60 && c.g < 60; };
+        auto orange = [](const Rgb& c) { return c.r > 200 && c.b < 100 && c.g > 80; };
+        Check(white(PthLedFull(kKnob1Led)), "knob-colors: the shift at its centre, white");
+        Turn(kKnob1Encoder, -40); // 12 semitones down
+        RunMs(500);
+        const Rgb down = PthLedFull(kKnob1Led);
+        Turn(kKnob1Encoder, 80);
+        RunMs(800);
+        const Rgb up = PthLedFull(kKnob1Led);
+        printf("      shift down %02x%02x%02x, up %02x%02x%02x\n", down.r, down.g, down.b, up.r, up.g, up.b);
+        Check(blue(down) && orange(up), "knob-colors: turned down blue, up orange");
+        Check(!white(PthLedFull(kKnob1Led + 1)), "knob-colors: the feedback (no centre) never white");
+        Tap("ENC_4_SW"); // page 2: Level at 0dB, white
+        RunMs(300);
+        bool lvl_white = false;
+        for (int i = 0; i < 700 && !lvl_white; i++)
+        {
+            RunMs(1);
+            lvl_white = white(PthLedFull(kKnob1Led + 3)); // pulsing: white at its brightest
+        }
+        Check(lvl_white, "knob-colors: page 2's Level at 0dB, white");
+    }});
+
     // FX page 2 (#35): a plain knob press turns all four knobs over, and back; their LEDs
     // pulse there. Another FX or the compressor goes back to page 1
     cases.push_back({"fx-page2", [] {
@@ -417,9 +447,9 @@ int main()
         RunMs(100);
         Check(page() == 1, "fx-page2: a plain knob press turns to page 2");
         Check(swing() > 100, "fx-page2: page 2's LEDs pulse");
-        Check(Max(PthLedFull(kKnob1Led + 1)) == 0 && Max(PthLedFull(kKnob1Led + 2)) > 0
+        Check(Max(PthLedFull(kKnob1Led + 1)) > 0 && Max(PthLedFull(kKnob1Led + 2)) > 0
                   && Max(PthLedFull(kKnob1Led + 3)) > 0,
-              "fx-page2: the shifter's page 2: Mix, Band and Level lit, knob 2 dark");
+              "fx-page2: the shifter's page 2: all four knobs lit");
         Check(mix() == 1.f, "fx-page2: the mix starts fully shifted");
         Turn(kKnob1Encoder, -30); // 8 ms a detent
         RunMs(400);
@@ -445,15 +475,14 @@ int main()
         Tap("KEY_5"); // another FX: page 1
         RunMs(100);
         Check(page() == 0, "fx-page2: another FX goes back to page 1");
-        Tap("KEY_10"); // the tape stop has no page 2
+        Tap("KEY_10"); // the tape stop: a page 2 too, now every effect has one
         RunMs(100);
         Tap("ENC_4_SW");
         RunMs(100);
-        Check(page() == 0 && swing() < 10 && Max(PthLedFull(kKnob1Led)) > 0,
-              "fx-page2: on an FX without a page 2 the press does nothing");
+        Check(page() == 1 && swing() > 100, "fx-page2: the tape stop has a page 2 too");
         Tap("KEY_2");
         RunMs(100);
-        Check(page() == 0, "fx-page2: and its page 1 is what comes back with the shifter");
+        Check(page() == 0, "fx-page2: and another FX (the shifter) brings page 1 back");
         Tap("ENC_4_SW");
         RunMs(100);
         Tap("KEY_15"); // the compressor: page 1, and a page 2 of its own
@@ -468,8 +497,8 @@ int main()
         Save(1);
         RunMs(2500);
         const std::string file = Card("/FRIZZ/frizz_scenes.txt");
-        Check(file.find("layout 2\n") != std::string::npos
-                  && file.find("shifter 0 500000 0 0 0 500000 0 500000 750000") != std::string::npos,
+        Check(file.find("layout 3\n") != std::string::npos
+                  && file.find("shifter 0 500000 0 0 0 500000 500000 500000 750000") != std::string::npos,
               "fx-page2: a scene keeps page 2 on the card, after page 1's four");
         Tap("ENC_4_SW");
         RunMs(100);
@@ -876,18 +905,21 @@ int main()
         Check(Max(SmtLedFull(kTapeStopKeyLed)) > 2 * off, "latch-turn: FX key, CHOMPI held, transport turned, key let go: still latched");
         Tap("KEY_10");
         RunMs(300);
-        // and a dark knob: the tape stop's 4th
-        Press("KEY_10", true);
+        // and a dark knob: the flanger's page-2 knob 1 (it has no Mix)
+        const int flanger_off = Max(SmtLedFull(kFlangerKeyLed));
+        Press("KEY_6", true);
+        RunMs(80);
+        Tap("ENC_4_SW"); // page 2
         RunMs(80);
         Press("KEY_26", true);
         RunMs(80);
-        Turn(3, 4);
+        Turn(kKnob1Encoder, 4);
         RunMs(200);
-        Press("KEY_10", false);
+        Press("KEY_6", false);
         RunMs(100);
         Press("KEY_26", false);
         RunMs(300);
-        Check(Max(SmtLedFull(kTapeStopKeyLed)) > 2 * off, "latch-turn: the same with a dark knob: still latched");
+        Check(Max(SmtLedFull(kFlangerKeyLed)) > 2 * flanger_off, "latch-turn: the same with a dark knob: still latched");
     }});
 
     // ---- the settings page (SettingsPage.h): the mode switch up ----

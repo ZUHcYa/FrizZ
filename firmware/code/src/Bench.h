@@ -301,8 +301,9 @@ private:
         SCENE4 = 4,   // PR #7's scene 4: shifter +7, folder, crusher, slicer, compressor at 1
         COMP = 8,     // the compressor's amount at 1
         RECORD = 16,  // records the loop, 4 s
-        PAGE2 = 32,   // page 2's Mix, Band and Level off their defaults on every effect, so
-                      // FxOutput.h's crossover and blend run (at their defaults they don't)
+        PAGE2 = 32,   // page 2 off its defaults on every effect: its Mix, Band and Level, so
+                      // FxOutput.h's crossover and blend run (at their defaults they don't),
+                      // and each effect's own knobs (the sends' freeze stays off)
     };
     struct Segment
     {
@@ -364,12 +365,16 @@ private:
         {
             for (size_t p = 0; p < kNumFxKnobs; p++) // page 1's
                 engine.SetFxParam(fx, p, .5f);
-            // page 2's shared knobs: their defaults, or for PAGE2 a half mix, the band on the
-            // highs above ~1kHz and the level 6dB down
-            const bool page2 = seg.flags & PAGE2;
-            engine.SetFxParam(fx, FxOutput::kMix, page2 ? .5f : FxOutput::kMixDefault);
-            engine.SetFxParam(fx, FxOutput::kBand, page2 ? .75f : FxOutput::kBandDefault);
-            engine.SetFxParam(fx, FxOutput::kLevel, page2 ? .625f : FxOutput::kLevelDefault);
+            // page 2: its defaults, or for PAGE2 off them: an insert's half mix, its own knob
+            // at .3, the band on the highs above ~1kHz and the level 6dB down; a send's
+            // damping or pre-delay, band and half ducking, its freeze off
+            const bool send = fx == FX_DELAY || fx == FX_REVERB;
+            static const float kInsert2[] = {.5f, .3f, .75f, .625f};
+            static const float kSend2[] = {0.f, .7f, .75f, .5f};
+            for (size_t p = kNumFxKnobs; p < kNumFxParams; p++)
+                engine.SetFxParam(fx, p,
+                                  seg.flags & PAGE2 ? (send ? kSend2 : kInsert2)[p - kNumFxKnobs]
+                                                    : kFxParams[fx].defaults[p]);
         }
         if (seg.flags & STRESS)
         {

@@ -22,7 +22,8 @@ namespace chompi
  *  quiet signal comes out at its own level whatever the shape; driven harder, the output stays near
  *  full scale whatever goes in, and page 2's Level (FxOutput.h) sets how loud that is. Nothing
  *  follows the input's level. Fully wet while on (page 2's Mix blends in the dry signal).
- *  Params: 0 drive, 1 shape (sine to triangle), 2 tone, 3 symmetry. */
+ *  Params: 0 drive, 1 shape (sine to triangle), 2 tone, 3 stereo (the right channel driven up
+ *  to 2x harder); page 2's own, 5 symmetry. */
 class Folder : public FxBase
 {
 public:
@@ -31,7 +32,8 @@ public:
         DRIVE,
         SHAPE,
         TONE,
-        SYMMETRY,
+        STEREO,
+        SYMMETRY = 5,
     };
 
     void Init(float sample_rate)
@@ -55,7 +57,8 @@ public:
     void Process(float* l, float* r)
     {
         const float gate = gate_.Process();
-        const float drive = drive_.Process();
+        const float drive_l = drive_.Process();
+        const float drive_r = drive_l * stereo_.Process();
         const float shape = shape_.Process();
         const float bias = bias_.Process();
         const float tone_coeff = tone_coeff_.Process();
@@ -74,7 +77,7 @@ public:
         {
             for (size_t c = 0; c < 2; c++)
             {
-                u1_[c] = *io[c] * drive + bias;
+                u1_[c] = *io[c] * (c ? drive_r : drive_l) + bias;
                 Antiderivatives(u1_[c], &f1_sine_[c], &f1_tri_[c]);
             }
             asleep_ = false;
@@ -82,7 +85,7 @@ public:
 
         for (size_t c = 0; c < 2; c++)
         {
-            const float u = *io[c] * drive + bias;
+            const float u = *io[c] * (c ? drive_r : drive_l) + bias;
             float f_sine, f_tri;
             Antiderivatives(u, &f_sine, &f_tri);
             // ADAA: the fold averaged over the step from the last sample, which takes some
@@ -113,6 +116,7 @@ public:
     void SnapParams()
     {
         drive_.Snap();
+        stereo_.Snap();
         shape_.Snap();
         bias_.Snap();
         tone_coeff_.Snap();
@@ -128,6 +132,9 @@ public:
             break;
         case SHAPE:
             shape_.target = val;
+            break;
+        case STEREO:
+            stereo_.target = 1.f + val;
             break;
         case SYMMETRY:
             // up to a quarter of the fold's period: the sine becomes a cosine, all even
@@ -179,6 +186,7 @@ private:
     float lp_[2];
     daisysp::DcBlock dc_[2];
     Smoothed drive_, shape_, bias_, tone_coeff_;
+    Smoothed stereo_; // the right channel's drive over the left's
 };
 
 } // namespace chompi

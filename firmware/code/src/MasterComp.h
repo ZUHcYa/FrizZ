@@ -59,18 +59,29 @@ public:
     }
 
     /** From the UI, 0..1 */
-    inline void SetParam(size_t param, float val) { knobs_[param].target = val; }
+    inline void SetParam(size_t param, float val)
+    {
+        knobs_[param].target = val;
+        turned_ = true;
+    }
 
     /** One stereo sample, in place */
     void Process(float* l, float* r)
     {
         // the knobs slew; what follows from them (several powf and expf) is worked out while
         // one moves, once per kUpdateSamples, and once more where they land
+        // only after a turn (turned_, cleared first so a turn meanwhile sets it again)
         bool moving = false;
-        for (size_t p = 0; p < kNumFxParams; p++)
+        if (turned_)
         {
-            update_pending_ |= knobs_[p].Settle(kFxParamCoeff);
-            moving |= knobs_[p].value != knobs_[p].target;
+            turned_ = false;
+            for (size_t p = 0; p < kNumFxParams; p++)
+            {
+                update_pending_ |= knobs_[p].Settle(kFxParamCoeff);
+                moving |= knobs_[p].value != knobs_[p].target;
+            }
+            if (moving)
+                turned_ = true;
         }
         if (update_pending_ && (!moving || ++since_update_ >= kUpdateSamples))
         {
@@ -181,6 +192,7 @@ private:
 
     float sample_rate_;
     bool update_pending_ = false; // a knob moved since the last Update
+    volatile bool turned_ = false; // a knob turned and not yet settled
     uint32_t since_update_ = 0;
     Smoothed knobs_[kNumFxParams];
     float reduction_;  // dB, <= 0, smoothed

@@ -19,7 +19,8 @@ namespace chompi
  *  recovering over 0.4s. Fully wet while on (page 2's Mix blends in the dry signal). The
  *  XOR's flips and the coarsest steps are a fixed size whatever the level, so on a quiet
  *  signal they come out louder than it went in: page 2's Level (FxOutput.h) is for that.
- *  Params: 0 rate, 1 bits, 2 tone, 3 XOR (0 = off). */
+ *  Params: 0 rate, 1 bits, 2 tone, 3 stereo (the right channel's rate up to an octave lower);
+ *  page 2's own, 5 XOR (0 = off). */
 class Crusher : public FxBase
 {
 public:
@@ -28,7 +29,8 @@ public:
         RATE,
         BITS,
         TONE,
-        XOR,
+        STEREO,
+        XOR = 5,
     };
 
     void Init(float sample_rate)
@@ -62,7 +64,7 @@ public:
         if (gate_.Asleep())
         {
             srr_l_.SetFreq(rate_knob);
-            srr_r_.SetFreq(rate_knob);
+            srr_r_.SetFreq(rate_knob * stereo_);
             srr_l_.Process(*l);
             srr_r_.Process(*r);
             if (xor_ > 0)
@@ -95,7 +97,7 @@ public:
         // Kastle: the rate divided by the dive envelope times 10, at least 1
         const float rate = rate_knob / fmaxf(1.f, dive * 10.f);
         srr_l_.SetFreq(rate);
-        srr_r_.SetFreq(rate);
+        srr_r_.SetFreq(rate * stereo_);
 
         // XOR before the reducer, as on Kastle. On its own XOR turns silence into a constant
         // offset, so what it adds is DC-blocked: the buzz stays, the thump on punch-in doesn't
@@ -161,6 +163,9 @@ public:
             break;
         }
 
+        case STEREO:
+            stereo_ = 1.f - .5f * val;
+            break;
         case XOR:
         {
             // Kastle: 0 / 1000 / 2000 / 4000 over the top 30% of its Amount knob, here over
@@ -193,6 +198,7 @@ private:
     Smoothed tone_coeff_;
     float step_; // quantizer step, 2^(1 - bits)
     int16_t xor_ = 0;
+    float stereo_ = 1.f; // the right channel's rate over the left's
     daisysp::DcBlock xor_dc_l_, xor_dc_r_;
     PressEnvelope dive_;
     uint32_t asleep_samples_ = 0; // how long it hasn't run (FxGate::Asleep)

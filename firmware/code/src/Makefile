@@ -12,6 +12,11 @@ C_DEFS = -DFRIZZ_BENCH=1 -DFRIZZ_BENCH_SOURCE='"$(BENCH_SOURCE)"'
 override BUILD_DIR = build-bench
 endif
 
+# make ITCM=1: the per-sample code runs from ITCM (FrizzHot.h), an experiment (#51)
+ifeq ($(ITCM),1)
+C_DEFS += -DFRIZZ_ITCM=1
+endif
+
 OPT=-O3
 
 APP_TYPE=BOOT_SRAM

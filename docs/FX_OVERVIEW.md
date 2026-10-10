@@ -104,7 +104,14 @@ them, and back to page 1 when another effect is pressed or selected. #35 built t
 after the SP-404MK2's BALANCE and LEVEL and Elektron's per-machine MIX: knob 1 **Mix**, knob 3
 **Band** (the effect on the lows or the highs only, the rest dry: a one-pole crossover, which
 adds back up exactly), knob 4 **Level** (the effect's output, off, -36 to +12 dB). Knob 2 is
-left for one parameter of each effect's own, picked from the table below in a later round.
+one parameter of each effect's own (decided the same day, built in #49): the freezer's gate,
+the shifter's grain, the flanger's polarity, the resonator's env mod, the slicer's shuffle,
+wow & flutter's age, the tape stop's darken, the delay's damping, the reverb's pre-delay;
+the folder's symmetry, crusher's XOR and filter's LFO division moved there from page 1's
+knob 4, which is now stereo on every insert (the tape stop's: depth). The sends' page 2 is
+freeze, their own, Band and ducking; the resonator's env mod, Band into the loop and its
+return's Level. The compressor's: mix, a sidechain highpass on Band's knob, makeup on
+Level's.
 The level matches (the folder's, the crusher's `LevelGuard`) and the compressor's automatic
 makeup are gone (#38): nothing sets a level by itself but the safety limiter. The tables
 below were the candidates before that; knob 4's "key press" role and knob 1's low cut on the

@@ -4,8 +4,10 @@
 #pragma once
 #include "daisy.h"
 #include "daisysp.h"
+#include "FrizzHot.h"
 
 using namespace daisysp;
+
 
 namespace chompi
 {
@@ -144,8 +146,10 @@ public:
 
     /** Off and faded out: its output is its input, and its meter isn't shown */
     inline bool Idle() const { return gate_.Silent(); }
-    /** The key's fade now, 0..1 (FxOutput.h) */
+    /** The key's fade now, 0..1, and whether it's off and faded out: for page 2's Mix and
+     *  Level (FxOutput.h), which an effect sounding on after its key (the tape stop) hides */
     inline float Fade() const { return gate_.Value(); }
+    inline bool Quiet() const { return Idle(); }
 
 protected:
     FxGate gate_;
@@ -173,6 +177,30 @@ struct TailWatch
         else
             quiet = 0;
     }
+};
+
+/** A send's ducking (FxDelay.h, FxReverb.h): its return turned down while something goes in,
+ *  by up to amount: 5ms down, 300ms back up, fully down from about -12dBFS in */
+struct Ducker
+{
+    float amount = 0.f;
+    float env = 0.f;
+
+    void Init()
+    {
+        amount = 0.f;
+        env = 0.f;
+    }
+    /** The return's gain for this sample's input */
+    inline float Gain(float in_l, float in_r)
+    {
+        const float in = fmaxf(fabsf(in_l), fabsf(in_r));
+        env += (in > env ? kAttack : kRelease) * (in - env);
+        return 1.f - amount * fminf(env * 4.f, 1.f);
+    }
+
+    static constexpr float kAttack = 1.f - 0.995842f;  // ~5ms at 48kHz
+    static constexpr float kRelease = 1.f - 0.999931f; // ~300ms
 };
 
 /** The effects' random numbers: a xorshift32, seeded per effect so every run is the same */

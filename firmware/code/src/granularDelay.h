@@ -15,6 +15,7 @@
  *     whose tempo isn't whole the echoes don't drift off its beats.
  */
 #pragma once
+#include "FrizzHot.h"
 #include "daisysp.h"
 #include "FxCommon.h"
 
@@ -366,7 +367,7 @@ class granularDelay {
         write_head_ = (write_head_ + 1) % buffer_size_;
     }
 
-    void read(float* out_l, float* out_r) {
+    FRIZZ_HOT void read(float* out_l, float* out_r) {
         *out_l = *out_r = 0.f;
 
         const size_t new_interval = division_;
@@ -469,6 +470,20 @@ class granularDelay {
 
         cur_sig_l_ = *out_l * delay_feedback_amt_;
         cur_sig_r_ = *out_r * delay_feedback_amt_;
+        // FRIZZ: the damping in the feedback (FxDelay.h), a one-pole each way, darker or
+        // thinner with every repeat
+        if (damp_hi_ < 1.f) {
+            damp_lp_l_ += damp_hi_ * (cur_sig_l_ - damp_lp_l_);
+            damp_lp_r_ += damp_hi_ * (cur_sig_r_ - damp_lp_r_);
+            cur_sig_l_ = damp_lp_l_;
+            cur_sig_r_ = damp_lp_r_;
+        }
+        if (damp_lo_ > 0.f) {
+            damp_hp_l_ += damp_lo_ * (cur_sig_l_ - damp_hp_l_);
+            damp_hp_r_ += damp_lo_ * (cur_sig_r_ - damp_hp_r_);
+            cur_sig_l_ -= damp_hp_l_;
+            cur_sig_r_ -= damp_hp_r_;
+        }
     }
 
     /** Whether a reverse event fits the buffer. Its read head runs away from the write head
@@ -491,6 +506,19 @@ class granularDelay {
 
     void setFeedback(float val) {
         delay_feedback_amt_ = val * .975f;
+    }
+    /** FRIZZ: a voice's gain in the centre, its equal-power pan (curPan 0): every pass through
+     *  the feedback is this much quieter, so a freeze makes up for it (FxDelay.h) */
+    static float CentreGain() { return chompi::fast_sqrt(0.5f); }
+    /** FRIZZ: the feedback as it's applied, for the freeze (FxDelay.h) */
+    void setFeedbackAmount(float amt) {
+        delay_feedback_amt_ = amt;
+    }
+    /** FRIZZ: the feedback's damping: a lowpass's and a highpass's one-pole coefficients, 1
+     *  and 0 off */
+    void setDamping(float hi, float lo) {
+        damp_hi_ = hi;
+        damp_lo_ = lo;
     }
 
     /** Beats per minute, not rounded, so the echoes stay on a loop's beats; the engine keeps
@@ -535,6 +563,8 @@ class granularDelay {
     float delay_samples_, delay_samples_target_;
     float cur_sig_l_, cur_sig_r_;
     float delay_feedback_amt_;
+    float damp_hi_ = 1.f, damp_lo_ = 0.f;
+    float damp_lp_l_ = 0.f, damp_lp_r_ = 0.f, damp_hp_l_ = 0.f, damp_hp_r_ = 0.f;
 
     float tempo_;
     float bar_samples_;

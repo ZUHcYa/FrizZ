@@ -27,7 +27,8 @@ namespace chompi
  *  the shift up to 2 octaves further in its direction and back. Feedback recirculates the
  *  shifted output, so each pass shifts again and the shift spirals.
  *  Params: 0 shift (kNumShifts steps, -12 to +12 semitones, the centre dry), 1 feedback,
- *  2 swoop, 3 stereo (the right channel up to a semitone higher). Page 2's Mix
+ *  2 swoop, 3 stereo (the right channel up to a semitone higher); page 2's own, 5 grain: the
+ *  taps' window, 10ms (glitchy) through 30ms (the centre) to 50ms (smooth). Page 2's Mix
  *  (FxOutput.h) puts the dry signal under the shifted one, a harmony. */
 class Shifter : public FxBase
 {
@@ -38,6 +39,7 @@ public:
         FEEDBACK,
         SWOOP,
         STEREO,
+        GRAIN = 5,
     };
 
     static const size_t kNumShifts = 25; // -12..+12 semitones
@@ -50,6 +52,7 @@ public:
             window_[c] = 0.f;
             delay_[c][0] = kGuard + static_cast<float>(kSearch);
             delay_[c][1] = kGuard + static_cast<float>(kSearch) + .5f * kWindowFrames;
+            window_frames_ = kWindowFrames;
         }
         gate_.Init();
         env_.Reset();
@@ -59,10 +62,11 @@ public:
         SetParam(SHIFT, .5f);
         for (size_t i = 1; i < kNumFxParams; i++)
             SetParam(i, 0.f);
+        SetParam(GRAIN, .5f); // the centre, 30ms
         SnapParams();
     }
 
-    void Process(float* l, float* r)
+    FRIZZ_HOT void Process(float* l, float* r)
     {
         const float gate = gate_.Process();
         const float dry = dry_.Process();
@@ -107,11 +111,12 @@ public:
             float* const d = delay_[c];
 
             // both taps' delays move by 1 - ratio a sample; the window moves through their
-            // lives at the same pace, so each tap covers kWindowFrames of delay per life
-            d[0] = fclamp(d[0] + 1.f - ratio, 1.f, kMaxDelay);
-            d[1] = fclamp(d[1] + 1.f - ratio, 1.f, kMaxDelay);
+            // lives at the same pace, so each tap covers the grain's window of delay per life
+            const float max_delay = window_frames_ + kDelayPast;
+            d[0] = fclamp(d[0] + 1.f - ratio, 1.f, max_delay);
+            d[1] = fclamp(d[1] + 1.f - ratio, 1.f, max_delay);
             const float prev = window_[c];
-            float w = prev + fabsf(1.f - ratio) / kWindowFrames;
+            float w = prev + fabsf(1.f - ratio) / window_frames_;
             if (w >= 1.f)
             {
                 w -= 1.f;
@@ -159,6 +164,11 @@ public:
         case STEREO:
             stereo_semitones_ = val;
             break;
+        case GRAIN:
+            // 30ms in the middle, 10ms to 50ms at the ends; picked up at the next splice
+            window_frames_ = val < .5f ? kWindowFrames * (1.f / 3.f + 4.f / 3.f * val)
+                                       : kWindowFrames * (1.f + 4.f / 3.f * (val - .5f));
+            return; // the speeds don't change
         default:
             break;
         }
@@ -177,7 +187,10 @@ private:
     // the closest a tap starts to the write head, so the comparison's reads exist yet: the
     // candidates read up to 120 samples on, times the speed, which is below 1 going down
     static constexpr float kGuard = 130.f;
-    static constexpr float kMaxDelay = kWindowFrames + kGuard + 2.f * kSearch + kFineRange + 2.f;
+    static constexpr float kMaxWindowFrames = kWindowFrames * 5.f / 3.f; // grain at the top
+    // a tap's longest delay is the grain's window plus this; the buffer holds the longest
+    static constexpr float kDelayPast = kGuard + 2.f * kSearch + kFineRange + 2.f;
+    static_assert(kMaxWindowFrames + kDelayPast < kBufSize, "the longest grain fits the buffer");
     static constexpr float kSwoopSemitones = 24.f; // how far the swoop pushes at the top
 
     /** Where a tap that's starting over should start: its nominal start (the far end of
@@ -187,7 +200,7 @@ private:
     {
         const float* const b = ring_.buf[c];
         const size_t last = ring_.Last();
-        const float nominal = (up ? kWindowFrames : 0.f) + kGuard + kSearch;
+        const float nominal = (up ? window_frames_ : 0.f) + kGuard + kSearch;
 
         // k samples on, both taps will have moved k * ratio through the input: the other
         // tap's samples, and where a candidate at lag 0 reads, once for every lag
@@ -254,6 +267,7 @@ private:
     uint32_t swoop_tick_ = 0;
     static const uint32_t kSwoopUpdate = 8; // samples between the swoop's speed updates
     float stereo_semitones_ = 0.f;
+    float window_frames_ = kWindowFrames; // the grain
     Smoothed dry_;
     Smoothed feedback_;
     PressEnvelope env_;

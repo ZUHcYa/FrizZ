@@ -110,6 +110,9 @@ namespace chompi
     static const float kFxMeterFloorDb = -30.f; // the meters' range, up to 0 dBFS
     static const float kFxWhiteMax = .8f;     // on: how far the loudest audio pushes to white
     static const float kCompMeterDb = 12.f;   // the compressor key's full brightness, dB reduced
+    // A bipolar knob's LED (KnobColor): blue below its neutral point, white on it, orange above
+    static constexpr const float* kBipolarLow = blue;
+    static constexpr const float* kBipolarHigh = orange;
     // The safety limiter on the compressor's key: red from kLimStartDb of limiting, fully red
     // at kLimFullDb, held kLimHoldMs so a short peak is seen
     static constexpr float kLimStartDb = 1.f, kLimFullDb = 3.f;
@@ -921,11 +924,12 @@ namespace chompi
                 const float phase = static_cast<float>(now % kPage2PulseMs) / kPage2PulseMs;
                 pulse = kPage2Low + (1.f - kPage2Low) * .5f * (1.f + cosf(phase * TWOPI_F));
             }
+            const FxParams& knobs = fx_.Knobs();
             for (size_t k = 0; k < kNumFxKnobs; k++)
             {
                 float rgb[3] = {0.f, 0.f, 0.f};
                 if (fx_.KnobUsed(k))
-                    Xfade3(colors[0], colors[1], colors[2], fx_.Knob(k), rgb);
+                    KnobColor(knobs, fx_.ParamOf(k), fx_.Knob(k), colors, rgb);
                 SetPthLedFloat(kFxKnobLeds[k], rgb[0] * pulse, rgb[1] * pulse, rgb[2] * pulse);
             }
 
@@ -1136,6 +1140,24 @@ namespace chompi
             for (int c = 0; c < 3; c++)
                 rgb[c] = color_xfade(a[c], b[c], t);
         }
+        /** A knob's LED. White only at a neutral point: a bipolar knob (FxParams::bipolar) is
+         *  white at its default, blue below and orange above, the same on every effect; any
+         *  other goes from the effect's first colour to its last */
+        static void KnobColor(const FxParams& knobs, size_t param, float val,
+                              const float* const* colors, float* rgb)
+        {
+            if ((knobs.bipolar >> param) & 1)
+            {
+                const float n = knobs.defaults[param];
+                const float t = val <= n ? (n > 0.f ? .5f * val / n : .5f)
+                                         : .5f + .5f * (val - n) / (1.f - n);
+                Xfade3(kBipolarLow, white, kBipolarHigh, t, rgb);
+                return;
+            }
+            for (int i = 0; i < 3; i++)
+                rgb[i] = colors[0][i] + val * (colors[2][i] - colors[0][i]);
+        }
+
         static void Xfade3(const float* a, const float* b, const float* c, float t, float* rgb)
         {
             for (int i = 0; i < 3; i++)

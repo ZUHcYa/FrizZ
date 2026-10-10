@@ -40,6 +40,8 @@ public:
         for (size_t c = 0; c < 2; c++)
             lp_lo_[c] = lp_hi_[c] = 0.f;
         awake_ = band_ = false;
+        neutral_ = true;
+        moving_ = false;
     }
 
     /** One of page 2's shared knobs, 0..1; false if param isn't one */
@@ -49,9 +51,11 @@ public:
         {
         case kMix:
             mix_.target = val;
+            moving_ = true;
             return true;
         case kLevel:
             level_.target = LevelGain(val);
+            moving_ = true;
             return true;
         case kBand:
             if (val < kBandDefault)
@@ -71,21 +75,22 @@ public:
                 lo_.target = 0.f;
                 hi_.target = 1.f;
             }
+            moving_ = true;
             return true;
         default:
             return false;
         }
     }
 
-    /** One sample of fx (an insert, with Process(l, r), Idle() and Fade()) in place, with Mix,
-     *  Band and Level around it */
+    /** One sample of fx (an insert, with Process(l, r), Quiet() and Fade(): FxBase's, or the
+     *  tape stop's own) in place, with Mix, Band and Level around it */
     template <class Fx>
     inline void Process(Fx& fx, float* l, float* r)
     {
         // at their defaults, or with the effect off and faded out: the effect alone, bit for
         // bit as without them (an effect asleep passes its input). The rest is out of line,
         // once for every effect, and the effect's own Process is called in one place
-        const bool plain = Plain(fx.Idle());
+        const bool plain = Plain(fx.Quiet());
         if (!plain)
             Split(l, r);
         fx.Process(l, r);
@@ -100,13 +105,14 @@ public:
         level_.Snap();
         lo_.Snap();
         hi_.Snap();
+        moving_ = true; // Slew works out what follows
     }
 
     /** A send's input: its Band alone. In place, l and r */
     inline void Band(float* l, float* r)
     {
-        lo_.Settle();
-        hi_.Settle();
+        if (moving_)
+            Slew();
         float* const io[2] = {l, r};
         const bool band = lo_.value != 0.f || hi_.value != 1.f;
         for (size_t c = 0; c < 2; c++)
@@ -138,19 +144,32 @@ private:
     /** Before the effect: whether it runs alone; the knobs' slew. At rest a compare each */
     __attribute__((always_inline)) inline bool Plain(bool idle)
     {
-        mix_.Settle();
-        level_.Settle();
-        lo_.Settle();
-        hi_.Settle();
-        band_ = lo_.value != 0.f || hi_.value != 1.f;
-        const bool plain = (mix_.value == 1.f && level_.value == 1.f && !band_) || idle;
+        // the knobs slew only after a turn (moving_), so at rest this is a flag and a compare
+        if (moving_)
+            Slew();
+        const bool plain = neutral_ || idle;
         if (plain)
             awake_ = false;
         return plain;
     }
 
+    /** After a turn: the knobs one step on, and whether they rest at their defaults. The
+     *  flag is cleared first, so a turn meanwhile sets it again */
+    __attribute__((noinline)) void Slew()
+    {
+        moving_ = false;
+        bool moving = mix_.Settle();
+        moving |= level_.Settle();
+        moving |= lo_.Settle();
+        moving |= hi_.Settle();
+        band_ = lo_.value != 0.f || hi_.value != 1.f;
+        neutral_ = mix_.value == 1.f && level_.value == 1.f && !band_;
+        if (moving)
+            moving_ = true;
+    }
+
     /** Before the effect: the signal kept, and the band the effect gets in its place */
-    __attribute__((noinline)) void Split(float* l, float* r)
+    FRIZZ_HOT __attribute__((noinline)) void Split(float* l, float* r)
     {
         float* const io[2] = {l, r};
         for (size_t c = 0; c < 2; c++)
@@ -179,7 +198,7 @@ private:
     /** After it: the signal, with the band crossfaded by Mix into the effect's output at its
      *  Level. Level is the effect's alone, as the SP-404's: Mix at 0 is the signal untouched.
      *  Level fades in and out with the key (fade) as the effect does */
-    __attribute__((noinline)) void Join(float* l, float* r, float fade)
+    FRIZZ_HOT __attribute__((noinline)) void Join(float* l, float* r, float fade)
     {
         // the fade only nears 1 (fonepole): its last 1e-4 (-80dB) taken as 1, so Level 0 mutes
         if (fade > 1.f - 1e-4f)
@@ -198,6 +217,8 @@ private:
     float lp_lo_[2], lp_hi_[2];  // their lowpasses
     bool awake_;                 // whether the crossovers ran last sample
     bool band_;                  // whether they're on now
+    bool neutral_ = true;        // Mix, Band and Level all at their defaults
+    volatile bool moving_ = false; // a knob turned and not yet settled (SetParam, Slew)
     float x_[2], b_[2];          // this sample's input, and the band the effect got
 };
 

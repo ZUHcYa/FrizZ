@@ -17,7 +17,7 @@ STRESS=1 ./run.sh work out.bin
 | Check | What it looks at |
 |---|---|
 | `check.sh` | the engine harness (below): every output sample and FX meter of a fixed script, two versions compared; a refactor must be `bit-identical` |
-| `pitch`, `tape`, `delay`, `crusher`, `freezer`, `comp`, `clicks`, `level`, `sleep`, `inserts` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up and random events, the crusher's rate, bits and dive, the freezer's capture and roll, the master compressor, moves that used to click, page 2's Mix, Band and Level (`FxOutput.h`), effects that are off costing no time, the folder's bypass and level, the slicer's patterns, chance and stereo, and page 2's Mix on the shifter |
+| `pitch`, `tape`, `delay`, `crusher`, `freezer`, `comp`, `clicks`, `level`, `sleep`, `inserts`, `page2` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up and random events, the crusher's rate, bits and dive, the freezer's capture and roll, the master compressor, moves that used to click, page 2's Mix, Band and Level (`FxOutput.h`), effects that are off costing no time, the folder's bypass and level, the slicer's patterns, chance and stereo, page 2's Mix on the shifter, and each effect's own page-2 knob |
 | `scenes`, `store` | the scene and master files and the card: formats, a card not read at boot, backups |
 | `controls`, `keys`, `looper`, `tempo` | the play page's logic classes on their own: FX keys and knobs, SHIFT and the confirm, the looper, the tempo clock |
 | `ui` | the whole firmware from power-on on the virtual CHOMPI: keys through the 4021s, LEDs, the headphones and the master out, the card (full too), bug reports, MIDI (notes, CCs, NRPN, program changes, Start/Stop, the SysEx and its USB answers); each case on a fresh device |
@@ -248,6 +248,26 @@ delay (`granularDelay.h`): reverse events only where they fit, and a tempo jump 
 to the new delay time while a 1 BPM step slides, and on a loop whose tempo isn't whole, a 1/4
 exactly the loop's beat. These run the classes on their own; `unit.sh ui` below runs them
 behind the play page.
+
+## Page 2's own knobs check
+
+```bash
+./unit.sh page2
+```
+
+Each effect's own knob on page 2 and the stereo on page 1's knob 4, on the effects alone: the
+freezer's gate leaves the start of each repeat and silences the rest, the shifter's grain
+changes the sound, the folder's, crusher's and filter's stereo are off with both sides alike
+and on make them differ, the flanger's negative polarity sounds different, the resonator's
+env mod rings more on a loud input and its level turns the return down (off at 0), the
+slicer's shuffle puts the even steps 2/3 of a 16th late and the rest on time, wow &
+flutter's age dips the level, the tape stop's depth slows it without stopping and its
+darken takes the highs off, the delay's freeze holds its echoes at a steady level, its
+damping darkens or thins the repeats and its ducking turns them down under the input, the
+reverb's freeze holds the room, its pre-delay at the top starts it 250 ms later and its
+ducking turns it down. Then the scene file: v0.11's symmetry, XOR and LFO division move to
+page 2's knob 2 with stereo off, the tape stop's depth is a full stop, a send's page 2 from
+the first test builds goes back to its defaults (not frozen), and layout 3 round-trips.
 
 ## Folder and slicer check
 

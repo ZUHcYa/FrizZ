@@ -19,6 +19,7 @@
  *  compressor at its lowest setting, which is what FRIZZ's own knob for it started at.
  */
 #pragma once
+#include "FrizzHot.h"
 #include <atomic>
 #include "daisy.h"
 #include "daisysp.h"
@@ -76,7 +77,7 @@ public:
 
     /** Inputs: 0 mic (unused), 1 X, 2 aux L, 3 aux R
      *  Outputs: 0/1 headphone L/R, 2/3 master L/R */
-    void Process(const float *const *in, float **out, size_t size)
+    FRIZZ_HOT void Process(const float *const *in, float **out, size_t size)
     {
         float dryl[size], dryr[size], wetl[size], wetr[size];
 

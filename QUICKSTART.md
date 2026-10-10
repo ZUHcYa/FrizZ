@@ -76,9 +76,9 @@ compressor on the last one (below).
   setting has them, 10% otherwise.
 - **SHIFT + press a knob:** reset that setting.
 - **Press a knob:** all four knobs turn to the effect's second page (their LEDs pulse) and
-  back. Picking another effect brings page 1 back. Page 2 is the same on every effect:
-  knob 1 the mix (dry against the effect), knob 3 the band (the effect only on the lows or
-  only on the highs), knob 4 the effect's level. Nothing evens out the level by itself:
+  back. Picking another effect brings page 1 back. Page 2 is laid out the same on every
+  effect: knob 1 the mix (dry against the effect), knob 2 a setting of the effect's own, knob
+  3 the band (the effect only on the lows or only on the highs), knob 4 the effect's level. Nothing evens out the level by itself:
   an effect that gets louder as you drive it, like the folder, is set back with knob 4.
 
 Every effect starts silent or nearly so: one knob brings it in. That's knob 1 on most, knob 2
