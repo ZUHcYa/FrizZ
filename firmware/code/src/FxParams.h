@@ -54,9 +54,11 @@ struct FxParams
     uint8_t steps[kNumFxParams];  // stepped parameters' number of steps, 0 = continuous
     FxGrid coarse[kNumFxParams];  // SHIFT + turn
     uint8_t fade;                 // bit p: the parameters that leave the effect neutral at
-                                  // their defaults, whatever the others say. A scene morph
-                                  // fades the effect in and out with them (FxMorph.h); 0: it
-                                  // can't be faded
+                                  // their defaults, whatever the others say, and its Level
+                                  // (page 2's knob 4, FxOutput.h), which at 0dB leaves a
+                                  // neutral effect's sound alone. A scene morph fades the
+                                  // effect in and out with them (FxMorph.h); 0: it can't be
+                                  // faded
 };
 
 // page 2's shared knobs at their defaults (FxOutput.h): fully the effect's, all of the
@@ -77,20 +79,20 @@ static const FxParams kFxParams[] = {
     // folder: drive (1x, barely folding), shape (sine), tone (open), symmetry (off: odd
     // harmonics only). Coarse drive: doublings, 1x to 32x
     {0xdf, {0.f, 0.f, 1.f, 0.f, kP2Mix, 0.f, kP2Band, kP2Level}, {0, 0, 0, 0},
-     {{0.f, .2f, nullptr, 0}, kGrid10, kGridTone, kGrid10, kGrid10, kGrid10, kGrid10, kGridLevel}, 0xf},
+     {{0.f, .2f, nullptr, 0}, kGrid10, kGridTone, kGrid10, kGrid10, kGrid10, kGrid10, kGridLevel}, 0x8f},
     // crusher: rate (21.6kHz), bits (16), tone (open), XOR (off). Coarse rate: 48kHz / 4, 8
     // ... 64, so 12k, 6k, 3k, 1.5k, 750Hz; coarse bits: whole bits
     {0xdf, {0.f, 0.f, 1.f, 0.f, kP2Mix, 0.f, kP2Band, kP2Level}, {0, 0, 0, 0},
-     {{.154410f, .182088f, nullptr, 0}, {0.f, 1.f / 14.f, nullptr, 0}, kGridTone, kGrid10, kGrid10, kGrid10, kGrid10, kGridLevel}, 0xf},
+     {{.154410f, .182088f, nullptr, 0}, {0.f, 1.f / 14.f, nullptr, 0}, kGridTone, kGrid10, kGrid10, kGrid10, kGrid10, kGridLevel}, 0x8f},
     // filter: cutoff (centre, flat), resonance, LFO depth (off), LFO division (1 bar). The
     // cutoff is a DJ filter's (lowpass below the centre, highpass above), not in Hz, so
     // coarse is 10%
     {0xdf, {.5f, .5f, 0.f, .6667f, kP2Mix, 0.f, kP2Band, kP2Level}, {0, 0, 0, Filter::kNumLfoDivisions},
-     {kGrid10, kGrid10, kGrid10, StepGrid(Filter::kNumLfoDivisions), kGrid10, kGrid10, kGrid10, kGridLevel}, 0x7},
+     {kGrid10, kGrid10, kGrid10, StepGrid(Filter::kNumLfoDivisions), kGrid10, kGrid10, kGrid10, kGridLevel}, 0x87},
     // flanger: rate (.55Hz), feedback, amount (off: dry), stereo (off). No Mix on page 2:
     // the amount is its mix
     {0xcf, {.45f, .5f, 0.f, 0.f, kP2Mix, 0.f, kP2Band, kP2Level}, {0, 0, 0, 0},
-     {kGrid10, kGrid10, kGrid10, kGrid10, kGrid10, kGrid10, kGrid10, kGridLevel}, 0x4},
+     {kGrid10, kGrid10, kGrid10, kGrid10, kGrid10, kGrid10, kGrid10, kGridLevel}, 0x84},
     // resonator: pitch (110Hz), feedback (off), tone (6.6kHz), stereo (off). Coarse pitch:
     // the notes at A440, F#0 to A5; coarse tone: octaves down from 15kHz
     {0x0f, {.4364f, 0.f, .7f, 0.f, kP2Mix, 0.f, kP2Band, kP2Level}, {0, 0, 0, 0},
@@ -100,7 +102,7 @@ static const FxParams kFxParams[] = {
      {StepGrid(Slicer::kNumPatterns), kGrid10, kGrid10, StepGrid(Slicer::kNumPatterns), kGrid10, kGrid10, kGrid10, kGridLevel}, 0},
     // wow & flutter: wow (off), flutter (off), tone (open), stereo (off)
     {0xdf, {0.f, 0.f, 1.f, 0.f, kP2Mix, 0.f, kP2Band, kP2Level}, {0, 0, 0, 0},
-     {kGrid10, kGrid10, kGridTone, kGrid10, kGrid10, kGrid10, kGrid10, kGridLevel}, 0x3},
+     {kGrid10, kGrid10, kGridTone, kGrid10, kGrid10, kGrid10, kGrid10, kGridLevel}, 0x83},
     // tape stop: stop (1/2 bar), spin-up (1/4 bar), curve (linear). Three knobs
     {0x07, {.6f, .6f, 0.f, 0.f, kP2Mix, 0.f, kP2Band, kP2Level}, {TapeStop::kNumStops, TapeStop::kNumStarts, 0, 0},
      {StepGrid(TapeStop::kNumStops), StepGrid(TapeStop::kNumStarts), kGrid10, kGrid10}, 0},

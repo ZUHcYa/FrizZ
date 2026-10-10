@@ -16,11 +16,12 @@ static const float kSr = 48000.f;
 
 /** The folder at a drive, on a sine of amp: the output's level over the input's in dB, over
  *  the last half of a second */
-static float FolderOver(float drive, float amp)
+static float FolderOver(float drive, float amp, float shape = 0.f)
 {
     Folder f;
     f.Init(kSr);
     f.SetParam(Folder::DRIVE, drive);
+    f.SetParam(Folder::SHAPE, shape);
     f.SetParam(Folder::TONE, 1.f);
     f.SnapParams();
     f.SetOn(true);
@@ -62,6 +63,9 @@ static void TestFolder()
            driven);
     // within 1dB: its DC blocker (daisysp::DcBlock, about 76Hz) takes 0.5dB off 220Hz
     Check(fabsf(unity) < 1.f, "folder: at 1x a quiet signal comes out at its own level");
+    const float tri = FolderOver(0.f, .03f, 1.f);
+    printf("  folder: the triangle at 1x %+.1fdB\n", tri);
+    Check(fabsf(tri) < 1.f, "folder: so does the triangle: the shape doesn't change the level at 1x");
     Check(driven > 15.f, "folder: driven, a quiet signal comes out far louder: nothing matches "
                          "it to the input (page 2's Level is for that)");
 }

@@ -17,8 +17,9 @@ namespace chompi
  *  by a lowpass. The sine fold barely aliases anyway; on the triangle the ADAA takes off
  *  5-13dB, which at high drive on bright material still leaves some grit. The sine's and the
  *  triangle's antiderivatives are kept apart and blended with the current shape, so moving
- *  the shape knob doesn't put its change into the difference. The fold is scaled by 2/pi,
- *  so at 1x a quiet signal comes out at its own level; driven harder, the output stays near
+ *  the shape knob doesn't put its change into the difference. The fold is scaled to a slope
+ *  of 1 at 0 (2/pi for the sine, 1 for the triangle, blended with the shape), so at 1x a
+ *  quiet signal comes out at its own level whatever the shape; driven harder, the output stays near
  *  full scale whatever goes in, and page 2's Level (FxOutput.h) sets how loud that is. Nothing
  *  follows the input's level. Fully wet while on (page 2's Mix blends in the dry signal).
  *  Params: 0 drive, 1 shape (sine to triangle), 2 tone, 3 symmetry. */
@@ -67,6 +68,8 @@ public:
             return;
         }
         float* const io[2] = {l, r};
+        // the sine's slope at 0 is pi/2, the triangle's 1: both brought to 1
+        const float unity = kSineUnity + shape * (1.f - kSineUnity);
         if (asleep_)
         {
             for (size_t c = 0; c < 2; c++)
@@ -102,7 +105,7 @@ public:
 
             // the bias's DC out, then the tone
             lp_[c] += tone_coeff * (dc_[c].Process(y) - lp_[c]);
-            *io[c] += gate * (kUnity * lp_[c] - *io[c]);
+            *io[c] += gate * (unity * lp_[c] - *io[c]);
         }
     }
 
@@ -142,7 +145,7 @@ public:
 private:
     static constexpr float kMaxDrive = 32.f;
     static constexpr float kAdaaMinStep = 1e-3f;
-    static constexpr float kUnity = 2.f / PI_F; // the sine fold's slope at 0 is pi/2
+    static constexpr float kSineUnity = 2.f / PI_F;
 
     /** The fold: period 4, 0 at 0, 1 at 1, back through 0 at 2 to -1 at 3, so below 1 it's
      *  close to the input, past it mirrored back. A sine crossfaded into a triangle. */

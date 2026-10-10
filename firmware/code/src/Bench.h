@@ -301,6 +301,8 @@ private:
         SCENE4 = 4,   // PR #7's scene 4: shifter +7, folder, crusher, slicer, compressor at 1
         COMP = 8,     // the compressor's amount at 1
         RECORD = 16,  // records the loop, 4 s
+        PAGE2 = 32,   // page 2's Mix, Band and Level off their defaults on every effect, so
+                      // FxOutput.h's crossover and blend run (at their defaults they don't)
     };
     struct Segment
     {
@@ -316,7 +318,7 @@ private:
     static const uint16_t kScene4 = (1u << FX_SHIFTER) | (1u << FX_FOLDER) | (1u << FX_CRUSHER)
                                     | (1u << FX_SLICER);
 
-    static constexpr size_t kNumSegments = 22;
+    static constexpr size_t kNumSegments = 23;
     static const Segment kSegments[kNumSegments];
 
     static const size_t kMaxBlock = 48;
@@ -359,8 +361,16 @@ private:
         engine.SetInputGain(.75f);
         engine.SetCompParam(MasterComp::kThreshold, seg.flags & (COMP | SCENE4) ? 1.f : .3f);
         for (size_t fx = 0; fx < kNumFx; fx++)
-            for (size_t p = 0; p < kNumFxKnobs; p++) // page 1's: page 2 on its defaults
+        {
+            for (size_t p = 0; p < kNumFxKnobs; p++) // page 1's
                 engine.SetFxParam(fx, p, .5f);
+            // page 2's shared knobs: their defaults, or for PAGE2 a half mix, the band on the
+            // highs above ~1kHz and the level 6dB down
+            const bool page2 = seg.flags & PAGE2;
+            engine.SetFxParam(fx, FxOutput::kMix, page2 ? .5f : FxOutput::kMixDefault);
+            engine.SetFxParam(fx, FxOutput::kBand, page2 ? .75f : FxOutput::kBandDefault);
+            engine.SetFxParam(fx, FxOutput::kLevel, page2 ? .625f : FxOutput::kLevelDefault);
+        }
         if (seg.flags & STRESS)
         {
             // the harness's STRESS (test/harness.cpp): the resonator's loop at its most extreme
@@ -656,6 +666,8 @@ const Bench::Segment Bench::kSegments[Bench::kNumSegments] = {
     {"everything", Bench::kEverything, Bench::COMP},
     {"stress", Bench::kEverything, Bench::STRESS | Bench::COMP},
     {"loop+everything", Bench::kEverything, Bench::LOOP | Bench::COMP},
+    // last, so the 22 before stay comparable with older cpu.txt files
+    {"loop+everything+page2", Bench::kEverything, Bench::LOOP | Bench::COMP | Bench::PAGE2},
 };
 constexpr uint8_t Bench::kKeyLeds[];
 

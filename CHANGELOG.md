@@ -29,8 +29,9 @@ what FRIZZ does.
 
 - **Nothing sets a level by itself any more but the safety limiter.** The folder is no longer
   matched to its input's level, and the crusher no longer held to it: driven, they get
-  louder, and page 2's Level sets how loud. Scenes with the folder come back different in
-  level: about 2.5 dB quieter where it was turned up, louder where it was turned down.
+  louder, the folder much louder on quiet sounds (at full drive a sound 30 dB down comes out
+  about 27 dB louder), and page 2's Level sets how loud. Scenes with the folder or the
+  crusher come back at a different level than they were saved at.
 - **The master compressor is a plain one** (#38): its makeup is no longer automatic (it added
   up to +14 dB, to everything) but a knob on page 2, at 0 dB at first. Speed is split into
   Attack (knob 3) and Release (knob 4), and Mix moves to page 2's knob 1. Saved settings

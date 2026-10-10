@@ -595,6 +595,7 @@ static void TestMorph()
     store[2].latched |= 1u << FX_FOLDER;  // on, its tone closed: everything fades
     store[2].params[FX_FOLDER][2] = .3f;
     store[1].params[FX_FOLDER][2] = .6f;  // what it had while off
+    store[2].params[FX_FOLDER][7] = 1.f;  // its Level at +12dB: faded in too
 
     Check(sc.SlotPressed(3, true) == Scenes::Slot::REFUSED, "morph to an empty slot: refused");
     sc.ModePressed(SceneMode::SAVE);
@@ -623,6 +624,10 @@ static void TestMorph()
               && plan.how[FX_REVERB][0] == MorphParam::HOLD && plan.start[FX_REVERB][0] == .9f
               && (plan.deferred >> FX_REVERB & 1) && (plan.wake >> FX_REVERB & 1),
           "turned on: its level fades in from silent, the rest jumps now");
+    Check(plan.how[FX_FOLDER][7] == MorphParam::GLIDE
+              && plan.start[FX_FOLDER][7] == kFxParams[FX_FOLDER].defaults[7]
+              && plan.target[FX_FOLDER][7] == 1.f && plan.how[FX_FOLDER][4] == MorphParam::HOLD,
+          "turned on: page 2's Level glides from 0dB, Mix doesn't need to");
     Check((plan.deferred >> FX_FREEZER & 1) && (plan.deferred >> FX_SLICER & 1)
               && !(plan.wake >> FX_FREEZER & 1) && !(plan.wake >> FX_SLICER & 1)
               && plan.how[FX_SLICER][1] == MorphParam::HOLD,
