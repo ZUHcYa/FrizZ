@@ -89,7 +89,8 @@ namespace chompi
     static const uint32_t kTapFlashMs = 80;      // LOOP flashes on a tempo tap
     static const uint32_t kSelectFlashMs = 80;   // an FX key flashes on a select
     static const float kFlashDarkAbove = .5f;    // a flash goes dark on an LED this white (Flash)
-    static const float kSpeedStepPerTurn = .25f; // 4 transport detents per speed step
+    static const float kSemiStepPerTurn = .5f;   // 2 transport detents per semitone
+    static const float kSpeedStepPerTurn = .25f; // SHIFT: 4 detents per step of the ladder
 
     static const uint8_t kFxKnobLeds[kNumFxKnobs] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
     // Page 2 of the FX knobs: their LEDs pulse, from full down to kPage2Low and back, faster
@@ -109,6 +110,13 @@ namespace chompi
     static const float kFxMeterFloorDb = -30.f; // the meters' range, up to 0 dBFS
     static const float kFxWhiteMax = .8f;     // on: how far the loudest audio pushes to white
     static const float kCompMeterDb = 12.f;   // the compressor key's full brightness, dB reduced
+    // A bipolar knob's LED (KnobColor): blue below its neutral point, white on it, orange above
+    static constexpr const float* kBipolarLow = blue;
+    static constexpr const float* kBipolarHigh = orange;
+    // The safety limiter on the compressor's key: red from kLimStartDb of limiting, fully red
+    // at kLimFullDb, held kLimHoldMs so a short peak is seen
+    static constexpr float kLimStartDb = 1.f, kLimFullDb = 3.f;
+    static const uint32_t kLimHoldMs = 300;
     static const uint32_t kMasterSaveDelayMs = 2000;
     static const uint32_t kMasterSaveTries = 3; // a failed write is tried again, this often
 
@@ -171,7 +179,7 @@ namespace chompi
 
             fx_.Init(engine_);
             // the compressor's knobs as they were left, from the card
-            for (size_t p = 0; p < kNumFxKnobs; p++)
+            for (size_t p = 0; p < kNumFxParams; p++)
                 fx_.SetComp(p, scenes_->master.comp[p]);
             fx_.TakeCompChanged();
             // and the settings page's: the mono input, the clock's factor, the LEDs
@@ -392,7 +400,7 @@ namespace chompi
         }
 
         /** Like the keys, only a turn that does something is a SHIFT combo (keys_.Used): not
-         *  the transport, which does nothing with SHIFT, nor a knob the FX doesn't use */
+         *  the transport without a playing loop, nor a knob the FX doesn't use */
         bool OnEncoderTurned(uint16_t encoderID,
                              int16_t turns,
                              uint16_t stepsPerRevolution) override
@@ -454,12 +462,12 @@ namespace chompi
             if (ctl >= kParamCC && ctl < kParamCC + kNumFx * kNumFxKnobs)
                 fx_.SetParamTo((ctl - kParamCC) / kNumFxKnobs,
                                (ctl - kParamCC) % kNumFxKnobs + bank * kNumFxKnobs, value);
+            else if (ctl >= kCompCC && ctl < kCompCC + kNumFxKnobs)
+                fx_.SetComp(ctl - kCompCC + bank * kNumFxKnobs, value);
             else if (bank)
                 return;
             else if (cc >= kLatchCC && cc < kLatchCC + kNumFx)
                 fx_.SetLatch(cc - kLatchCC, raw >= 64);
-            else if (cc >= kCompCC && cc < kCompCC + kNumFxKnobs)
-                fx_.SetComp(cc - kCompCC, value);
             else if (cc == kOutGainCC)
             {
                 out_gain_ = value;
@@ -548,11 +556,11 @@ namespace chompi
                 break;
             }
             case kCmdParams:
-                // both pages of an effect, the compressor's one
+                // both pages of an effect's or the compressor's
                 if (q.a > kNumFx)
                     return;
                 d[n++] = q.a;
-                for (size_t p = 0; p < (q.a == kNumFx ? kNumFxKnobs : kNumFxParams); p++)
+                for (size_t p = 0; p < kNumFxParams; p++)
                     n = Put14(d, n, KnobToMidi14(q.a == kNumFx ? fx_.CompParam(p)
                                                                : fx_.Param(q.a, p)));
                 break;
@@ -745,7 +753,7 @@ namespace chompi
             }
             if (master_unsaved_ && now - master_changed_at_ > kMasterSaveDelayMs)
             {
-                for (size_t p = 0; p < kNumFxKnobs; p++)
+                for (size_t p = 0; p < kNumFxParams; p++)
                     scenes_->master.comp[p] = fx_.CompParam(p);
                 settings_.Store(scenes_->master);
                 scenes_->RequestMasterSave();
@@ -916,11 +924,12 @@ namespace chompi
                 const float phase = static_cast<float>(now % kPage2PulseMs) / kPage2PulseMs;
                 pulse = kPage2Low + (1.f - kPage2Low) * .5f * (1.f + cosf(phase * TWOPI_F));
             }
+            const FxParams& knobs = fx_.Knobs();
             for (size_t k = 0; k < kNumFxKnobs; k++)
             {
                 float rgb[3] = {0.f, 0.f, 0.f};
                 if (fx_.KnobUsed(k))
-                    Xfade3(colors[0], colors[1], colors[2], fx_.Knob(k), rgb);
+                    KnobColor(knobs, fx_.ParamOf(k), fx_.Knob(k), colors, rgb);
                 SetPthLedFloat(kFxKnobLeds[k], rgb[0] * pulse, rgb[1] * pulse, rgb[2] * pulse);
             }
 
@@ -952,10 +961,21 @@ namespace chompi
                 SetSmtLedFloat(kFxSlots[fx].key_led, rgb[0], rgb[1], rgb[2]);
             }
 
-            // the compressor's key: its gain reduction, from dim up to full; a select flashes
+            // the compressor's key: its gain reduction, from dim up to full, white; turning red
+            // while the safety limiter works, the one thing that sets the level by itself; a
+            // select flashes
             const float reduced = -engine_->GetCompReduction() / kCompMeterDb;
             const float level = kFxOffLevel + (1.f - kFxOffLevel) * fclamp(reduced, 0.f, 1.f);
+            const float lim_db = -20.f * log10f(fmaxf(engine_->TakeLimiterGain(), 1e-6f));
+            const float lim = fclamp((lim_db - kLimStartDb) / (kLimFullDb - kLimStartDb), 0.f, 1.f);
+            if (lim >= lim_shown_ || now - lim_at_ > kLimHoldMs)
+            {
+                lim_shown_ = lim;
+                lim_at_ = now;
+            }
             float rgb[3] = {level, level, level};
+            for (int c = 0; c < 3; c++)
+                rgb[c] += lim_shown_ * (red[c] - rgb[c]);
             if (comp && select_flash_.Active(now))
                 Flash(rgb);
             if (master_refused_.Active(now))
@@ -1057,23 +1077,35 @@ namespace chompi
                 PthLed(led_off, red, (idx - .8f) * 5.f);
         }
 
+        /** Playing: a turn steps the speed in semitones, SHIFT + turn along the ladder (see
+         *  Looper::StepSpeed). Paused: a turn scrubs, SHIFT + turn does nothing */
         void TransportTurned(int16_t turns)
         {
-            // SHIFT + turn does nothing, so it never makes a SHIFT combo
-            if (Shift() || !LoopExists())
+            if (!LoopExists())
                 return;
 
             Looper& looper = engine_->looper;
+            const bool ladder = Shift();
             if (looper.GetState() == Looper::State::PAUSED)
-                looper.Scrub(turns);
-            else
             {
-                speed_chunk_ += turns * kSpeedStepPerTurn;
-                if (speed_chunk_ >= 1.f || speed_chunk_ <= -1.f)
-                {
-                    looper.StepSpeed(speed_chunk_ > 0.f ? 1 : -1);
-                    speed_chunk_ = 0.f;
-                }
+                if (!ladder)
+                    looper.Scrub(turns);
+                return;
+            }
+
+            keys_.Used();
+            if (ladder != speed_ladder_)
+                speed_chunk_ = 0.f; // detents don't carry over from one kind of step to the other
+            speed_ladder_ = ladder;
+            speed_chunk_ += turns * (ladder ? kSpeedStepPerTurn : kSemiStepPerTurn);
+            if (speed_chunk_ >= 1.f || speed_chunk_ <= -1.f)
+            {
+                const int dir = speed_chunk_ > 0.f ? 1 : -1;
+                if (ladder)
+                    looper.StepSpeed(dir);
+                else
+                    looper.StepSemitone(dir);
+                speed_chunk_ = 0.f;
             }
         }
 
@@ -1108,6 +1140,24 @@ namespace chompi
             for (int c = 0; c < 3; c++)
                 rgb[c] = color_xfade(a[c], b[c], t);
         }
+        /** A knob's LED. White only at a neutral point: a bipolar knob (FxParams::bipolar) is
+         *  white at its default, blue below and orange above, the same on every effect; any
+         *  other goes from the effect's first colour to its last */
+        static void KnobColor(const FxParams& knobs, size_t param, float val,
+                              const float* const* colors, float* rgb)
+        {
+            if ((knobs.bipolar >> param) & 1)
+            {
+                const float n = knobs.defaults[param];
+                const float t = val <= n ? (n > 0.f ? .5f * val / n : .5f)
+                                         : .5f + .5f * (val - n) / (1.f - n);
+                Xfade3(kBipolarLow, white, kBipolarHigh, t, rgb);
+                return;
+            }
+            for (int i = 0; i < 3; i++)
+                rgb[i] = colors[0][i] + val * (colors[2][i] - colors[0][i]);
+        }
+
         static void Xfade3(const float* a, const float* b, const float* c, float t, float* rgb)
         {
             for (int i = 0; i < 3; i++)
@@ -1147,7 +1197,10 @@ namespace chompi
         TapTempo tap_tempo_;
         LedSignal tap_flash_;
         LedSignal select_flash_; // on the selected FX's key
+        float lim_shown_ = 0.f;  // the limiter on the compressor's key, 0..1, held from lim_at_
+        uint32_t lim_at_ = 0;
         float speed_chunk_ = 0.f;   // transport detents towards the next speed step
+        bool speed_ladder_ = false; // speed_chunk_ counts towards a step of the ladder (SHIFT)
         SettingsPage settings_;
         volatile bool show_settings_ = false; // the mode switch is up (ui.h)
         bool drew_settings_ = false;          // the last frame was the settings page's

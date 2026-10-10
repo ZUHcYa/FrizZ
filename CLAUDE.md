@@ -222,7 +222,7 @@ reaches 100 % and crackles (a known limit, parked by the user). Effects that are
 cheap (`FxGate::Asleep`). A change that only shifts the memory layout has made it crackle on
 the device (b5c658c) while the host stayed bit-identical, so suspect the CPU when crackles
 appear that the twin can't reproduce. The host can't measure the load; the device can:
-`make BENCH=1` builds `FRIZZ-bench.bin` (`Bench.h`, compiled in only then), which runs 22
+`make BENCH=1` builds `FRIZZ-bench.bin` (`Bench.h`, compiled in only then), which runs 23
 segments by itself and writes `/FRIZZ/cpu.txt`; `firmware/remote.py load` and `remote.py play
 SCRIPT --cpu` read `FRIZZ.bin`'s own load. Every firmware branch runs the bench in stage 2,
 on its final build: its `cpu.txt` goes into `firmware/bin/cpu.txt` (the load of the build next

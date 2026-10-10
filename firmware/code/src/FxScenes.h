@@ -8,14 +8,20 @@
  *  page 1's four and page 2's four (FxControls.h):
  *
  *    FRIZZ scenes 1
+ *    layout 3
  *    scene 2
- *    freezer 1 285714 0 0 0 0 0 0 0
- *    shifter 0 791667 0 0 0 500000 0 0 0
+ *    freezer 1 285714 0 0 0 1000000 0 500000 750000
+ *    shifter 0 791667 0 0 0 500000 0 500000 750000
  *
  *  Reading, unknown names and lines are skipped and an effect a scene leaves out gets its
  *  defaults, as do the parameters a line lacks: a file from before page 2 (v0.11) has four,
- *  and loads with page 2 on its defaults; v0.11 reads the first four of a newer one. Millionths because a coarse grid's points must come back on the grid: the
- *  resonator's pitch grid is .0157 apart and counts a value within 1.6e-4 as on a point.
+ *  and loads with page 2 on its defaults; v0.11 reads the first four of a newer one. "layout
+ *  2" marks page 2's shared knobs (FxOutput.h); a file without it was written when page 2
+ *  had only the shifter's Mix, which it keeps, and the rest of its page 2 values (zeros for
+ *  knobs nothing used) load as defaults. "layout 3" adds page 2's own knobs and moves three
+ *  of page 1's knob 4 there (UpgradeTo3). Millionths because a coarse grid's points must come
+ *  back on the grid: the resonator's pitch grid is .0157 apart and counts a value within
+ *  1.6e-4 as on a point.
  */
 #pragma once
 #include <stdint.h>
@@ -47,6 +53,10 @@ static_assert(kNumFx <= 16, "a latch bit per effect");
 namespace scenefile
 {
 static const char kHeader[] = "FRIZZ scenes 1";
+static const char kLayout[] = "layout";
+// 2: page 2's shared knobs; 3: page 2's own knobs, and stereo on page 1's knob 4 of the
+// folder, crusher and filter, whose old knob 4 moved to page 2's knob 2
+static const long kLayoutNow = 3;
 static const float kScale = 1000000.f;
 
 /** Appends s to buf at pos, keeping room for the terminator */
@@ -139,6 +149,26 @@ inline void ReadValues(const char*& p, float* vals, size_t n)
 }
 } // namespace scenefile
 
+/** A line from before layout 3: page 2's own knobs on their defaults (the sends' and the
+ *  resonator's page 2 wasn't theirs yet), page 1's knob 4 of the folder (symmetry), crusher
+ *  (XOR) and filter (LFO division) moved to page 2's knob 2 and stereo off in its place, the
+ *  tape stop's new depth a full stop */
+inline __attribute__((noinline, optimize("Os"))) void UpgradeTo3(size_t fx, float* v,
+                                                                const float* defaults)
+{
+    const bool own = fx == FX_DELAY || fx == FX_REVERB || fx == FX_RESONATOR;
+    for (size_t i = kNumFxKnobs; i < kNumFxParams; i++)
+        if (i == kNumFxKnobs + 1 || own)
+            v[i] = defaults[i];
+    if (fx == FX_FOLDER || fx == FX_CRUSHER || fx == FX_FILTER)
+    {
+        v[kNumFxKnobs + 1] = v[3];
+        v[3] = defaults[3];
+    }
+    if (fx == FX_TAPESTOP)
+        v[3] = defaults[3];
+}
+
 // once at boot, or on a save: small rather than fast, as the code space is tight
 
 /** The used scenes as the file's text, into buf (terminated). Returns its length, or 0 if it
@@ -148,6 +178,8 @@ inline __attribute__((noinline, optimize("Os"))) size_t FormatScenes(const FxSce
     using namespace scenefile;
     size_t pos = 0;
     Put(buf, size, pos, kHeader);
+    Put(buf, size, pos, "\nlayout ");
+    PutUint(buf, size, pos, kLayoutNow);
     Put(buf, size, pos, "\n");
     for (size_t s = 0; s < kNumScenes; s++)
     {
@@ -185,6 +217,7 @@ inline __attribute__((noinline, optimize("Os"))) bool ParseScenes(const char* te
         return false;
 
     FxScene* scene = nullptr;
+    long layout = 1;
     while (*p)
     {
         NextLine(p);
@@ -193,6 +226,13 @@ inline __attribute__((noinline, optimize("Os"))) bool ParseScenes(const char* te
         const char* word = Word(p, len);
         if (!word)
             continue;
+
+        if (Is(word, len, kLayout))
+        {
+            const char* num = Word(p, len);
+            layout = num ? strtol(num, nullptr, 10) : 1;
+            continue;
+        }
 
         if (Is(word, len, "scene"))
         {
@@ -219,7 +259,15 @@ inline __attribute__((noinline, optimize("Os"))) bool ParseScenes(const char* te
             const char* latch = Word(p, len);
             if (latch && *latch == '1')
                 scene->latched |= static_cast<uint16_t>(1u << fx);
-            ReadValues(p, scene->params[fx], kNumFxParams);
+            float* const v = scene->params[fx];
+            ReadValues(p, v, kNumFxParams);
+            // before the shared knobs, page 2 was the shifter's Mix alone
+            if (layout < 2)
+                for (size_t i = kNumFxKnobs; i < kNumFxParams; i++)
+                    if (!(fx == FX_SHIFTER && i == kNumFxKnobs))
+                        v[i] = defaults[fx][i];
+            if (layout < 3)
+                UpgradeTo3(fx, v, defaults[fx]);
             break;
         }
     }

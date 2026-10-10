@@ -17,7 +17,7 @@ STRESS=1 ./run.sh work out.bin
 | Check | What it looks at |
 |---|---|
 | `check.sh` | the engine harness (below): every output sample and FX meter of a fixed script, two versions compared; a refactor must be `bit-identical` |
-| `pitch`, `tape`, `delay`, `crusher`, `freezer`, `comp`, `clicks`, `level`, `sleep`, `inserts` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up and random events, the crusher's rate, bits and dive, the freezer's capture and roll, the master compressor, moves that used to click, the level guard (an effect no louder than its input), effects that are off costing no time, the folder's bypass and level match, the slicer's patterns, chance and stereo, and the shifter's mix |
+| `pitch`, `tape`, `delay`, `crusher`, `freezer`, `comp`, `clicks`, `level`, `sleep`, `inserts`, `page2` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up and random events, the crusher's rate, bits and dive, the freezer's capture and roll, the master compressor, moves that used to click, page 2's Mix, Band and Level (`FxOutput.h`), effects that are off costing no time, the folder's bypass and level, the slicer's patterns, chance and stereo, page 2's Mix on the shifter, and each effect's own page-2 knob |
 | `scenes`, `store` | the scene and master files and the card: formats, a card not read at boot, backups |
 | `controls`, `keys`, `looper`, `tempo` | the play page's logic classes on their own: FX keys and knobs, SHIFT and the confirm, the looper, the tempo clock |
 | `ui` | the whole firmware from power-on on the virtual CHOMPI: keys through the 4021s, LEDs, the headphones and the master out, the card (full too), bug reports, MIDI (notes, CCs, NRPN, program changes, Start/Stop, the SysEx and its USB answers); each case on a fresh device |
@@ -57,8 +57,10 @@ everything at once with the resonator's loop at its most extreme for the whole r
 
 It drives the engine through `Init`, `SetFxOn`, `SetFxParam` and `GetFxLevel` with the
 `chompi::FX_*` names, so it builds against FRIZZ from `9da090e` on, and sets the master
-compressor's amount to 0.3 (`SetCompParam`, or `SetFinalComp` before `MasterComp.h`; the two
-compressors differ, so a run across that change isn't bit-identical). If that interface changes,
+compressor's amount (its threshold since #38) to 0.3 (`SetCompParam`, or `SetFinalComp`
+before `MasterComp.h`; the two compressors differ, so a run across that change isn't
+bit-identical; nor is one across #38, which took the automatic makeup out, 1.5 dB at the
+harness's 0.3 and 1.5:1). If that interface changes,
 update `harness.cpp` along with it.
 
 ## Shifter pitch check
@@ -175,13 +177,16 @@ down: the check feeds silence once a capture is recorded.)
 ./unit.sh comp
 ```
 
-Runs `MasterComp.h` on its own: amount 0 and mix 0 are exact bypasses, the static curve at
-each end of the ratio and the amount (within 0.2 dB, the soft knee too), the attack and
-release slowing from fast to slow speed, no gain ripple at 20:1 and the fastest speed on a
+Runs `MasterComp.h` on its own: threshold 0 (makeup 0) and mix 0 are exact bypasses,
+threshold 0 with makeup is that gain alone, the static curve at each end of the ratio and
+the threshold with no makeup of its own (within 0.2 dB, the soft knee too), the makeup knob
+on everything, the attack and the release slowing from fast to slow, no gain ripple at 20:1 and the fastest speed on a
 50 Hz or 100 Hz sine (the detector's hold), and the linked stereo. Then the whole engine with
 everything up and a full-scale square starting from silence, so the outputs must stay within
 1.0 through the safety limiter. Last, the settings file (`MasterSettings.h`): it round-trips,
-grid points come back exactly, and foreign, unknown or partial files are read sensibly; the
+grid points come back exactly, and foreign, unknown or partial files are read sensibly; an
+old `compressor` line (four knobs) loads with its speed as attack and release and makeup at
+0 dB, a `compressor2` line wins over it, and only the new line is written; the
 mono line round-trips, a file without it reads as stereo, and the line of the removed
 randomizer is skipped and not written again. It doesn't touch the card or the play page.
 
@@ -203,11 +208,13 @@ reverb's 2 s), add nothing while asleep, and come back on their key.
 ./unit.sh level
 ```
 
-The level guard (`LevelGuard`, `FxCommon.h`) on its own: untouched bit for bit while
-inactive, an output 12 dB over its input held to +3 dB, a quieter one never turned up, back
-to exactly unity once inactive. Then the crusher's guard: with XOR at full, a sine at
--40 dBFS comes out no louder than it went in (+22 dB without the guard), and one at -6 dBFS
-no louder but still there.
+Page 2's shared knobs (`FxOutput.h`) around real effects: at their defaults the effect runs
+bit for bit as without them, and an effect that's off passes its input bit for bit whatever
+they're set to; Level is 0 dB at 3/4, +12 dB at the top, 6 dB a coarse step and mutes at 0;
+Band in the middle gives the effect everything, turned right only the highs (100 Hz passes
+dry), turned left only the lows, and with Mix at 0 the two parts add back up to the signal;
+a send's Band turned right is a low cut on what goes in. And that nothing turns the crusher
+down by itself: XOR at full on a sine at -40 dBFS comes out about 22 dB louder.
 
 ## Play page, looper and tempo checks
 
@@ -242,6 +249,26 @@ to the new delay time while a 1 BPM step slides, and on a loop whose tempo isn't
 exactly the loop's beat. These run the classes on their own; `unit.sh ui` below runs them
 behind the play page.
 
+## Page 2's own knobs check
+
+```bash
+./unit.sh page2
+```
+
+Each effect's own knob on page 2 and the stereo on page 1's knob 4, on the effects alone: the
+freezer's gate leaves the start of each repeat and silences the rest, the shifter's grain
+changes the sound, the folder's, crusher's and filter's stereo are off with both sides alike
+and on make them differ, the flanger's negative polarity sounds different, the resonator's
+env mod rings more on a loud input and its level turns the return down (off at 0), the
+slicer's shuffle puts the even steps 2/3 of a 16th late and the rest on time, wow &
+flutter's age dips the level, the tape stop's depth slows it without stopping and its
+darken takes the highs off, the delay's freeze holds its echoes at a steady level, its
+damping darkens or thins the repeats and its ducking turns them down under the input, the
+reverb's freeze holds the room, its pre-delay at the top starts it 250 ms later and its
+ducking turns it down. Then the scene file: v0.11's symmetry, XOR and LFO division move to
+page 2's knob 2 with stereo off, the tape stop's depth is a full stop, a send's page 2 from
+the first test builds goes back to its defaults (not frozen), and layout 3 round-trips.
+
 ## Folder and slicer check
 
 ```bash
@@ -249,9 +276,8 @@ behind the play page.
 ```
 
 The two effects with no check of their own before: the folder off passes its input bit for
-bit; on, its level match holds a quiet input and an undriven one within 3 dB, and a loud one
-at full drive no louder and at most 6 dB down (the match turns up by 6 dB at most, and the
-tone takes out much of what the folds add). The slicer on a steady input, at 120 BPM: every
+bit; on, at 1x a quiet input comes out within 1 dB of its level, and driven far louder:
+nothing matches it to the input. The slicer on a steady input, at 120 BPM: every
 pattern hits on its own steps of the clock's 16ths, on both channels; chance at full flips
 steps at random, both channels alike; stereo plays different patterns left and right.
 

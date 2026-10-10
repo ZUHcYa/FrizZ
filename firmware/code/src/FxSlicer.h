@@ -31,7 +31,9 @@ static const uint8_t kSlicerPatterns[] = {
  *  Pressing the key also triggers it, so the signal doesn't drop out until the next step.
  *  Params: 0 pattern (kNumPatterns steps), 1 decay, 2 chance, 3 stereo (kNumPatterns steps).
  *  Chance flips every step of the pattern, on both channels, at random. Stereo plays the
- *  pattern that many patterns up on the left and down on the right. */
+ *  pattern that many patterns up on the left and down on the right. Page 2's own, 5 shuffle:
+ *  the even steps late, up to two thirds of a 16th (a triplet swing), timed in samples from
+ *  the pulses' spacing (the clock has only 3 pulses a 16th). */
 class Slicer : public FxBase
 {
 public:
@@ -41,6 +43,7 @@ public:
         DECAY,
         CHANCE,
         STEREO,
+        SHUFFLE = 5,
     };
 
     static const size_t kNumPatterns = sizeof(kSlicerPatterns);
@@ -60,12 +63,27 @@ public:
             SetParam(i, 0.f);
     }
 
+    /** Once per block: the time between two clock pulses in samples, for the shuffle */
+    void SetPulseSamples(float samples) { pulse_samples_ = samples; }
     /** One call per clock pulse, with the clock's position (TempoClock::Pulse) */
     void ClockPulse(uint32_t pos)
     {
         pattern_pos_ = pos % (kPulsesPer16th * kNumSteps);
         if (pos % kPulsesPer16th == 0)
-            step_ = true;
+        {
+            // the odd steps on the 16th, the even ones (2, 4 ...) shuffle_ of one late
+            const uint32_t step = pattern_pos_ / kPulsesPer16th;
+            if ((step & 1) && shuffle_ > 0.f)
+            {
+                late_step_ = step;
+                late_ = 1 + static_cast<uint32_t>(shuffle_ * kPulsesPer16th * pulse_samples_);
+            }
+            else
+            {
+                step_ = true;
+                step_idx_ = step;
+            }
+        }
     }
 
     void Process(float* l, float* r)
@@ -78,10 +96,15 @@ public:
             env_[1].Press();
         }
 
+        if (late_ > 0 && --late_ == 0)
+        {
+            step_ = true;
+            step_idx_ = late_step_;
+        }
         if (step_)
         {
             step_ = false;
-            const uint32_t step = pattern_pos_ / kPulsesPer16th;
+            const uint32_t step = step_idx_;
             const bool flip = rng_.Uniform() < chance_;
 
             const size_t pattern[2] = {
@@ -126,6 +149,9 @@ public:
         case STEREO:
             stereo_ = StepIndex(val, kNumPatterns);
             break;
+        case SHUFFLE:
+            shuffle_ = val * (2.f / 3.f);
+            break;
         default:
             break;
         }
@@ -143,6 +169,10 @@ private:
     size_t pattern_ = 0;
     size_t stereo_ = 0;
     float chance_ = 0.f;
+    float shuffle_ = 0.f;        // how late the even steps come, in 16ths
+    float pulse_samples_ = 1000.f; // the clock pulses' spacing (SetPulseSamples)
+    uint32_t late_ = 0;          // samples until a late step, 0: none waiting
+    uint32_t late_step_ = 0, step_idx_ = 0;
     float decay_coeff_ = 0.f;
 };
 

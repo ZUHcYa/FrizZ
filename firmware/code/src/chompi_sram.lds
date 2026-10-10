@@ -109,7 +109,9 @@ SECTIONS
 		PROVIDE(__fini_array_end = .);
 	} > SRAM_EXEC
 
-/*
+	/* FRIZZ: the per-sample code (FRIZZ_HOT, FxCommon.h) runs from ITCM, which has no cache
+	 * to miss. A BOOT_SRAM app can't load from flash, so the bootloader copies it into
+	 * SRAM_EXEC with the rest of the image and main() copies it on (CopyItcm, chompi_main.cpp) */
 	_siitcmdata = LOADADDR(.itcmram);
 
 	.itcmram :
@@ -122,8 +124,7 @@ SECTIONS
 		. = ALIGN(4);
 		_eitcmram = .;
 		PROVIDE(__itcm_end__ = _eitcmram);
-	} > ITCMRAM AT >FLASH
-	*/
+	} > ITCMRAM AT > SRAM_EXEC
 
 	.itcmram_bss (NOLOAD):
 	{
@@ -239,6 +240,9 @@ SECTIONS
 		. = ALIGN(4);
 		_ebackupsram = .;
 	} > BACKUP_SRAM
+	/* boot_info first, where the bootloader writes it: anything else in BACKUP_SRAM must go
+	 * after it. Moved, libDaisy reads a bootloader version of 0 and the firmware hangs at boot */
+	ASSERT(_ZN5daisy9boot_infoE == ORIGIN(BACKUP_SRAM), "boot_info must start BACKUP_SRAM")
 
 	.sdram_bss (NOLOAD) :
 	{

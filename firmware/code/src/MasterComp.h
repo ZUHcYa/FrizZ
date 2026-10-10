@@ -6,16 +6,21 @@
  *
  *  One stereo-linked detector, the louder channel's peak, so the image doesn't shift, held for
  *  kHoldMs so a fast attack doesn't follow a bass note's waveform (crackle). Above the
- *  threshold, the gain falls by the ratio, with a soft knee; the auto makeup gives back half of
- *  what a signal at the 0dB reference loses. The reduction is smoothed in dB, so the release
- *  recovers evenly however deep it went. The reference is a signal of 1.0 at this point,
- *  about a hot line input at the default input gain.
+ *  threshold, the gain falls by the ratio, with a soft knee. The reduction is smoothed in dB,
+ *  so the release recovers evenly however deep it went. The reference is a signal of 1.0 at
+ *  this point, about a hot line input at the default input gain. A plain compressor: the
+ *  makeup is a knob, nothing turns anything up by itself.
  *
- *  Knobs, each 0..1:
- *   0 amount: the threshold, 0dB down to -30dB. 0 is off, an exact bypass
+ *  Knobs, each 0..1, on two pages as an FX's (page 2's Mix and Makeup on the knobs an FX has
+ *  its Mix and Level on, FxOutput.h):
+ *   0 threshold: 0dB down to -30dB. 0 is off: with the makeup at 0 too, an exact bypass
  *   1 ratio: 1.5:1 to 20:1, 4:1 in the middle
- *   2 speed: attack 1-30ms with release 40-600ms (time constants), fast to slow
- *   3 mix: dry to fully compressed, for parallel compression
+ *   2 attack: 1-30ms (time constant)
+ *   3 release: 40-600ms (time constant)
+ *   4 mix: dry to fully compressed, for parallel compression
+ *   6 sidechain highpass: what the detector hears, off (0) or from 20Hz up to 500Hz, so the
+ *     bass doesn't pump the rest (page 2's knob 3, where an FX has its Band)
+ *   7 makeup: 0dB to +24dB
  *
  *  The safety limiter after the output gain is the old master compressor at its lowest
  *  setting (limiter.h); this is in front of it.
@@ -31,7 +36,8 @@ namespace chompi
 class MasterComp
 {
 public:
-    static const size_t kAmount = 0, kRatio = 1, kSpeed = 2, kMix = 3;
+    static const size_t kThreshold = 0, kRatio = 1, kAttack = 2, kRelease = 3, kMix = 4,
+                        kSidechain = 6, kMakeup = 7;
 
     void Init(float sample_rate)
     {
@@ -41,8 +47,10 @@ public:
         gain_ = 1.f;
         held_ = 0.f;
         hold_left_ = 0;
+        sc_coeff_ = 0.f;
+        sc_lp_[0] = sc_lp_[1] = 0.f;
         hold_samples_ = static_cast<uint32_t>(kHoldMs * .001f * sample_rate);
-        for (size_t p = 0; p < kNumFxKnobs; p++)
+        for (size_t p = 0; p < kNumFxParams; p++)
             knobs_[p].Reset(0.f);
         knobs_[kMix].Reset(1.f);
         update_pending_ = false;
@@ -51,18 +59,29 @@ public:
     }
 
     /** From the UI, 0..1 */
-    inline void SetParam(size_t param, float val) { knobs_[param].target = val; }
+    inline void SetParam(size_t param, float val)
+    {
+        knobs_[param].target = val;
+        turned_ = true;
+    }
 
     /** One stereo sample, in place */
     void Process(float* l, float* r)
     {
         // the knobs slew; what follows from them (several powf and expf) is worked out while
         // one moves, once per kUpdateSamples, and once more where they land
+        // only after a turn (turned_, cleared first so a turn meanwhile sets it again)
         bool moving = false;
-        for (size_t p = 0; p < kNumFxKnobs; p++)
+        if (turned_)
         {
-            update_pending_ |= knobs_[p].Settle(kFxParamCoeff);
-            moving |= knobs_[p].value != knobs_[p].target;
+            turned_ = false;
+            for (size_t p = 0; p < kNumFxParams; p++)
+            {
+                update_pending_ |= knobs_[p].Settle(kFxParamCoeff);
+                moving |= knobs_[p].value != knobs_[p].target;
+            }
+            if (moving)
+                turned_ = true;
         }
         if (update_pending_ && (!moving || ++since_update_ >= kUpdateSamples))
         {
@@ -72,9 +91,9 @@ public:
         }
 
         // off: a bypass, once a reduction left from before has released, so turning it off
-        // under a hot signal doesn't click
-        const bool off = knobs_[kAmount].value == 0.f;
-        if (off && reduction_ > -kOffDb)
+        // under a hot signal doesn't click; with makeup it's that gain alone
+        const bool off = knobs_[kThreshold].value == 0.f;
+        if (off && makeup_db_ == 0.f && reduction_ > -kOffDb)
         {
             reduction_ = 0.f;
             held_ = 0.f;
@@ -82,8 +101,22 @@ public:
             return;
         }
 
-        // the louder channel's peak, held for hold_samples_ before it may fall
-        const float now = fmaxf(fabsf(*l), fabsf(*r));
+        // the louder channel's peak, held for hold_samples_ before it may fall; through the
+        // sidechain's highpass where it's on (a one-pole lowpass taken off)
+        float dl = *l, dr = *r;
+        if (sc_coeff_ > 0.f)
+        {
+            sc_lp_[0] += sc_coeff_ * (dl - sc_lp_[0]);
+            sc_lp_[1] += sc_coeff_ * (dr - sc_lp_[1]);
+            dl -= sc_lp_[0];
+            dr -= sc_lp_[1];
+        }
+        else
+        {
+            sc_lp_[0] = dl;
+            sc_lp_[1] = dr;
+        }
+        const float now = fmaxf(fabsf(dl), fabsf(dr));
         if (now >= held_)
         {
             held_ = now;
@@ -134,6 +167,7 @@ private:
     static constexpr float kOffDb = .01f; // a reduction this small is gone
     static constexpr float kRestDb = 1e-6f; // and this small, released
     static constexpr float kMaxThreshDb = 30.f;
+    static constexpr float kMaxMakeupDb = 24.f;
     static constexpr float kHoldMs = 10.f; // a half-cycle of 50Hz
     static constexpr uint32_t kUpdateSamples = 24; // an audio block: 0.5ms, far below the slew
 
@@ -142,28 +176,32 @@ private:
     {
         static const float kRatioX[] = {0.f, .25f, .5f, .75f, 1.f};
         static const float kRatioY[] = {1.5f, 2.f, 4.f, 8.f, 20.f};
-        thresh_db_ = -kMaxThreshDb * knobs_[kAmount].value;
+        thresh_db_ = -kMaxThreshDb * knobs_[kThreshold].value;
         ratio_ = CurveMap(knobs_[kRatio].value, kRatioX, kRatioY, 5);
-        makeup_db_ = -.5f * thresh_db_ * (1.f - 1.f / ratio_);
+        makeup_db_ = kMaxMakeupDb * knobs_[kMakeup].value;
+        const float sc = knobs_[kSidechain].value;
+        sc_coeff_ = sc > 0.f ? OnePoleCoeff(20.f * powf(25.f, sc), sample_rate_) : 0.f;
         // below where the knee starts nothing is reduced: no log needed
         knee_start_ = daisysp::pow10f((thresh_db_ - kKneeDb * .5f) * .05f);
 
-        const float speed = knobs_[kSpeed].value;
-        const float attack_ms = powf(30.f, speed);
-        const float release_ms = 40.f * powf(15.f, speed);
+        const float attack_ms = powf(30.f, knobs_[kAttack].value);
+        const float release_ms = 40.f * powf(15.f, knobs_[kRelease].value);
         attack_ = 1.f - expf(-1000.f / (attack_ms * sample_rate_));
         release_ = 1.f - expf(-1000.f / (release_ms * sample_rate_));
     }
 
     float sample_rate_;
     bool update_pending_ = false; // a knob moved since the last Update
+    volatile bool turned_ = false; // a knob turned and not yet settled
     uint32_t since_update_ = 0;
-    Smoothed knobs_[kNumFxKnobs];
+    Smoothed knobs_[kNumFxParams];
     float reduction_;  // dB, <= 0, smoothed
     float held_;       // the detector's held peak
     uint32_t hold_left_, hold_samples_;
     float thresh_db_, ratio_, makeup_db_, knee_start_;
     float attack_, release_;
+    float sc_coeff_;  // the sidechain highpass's lowpass coefficient, 0: off
+    float sc_lp_[2];
     float gain_db_ = 0.f, gain_ = 1.f; // the last gain worked out, and its dB
 };
 

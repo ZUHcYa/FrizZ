@@ -9,10 +9,15 @@ expect led pth 8 fd0000
 tap KEY_28
 input off
 wait 1500
+# semitones up to 2x, then SHIFT: the ladder down and through 1/16x into reverse
 turn 5 32
 wait 2500
+down KEY_26
+wait 60
 turn 5 -64
-wait 3000
+wait 1000
+up KEY_26
+wait 2000
 # in reverse: the transport's left LED amber
 expect led pth 5 fd8400
 tap ENC_5_SW
