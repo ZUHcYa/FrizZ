@@ -17,7 +17,7 @@ STRESS=1 ./run.sh work out.bin
 | Check | What it looks at |
 |---|---|
 | `check.sh` | the engine harness (below): every output sample and FX meter of a fixed script, two versions compared; a refactor must be `bit-identical` |
-| `pitch`, `tape`, `delay`, `comp`, `clicks`, `level`, `sleep`, `inserts` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up events, the master compressor, moves that used to click, the level guard (an effect no louder than its input), effects that are off costing no time, the folder's bypass and level match and the slicer's patterns, chance and stereo |
+| `pitch`, `tape`, `delay`, `crusher`, `freezer`, `comp`, `clicks`, `level`, `sleep`, `inserts` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up and random events, the crusher's rate, bits and dive, the freezer's capture and roll, the master compressor, moves that used to click, the level guard (an effect no louder than its input), effects that are off costing no time, the folder's bypass and level match and the slicer's patterns, chance and stereo |
 | `scenes`, `store` | the scene and master files and the card: formats, a card not read at boot, backups |
 | `controls`, `keys`, `looper`, `tempo` | the play page's logic classes on their own: FX keys and knobs, SHIFT and the confirm, the looper, the tempo clock |
 | `ui` | the whole firmware from power-on on the virtual CHOMPI: keys through the 4021s, LEDs, the headphones and the master out, the card (full too), bug reports, MIDI (notes, CCs, NRPN, program changes, Start/Stop, the SysEx and its USB answers); each case on a fresh device |
@@ -135,7 +135,39 @@ resonance jumps the cutoff, but the output doesn't step further than the sweep d
 ```
 
 Checks where the delay's voices (`granularDelay.h`) start a pitch-up event: half a bar back at
-the default 1/4, right after Init as after a division change.
+the default 1/4, right after Init as after a division change. Then its random events on the
+8th-note edges: none with the random knob in the middle or the key off (a tail's edges); towards
+0 retriggers, reverses and pitch-ups and -downs, each about as often, on half the edges at 0 and
+a quarter at 0.25, in the centre; towards 1 only octave-up shimmers, on half the edges at 1,
+panned at random to both sides; and at 2 bars and 50 BPM, where a reverse wouldn't fit the
+buffer, a retrigger instead.
+
+## Crusher check
+
+```bash
+./unit.sh crusher
+```
+
+The crusher (`FxCrusher.h`) on a 1 kHz sine: the reducer holds a sample 15 samples with the
+rate knob in the middle and 100 at the top (3.2 kHz, 480 Hz), and at 0 lets the sine through
+nearly as it was; the bits knob at the top leaves a handful of steps, at 0 the sine's every
+value; a press dives the rate 10x lower 0.1 s on, and it's back to the knob's by 0.3 s. Held
+values are compared within 1e-4 and a step counts once, as the reducer's BLEP spreads it over
+two samples.
+
+## Freezer check
+
+```bash
+./unit.sh freezer
+```
+
+The freezer (`FxFreezer.h`) at 120 BPM on a ramp whose every sample is its own value: pressed,
+the live signal passes bit for bit to the next 16th and one loop past it, then it repeats what
+came in from the 16th, sample for sample past each seam's crossfade, a 16th each. The roll at
+its shortest stage halves the loop after 1 repeat, after 2 more, and stops at 1/64 bar; at its
+longest it holds 8 repeats first. Released, the live signal is back bit for bit once it has
+faded out. (The gate fades in to 1 - 7e-6, not 1, so a repeat carries the live input 100 dB
+down: the check feeds silence once a capture is recorded.)
 
 ## Master compressor check
 
