@@ -39,6 +39,7 @@ FRIZZ_SLOT = int(os.environ.get("FRIZZ_SLOT", 10))
 BENCH_SLOT = int(os.environ.get("BENCH_SLOT", 11))
 TEST_SLOT = int(os.environ.get("TEST_SLOT", 12))  # a branch's build, tested by a session
 STORAGE_SLOT = int(os.environ.get("STORAGE_SLOT", 15))
+FRIZZ_SLOTS = (FRIZZ_SLOT, TEST_SLOT)  # the slots with a FRIZZ that answers its SysEx
 STORAGE_LABEL = "CHOMPI-SD"
 
 RESTART = midi_send.HEADER + bytes([0x10, 0xF7])  # FRIZZ's (MidiClock.h)
@@ -278,6 +279,12 @@ def run(slot, wanted, timeout=120, device=None):
     if wanted:
         return wait_for(wanted, timeout, device)
     return None
+
+
+def start(slot, timeout=120, device=None):
+    """Starts slot SLOT from wherever the CHOMPI is; a FRIZZ slot's raw MIDI node once it
+    answers, None for another"""
+    return run(slot, "frizz" if slot in FRIZZ_SLOTS else None, timeout, device)
 
 
 def slot_file(node, slot):

@@ -80,8 +80,8 @@ def finish(then):
         chompi.to_launcher()
         print("at the launcher's picker")
     else:
-        slot = int(then) if then else chompi.FRIZZ_SLOT
-        chompi.run(slot, "frizz" if slot == chompi.FRIZZ_SLOT else None)
+        slot = then or chompi.FRIZZ_SLOT
+        chompi.start(slot)
         print("started slot %d" % slot)
 
 

@@ -215,6 +215,14 @@ int main()
         close(lock);
         unlink((tmp_dir + "/lock").c_str());
     }
+    // where the slot started afterwards is waited for: a FRIZZ until it answers (both of them)
+    int rc = Python("import chompi, card\ncalls = []\n"
+                    "chompi.run = lambda slot, wanted, *rest: calls.append((slot, wanted))\n"
+                    "card.finish(12)\ncard.finish(None)\ncard.finish(11)\nprint(calls)\n", out);
+    Check(rc == 0 && Has(out, "[(12, 'frizz'), (10, 'frizz'), (11, None)]"),
+          "tools: card.py --then 12 waits for FRIZZ-TEST as for FRIZZ, not for the bench");
+    if (rc != 0)
+        printf("%s\n", out.c_str());
     if (!OpenPty())
     {
         Check(false, "remote: a pseudo-terminal for the twin's USB");
@@ -223,7 +231,7 @@ int main()
     Boot();
     RunMs(kReadyMs);
 
-    int rc = Remote({"state"}, out);
+    rc = Remote({"state"}, out);
     Check(rc == 0 && Has(out, "looper     empty") && Has(out, "knobs on   freezer")
               && Has(out, "tempo      120.0 BPM") && Has(out, "out 0.75, in 0.75"),
           "remote: state reads the play page: no loop, the freezer's knobs, 120 BPM, the gains");

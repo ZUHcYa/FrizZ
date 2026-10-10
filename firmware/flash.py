@@ -55,8 +55,7 @@ def main():
     args = ap.parse_args()
 
     if args.run:
-        frizz = args.run in (chompi.FRIZZ_SLOT, chompi.TEST_SLOT)
-        chompi.run(args.run, "frizz" if frizz else None, args.wait, args.device)
+        chompi.start(args.run, args.wait, args.device)
         return
     if args.list:
         device = chompi.to_launcher(args.wait, args.device)
