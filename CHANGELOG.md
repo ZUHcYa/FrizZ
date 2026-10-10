@@ -83,12 +83,6 @@ what FRIZZ does.
 - A single MIDI clock tick that came a little late (a few ms, a sender's hiccup) moved the
   effects' tempo for a moment: 10 ms late at 120 BPM showed 114. A late tick and the next one
   now count together, so the tempo holds.
-- A card swapped for another while FRIZZ was on got the session's scenes on the next save,
-  replacing the scenes on it. It's now read like a card put in late: its scenes fill the empty
-  slots, and what a save would overwrite is kept as `.bak`.
-- A card taken out and put back while FRIZZ was on got the next save in its root instead of
-  the `FRIZZ` folder, so those scenes were missing after the next start. It's now written in
-  `FRIZZ` as before.
 
 ## v0.10 (2026-10-08)
 

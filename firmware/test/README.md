@@ -18,7 +18,7 @@ STRESS=1 ./run.sh work out.bin
 |---|---|
 | `check.sh` | the engine harness (below): every output sample and FX meter of a fixed script, two versions compared; a refactor must be `bit-identical` |
 | `pitch`, `tape`, `delay`, `comp`, `clicks`, `level`, `sleep`, `inserts` | parts of the engine on their own: the shifter's tuning, wow and flutter and the tape stop, the delay's pitch-up events, the master compressor, moves that used to click, the level guard (an effect no louder than its input), effects that are off costing no time, the folder's bypass and level match and the slicer's patterns, chance and stereo |
-| `scenes`, `store` | the scene and master files and the card: formats, a late card, a swapped card, backups |
+| `scenes`, `store` | the scene and master files and the card: formats, a late card, backups |
 | `controls`, `keys`, `looper`, `tempo` | the play page's logic classes on their own: FX keys and knobs, SHIFT and the confirm, the looper, the tempo clock |
 | `ui` | the whole firmware from power-on on the virtual CHOMPI: keys through the 4021s, LEDs, the headphones and the master out, the card (full too), bug reports, MIDI (notes, CCs, NRPN, program changes, Start/Stop, the SysEx and its USB answers); each case on a fresh device |
 | `remote` | `../remote.py` itself against the virtual CHOMPI: the twin's USB MIDI on a pseudo-terminal, remote.py run as it is (`--device`) while the twin keeps the wall clock's pace: state, LEDs, load, settings, scenes there and back, a script played with its `expect led` lines; needs `python3` |

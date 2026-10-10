@@ -1,10 +1,7 @@
 // Host stand-in for FatFs: an SD card in memory, just enough for SceneStore.h. The card can be
 // taken out (card.present), filled and read back (card.files, keyed by full path), made to
 // refuse writes (card.read_only) or run full (card.space: bytes a write can still add), and it
-// counts the files open (card.open), so a check sees one left open. A card just put in
-// (card.fresh) isn't set up: disk_status says so, and the next file call mounts it by itself
-// as FatFs does, which puts it back in the root. Its boot sector (disk_read) holds its volume
-// serial number (card.serial).
+// counts the files open (card.open), so a check sees one left open.
 #pragma once
 #include <algorithm>
 #include <cstdint>
@@ -14,7 +11,6 @@
 
 typedef unsigned int UINT;
 typedef unsigned char BYTE;
-typedef uint32_t DWORD;
 
 enum FRESULT
 {
@@ -30,12 +26,8 @@ enum FRESULT
 #define FA_WRITE 0x02
 #define FA_CREATE_ALWAYS 0x08
 
-#define FS_FAT32 3
 struct FATFS
 {
-    BYTE fs_type = 0;
-    BYTE drv = 0;
-    DWORD volbase = 0;
 };
 struct FILINFO
 {
@@ -51,9 +43,6 @@ struct FIL
 struct FakeCard
 {
     bool present = true;
-    bool fresh = false;  // just put in: not set up until mounted
-    uint32_t serial = 0; // the volume serial number in its boot sector
-    bool serial_unreadable = false; // its boot sector can't be read
     bool read_only = false;
     size_t space = SIZE_MAX;
     int open = 0;
@@ -66,37 +55,22 @@ struct FakeCard
         static FakeCard card;
         return card;
     }
-    /** Before each file call: a fresh card gets mounted, in the root (FatFs's find_volume) */
-    bool Ready()
-    {
-        if (present && fresh)
-        {
-            fresh = false;
-            cwd = "";
-        }
-        return present;
-    }
     std::string Path(const char* name) const
     {
         return name[0] == '/' ? std::string(name) : cwd + "/" + name;
     }
 };
 
-inline FRESULT f_mount(FATFS* fs, const char*, BYTE)
+inline FRESULT f_mount(FATFS*, const char*, BYTE)
 {
     FakeCard& c = FakeCard::Get();
     c.cwd = "";
-    if (!c.present)
-        return FR_NOT_READY;
-    c.fresh = false;
-    fs->fs_type = FS_FAT32;
-    fs->volbase = 8192; // after a partition table, as a card formatted by a computer has it
-    return FR_OK;
+    return c.present ? FR_OK : FR_NOT_READY;
 }
 inline FRESULT f_chdir(const char* path)
 {
     FakeCard& c = FakeCard::Get();
-    if (!c.Ready() || !c.dirs.count(path))
+    if (!c.present || !c.dirs.count(path))
         return FR_NO_FILE;
     c.cwd = path;
     return FR_OK;
@@ -104,7 +78,7 @@ inline FRESULT f_chdir(const char* path)
 inline FRESULT f_mkdir(const char* path)
 {
     FakeCard& c = FakeCard::Get();
-    if (!c.Ready() || c.read_only)
+    if (!c.present || c.read_only)
         return FR_DENIED;
     c.dirs[path] = true;
     return FR_OK;
@@ -112,12 +86,12 @@ inline FRESULT f_mkdir(const char* path)
 inline FRESULT f_stat(const char* name, FILINFO*)
 {
     FakeCard& c = FakeCard::Get();
-    return c.Ready() && c.files.count(c.Path(name)) ? FR_OK : FR_NO_FILE;
+    return c.present && c.files.count(c.Path(name)) ? FR_OK : FR_NO_FILE;
 }
 inline FRESULT f_unlink(const char* name)
 {
     FakeCard& c = FakeCard::Get();
-    if (!c.Ready())
+    if (!c.present)
         return FR_NOT_READY;
     if (!c.files.count(c.Path(name)))
         return FR_NO_FILE;
@@ -129,7 +103,7 @@ inline FRESULT f_unlink(const char* name)
 inline FRESULT f_rename(const char* from, const char* to)
 {
     FakeCard& c = FakeCard::Get();
-    if (!c.Ready())
+    if (!c.present)
         return FR_NOT_READY;
     if (!c.files.count(c.Path(from)))
         return FR_NO_FILE;
@@ -144,7 +118,7 @@ inline FRESULT f_rename(const char* from, const char* to)
 inline FRESULT f_open(FIL* f, const char* name, BYTE mode)
 {
     FakeCard& c = FakeCard::Get();
-    if (!c.Ready())
+    if (!c.present)
         return FR_NOT_READY;
     f->path = c.Path(name);
     f->fptr = 0;
@@ -202,36 +176,4 @@ inline FRESULT f_close(FIL*)
     FakeCard& c = FakeCard::Get();
     c.open -= c.open > 0;
     return FR_OK;
-}
-
-// the card's sectors, as diskio.h reads them: only its boot sector, which holds its serial;
-// and its status, which asks the card (CMD13), so one just put in isn't set up
-typedef BYTE DSTATUS;
-#define STA_NOINIT 0x01
-inline DSTATUS disk_status(BYTE)
-{
-    const FakeCard& c = FakeCard::Get();
-    return c.present && !c.fresh ? 0 : STA_NOINIT;
-}
-enum DRESULT
-{
-    RES_OK = 0,
-    RES_ERROR,
-    RES_WRPRT,
-    RES_NOTRDY,
-    RES_PARERR,
-};
-inline DRESULT disk_read(BYTE, BYTE* buf, DWORD sector, UINT count)
-{
-    const FakeCard& c = FakeCard::Get();
-    if (!c.present || c.fresh)
-        return RES_NOTRDY;
-    if (c.serial_unreadable)
-        return RES_ERROR;
-    if (sector != 8192 || count != 1)
-        return RES_PARERR;
-    memset(buf, 0, kSectorSize);
-    for (int i = 0; i < 4; i++)
-        buf[67 + i] = static_cast<BYTE>(c.serial >> (8 * i)); // BS_VolID32, FAT32
-    return RES_OK;
 }
