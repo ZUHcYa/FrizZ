@@ -69,8 +69,10 @@ TAPE's monitor-routing modes.
 ### 1.4 MIDI clock input
 
 - Sources: **TRS** (UART) and **USB** (device mode, same USB-C port as charging).
-- **Lock to the first source that ticks.** Ticks from the other source are ignored until the
-  locked source has been silent for 0.5 s, then whichever ticks next takes over.
+- **Lock to the first source that ticks** (the clock source's Auto, the default). Ticks from
+  the other source are ignored until the locked source has been silent for 0.5 s, then
+  whichever ticks next takes over. The settings page can pin it to TRS or USB, or ignore MIDI
+  clock (internal): `MidiClock.h`, MANUAL.md *Clock source*.
 - For the looper, only clock ticks are used. (Since v0.11 FRIZZ also takes notes, CCs, program
   changes and, optionally, Start/Stop: MANUAL.md, *MIDI*.) MIDI out is not needed.
 

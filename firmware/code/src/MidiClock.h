@@ -3,9 +3,13 @@
  *
  *  Only TimingClock ticks (24 PPQN) are used here; every other message goes to the listener,
  *  MidiControl.h, which plays the panel from it.
- *  The first source that ticks gets locked, and ticks from the other source are ignored
- *  until the locked one has been silent for kClockTimeoutSamples, after which whichever
- *  source ticks next takes over.
+ *  Which input's ticks count is the clock source (the settings page, SettingsPage.h): Auto,
+ *  TRS, USB or internal. In Auto, the first source that ticks gets locked, and ticks from
+ *  the other source are ignored until the locked one has been silent for
+ *  kClockTimeoutSamples, after which whichever source ticks next takes over. TRS and USB
+ *  count only that input's ticks, internal none: the tempo then comes from the loop, taps or
+ *  the last tempo (TempoClock.h). Every other message is read from both inputs whatever the
+ *  source; MidiControl.h takes Start and Stop only from the chosen one.
  *
  *  Time is measured in samples on the audio clock (the running sample count passed into
  *  Process()), so tick timestamps line up with the audio the looper records. They're only as
@@ -49,6 +53,23 @@ enum class ClockFactor : uint8_t
     ONE,
     DOUBLE,
 };
+
+// Whose ticks count: the first input that ticks, the jack's, USB's, or none
+enum class ClockSource : uint8_t
+{
+    AUTO,
+    TRS,
+    USB,
+    INTERNAL,
+};
+static const uint8_t kNumClockSources = 4;
+
+/** Whether a message from an input (usb, or the jack) passes the source: TRS and USB only
+ *  their own, Auto and internal both */
+inline bool FromSource(ClockSource source, bool usb)
+{
+    return source == ClockSource::TRS ? !usb : source == ClockSource::USB ? usb : true;
+}
 
 class MidiClock
 {
@@ -105,6 +126,8 @@ public:
 
     /** True while a source is locked, i.e. a tick arrived within the timeout */
     inline bool HasClock() const { return source_ != Source::NONE; }
+    /** True while USB's ticks are the ones counted: for the event log */
+    inline bool UsbClock() const { return source_ == Source::USB; }
 
     /** How many times a source has locked, or the factor changed: a change means the clock
      *  was lost and found again, maybe within one block, or counts differently now, so a
@@ -145,6 +168,22 @@ public:
     }
     inline ClockFactor Factor() const { return factor_; }
 
+    /** From MainLoop or a SysEx: whose ticks count. A source it leaves out is let go at once,
+     *  as a lost clock is (HasClock, GetLocks) */
+    void SetSource(ClockSource source)
+    {
+        ScopedIrqBlocker irq;
+        if (source == setting_)
+            return;
+        setting_ = source;
+        if (source_ != Source::NONE && !Counts(source_))
+        {
+            source_ = Source::NONE;
+            changes_++;
+        }
+    }
+    inline ClockSource GetSource() const { return setting_; }
+
     /** True once a restart was asked for over MIDI, from either input */
     inline bool RestartRequested() const { return restart_; }
 
@@ -163,6 +202,12 @@ private:
     inline float Bpm(float period) const
     {
         return period > 0.f ? sample_rate_ * 60.f / (period * kTicksPerBeat) : 0.f;
+    }
+
+    /** Whether the source setting lets an input's ticks count */
+    inline bool Counts(Source from) const
+    {
+        return setting_ != ClockSource::INTERNAL && FromSource(setting_, from == Source::USB);
     }
 
     /** One step of the period's smoothing, against block-granularity and USB-frame jitter.
@@ -191,6 +236,8 @@ private:
             return;
         }
 
+        if (!Counts(from))
+            return;
         if (source_ == Source::NONE)
         {
             // new lock: the first tick only gives a timestamp, no period yet
@@ -251,6 +298,7 @@ private:
     uint32_t last_tick_;  // the last tick that came
     uint32_t counted_at_; // the last tick counted
     volatile ClockFactor factor_;
+    volatile ClockSource setting_ = ClockSource::AUTO;
     bool skipped_ = false; // at half: the last tick wasn't counted
     float period_;
     float held_ = 0.f; // an interval waiting for the next tick, 0 for none

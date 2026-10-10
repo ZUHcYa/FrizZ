@@ -18,6 +18,14 @@ what FRIZZ does.
 - **Shifter mix** on its page 2, knob 1: the dry signal under the shifted one, for harmonies.
   At the top (the default) it's fully shifted, as before. The other effects' page 2 comes
   later (#40).
+- **Clock source** on the settings page (G# of the upper octave): Auto (the default, as
+  before: whichever input ticks first), TRS, USB, or internal (no MIDI clock: the loop, taps
+  or the last tempo, and tap tempo works while a clock runs). On TRS or USB, MIDI Start and
+  Stop count only from that input too. Saved on the card; `firmware/remote.py source` sets it.
+  See MANUAL.md, "Clock source".
+- **The beat on the settings page:** the clock factor's key (G# of the lower octave) is lit
+  for the first half of every beat of the tempo the effects follow, with the factor applied,
+  and dim for the second.
 
 ## v0.11 (2026-10-10)
 

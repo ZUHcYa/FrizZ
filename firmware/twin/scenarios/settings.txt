@@ -1,5 +1,5 @@
 # the settings page (mode switch up): an FX held through the flip, channel, mono, clock
-# factor, brightness, the battery on VOLUME; then back down to play
+# factor and source, brightness, the battery on VOLUME; then back down to play
 input sine 220 0.3
 at 6000
 down KEY_5
@@ -25,9 +25,30 @@ wait 300
 # mono
 expect led smt 2 fcfcfc
 tap KEY_19
-wait 300
-# the clock factor doubled: red
+wait 450
+# the clock factor doubled: red, lit for the first half of each beat (120 BPM)
 expect led smt 3 fc0000
+wait 250
+# and dim for the second
+expect led smt 3 240000
+# the clock source: Auto, white
+expect led smt 8 fcfcfc
+tap KEY_24
+wait 300
+# TRS: orange
+expect led smt 8 fc983c
+tap KEY_24
+wait 300
+# USB: blue
+expect led smt 8 0000fc
+tap KEY_24
+wait 300
+# internal: pink
+expect led smt 8 fc589c
+tap KEY_24
+wait 300
+# and Auto again
+expect led smt 8 fcfcfc
 tap KEY_20
 wait 300
 # the LEDs at 75 %

@@ -16,7 +16,8 @@
  *
  *  A logged time is when the firmware saw the change, after its debouncing; the file gives
  *  when the hand did it (kLead), as the twin debounces too. A MIDI message is logged as it
- *  came in and played in again then, through the MIDI jack, USB's too.
+ *  came in and played in again then, on the input it came on (the jack or USB), and so is
+ *  the clock: the clock source (MidiClock.h) counts only one of them.
  */
 #pragma once
 #include <stdint.h>
@@ -82,6 +83,8 @@ public:
         CLOCK,
         MIDI,  // a channel message, or Start / Continue / Stop
         SYSEX, // FRIZZ's own, with two data bytes (MidiControl.h)
+        CLOCK_USB, // as CLOCK and MIDI, from USB
+        MIDI_USB,
     };
 
     void Init(EventLogMem* mem, FATFS* fs, const char* path)
@@ -205,7 +208,8 @@ private:
         case KEY: return e.value && e.id != ENC_5_SW ? kSrKeyDownLeadMs : kKeyLeadMs;
         case TURN: return e.id <= 4 ? kSrTurnLeadMs : kTurnLeadMs;
         case TOGGLE: return e.value ? kToggleHighLeadMs : kToggleLowLeadMs;
-        case CLOCK: return e.id * 10u;
+        case CLOCK:
+        case CLOCK_USB: return e.id * 10u;
         default: return kMidiLeadMs;
         }
     }
@@ -218,13 +222,16 @@ private:
         {
             locks_seen_ = clock.SenderLocks();
             locked_at_ = now;
+            // lost and found on the other input within a pass: the replay stops the one it had
+            if (clock_logged_ != 0 && clock.UsbClock() != (clock_kind_ == CLOCK_USB))
+                AddFromMain(clock_kind_, kClockLossMs / 10, 0);
             clock_logged_ = 0;
             clock_last_ = 0;
         }
         if (!clock.HasClock())
         {
             if (clock_logged_ != 0)
-                AddFromMain(CLOCK, kClockLossMs / 10, 0);
+                AddFromMain(clock_kind_, kClockLossMs / 10, 0);
             clock_logged_ = 0;
             return;
         }
@@ -237,7 +244,8 @@ private:
         if (steady && (clock_logged_ == 0 || abs(tenths - clock_logged_) > kClockChange))
         {
             const uint32_t since = clock_logged_ == 0 ? (now - locked_at_) / 10 : 0;
-            AddFromMain(CLOCK, since > 255 ? 255 : since, tenths);
+            clock_kind_ = clock.UsbClock() ? CLOCK_USB : CLOCK; // the loss stops the same
+            AddFromMain(clock_kind_, since > 255 ? 255 : since, tenths);
             clock_logged_ = tenths;
         }
     }
@@ -285,10 +293,11 @@ private:
         text_[pos_++] = kDigits[b >> 4];
         text_[pos_++] = kDigits[b & 15];
     }
-    /** A MIDI message as the twin's `midi` line, as many data bytes as its status has */
+    /** A MIDI message as the twin's `midi` line (`usb` for USB's), as many data bytes as its
+     *  status has */
     EVENT_LOG_ONCE void PutMidi(const LoggedEvent& e)
     {
-        Put("midi");
+        Put(e.kind == MIDI_USB ? "usb" : "midi");
         PutHex(e.id);
         const uint8_t type = e.id & 0xF0;
         if (e.id >= 0xF0)
@@ -417,6 +426,7 @@ private:
                 PutNum(e.value);
                 break;
             case MIDI:
+            case MIDI_USB:
                 PutMidi(e);
                 break;
             case SYSEX:
@@ -431,6 +441,8 @@ private:
                 PutNum(e.value / 10);
                 Put(".");
                 PutNum(e.value % 10);
+                if (e.kind == CLOCK_USB)
+                    Put(" usb");
                 break;
             }
             Put("\n");
@@ -466,6 +478,7 @@ private:
     uint32_t locks_seen_ = 0, locked_at_ = 0;
     int16_t clock_logged_ = 0; // the tempo the log has, 0 for none
     int16_t clock_last_ = 0;   // at the last check
+    Kind clock_kind_ = CLOCK;  // the input of the clock the log has
 
     volatile bool requested_ = false;
     bool writing_ = false;

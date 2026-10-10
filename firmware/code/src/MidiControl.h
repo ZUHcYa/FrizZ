@@ -70,13 +70,14 @@ enum MidiCmd : uint8_t
 {
     kCmdKey = 0x11,      // KEY DOWN: a key (Hardware::SwId) held or let go
     kCmdTurn = 0x12,     // ENC DETENTS: encoder 1-6 (SW1-SW6), detents in 7-bit two's complement
-    kCmdSetting = 0x13,  // ID VALUE: 0 the channel (0 all, 1-16), 1 transport following (0/1)
+    kCmdSetting = 0x13,  // ID VALUE: 0 the channel (0 all, 1-16), 1 transport following (0/1),
+                         // 2 the clock source (0 Auto, 1 TRS, 2 USB, 3 internal)
     kCmdSwitch = 0x14,   // POS: the mode switch, 0 as it stands, 1 down, 2 up, until power-off
     kCmdState = 0x20,    // what the play page shows
     kCmdParams = 0x21,   // FX: an effect's knobs (12: the compressor's), 14 bits each
     kCmdLeds = 0x22,     // PART: the LEDs as their bytes, part 0 the panel's, 1-3 the keys'
     kCmdLoad = 0x23,     // the audio callback's load since the last ask
-    kCmdSettings = 0x24, // the channel and transport following
+    kCmdSettings = 0x24, // the channel, transport following and the clock source
     kCmdSceneGet = 0x30, // SLOT PART: a scene, in kSceneParts parts
     kCmdScenePut = 0x31, // SLOT PART DATA: likewise; the last part stores it
     kCmdReply = 0x40,
@@ -219,10 +220,12 @@ public:
     inline bool Transport() const { return transport_; }
 
     /** The settings page's (SettingsPage.h): the channel (0 all), transport following, and
-     *  how the clock is followed */
+     *  how the clock is followed and from where */
     inline void SetChannel(uint8_t channel) { channel_ = channel; }
     inline void SetTransport(bool on) { transport_ = on; }
     inline void SetClockFactor(ClockFactor factor) { clock_->SetFactor(factor); }
+    inline void SetClockSource(ClockSource source) { clock_->SetSource(source); }
+    inline ClockSource GetClockSource() const { return clock_->GetSource(); }
 
     /** The load since the last call, max and mean, in 1/1000 of a block */
     void TakeLoad(uint16_t& max, uint16_t& mean)
@@ -270,7 +273,8 @@ private:
         }
         if (e.type == SystemRealTime)
         {
-            if (!transport_)
+            // Start and Stop from the clock source's input only, from both in Auto and internal
+            if (!transport_ || !FromSource(clock_->GetSource(), usb))
                 return;
             int t = 0;
             if (e.srt_type == Start || e.srt_type == Continue)
@@ -280,7 +284,7 @@ private:
             if (t)
             {
                 transport_cmd_ = t;
-                Log(e.srt_type == Start ? 0xFA : e.srt_type == Continue ? 0xFB : 0xFC, 0, 0);
+                Log(e.srt_type == Start ? 0xFA : e.srt_type == Continue ? 0xFB : 0xFC, 0, 0, usb);
             }
             return;
         }
@@ -319,7 +323,7 @@ private:
         default:
             return;
         }
-        Log(status, d0, d1);
+        Log(status, d0, d1, usb);
     }
 
     /** False for a controller FRIZZ doesn't use */
@@ -454,12 +458,15 @@ private:
             switch_ = arg[0];
             break;
         case kCmdSetting:
-            if (n < 2 || arg[0] > 1 || (arg[0] == 0 && arg[1] > 16))
+            if (n < 2 || arg[0] > 2 || (arg[0] == 0 && arg[1] > 16)
+                || (arg[0] == 2 && arg[1] >= kNumClockSources))
                 return;
             if (arg[0] == 0)
                 channel_ = arg[1];
-            else
+            else if (arg[0] == 1)
                 transport_ = arg[1] != 0;
+            else
+                clock_->SetSource(static_cast<ClockSource>(arg[1]));
             settings_changed_ = true;
             break;
         default:
@@ -480,9 +487,10 @@ private:
         log_->Add(EventLog::SYSEX, cmd, static_cast<int16_t>((arg[0] << 7) | arg[1]));
     }
 
-    void Log(uint8_t status, uint8_t d0, uint8_t d1)
+    void Log(uint8_t status, uint8_t d0, uint8_t d1, bool usb)
     {
-        log_->Add(EventLog::MIDI, status, static_cast<int16_t>((d0 << 7) | d1));
+        log_->Add(usb ? EventLog::MIDI_USB : EventLog::MIDI, status,
+                  static_cast<int16_t>((d0 << 7) | d1));
     }
 
     MidiClock* clock_ = nullptr;

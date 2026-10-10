@@ -212,7 +212,7 @@ static void TestFile()
     const size_t len = FormatMaster(a, buf, sizeof(buf));
     printf("%s", buf);
     bool same = ParseMaster(buf, b) && len > 0;
-    for (size_t p = 0; p < kNumFxParams; p++)
+    for (size_t p = 0; p < kNumFxKnobs; p++)
         same = same && fabsf(a.comp[p] - b.comp[p]) < 1e-6f;
     Check(same, "file: round-trips");
 
@@ -275,6 +275,25 @@ static void TestFile()
     Check(ParseMaster("FRIZZ master 1\nclock_factor 300\nled_brightness 10\n", b)
               && b.clock_factor == 100 && b.led_brightness == 100,
           "file: one from before them, or values they can't take: x1, full");
+
+    // the clock source: 0 Auto, 1 TRS, 2 USB, 3 internal
+    a.Reset();
+    Check(a.clock_source == 0, "file: the clock source Auto by default");
+    a.clock_source = 3;
+    FormatMaster(a, buf, sizeof(buf));
+    Check(ParseMaster(buf, b) && b.clock_source == 3, "file: the clock source round-trips");
+    Check(ParseMaster("FRIZZ master 1\nclock_source 4\n", b) && b.clock_source == 0,
+          "file: one from before it, or a source past 3: Auto");
+    // every setting at its longest still fits the file's buffer
+    a.Reset();
+    for (size_t p = 0; p < kNumFxKnobs; p++)
+        a.comp[p] = 1.f;
+    a.mono = a.midi_transport = true;
+    a.midi_channel = 16;
+    a.clock_factor = 200;
+    a.clock_source = 3;
+    char big[kMasterFileMax];
+    Check(FormatMaster(a, big, sizeof(big)) > 0, "file: every setting at its longest fits");
 }
 
 /** The gain's ripple, dB, on a steady sine of freq Hz at 0dB: max minus min reduction
