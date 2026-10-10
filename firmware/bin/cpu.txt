@@ -1,4 +1,5 @@
 FRIZZ cpu bench, source 2150931581
+# measured on FRIZZ-bench.bin md5 b250f4dff33fb19a09d99104d24ffde7; FRIZZ.bin from the same source md5 42480bc9a5cfc79b149d565157765a42
 # of the 0.5 ms a block has; measured in FRIZZ-bench.bin, whose memory layout
 # isn't FRIZZ.bin's
 # segment           max %  mean %  still working

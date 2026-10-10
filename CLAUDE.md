@@ -67,8 +67,8 @@ git fetch && git worktree add ../FrizZ-<branch> -b <branch> origin/main
 ```
 
 and remove it (`git worktree remove`, `git branch -d`, delete the remote branch) once it's
-merged. A tool that sends a build (`flash.py --no-build`) sends that worktree's
-`firmware/bin/`: run it from the branch's worktree, or name the file.
+merged. A tool that sends a build (`flash.py --no-build`) sends what that worktree's
+`firmware/code/src` built last: run it from the branch's worktree, or name the file.
 
 Branches don't wait for each other: each merges on its own once it passes, and a branch still
 open when another reaches `main` merges `main` in and runs its checks again. Stack a branch
@@ -76,14 +76,18 @@ on an unmerged one only when it really builds on it (or would conflict heavily w
 and say so in its PR; its PRs merge bottom-up, and a fix goes on the branch it belongs to,
 merged upwards.
 
-The branch always carries a built firmware for its checks: every commit that changes
-the bytes of `FRIZZ.bin` rebuilds with `make` and `make BENCH=1` in `firmware/code/src` (GCC
-10.3, below) and includes both fresh binaries (`build/FRIZZ.bin`, `build-bench/FRIZZ-bench.bin`)
-in `firmware/bin/`, in the same commit. A comment-only commit may leave them, saying in its
-message that the md5 is unchanged. On a merge conflict over a binary, rebuild rather than pick
-a side. `main` holds the last checked build; releases for users are on GitHub's Releases page.
-`firmware/tools/install-hooks.sh` installs a pre-commit hook that refuses commits on `main` and
-warns when `firmware/code/` is staged without the binary or `CHANGELOG.md`.
+**Builds aren't committed; their md5 names them** (decided 2026-10-11). GCC 10.3 builds the
+same source to the same bytes on any machine (*Toolchain*, below), so `make` and `make BENCH=1`
+in `firmware/code/src` give any session a commit's build, and its md5 says which build it is:
+a PR's *Checked on the device*, `firmware/bin/cpu.txt` and a release's notes name builds by
+md5. `firmware/tools/builds.py` builds both and prints their md5 (`builds.py md5` only
+prints). They stay in `code/src/build/FRIZZ.bin` and `build-bench/FRIZZ-bench.bin`, which git
+ignores; `firmware/bin/` keeps CHOMPI's bootloader, its install script and `cpu.txt`. A branch
+from before then that merges `main` gets a modify/delete conflict over `firmware/bin/FRIZZ.bin`
+and `FRIZZ-bench.bin`: delete them (`git rm`), don't rebuild them into git. Releases for users
+are on GitHub's Releases page. `firmware/tools/install-hooks.sh` installs a pre-commit hook
+that refuses commits on `main` and warns when `firmware/code/` is staged without
+`CHANGELOG.md`.
 
 Every commit that changes `firmware/code/`, `firmware/test/` or `firmware/twin/` first passes
 `firmware/test/all.sh`. A check that fails is fixed, or, when the change is meant to alter
@@ -110,7 +114,8 @@ working on a branch:
   pushed. Its description lists what changed and three sections, kept current
   (`gh pr edit`) with every commit:
   - **Checked on the twin** (stage 1, below).
-  - **Checked on the device** (stage 2): which build (md5), the bench's `cpu.txt` against
+  - **Checked on the device** (stage 2): which build ran (the md5 `flash.py` prints for
+    what it sends, the bench build's too), the bench's `cpu.txt` against
     `main`'s (`firmware/bin/cpu.txt`), the scenarios played with `remote.py play --cpu` and
     their worst load, `measure.py` results where they apply. A docs- or tooling-only branch
     says it has none.
@@ -148,16 +153,18 @@ A build handed out for testing goes on GitHub as a **pre-release**, never as Lat
 
 - Each release candidate (or other test round the user asks for) gets a numbered one,
   `v<next>-beta.N` (next: `v0.12-beta.1`), tagged on the pushed commit, with that commit's
-  `firmware/bin/FRIZZ.bin` attached and the notes taken from `CHANGELOG.md`'s Unreleased
-  section plus a link to the release-test issue (or the PR). The number never moves, so
-  feedback can name the build.
+  build attached: `make` in a clean worktree at the tag (`git worktree add ../FrizZ-<tag>
+  <tag>`, GCC 10.3), and its `firmware/code/src/build/FRIZZ.bin` uploaded under that name. The
+  notes name its md5 and are taken from `CHANGELOG.md`'s Unreleased section, plus a link to
+  the release-test issue (or the PR). The number never moves, so feedback can name the build.
 - The pre-release **`beta`** always carries the newest numbered one (until v0.12-beta.1: v0.11
   itself), and moves only with a new one, at a fixed link
   (`https://github.com/ZUHcYa/FrizZ/releases/download/beta/FRIZZ.bin`): `git tag -f beta
-  <commit> && git push -f origin beta`, `gh release upload beta firmware/bin/FRIZZ.bin
-  --clobber`, and `gh release edit beta` with a title and notes naming the numbered build.
+  <commit> && git push -f origin beta`, `gh release upload beta <the numbered one's FRIZZ.bin>
+  --clobber`, and `gh release edit beta` with a title and notes naming the numbered build and
+  its md5.
 - Cut one only when the user asks for a test build; a release for everyone is a normal
-  release on `main`.
+  release on `main`, its `FRIZZ.bin` built the same way at its tag, its md5 in the notes.
 
 ## The CHOMPI is shared: the lock and the slots
 
@@ -167,14 +174,15 @@ There is one CHOMPI, and other sessions and the user use it too. The device tool
 holds it for the whole sequence, so nothing slips in between:
 
 ```bash
-cd firmware && tools/chompi.py hold sh -c '
+cd firmware && tools/builds.py && tools/chompi.py hold sh -c '
   ./flash.py --bench --no-build && sleep 150 && ./card.py --then none get &&
   ./flash.py --test --no-build && ./remote.py play twin/scenarios/fx-each.txt --cpu
-  ./flash.py --run 10'
+  ./flash.py --run 10' && tools/builds.py cpu
 ```
 
-(the bench runs ~100 s by itself; `card.py get` fetches its `cpu.txt` into `card/`), and
-leaves FRIZZ on key 10 running at the end. Stage 2 plays no scenario that uses the settings
+(it builds before taking the CHOMPI; the bench runs ~100 s by itself; `card.py get` fetches
+its `cpu.txt` into `card/`, and `builds.py cpu` files that as `bin/cpu.txt`), and leaves FRIZZ
+on key 10 running at the end. Stage 2 plays no scenario that uses the settings
 page (`settings.txt`): what it changes is saved to the card key 10 shares, so `remote.py play`
 refuses it without `--force` (#58). The user takes the CHOMPI for playing with
 `tools/chompi.py hold` (until Ctrl-C), or by telling a session, which then runs it for them.
@@ -197,7 +205,12 @@ FRIZZ builds with **GNU Arm Embedded 10.3-2021.10** (GCC 10.3.1): newer GCC inte
 breaks SD-card communication. On this machine it is at `~/opt/gcc-arm-none-eabi-10.3-2021.10/`,
 on `PATH` via `~/.bashrc`; non-interactive shells may not read it, so prepend it explicitly:
 `PATH=~/opt/gcc-arm-none-eabi-10.3-2021.10/bin:$PATH make`. Run `make` in
-`firmware/code/src`, never from the repo root, and read the memory table it prints. The host
+`firmware/code/src`, never from the repo root, and read the memory table it prints.
+
+The pin is also what makes a build's md5 its name: GCC 10.3 builds the same source to the same
+bytes on every machine (checked 2026-10-11: main rebuilt elsewhere came out byte-identical),
+so the builds needn't be committed. Another compiler builds other bytes, and its build isn't
+the commit's: `flash.py` and `tools/builds.py` refuse to build with one. The host
 checks need only `g++` and `python3`; the browser twin needs Emscripten in `~/opt/emsdk`.
 
 ## Tests: the host checks and the virtual CHOMPI
@@ -227,8 +240,9 @@ appear that the twin can't reproduce. The host can't measure the load; the devic
 `make BENCH=1` builds `FRIZZ-bench.bin` (`Bench.h`, compiled in only then), which runs 23
 segments by itself and writes `/FRIZZ/cpu.txt`; `firmware/remote.py load` and `remote.py play
 SCRIPT --cpu` read `FRIZZ.bin`'s own load. Every firmware branch runs the bench in stage 2,
-on its final build: its `cpu.txt` goes into `firmware/bin/cpu.txt` (the load of the build next
-to it, so `main` always has its own) and into the PR, compared with `main`'s. A segment
+on its final build: its `cpu.txt` goes into `firmware/bin/cpu.txt` through `tools/builds.py
+cpu`, which heads it with the md5 of the build it measured (so `main` always has its own load),
+and into the PR, compared with `main`'s. A segment
 noticeably higher is explained or fixed before the PR is ready. Details:
 `firmware/README.md`, *Measure the CPU load*.
 
