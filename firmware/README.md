@@ -121,7 +121,7 @@ cd ~/opt/emsdk && ./emsdk install 6.0.11 && ./emsdk activate 6.0.11
 `web/serve.sh` finds it there by itself. Its first build compiles DaisySP for the browser too,
 so it takes longer; after a change, a reload rebuilds in about 20 s.
 
-**A bug from a player:** SHIFT + transport press on the CHOMPI writes `/FRIZZ/bug-N.txt`
+**A bug from a player:** SHIFT + VOLUME press held 2 s on the settings page writes `/FRIZZ/bug-N.txt`
 (MANUAL.md, *Bug reports*), a twin script of everything since power-on with the card's files
 from then. `twin/run.sh -o out.wav -l leds.txt bug-1.txt` plays it again, up to the combo;
 once it shows the bug, turn it into a case in `test/ui.cpp`. What it holds and what not:
@@ -360,7 +360,7 @@ SettingsPage.h         the settings page (the mode switch up): MIDI channel and 
 LedSignal.h            the play page's short LED signals: 3 red or white blinks, a flash
 ui.h                   page plumbing: events, page switching
 EventLog.h             the bug report: every key, knob and MIDI event since power-on, written as
-                       a twin script to /FRIZZ/bug-N.txt on SHIFT + transport press
+                       a twin script to /FRIZZ/bug-N.txt on SHIFT + VOLUME held (settings page)
 Bench.h, BenchProfile.h
                        the CPU bench (only in FRIZZ-bench.bin, `make BENCH=1`) and its cycle marks
 limiter.h, EnvFollower.h

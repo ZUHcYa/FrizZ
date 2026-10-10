@@ -321,8 +321,9 @@ And PR #7's hardware checklist, each of which fails on the firmware before it (`
   the card's scene is there and a save adds to it.
 
 And the bug report (`code/src/EventLog.h`): after a session (a latch, knob 1 with and without
-SHIFT, a loop recorded and sped up, a scene recalled and another saved), SHIFT + transport
-press writes `/FRIZZ/bug-1.txt` while the transport LEDs blink white, holding the card's
+SHIFT, a loop recorded and sped up, a scene recalled and another saved), SHIFT + VOLUME held
+on the settings page writes `/FRIZZ/bug-1.txt` once 2 s have passed, the transport LEDs
+blinking white then and not before, holding the card's
 scenes as at power-on (not the one saved since) and the session's keys and knobs, and the
 saves after it still go to `/FRIZZ` (writing it remounts the card), and a file of several
 sectors comes out whole: the card here shifts whole sectors written from an unaligned
@@ -333,6 +334,10 @@ replay writes the same events again.
 A bug report on a full card (the twin's card can run full, `SetCardSpace`, and counts the
 files open, `CardOpenFiles`): the transport blinks red, the file isn't left open, and with
 room again the next one is written.
+
+The bug report's hold (`bug-hold`): SHIFT + transport press on the play page (the combo until
+v0.11) writes nothing, nor SHIFT + VOLUME let go after 1.5 s; VOLUME then SHIFT held 5 s
+writes exactly one.
 
 And a restart over MIDI (`MidiClock.h`, for `flash.py`): FRIZZ's own SysEx resets the chip,
 the launcher's PING or a longer message doesn't, and a setting changed just before it is on
