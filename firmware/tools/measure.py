@@ -5,8 +5,9 @@
         a MIDI clock over USB, paced by this computer, and FRIZZ's tempo read every 50 ms:
         how steady it holds. pairs: two ticks in one write every 2 ticks' time (a host that
         batches); catchup: every other tick held back and sent 1 ms before the next
-    ./measure.py drift [--bpm 120] [--bars 1] [--seconds 180] [--out NAME]
-        a quantized loop against a MIDI clock on the TRS jack: generated material into AUX,
+    ./measure.py drift [--bpm 120] [--bars 1] [--seconds 180] [--mode M] [--out NAME]
+        a quantized loop against a MIDI clock on the TRS jack (its ticks as `clock --mode`
+        sends them): generated material into AUX,
         PLAY + LOOP over SysEx, the line out recorded, then the loop's length against the
         clock's bars and its drift in ms a minute
     ./measure.py fx KEY [--level CC] [--seconds 30] [--material FILE] --out NAME
@@ -315,7 +316,7 @@ def cmd_drift(a):
     if state(f)[0] != 0:
         sys.exit("the looper isn't empty: erase it, or restart FRIZZ (flash.py --run 10)")
     midi = os.open(trs_midi(), os.O_WRONLY)
-    clock = Clock(lambda b: os.write(midi, b), a.bpm)
+    clock = Clock(lambda b: os.write(midi, b), a.bpm, a.mode)
     wav = (a.out or "drift") + ".material.wav"
     write_wav(wav, np.repeat(generated()[:, None], 2, 1))
     p = play(wav)
@@ -339,9 +340,9 @@ def cmd_drift(a):
     y = record(a.seconds, a.out and a.out + ".f32", times)
     clock.close()
     n, good, loop, bar_s, drift, jumps, ppm = loop_length(y, times, a.bpm, a.bars)
-    print("%g BPM, %d bar%s, TRS: %d passes (%d clear), the loop %.1f samples for the bars' %.1f "
+    print("%g BPM, %d bar%s, TRS (%s): %d passes (%d clear), the loop %.1f samples for the bars' %.1f "
           "(%+.2f a pass): drift %+.2f ms a minute; the interface %+.0f ppm against this computer"
-          % (a.bpm, a.bars, "s" if a.bars > 1 else "", n, good, loop, bar_s, loop - bar_s, drift, ppm))
+          % (a.bpm, a.bars, "s" if a.bars > 1 else "", a.mode, n, good, loop, bar_s, loop - bar_s, drift, ppm))
     if jumps:
         print("the loop's position jumped: " + ", ".join("%+.0f samples at pass %d" % (j, k) for k, j in jumps))
 
@@ -406,6 +407,7 @@ def main():
     p = sub.add_parser("drift")
     p.add_argument("--bpm", type=float, default=120.)
     p.add_argument("--bars", type=int, default=1)
+    p.add_argument("--mode", choices=["single", "pairs", "catchup"], default="single")
     p.add_argument("--seconds", type=float, default=180.)
     p.add_argument("--out", help="keep the recording as OUT.f32 and the material as OUT.material.wav")
     p = sub.add_parser("fx")

@@ -353,8 +353,8 @@ the rounding without hysteresis); and a quantized loop, though within a few samp
 ms a minute against the clock when it's short and fast (1 bar at 174 BPM from a DAW): a bar of
 ticks can't measure the tempo closer, and nothing follows the clock once the loop plays. The
 drift is worked out from the length's error; the loop point's moves, measured only to a block,
-have to agree with it. And from the catching-up sender, the looper's fit misses a short loop's
-length by up to 56 samples (1 bar at 90 BPM), a drift up to 26 ms a minute.
+have to agree with it. From the catching-up sender, a loop is as close to its bars as from the
+others: the looper drops a tick that came late from its fit (#17).
 
 ## CPU bench check
 

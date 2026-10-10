@@ -44,8 +44,6 @@ what FRIZZ does.
   modulation no longer computes two cosines a sample, the delay no longer divides by the
   tempo every sample. The delay sounds the same; the reverb's modulation is within a
   thousandth of what it was.
-- Mono input (VOLUME's page 3) needs its 3 detents in one direction: turning back starts the
-  count over, so wiggling the knob doesn't switch it.
 - A flash on a key that's already lit nearly white (a select on a loud effect or on the
   compressor working hard, a tap on LOOP near the loop's end) goes dark instead of white, so
   it's seen.
@@ -78,6 +76,10 @@ what FRIZZ does.
 - The effects' tempo from a MIDI clock whose ticks come in pairs (two at once, or a late one
   catching up just before the next, as a busy computer can send them) was off by up to 5 %
   and flapped. A pair now counts as two ticks of the right length.
+- A quantized loop recorded against a MIDI clock that delivers ticks late and then catches up
+  (as a busy computer can) came out up to 56 samples short for 1 bar, so it drifted up to
+  26 ms a minute against the clock. The late ticks no longer count for its length: it's as
+  close to its bars as with any other clock.
 - A bug report that couldn't be written (the card full) left its file open on the card; it's
   now closed, so the card stays sound and the next report is written.
 - A restart over MIDI (FRIZZ's own SysEx, which `flash.py`, `card.py` and `remote.py` send to
