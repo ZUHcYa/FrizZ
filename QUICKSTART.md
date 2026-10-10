@@ -14,7 +14,7 @@ The looper records the input **before** the effects, so you can play effects ove
 nothing gets printed into it. The effects come **after** the mix, so they act on everything you
 hear, the live input as well as the loop. The mix knob balances input against loop; there's no
 dry path around the effects on the master out. The headphones carry the same as the master
-out, or, from VOLUME's page 4, only the dry input (no loop, no effects).
+out, or, from VOLUME's page 3, only the dry input (no loop, no effects).
 
 **SHIFT** means holding the CHOMPI key. The key lights white while it acts as SHIFT.
 
@@ -24,14 +24,17 @@ out, or, from VOLUME's page 4, only the dry input (no loop, no effects).
 |---|---|
 | Turn VOLUME | Output volume. The LED is a level meter |
 | Press VOLUME, then turn | Input gain. The LED runs from blue to red |
-| Press again, then turn | Mono: turn left for a mono cable (white), right for stereo (light blue) |
 | Press again, then turn | Headphones: white = the master out, green = only the dry input |
 | Press again | Back to output volume |
 | SHIFT + turn VOLUME | Input/loop mix: green = only the input, purple = only the loop |
 | SHIFT + press VOLUME | Mix back to the loop only (with a loop) or the input only (without) |
 
 Each press blinks the page's number in white: once for output, twice for input, three times
-for mono, four times for the headphones.
+for the headphones.
+
+A mono cable (TS) in AUX? Flip the mode switch **up** to the settings page and press F# of the
+lower octave (a dark key, dimly white) so it lights fully: mono. Flip back down to play. The settings page also sets the MIDI channel and shows the battery on VOLUME's LED
+(MANUAL.md, "Settings page").
 
 ## 2. Record a loop
 

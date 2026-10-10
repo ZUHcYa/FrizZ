@@ -55,6 +55,13 @@ public:
         sel_ = src_ = active_ = morph_ = kNoScene;
     }
 
+    /** Out of a mode, nothing picked: the settings page shown (NormalPage.h) */
+    void Cancel()
+    {
+        mode_ = SceneMode::NONE;
+        sel_ = src_ = kNoScene;
+    }
+
     /** A mode key: the same one again cancels, another switches over */
     void ModePressed(SceneMode mode)
     {

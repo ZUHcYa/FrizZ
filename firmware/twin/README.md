@@ -114,7 +114,7 @@ it with SHIFT held: leave the gaps a hand would.
 | `booted` | run until the firmware's `main()` enters its loop (about 1 s); `at` counts from there. A bug report's times do |
 | `down KEY` / `up KEY` / `tap KEY [MS]` | a key by its `Hardware::SwId` name: `KEY_1` .. `KEY_28` (white keys 1-15 are `KEY_1`-`KEY_15`; CHOMPI, PLAY, LOOP are `KEY_26`-`KEY_28`), `ENC_1_SW` .. `ENC_6_SW`. `tap` holds it 60 ms |
 | `turn ENC N` | encoder 1-6 (SW1-SW6: 4 is knob 1, 1-3 knobs 2-4, 5 the transport, 6 VOLUME) by N detents. They play out in the background, 8 ms each, as a hand turns: `wait` for them before the next key |
-| `toggle 0\|1` | the mode switch, as the 4021 reads it |
+| `toggle 0\|1` | the mode switch, as the 4021 reads it: 0 down (the play page, where the twin starts), 1 up (the settings page) |
 | `input sine HZ AMP` / `input wav FILE` / `input off` | what goes into AUX (a WAV loops) |
 | `midi HEX...` | raw bytes into the MIDI jack |
 | `usb HEX...` | raw bytes into USB MIDI, as a computer sends them (FRIZZ's queries are answered only there) |
