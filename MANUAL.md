@@ -78,7 +78,9 @@ The upper octave's other dark keys do nothing.
   the cable and it shows the battery's colour within a few seconds; after that the level is
   read every 30 s.
 - The transport LEDs are purple, so the page can't be mistaken for the play page.
-- The knobs, CHOMPI, PLAY and LOOP do nothing here.
+- **SHIFT + VOLUME, held 2 s:** hold CHOMPI and press and hold the VOLUME knob, in either
+  order; after 2 s it writes a [bug report](#bug-reports), once per hold.
+- Otherwise the knobs, CHOMPI, PLAY and LOOP do nothing here.
 - A key you're holding when you flip the switch stays where it went down until you let go:
   an effect you hold keeps going, and the key doesn't also change a setting. The same the
   other way round.
@@ -132,7 +134,7 @@ Transport knob (the big purple one), once a loop exists:
 | SHIFT + turn while playing | Speed in 5ths and octaves (4 detents per step): from between two of them, to the next one in the turn's direction. Past 1/16× it flips into reverse and climbs back up to −2×: the only way into reverse |
 | Turn while paused | Scrub |
 | Press | Back to 1× forward |
-| SHIFT + press | Writes a [bug report](#bug-reports) |
+| SHIFT + press | Nothing (until v0.11 it wrote a [bug report](#bug-reports), now on the settings page) |
 
 LEDs: LOOP is red while recording and blinks while a quantized recording finishes its bar or
 an erase waits for the loop's end, at the slow blink everything waiting uses (a picked scene
@@ -800,13 +802,17 @@ and reports the worst load.
 
 ## Bug reports
 
-From v0.11. SHIFT + press the transport knob writes everything you did since switching on to the card,
-as `/FRIZZ/bug-1.txt` (the next one `bug-2.txt`, and so on): every key, knob detent and
+From v0.11. On the [settings page](#settings-page) (mode switch up), hold SHIFT (CHOMPI) and
+press and hold the VOLUME knob for 2 seconds: FRIZZ writes everything you did since switching
+on to the card, as `/FRIZZ/bug-1.txt` (the next one `bug-2.txt`, and so on): every key, knob detent and
 mode-switch flip with its time, the MIDI clock's tempo, every MIDI message FRIZZ acted on, and
-the scenes and compressor the card held at power-on. Do it right after something went wrong and send the file with your report:
+the scenes and compressor the card held at power-on. Do it right after something went wrong
+(flip the switch up, hold, flip it back down) and send the file with your report:
 FRIZZ's developers play it on a virtual CHOMPI on their computer, which then does what yours
 did, key for key.
 
+- Until v0.11 it was SHIFT + press the transport knob on the play page; that now does
+  nothing, so it can't be pressed by accident while playing.
 - While it's written, both transport LEDs blink white; then they blink 3 times, white when
   it's on the card, red when it isn't (no card, or a full one). A long session takes a moment,
   and the keys answer late until it's done; the sound plays on.

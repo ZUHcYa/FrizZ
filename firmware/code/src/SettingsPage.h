@@ -21,6 +21,9 @@
  *
  *  The upper octave's other dark keys are free.
  *
+ *    SHIFT + VOLUME press, both held 2 s     a bug report (EventLog.h), once per hold;
+ *                                            the transport LEDs blink as on the play page
+ *
  *  Each key acts on its press. A key that went down on the play page stays the play page's
  *  until it's let go, and the other way round (ui.h), so flipping the switch with a key held
  *  doesn't let go of it. A scene mode (SAVE, COPY, DELETE) is left as the switch goes up.
@@ -104,6 +107,32 @@ public:
             return true;
         }
         return false;
+    }
+
+    /** A key going down or up on the page: SHIFT (CHOMPI) and VOLUME's press are watched
+     *  for the bug report's hold */
+    void Held(int key, bool down, uint32_t now)
+    {
+        const uint8_t bit = key == static_cast<int>(Hardware::SwId::KEY_26)     ? 1
+                            : key == static_cast<int>(Hardware::SwId::ENC_6_SW) ? 2
+                                                                                : 0;
+        if (!bit)
+            return;
+        const uint8_t was = held_;
+        held_ = down ? held_ | bit : held_ & ~bit;
+        if (held_ == kBothHeld && was != kBothHeld)
+            held_since_ = now;
+        else if (held_ != kBothHeld)
+            reported_ = false;
+    }
+
+    /** True once per hold, when SHIFT and VOLUME's press have both been held kBugReportHoldMs */
+    bool BugReportHeld(uint32_t now)
+    {
+        if (held_ != kBothHeld || reported_ || now - held_since_ < kBugReportHoldMs)
+            return false;
+        reported_ = true;
+        return true;
     }
 
     /** The mono input, from its key or MIDI (CC 60). True if it changed */
@@ -190,6 +219,8 @@ private:
     static const Hardware::SwId kChannel15Key = Hardware::SwId::KEY_15;
     static const uint8_t kVolumeLed = 9, kTransportLedRev = 5, kTransportLedFwd = 6;
     static constexpr float kOffLevel = .15f; // as an FX key that's off (NormalPage.h)
+    static const uint8_t kBothHeld = 3;          // Held's bits: SHIFT 1, VOLUME 2
+    static const uint32_t kBugReportHoldMs = 2000;
 
     // G# and A# of the lower octave
     static const Hardware::SwId kFactorKey = Hardware::SwId::KEY_19;
@@ -220,6 +251,9 @@ private:
     bool mono_ = false;
     ClockFactor factor_ = ClockFactor::ONE;
     uint8_t quarters_ = 4;
+    uint8_t held_ = 0;          // SHIFT and VOLUME's press down on the page, by Held's bits
+    uint32_t held_since_ = 0;   // since when both are
+    bool reported_ = false;     // this hold has asked for its bug report
 };
 
 constexpr const float* SettingsPage::kFactorColors[];

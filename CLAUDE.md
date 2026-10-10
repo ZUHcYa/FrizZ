@@ -210,8 +210,8 @@ a refactor must come out `bit-identical`) and every unit check, `./unit.sh NAME`
 `firmware/twin/` is the **virtual CHOMPI**: the whole firmware compiled unchanged for the host
 on a simulated board, deterministic and 13-20x real time. `./run.sh -o out.wav -l - SCRIPT`
 plays a script of keys, knobs, MIDI and audio from power-on; `web/serve.sh` plays it in the
-browser. A bug the user hits comes as such a script (SHIFT + transport writes
-`/FRIZZ/bug-N.txt`, `EventLog.h`); once it shows the bug, it becomes a case in `ui.cpp`. The
+browser. A bug the user hits comes as such a script (SHIFT + VOLUME held 2 s on the
+settings page writes `/FRIZZ/bug-N.txt`, `EventLog.h`); once it shows the bug, it becomes a case in `ui.cpp`. The
 twin can't show the CPU load, the codec, races between the audio interrupt and `main()`, or
 anything else about the chip ([`firmware/twin/README.md`](firmware/twin/README.md)).
 

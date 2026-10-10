@@ -38,7 +38,8 @@ MidiClock midi_clock;
 // the panel played and inspected over MIDI
 MidiControl midi_control;
 SceneStore scene_store;
-// every key, knob and clock change since power-on, for a bug report (SHIFT + transport press)
+// every key, knob and clock change since power-on, for a bug report (SHIFT + VOLUME held on
+// the settings page)
 EventLog event_log;
 EventLogMem DSY_SDRAM_BSS event_log_mem;
 #if FRIZZ_BENCH
