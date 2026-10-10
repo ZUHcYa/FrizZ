@@ -1,0 +1,86 @@
+# The scene crossfader (#66): a loop under six effects, crossfaded to the blank scene and back by
+# hand, let go halfway, then all the way. Nothing is saved: the start is the unsaved sound
+input sine 220 0.3
+at 6000
+tap KEY_28
+wait 2000
+tap KEY_28
+wait 500
+down KEY_5
+wait 80
+tap KEY_26
+up KEY_5
+wait 200
+turn 4 -20
+down KEY_6
+wait 80
+tap KEY_26
+up KEY_6
+wait 200
+turn 3 40
+down KEY_8
+wait 80
+tap KEY_26
+up KEY_8
+wait 200
+down KEY_2
+wait 80
+tap KEY_26
+up KEY_2
+wait 200
+turn 4 14
+down KEY_12
+wait 80
+tap KEY_26
+up KEY_12
+wait 200
+turn 2 60
+down KEY_13
+wait 80
+tap KEY_26
+up KEY_13
+wait 200
+turn 2 60
+wait 1000
+# SHIFT + the blank scene, held, then the transport knob: the crossfader
+down KEY_26
+wait 80
+tap KEY_16
+wait 200
+turn 5 6
+wait 300
+turn 5 6
+wait 300
+turn 5 6
+wait 300
+turn 5 6
+wait 500
+# all the way right: the forward transport LED full white, the reverse one dark
+expect led pth 6 fdfdfd
+expect led pth 5 000000
+turn 5 -24
+wait 500
+expect led pth 5 fdfdfd
+turn 5 3
+wait 200
+turn 5 3
+wait 200
+turn 5 3
+wait 200
+turn 5 3
+wait 200
+turn 5 -3
+wait 200
+turn 5 3
+wait 300
+up KEY_26
+wait 3000
+# let go halfway: it stays there, the blank scene's key pulsing as edited
+down KEY_26
+wait 80
+tap KEY_16
+wait 200
+turn 5 30
+wait 500
+up KEY_26
+wait 2000
