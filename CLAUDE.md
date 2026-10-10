@@ -168,7 +168,7 @@ holds it for the whole sequence, so nothing slips in between:
 
 ```bash
 cd firmware && tools/chompi.py hold sh -c '
-  ./flash.py --bench --no-build && sleep 150 && ./card.py get --then none &&
+  ./flash.py --bench --no-build && sleep 150 && ./card.py --then none get &&
   ./flash.py --test --no-build && ./remote.py play twin/scenarios/fx-each.txt --cpu
   ./flash.py --run 10'
 ```
