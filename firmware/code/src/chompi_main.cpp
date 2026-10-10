@@ -10,6 +10,7 @@
  *      scenes to the SD card, and boot-time stuff.
  */
 #include "FrizzHot.h"
+#include "FaultLog.h"
 #include "hardware.h"
 #include "ui.h"
 #include "fatfs.h"
@@ -234,6 +235,11 @@ void MainLoop(void* data)
 extern uint32_t _siitcmdata, _sitcmram, _eitcmram;
 static void CopyItcm()
 {
+    // all of it written first: the ITCM has ECC, and a fetch running ahead into words never
+    // written would read an ECC error (the code's own end is 8-byte aligned, the rest isn't)
+    volatile uint32_t* const itcm = reinterpret_cast<volatile uint32_t*>(D1_ITCMRAM_BASE);
+    for (size_t i = 0; i < 0x10000 / 4; i++)
+        itcm[i] = 0;
     const uint32_t* from = &_siitcmdata;
     for (uint32_t* to = &_sitcmram; to < &_eitcmram;)
         *to++ = *from++;
@@ -246,6 +252,7 @@ static void CopyItcm() {}
 
 int main(void)
 {
+    EnableFaultLog();
     CopyItcm();
     hw.Init();
 
@@ -272,6 +279,8 @@ int main(void)
     System::Delay(100);
     // FRIZZ's files live in /FRIZZ, created on first start (SceneStore.h)
     scene_store.Init(&fsi.GetSDFileSystem(), fsi.GetSDPath());
+    // a fault before the last reset (FaultLog.h) onto the card, now it's up
+    WriteFaultLog();
 
     engine.Init(hw.seed.AudioSampleRate(), loop_mem, &midi_clock,
                 delay_mem, kDelayFrames, &reverb,

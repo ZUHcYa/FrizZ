@@ -43,6 +43,9 @@ what FRIZZ does.
 
 ### Changed
 
+- **A crash restarts the CHOMPI into the launcher** instead of leaving it hung, and the next
+  start writes what happened to `FRIZZ/fault.txt`, for a bug report.
+
 - **The knob LEDs use white only for a neutral point:** a knob with a centre (shift, cutoff,
   random, damping, grain, every Band) and Level (at 0 dB) are white there, blue below and
   orange above, on every effect. Other knobs go between the effect's two colours.

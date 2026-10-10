@@ -9,7 +9,7 @@ TARGET = FRIZZ-bench
 # rebuild of the same source gives the same FRIZZ-bench.bin
 BENCH_SOURCE := $(shell cat $(sort $(wildcard *.h *.cpp)) | cksum | cut -d' ' -f1)
 C_DEFS = -DFRIZZ_BENCH=1 -DFRIZZ_BENCH_SOURCE='"$(BENCH_SOURCE)"'
-override BUILD_DIR = build-bench
+override BUILD_DIR = build-bench$(if $(filter 1,$(ITCM)),-itcm)
 endif
 
 # make ITCM=1: the per-sample code runs from ITCM (FrizzHot.h), an experiment (#51)
