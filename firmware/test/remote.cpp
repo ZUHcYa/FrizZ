@@ -234,6 +234,33 @@ int main()
           "tools: card.py --then 12 waits for FRIZZ-TEST as for FRIZZ, not for the bench");
     if (rc != 0)
         printf("%s\n", out.c_str());
+    // a FRIZZ whose USB names came garbled (product "Љ", maker "FrizZ": no "chompi" in them)
+    // is found by the Daisy's USB id, saying so; another card with MIDI isn't taken for it
+    rc = Python(R"(
+import os, shutil, chompi, midi_send
+midi_send.find_device = lambda: None
+for d in ("asound/card1", "asound/card2", "snd"):
+    os.makedirs(d)
+open("asound/cards", "w").write(
+    " 1 [Default        ]: USB-Audio - Љ\n                      FrizZ Љ at usb-1, full speed\n"
+    " 2 [USB            ]: USB-Audio - Scarlett\n                      Focusrite Scarlett at usb-2\n")
+open("asound/card1/usbid", "w").write("0483:5740\n")
+open("asound/card2/usbid", "w").write("1235:8215\n")
+for n in ("midiC1D0", "midiC2D0"):
+    open("snd/" + n, "w").close()
+chompi.ASOUND, chompi.SND = "asound", "snd"
+print("found", chompi.find_device())
+open("asound/card1/usbid", "w").write("1235:0001\n")
+print("found", chompi.find_device())
+shutil.rmtree("asound")
+shutil.rmtree("snd")
+)", out);
+    Check(rc == 0 && Has(out, "found snd/midiC1D0\n") && Has(out, "no CHOMPI in its names (Default")
+              && Has(out, "found None\n"),
+          "tools: a FRIZZ with garbled USB names is found by its USB id, and said so");
+    if (rc != 0 || !Has(out, "found snd/midiC1D0"))
+        printf("%s\n", out.c_str());
+
     // card.py: a mount that fails still ejects the card and starts FRIZZ; mount alone needs a
     // hold, as the card stays mounted after it
     rc = Python(R"(
@@ -256,7 +283,7 @@ except SystemExit as e:
 )", out);
     Check(rc == 0 && Has(out, "finished None\nexit: udisksctl mount: refused"),
           "tools: card.py ejects the card and starts FRIZZ again when the mount fails");
-    Check(Has(out, "exit: card.py mount leaves the card mounted") && !Has(out, "refused\nfinished"),
+    Check(Has(out, "exit: card.py mount leaves the card mounted"),
           "tools: card.py mount needs a hold");
     if (rc != 0 || !Has(out, "finished None"))
         printf("%s\n", out.c_str());

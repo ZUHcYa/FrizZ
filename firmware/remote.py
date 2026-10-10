@@ -98,7 +98,7 @@ def to14(k):
 
 class Frizz:
     def __init__(self, device=None):
-        device = device or midi_send.find_device()
+        device = device or chompi.find_device()
         if not device:
             sys.exit("no CHOMPI on USB MIDI")
         chompi.claim()

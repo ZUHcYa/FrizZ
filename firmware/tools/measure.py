@@ -86,12 +86,17 @@ def line_source():
 
 
 def trs_midi():
+    """The first sound card's raw MIDI node that isn't the CHOMPI's: FRIZZ's card isn't called
+    CHOMPI (its id is FrizZ, or Default), so the CHOMPI's is skipped as the tools find it"""
     if os.environ.get("FRIZZ_TRS_MIDI"):
         return os.environ["FRIZZ_TRS_MIDI"]
+    own = re.match(r".*/midiC(\d+)D", chompi.find_device() or "")
     cards = open("/proc/asound/cards").read()
     for m in re.finditer(r"^\s*(\d+) \[([^\]]*)\]", cards, re.M):
         node = "/dev/snd/midiC%sD0" % m.group(1)
-        if "CHOMPI" not in m.group(2) and os.path.exists(node):
+        if own and m.group(1) == own.group(1) or "CHOMPI" in m.group(2):
+            continue
+        if os.path.exists(node):
             return node
     sys.exit("no MIDI out for the TRS jack (FRIZZ_TRS_MIDI)")
 

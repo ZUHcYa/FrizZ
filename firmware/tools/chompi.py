@@ -34,6 +34,7 @@ Linux only: ALSA's raw MIDI and udisks, Python 3 without packages.
 """
 import contextlib
 import fcntl
+import glob
 import os
 import re
 import subprocess
@@ -147,6 +148,44 @@ def last_started():
 
 # ---- MIDI ---------------------------------------------------------------------------------
 
+ASOUND, SND = "/proc/asound", "/dev/snd"
+DAISY_USB_ID = "0483:5740"  # the Daisy Seed's, which FRIZZ and the launcher keep
+
+
+def find_device():
+    """The CHOMPI's raw MIDI node: as midi_send finds it (by "chompi" in the card's names), or
+    else the first card with the Daisy's USB id, for a FRIZZ whose names came garbled (seen
+    once: product "Љ", maker "FrizZ"), saying what it sees there"""
+    node = midi_send.find_device()
+    if node:
+        return node
+    for usbid in sorted(glob.glob(os.path.join(ASOUND, "card*", "usbid"))):
+        try:
+            with open(usbid) as f:
+                if f.read().strip() != DAISY_USB_ID:
+                    continue
+        except OSError:
+            continue
+        card = re.search(r"card(\d+)", usbid).group(1)
+        nodes = sorted(glob.glob(os.path.join(SND, "midiC%sD*" % card)))
+        if nodes:
+            say("sound card %s has the Daisy's USB id (%s) but no CHOMPI in its names (%s): "
+                "taken for the CHOMPI" % (card, DAISY_USB_ID, card_names(card)))
+            return nodes[0]
+    return None
+
+
+def card_names(card):
+    """Sound card CARD's id and names, as /proc/asound/cards has them"""
+    try:
+        with open(os.path.join(ASOUND, "cards")) as f:
+            text = f.read()
+    except OSError:
+        return "?"
+    m = re.search(r"^\s*%s \[([^\]]*)\]: (.*)\n\s*(.*)$" % card, text, re.M)
+    return " / ".join(g.strip() for g in m.groups()) if m else "?"
+
+
 @contextlib.contextmanager
 def link(node):
     """A midi_send.Link to the raw MIDI node, closed afterwards; takes the CHOMPI first"""
@@ -258,7 +297,7 @@ def state(device=None):
     part = storage_partition()
     if part:
         return "storage", part
-    device = device or midi_send.find_device()
+    device = device or find_device()
     if device:
         found = ask_midi(device)
         if found:
