@@ -25,12 +25,9 @@ wait 300
 # mono
 expect led smt 2 fcfcfc
 tap KEY_19
-wait 450
-# the clock factor doubled: red, lit for the first half of each beat (120 BPM)
-expect led smt 3 fc0000
-wait 250
-# and dim for the second
-expect led smt 3 240000
+wait 300
+# the clock factor doubled: red, but pulsing on the beat, whose phase on the device is
+# anyone's: test/ui.cpp checks it (settings-factor, settings-beat)
 # the clock source: Auto, white
 expect led smt 8 fcfcfc
 tap KEY_24
