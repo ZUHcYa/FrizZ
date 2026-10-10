@@ -201,6 +201,35 @@ static void TestGates()
     engine.SetFxOn(FX_FILTER, false);
     engine.SetFxOn(FX_CRUSHER, false);
     engine.SetFxPool(0);
+
+    // the scramble through the engine: a 5-beat loop (2.5 s at the 120 BPM it starts with) on
+    // the 1/2 grid has 2 whole halves; a jump is always 2 beats on, never half the loop
+    engine.SetMix(1.f);
+    engine.TapTempo(120.f); // a tempo set, so the loop is fitted to it: 5 beats
+    Run(1);
+    engine.looper.StartRecording(false);
+    Run(1);
+    Run(static_cast<size_t>(2.5f * kSr / kBlock) - 1);
+    engine.looper.StopRecording();
+    Run(2);
+    const size_t length = engine.looper.GetLength();
+    engine.SetFxParam(FX_CHAOS, Chaos::FX_CHANCE, 0.f);
+    engine.SetFxParam(FX_CHAOS, Chaos::SCRAMBLE, 1.f);
+    engine.SetFxParam(FX_CHAOS, Chaos::GRID, 3.f / 4.f); // 1/2
+    engine.SetFxOn(FX_CHAOS, true);
+    bool on_grid = true, jumped = false;
+    for (int b = 0; b < 20000; b++)
+    {
+        Run(1);
+        const size_t off = engine.looper.GetScramble();
+        jumped = jumped || off != 0;
+        on_grid = on_grid && (off == 0 || off == length * 2 / 5);
+    }
+    printf("      a %zu-frame loop: scrambled by %zu at the end\n", length, engine.looper.GetScramble());
+    Check(jumped && on_grid, "scramble: a 5-beat loop on the 1/2 grid jumps 2 beats, on the grid");
+    engine.SetFxOn(FX_CHAOS, false);
+    Run(10);
+    Check(engine.looper.GetScramble() == 0, "scramble: chaos off, in place");
 }
 
 // ======== the scramble, in the looper ========

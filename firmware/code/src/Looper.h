@@ -149,7 +149,10 @@ public:
     /** Current speed target: negative is reverse, 1 is the recorded speed */
     inline float GetSpeed() const { return speed_target_; }
 
+    /** How far on from the read head the loop is heard (Scramble), in frames */
+    inline size_t GetScramble() const { return offset_; }
     /** Loop length in frames, 0 until a recording closes */
+
     inline size_t GetLength() const { return length_; }
     /** Beats in a quantized loop, from the clock it was recorded to; 0 for an unquantized
      *  loop, or one closed early because the clock stopped */

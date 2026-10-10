@@ -269,13 +269,15 @@ private:
      *  other steps (on the chaos key's grid), or in place at 0, or while it isn't playing */
     void Scramble(float jump)
     {
-        const uint32_t steps = tempo_clock_.LoopPulses() / fx_.ChaosGridPulses();
+        const uint32_t loop = tempo_clock_.LoopPulses(), grid = fx_.ChaosGridPulses();
+        const uint32_t steps = loop / grid; // whole steps: a loop of 5 beats has 2 halves
         size_t offset = 0;
         if (jump > 0.f && steps >= 2 && looper.GetState() == chompi::Looper::State::PLAYING)
         {
             uint32_t n = 1 + static_cast<uint32_t>(jump * static_cast<float>(steps - 1));
             n = n >= steps ? steps - 1 : n;
-            offset = static_cast<size_t>(static_cast<uint64_t>(n) * looper.GetLength() / steps);
+            // n steps of the grid on, in the loop's frames: always on a step's start
+            offset = static_cast<size_t>(static_cast<uint64_t>(n) * grid * looper.GetLength() / loop);
         }
         looper.Scramble(offset);
     }
