@@ -71,7 +71,7 @@ The upper octave's other dark keys do nothing.
 - **The beat on G#** is the tempo the effects follow right now (see [Tempo](#tempo)): with a
   loop, the loop's at its speed; otherwise the MIDI clock's, with the clock factor applied
   (a 120 BPM clock at double beats at 240); otherwise the last tempo. It's there to see the
-  tempo, not to play to: it can be a few milliseconds late.
+  tempo, not to play to: it can be a little late, up to a few hundredths of a second.
 
 - **VOLUME's LED** shows the battery all the time: white while the charging cable is in,
   green above 3.3 V, yellow below, red below 3 V (about to switch off unless charging). Pull

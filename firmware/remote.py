@@ -21,7 +21,9 @@ LEDs the device shows; its `toggle 0|1` sets the mode switch (down, up) over Sys
 the real one when the script ends. What only the twin has (the card, the input, the battery, power-on) is
 skipped, and `booted` is when the script starts. With --cpu it asks for the load every 250 ms
 and prints the worst, the way to try a scenario for crackles on FRIZZ.bin itself rather than on
-the bench's build. A bug report (/FRIZZ/bug-N.txt) plays too, from where the device is.
+the bench's build. A bug report (/FRIZZ/bug-N.txt) plays too, from where the device is. From
+the computer everything goes over USB, `midi` lines too: with the device's clock source on TRS,
+a script's clock and Start / Stop are ignored there (MANUAL.md, "Clock source").
 
 FRIZZ is started first if the CHOMPI is elsewhere: at the launcher's picker, in its USB storage
 firmware, or in the bench (tools/chompi.py); --no-start leaves it be, as --device does.
