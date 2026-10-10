@@ -313,14 +313,23 @@ int main()
         Check(abs(Count(s.trs, 0xF8) - 2 * in) <= 2, "factor-pairs: at double, twice the ticks of a host sending pairs");
     }});
 
-    // a Start that came while FRIZZ was starting up isn't sent out late, once it's up
+    // a Start that came while FRIZZ was starting up isn't sent out late, once it's up, nor
+    // the ticks of a clock running then in one bunch
     cases.push_back({"boot-start", [] {
+        StartUsb(Clock(120.));
         RunMs(500); // the boot screen
         SetOut(1);
         UsbMidi(0xFA);
         RunMs(kReadyMs - 520);
         const Sent s = TakeSent();
         Check(Count(s.trs, 0xFA) == 0, "boot-start: a Start from the boot screen doesn't go out after it");
+        double closest = 1e9;
+        for (size_t i = 1; i < s.trs.size(); i++)
+            if (s.trs[i].byte == 0xF8 && s.trs[i - 1].byte == 0xF8)
+                closest = std::min(closest, s.trs[i].ms - s.trs[i - 1].ms);
+        Report("boot-start: %d ticks out, the closest two %.2f ms apart", Count(s.trs, 0xF8), closest);
+        Check(Count(s.trs, 0xF8) > 100 && closest > .5 * kTick120,
+              "boot-start: the clock's ticks from then don't go out in a bunch");
     }});
 
     return RunCases();
