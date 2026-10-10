@@ -656,6 +656,121 @@ static void TestMorph()
 }
 
 /** The delay's reverse events at the slowest tempo: the longest divisions have no room */
+static bool Near(float a, float b) { return fabsf(a - b) < 1e-5f; }
+
+/** The crossfader (FxMorph::Fader): the glide in the hand, both ways */
+static void TestFader()
+{
+    MidiClock midi;
+    TempoClock clock;
+    clock.Init(kSr, &midi);
+    FakeChain chain;
+    FxMorphT<FakeChain> morph;
+    morph.Init(&chain);
+
+    // the filter on in both, gliding with a stepped knob; the freezer switching (no fade
+    // knobs); the delay fading out; the reverb fading in
+    FxMorphPlan plan = Plan(MorphParam::HOLD, .7f, .7f);
+    plan.how[FX_FILTER][0] = MorphParam::GLIDE;
+    plan.start[FX_FILTER][0] = .2f;
+    plan.target[FX_FILTER][0] = .8f;
+    plan.start[FX_FILTER][5] = .2f;
+    plan.target[FX_FILTER][5] = .6f;
+    plan.how[FX_DELAY][3] = MorphParam::FADE_OUT;
+    plan.start[FX_DELAY][3] = .6f;
+    plan.start[FX_DELAY][0] = .25f;
+    plan.target[FX_DELAY][0] = .5f;
+    plan.how[FX_REVERB][3] = MorphParam::GLIDE;
+    plan.start[FX_REVERB][3] = 0.f;
+    plan.target[FX_REVERB][3] = .5f;
+    const uint16_t freezer = 1u << FX_FREEZER, delay = 1u << FX_DELAY, reverb = 1u << FX_REVERB;
+    plan.deferred = freezer | delay | reverb;
+    plan.was_on = freezer | delay;
+    plan.wake = reverb;
+    plan.park = delay;
+    chain.on[FX_FREEZER] = chain.on[FX_DELAY] = true;
+
+    morph.Start(plan, clock.PulsesToBarLine(), true);
+    // what FxControls tells it next: the scene's keys
+    Check(morph.SetOn(FX_FREEZER, false) && morph.SetOn(FX_DELAY, false)
+              && morph.SetOn(FX_REVERB, true) && !morph.SetOn(FX_FILTER, true),
+          "fader: the morph takes the keys it switches");
+    for (int b = 0; b < 4000; b++)
+        MorphBlock(clock, morph);
+    Check(morph.Holding() && chain.params[FX_FILTER][0] == 0.f && !chain.on[FX_REVERB],
+          "fader: held, nothing moves yet");
+
+    Check(morph.Fader(.25f) && morph.Manual() && !morph.Holding(), "fader: it takes the held morph");
+    MorphBlock(clock, morph);
+    Check(Near(chain.params[FX_FILTER][0], .35f) && Near(chain.params[FX_REVERB][3], .125f)
+              && Near(chain.params[FX_DELAY][3], .45f),
+          "fader: a quarter of the way, a quarter of each glide and fade");
+    Check(chain.on[FX_REVERB] && chain.on[FX_DELAY] && chain.on[FX_FREEZER]
+              && chain.params[FX_FILTER][5] == 0.f,
+          "fader: before the middle, a fade-in on, a fade-out on, the switching ones and stepped values as they were");
+    morph.Fader(.5f);
+    MorphBlock(clock, morph);
+    Check(!chain.on[FX_FREEZER] && chain.params[FX_FILTER][5] == .6f && chain.on[FX_DELAY]
+              && chain.params[FX_DELAY][0] == 0.f,
+          "fader: in the middle, the switching key and the stepped value switch; one going off keeps its own");
+    morph.Fader(.25f);
+    MorphBlock(clock, morph);
+    Check(chain.on[FX_FREEZER] && chain.params[FX_FILTER][5] == .2f,
+          "fader: and back before the middle, back again");
+    morph.Fader(0.f);
+    MorphBlock(clock, morph);
+    Check(!chain.on[FX_REVERB] && chain.params[FX_FILTER][0] == .2f,
+          "fader: at the start, the fade-in off again");
+    morph.Fader(1.f);
+    MorphBlock(clock, morph);
+    Check(!chain.on[FX_DELAY] && chain.on[FX_REVERB] && chain.params[FX_DELAY][3] == 0.f,
+          "fader: at the end, the fade-out off");
+    bool lines = false;
+    for (int b = 0; b < 12000; b++)
+        lines = MorphBlock(clock, morph) || lines;
+    Check(lines && morph.Active() && morph.Manual(), "fader: the bar lines don't land it");
+    Check(!morph.AddBar(clock.PulsesPerBarLine()), "fader: no bars to add");
+
+    // stopped in between: what's switched stays switched, the rest as at the start
+    morph.Fader(.75f);
+    MorphBlock(clock, morph);
+    float live[kNumFx][kNumFxParams];
+    uint16_t unswitched = 0, was_on = 0;
+    Check(morph.Freeze(live, &unswitched, &was_on) && unswitched == delay && was_on == delay
+              && Near(live[FX_FILTER][0], .65f) && !morph.Active(),
+          "fader: stopped at 3/4, the delay still to switch, the glide where it got to");
+
+    // landed from the end: the scene's
+    chain = FakeChain();
+    chain.on[FX_FREEZER] = chain.on[FX_DELAY] = true;
+    morph.Start(plan, clock.PulsesToBarLine(), true);
+    morph.SetOn(FX_FREEZER, false);
+    morph.SetOn(FX_DELAY, false);
+    morph.SetOn(FX_REVERB, true);
+    morph.Fader(1.f);
+    MorphBlock(clock, morph);
+    morph.Land();
+    Check(!morph.Active() && !chain.on[FX_DELAY] && !chain.on[FX_FREEZER] && chain.on[FX_REVERB]
+              && chain.params[FX_FILTER][0] == .8f && chain.params[FX_DELAY][0] == 0.f,
+          "fader: landed at the end, the scene's keys and values, one gone off parked");
+
+    // a gliding morph taken: a fade-in it has switched already goes through the fader too
+    chain = FakeChain();
+    chain.on[FX_FREEZER] = chain.on[FX_DELAY] = true;
+    morph.Start(plan, clock.PulsesToBarLine(), true);
+    morph.SetOn(FX_FREEZER, false);
+    morph.SetOn(FX_DELAY, false);
+    morph.SetOn(FX_REVERB, true);
+    morph.Release(clock.PulsesToBarLine(), clock.PulsesPerBarLine());
+    for (int b = 0; b < 100; b++)
+        MorphBlock(clock, morph);
+    Check(chain.on[FX_REVERB] && !morph.SetOn(FX_REVERB, true), "fader: gliding, the fade-in woke");
+    morph.Fader(0.f);
+    MorphBlock(clock, morph);
+    Check(!chain.on[FX_REVERB], "fader: taken back to the start, the fade-in off again");
+    morph.Land();
+}
+
 static void TestDelayReverse()
 {
     static const size_t kFrames = 480000; // the device's 10s
@@ -772,6 +887,7 @@ int main()
     TestQuantizedFit();
     TestBarLines();
     TestMorph();
+    TestFader();
     TestDelayReverse();
     TestDelayTempoJump();
     TestDelayOnLoopBeat();

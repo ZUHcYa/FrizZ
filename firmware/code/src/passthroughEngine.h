@@ -224,6 +224,11 @@ public:
         return morph_.Freeze(params, unswitched, was_on);
     }
     inline bool FxMorphing() const { return morph_.Active(); }
+    /** Started and still held for SHIFT (FxMorph::Holding) */
+    inline bool FxMorphHeld() const { return morph_.Holding(); }
+    /** The crossfader (FxMorph::Fader): the morph at t, 0 where it started to 1 the scene,
+     *  from now on in the UI's hands; with the audio interrupt blocked. False if none runs */
+    bool FadeFxMorph(float t) { return morph_.Fader(t); }
     /** The FX clock's position, 0..TempoClock's kPulsesPerCycle - 1, for blinking on its beats */
     inline uint32_t FxClockPosition() const { return tempo_clock_.Position(); }
     /** The tempo the effects follow, for MIDI's state query (MidiControl.h) */

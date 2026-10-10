@@ -9,6 +9,14 @@ what FRIZZ does.
 
 ### Added
 
+- **A scene crossfader by hand** (#66), after the Octatrack's: SHIFT + a scene key, and
+  while you still hold SHIFT, turn the transport knob: the morph is in your hand, the scene
+  you're in on the left, the one you picked on the right, back and forth as often as you
+  like (24 detents from end to end), with or without a loop. Let go all the way right and
+  you're in the new scene; all the way left and you're back where you were; in between it
+  stays there, as SHIFT + PLAY leaves a morph. The two scene keys light in their mix, the
+  transport LEDs show where it is. Over MIDI, CC 118 does the same for a morph CC 62 started.
+  See MANUAL.md, "Crossfading by hand".
 - **A second page for the FX knobs:** press any of knobs 1-4 and all four turn over to the
   selected effect's page 2, with their LEDs pulsing; press again for page 1. Every effect has
   one. Pressing or

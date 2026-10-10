@@ -23,6 +23,8 @@ enum class SceneMode
 };
 
 static const int kNoScene = -1;
+// The crossfader on the transport knob (#66): a detent's way, 24 from end to end
+static const float kFaderStep = 1.f / 24.f;
 
 template <class Engine>
 class SceneControls
@@ -136,8 +138,57 @@ public:
     void Morph(size_t slot)
     {
         fx_->Morph(scenes_[slot]);
+        from_ = active_;
         active_ = morph_ = static_cast<int>(slot);
     }
+
+    /** The transport knob turned with SHIFT held, detents (signed): the crossfader, while a
+     *  morph waits for SHIFT to be let go or is on the crossfader already (#66). False if not,
+     *  so the knob turns the speed. On the device, with the audio interrupt blocked */
+    bool FaderTurned(float detents)
+    {
+        if (!fx_->Fading() && !fx_->MorphHeld())
+            return false;
+        const float from = fx_->Fading() ? fx_->FaderPos() : 0.f;
+        const float t = from + detents * kFaderStep;
+        fx_->Fade(t < 0.f ? 0.f : (t > 1.f ? 1.f : t));
+        return true;
+    }
+
+    /** A fader over MIDI: a running morph, held or gliding, to t. Reaching an end decides as
+     *  letting go there would (EndFade): the scene's at once, the start's once it has been
+     *  away from it. False if no morph runs. On the device, with the audio interrupt blocked */
+    bool FaderTo(float t)
+    {
+        if (!fx_->Morphing())
+            return false;
+        if (!fx_->Fading())
+            fader_left_ = false;
+        fx_->Fade(t);
+        fader_left_ = fader_left_ || t > 0.f;
+        if (t >= 1.f || (t <= 0.f && fader_left_))
+            EndFade();
+        return true;
+    }
+
+    /** SHIFT let go: the crossfader ends there (FxControls::EndFade), at the start's end back
+     *  to the scene it started from. False if it didn't have the morph. On the device, with the
+     *  audio interrupt blocked */
+    bool EndFade()
+    {
+        if (!fx_->Fading())
+            return false;
+        // back at the start: its scene active again, unless it's been deleted meanwhile
+        if (fx_->EndFade() < 0)
+            active_ = from_ != kNoScene && scenes_[from_].used ? from_ : kNoScene;
+        return true;
+    }
+
+    /** While the crossfader has the morph: where it is, and the slot it started from
+     *  (kNoScene if none was active) */
+    inline bool Fading() const { return fx_->Fading(); }
+    inline float FaderPos() const { return fx_->FaderPos(); }
+    inline int FadeFrom() const { return from_; }
 
     /** One bar line more for the running morph; false if it can't */
     inline bool MorphMore() { return fx_->MorphMore(); }
@@ -230,6 +281,8 @@ private:
     int src_ = kNoScene;
     int active_ = kNoScene;
     int morph_ = kNoScene; // the slot the last morph ran to
+    int from_ = kNoScene;  // and the active one it started from
+    bool fader_left_ = false; // a MIDI fader has been away from the start (FaderTo)
 };
 
 } // namespace chompi

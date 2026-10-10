@@ -559,6 +559,7 @@ save again.
 | SHIFT + scene key | **Morph** to the scene, landing at the end of the current bar (see below) |
 | SHIFT + the same scene key again, while it morphs | One bar longer, up to 8 (past that, the key blinks red) |
 | SHIFT + PLAY, while it morphs | Stop the morph where it is |
+| SHIFT + scene key, then turn the transport knob (SHIFT still held) | **Crossfade** to the scene by hand (see below) |
 
 A recall is meant for performing, a build-up on one scene and the drop on the next:
 
@@ -675,6 +676,34 @@ While it morphs:
   key pulses as edited, since the sound is now between two scenes: save it to keep it.
   Without a morph, SHIFT + PLAY plays and pauses like PLAY.
 
+### Crossfading by hand
+
+A morph at the speed of your hand instead of the bar clock, like the Octatrack's crossfader:
+press SHIFT + a scene key as for a morph, and before you let go of SHIFT, turn the transport
+knob. The morph is now yours: the scene you're in (with whatever you've changed) on the
+left, the one you picked on the right, and everything in between, back and forth as often
+as you like. 24 detents take it from one end to the other. It works with or without a loop,
+and the bar lines don't count while you hold it.
+
+- **What fades is what a morph fades:** knobs on both scenes glide with the transport knob;
+  an effect only the new scene has fades in as soon as you're off the left end, one only the
+  old scene has fades out and goes off at the right end. What can't fade switches in the
+  middle, either way: stepped knobs (delay division, slicer pattern, shifter shift …) and the
+  freezer, shifter and slicer coming on or going off.
+- **Let go of SHIFT** to leave it:
+  - **all the way right:** you're in the new scene, as after a recall;
+  - **all the way left:** you're back where you started, the scene you were in as it was
+    (pulsing if you had changed it, steady if not);
+  - **in between:** it stays where it is, as SHIFT + PLAY leaves a morph: the knobs where the
+    fade got to, the new scene's key pulsing as edited. Save it to keep it.
+- **LEDs:** the two scene keys light in their mix, one brighter as the other dims, and the
+  transport LEDs show the position in white instead of the speed: the left one for the old
+  scene, the right one for the new.
+- Letting go without turning is a morph as before: it glides to the bar line. While you
+  hold a morph, SHIFT + turn crossfades instead of stepping the speed in 5ths and octaves;
+  once you've let go, the transport knob is back to speed and scrub at once.
+- Over MIDI, CC 118 is the crossfader (see [Controllers](#controllers)).
+
 ## MIDI
 
 From v0.11 (v0.10 takes MIDI clock only). FRIZZ takes MIDI from the TRS MIDI input and over USB (CHOMPI is a USB device, so USB MIDI
@@ -758,6 +787,7 @@ or C2 in Ableton Live): the white keys from 48 up, the dark keys on the sharps. 
 | 61 | How many bars a morph over CC 62 takes, 1-8 (1 at first) |
 | 62 | Morph to scene 0-4 (0 the blank one): as SHIFT + its key, landing on the bar line |
 | 63 | 64 and above: stops a morph where it is |
+| 118 | The [crossfader](#crossfading-by-hand): takes a running morph (CC 62's, or one you hold) to where it says, 0 the scene it started from, 127 the scene it goes to. Reaching 127 lands it; reaching 0 after being away from it goes back to where it started; in between it waits |
 | 70-117 | An effect's knob, set outright: 70 + 4 × the effect + the knob − 1, the effects counted from 0 by their keys: the freezer 70-73, shifter 74-77, folder 78-81, crusher 82-85, filter 86-89, flanger 90-93, resonator 94-97, slicer 98-101, wow & flutter 102-105, tape stop 106-109, delay 110-113, reverb 114-117 |
 
 - **Set outright** (CC 20-117), a value does what the knob or key would: the LEDs follow, the
