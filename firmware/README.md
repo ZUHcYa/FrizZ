@@ -130,10 +130,10 @@ once it shows the bug, turn it into a case in `test/ui.cpp`. What it holds and w
 ## 4. Put it on the CHOMPI
 
 **Over USB, with the multi-firmware launcher** (the quick way while developing). The
-[CHOMPI launcher](https://github.com/sfaber02/CHOMPI/releases) by hiwatts, chomplex music theory
-and lnetzel sits on the card as `CHOMPI.bin`, keeps firmwares in `/FIRMWARE/NN_NAME.bin` and
-starts the one whose key you press (NN). While its picker shows, it takes a firmware over USB
-MIDI, writes it to its slot and starts it:
+[CHOMPI launcher](https://github.com/sfaber02/CHOMPI-MULTI-FIRMWARE/releases) by hiwatts,
+chomplex music theory and lnetzel sits on the card as `CHOMPI.bin`, keeps firmwares in
+`/FIRMWARE/NN_NAME.bin` and starts the one whose key you press (NN). While its picker shows,
+it takes a firmware over USB MIDI, writes it to its slot and starts it:
 
 ```bash
 cd firmware
@@ -142,6 +142,7 @@ cd firmware
 ./flash.py --no-build # bin/FRIZZ.bin as committed
 ./flash.py --run 11   # starts what's in slot 11 already, sending nothing
 ./flash.py --test     # a branch's build to the test slot (12), as FRIZZ-TEST
+./flash.py --list     # what's on each key
 ```
 
 **One at a time.** Every tool here takes a lock (`tools/chompi.py`) and waits while another
@@ -149,7 +150,8 @@ has the CHOMPI, saying who. `tools/chompi.py hold CMD` keeps it over a whole seq
 tools, `tools/chompi.py hold` until Ctrl-C (for playing it by hand).
 
 Sending replaces whatever is in that slot, so set yours (`FRIZZ_SLOT=4 ./flash.py`,
-`BENCH_SLOT`, or `--slot`) if FRIZZ isn't on key 10. Linux only (ALSA), Python 3, no
+`BENCH_SLOT`, `TEST_SLOT`, or `--slot`) if FRIZZ isn't on key 10. Without `--slot`, it
+refuses a key that holds another firmware than FRIZZ (`--slot` replaces it anyway). Linux only (ALSA), Python 3, no
 packages; it uses the launcher's own client, `tools/midi_send.py`. On macOS or Windows, the
 launcher's web page (https://ugrossek.github.io/CHOMPI/, Chrome or Edge) does the same.
 FRIZZ keeps its files in `/FRIZZ`, so it shares the card with the other firmwares.
@@ -172,12 +174,14 @@ wherever it is.
 
 All of them go through the launcher (`tools/chompi.py`): a running FRIZZ restarts into it over
 USB MIDI (the SysEx `F0 7D 43 48 10 F7`, `MidiClock.h`), the storage firmware restarts on an
-eject, and the launcher starts a slot on its `RUN` command. The last two need launcher 1.5
-(sfaber02/CHOMPI#2, offered as an update by the
-[setup page](https://ugrossek.github.io/CHOMPI/setup/)) and
-[USB storage v1.6](https://github.com/lnetzel/CHOMPI-lnetzel/releases/tag/usb-storage-v1.6)
-(lnetzel/CHOMPI-lnetzel#14); with an older launcher or storage firmware the tools still work,
-but say which key to press (15 for the card, overdub then CHOMPI to leave it, 10 for FRIZZ). With an older FRIZZ or
+eject, and the launcher starts a slot on its `RUN` command. The last two need
+[launcher v1.5](https://github.com/sfaber02/CHOMPI-MULTI-FIRMWARE/releases/tag/launcher-v1.5)
+(the [setup page](https://ugrossek.github.io/CHOMPI/setup/) updates an older one) and
+[USB storage v1.6](https://github.com/lnetzel/CHOMPI-lnetzel/releases/tag/usb-storage-v1.6).
+A card set up from the launcher's v1.5 release still has USB storage v1.5 on key 15: copy
+v1.6's `.bin` over `FIRMWARE/15_USB_STORAGE.bin` (or `./flash.py FILE --slot 15 --name
+USB_STORAGE`). With an older launcher or storage firmware the tools still work, but say which
+key to press (15 for the card, overdub then CHOMPI to leave it, 10 for FRIZZ). With an older FRIZZ or
 another firmware running, switch the CHOMPI off and on when they say so (they wait up to 2
 minutes). Mounting needs udisks, as any desktop has.
 

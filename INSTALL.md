@@ -46,21 +46,35 @@ Same as installing: replace `FRIZZ.bin` on the card with the new one and switch 
 
 ## With the multi-firmware launcher
 
-[sfaber02's fork of CHOMPI](https://github.com/sfaber02/CHOMPI) has a launcher that keeps
-several firmwares on one card and lets you pick one with a white key at power-on. FRIZZ works
-as one of them:
+The [multi-firmware launcher](https://github.com/sfaber02/CHOMPI-MULTI-FIRMWARE/releases)
+(a community project by hiwatts, chomplex music theory and lnetzel) keeps several firmwares on
+one card: at power-on each key with a firmware lights up, and pressing one starts it. FRIZZ
+works as one of them, next to TAPE, TEMPO and WAVE.
 
-1. Set up the card as that fork describes, with the launcher's `CHOMPI.bin` as the only `.bin`
-   in the top folder.
-2. Copy `FRIZZ.bin` into the `FIRMWARE` folder, named after the key you want it on, for
-   example `FIRMWARE/04_FRIZZ.bin` for the 4th white key.
+1. **Set up the card with the launcher**, as its
+   [v1.5 release](https://github.com/sfaber02/CHOMPI-MULTI-FIRMWARE/releases/tag/launcher-v1.5)
+   describes: copy the contents of `chompi-multi-firmware-card/` to an empty FAT32 card and
+   switch on (a rainbow once, then the picker). On a card with an older launcher (v1.1 or
+   later), the setup page below updates it.
+2. **Put FRIZZ on a key with the [setup page](https://ugrossek.github.io/CHOMPI/setup/).**
+   With the picker showing, connect the CHOMPI to a computer over USB and open the page in
+   Chrome or Edge. Pick FRIZZ for a free key; the page fetches the latest release and writes
+   it to the card.
+
+   **Or by hand:** copy `FRIZZ.bin` into the card's `FIRMWARE` folder, named after the key you
+   want it on, for example `FIRMWARE/04_FRIZZ.bin` for key 4.
 3. Copy your `FRIZZ` folder over too, if you have scenes from another card. Otherwise FRIZZ
    creates it on its first start and keeps its scenes there, apart from the other firmwares'
    files.
 
-With the launcher, the CHOMPI goes back to its picker every time you switch it on. A FRIZZ
-update is a new `FIRMWARE/04_FRIZZ.bin`; no rainbow pattern, since the launcher stays
-installed.
+With the launcher, the CHOMPI goes back to its picker every time you switch it on. To update
+FRIZZ, pick it again on the setup page, or copy the new `FRIZZ.bin` over the old
+`FIRMWARE/04_FRIZZ.bin`; no rainbow pattern, since the launcher stays installed. The setup
+page offers releases only: a test build (a pre-release on the Releases page) goes on by hand.
+
+The launcher's key 15 is a USB storage mode: the card shows up on the computer as a drive,
+so you can copy files (bug reports, scenes) without taking the card out. Leave it with
+overdub, then the CHOMPI key.
 
 ## Going back to stock firmware
 
