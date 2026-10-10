@@ -29,8 +29,9 @@ its inputs, the TRS jack gets its MIDI out. Found by name, or set them:
     FRIZZ_TRS_MIDI      the raw MIDI node for the jack        (default: the first sound
                         card's with MIDI that isn't the CHOMPI, e.g. /dev/snd/midiC1D0)
 
-Before measuring: is anyone else testing on the CHOMPI? (CLAUDE.md). FRIZZ is started first
-if the CHOMPI is elsewhere (chompi.py). Linux (ALSA raw MIDI, PipeWire's pw-play and
+Before measuring: is anyone else testing on the CHOMPI? (CLAUDE.md). It measures the FRIZZ that
+runs, saying which slot, or the one --slot names, and starts FRIZZ first if the CHOMPI is
+elsewhere, as remote.py does (chompi.py). Linux (ALSA raw MIDI, PipeWire's pw-play and
 pw-record), Python 3 with numpy: `python3 -m venv ~/.venvs/frizz && ~/.venvs/frizz/bin/pip
 install numpy`, then run this with that python.
 """
@@ -95,8 +96,8 @@ def trs_midi():
     sys.exit("no MIDI out for the TRS jack (FRIZZ_TRS_MIDI)")
 
 
-def frizz():
-    return remote.Frizz(chompi.to_frizz())
+def frizz(a):
+    return remote.Frizz(chompi.to_frizz(a.slot))
 
 
 def key(f, name, down):
@@ -263,7 +264,7 @@ def record(seconds, path=None, times=None):
 # ======== the commands ========
 
 def cmd_clock(a):
-    f = frizz()
+    f = frizz(a)
     clock = Clock(lambda b: f.raw(b), a.bpm, a.mode)
     time.sleep(3)  # locked and settled
     vals = []
@@ -317,7 +318,7 @@ def loop_length(y, times, bpm, bars):
 
 
 def cmd_drift(a):
-    f = frizz()
+    f = frizz(a)
     if state(f)[0] != 0:
         sys.exit("the looper isn't empty: erase it, or restart FRIZZ (flash.py --run 10)")
     midi = os.open(trs_midi(), os.O_WRONLY)
@@ -353,7 +354,7 @@ def cmd_drift(a):
 
 
 def cmd_fx(a):
-    f = frizz()
+    f = frizz(a)
     material = a.material
     if not material:
         material = a.out + ".material.wav"
@@ -405,17 +406,21 @@ def cmd_material(a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("clock")
+    on_frizz = argparse.ArgumentParser(add_help=False)
+    on_frizz.add_argument("--slot", type=int, choices=chompi.FRIZZ_SLOTS,
+                          help="the FRIZZ slot to measure (10, 12), started unless it runs; "
+                          "default the one running (remote.py)")
+    p = sub.add_parser("clock", parents=[on_frizz])
     p.add_argument("--mode", choices=["single", "pairs", "catchup", "late"], default="single")
     p.add_argument("--bpm", type=float, default=120.)
     p.add_argument("--seconds", type=float, default=20.)
-    p = sub.add_parser("drift")
+    p = sub.add_parser("drift", parents=[on_frizz])
     p.add_argument("--bpm", type=float, default=120.)
     p.add_argument("--bars", type=int, default=1)
     p.add_argument("--mode", choices=["single", "pairs", "catchup", "late"], default="single")
     p.add_argument("--seconds", type=float, default=180.)
     p.add_argument("--out", help="keep the recording as OUT.f32 and the material as OUT.material.wav")
-    p = sub.add_parser("fx")
+    p = sub.add_parser("fx", parents=[on_frizz])
     p.add_argument("key", choices=["KEY_%d" % i for i in range(1, 14)])
     p.add_argument("--level", type=int, help="CC of the effect's level knob, set to 100")
     p.add_argument("--seconds", type=float, default=30.)

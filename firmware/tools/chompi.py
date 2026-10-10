@@ -13,6 +13,13 @@ into it on its SysEx F0 7D 43 48 10 F7 (MidiClock.h), the storage firmware on an
 the launcher starts a slot on its RUN (05). Launchers and storage firmwares from before those
 two need a hand instead, and this says which.
 
+Which slot runs, no firmware says: FRIZZ on 10 and FRIZZ-TEST on 12 answer alike, and so does
+the bench (FRIZZ-bench.bin, 11), whose load reads 0. So the tools note the slot they last
+started (RUNNING, beside the lock: run(), flash.py) and to_frizz() goes by it: the FRIZZ
+running if no slot is asked for, else the one asked for, started unless it's the one noted;
+the bench is never taken for FRIZZ. A slot started by hand isn't noted: `hold` without a
+command (playing by hand) forgets the note.
+
 One process at a time has the CHOMPI: the first time a tool reaches for it (state(), a link
 to it, a restart), it takes a lock (LOCK, flock) for the process's life, and waits, saying who
 has it, while another holds it; what doesn't touch the CHOMPI (measure.py compare) never
@@ -87,7 +94,7 @@ def claim():
     f.write("pid %d in %s: %s\n" % (os.getpid(), os.getcwd(), " ".join(sys.argv)))
     f.flush()
     _lock = f
-    os.environ[HELD] = "1"  # the tools this one starts share it
+    os.environ[HELD] = str(os.getpid())  # the tools this one starts share it, and know the hold
 
 
 def hold(cmd):
@@ -95,6 +102,7 @@ def hold(cmd):
     claim()
     if cmd:
         sys.exit(subprocess.run(cmd).returncode)
+    forget()  # what's started by hand, the tools can't know
     say("holding the CHOMPI; Ctrl-C lets it go")
     try:
         while True:
@@ -102,6 +110,39 @@ def hold(cmd):
     except KeyboardInterrupt:
         pass
 
+
+
+# ---- which slot runs: noted by the tools that start one ----------------------------------
+
+RUNNING = os.path.join(os.path.dirname(LOCK), "frizz-chompi.slot")
+
+
+def started(slot):
+    """Notes that slot SLOT was started, by what and in which hold"""
+    what = " ".join([os.path.basename(sys.argv[0])] + sys.argv[1:])
+    try:
+        with open(RUNNING, "w") as f:
+            f.write("%d %s %s %s\n" % (slot, os.environ.get(HELD) or "-",
+                                       time.strftime("%H:%M:%S"), what))
+    except OSError:
+        pass
+
+
+def forget():
+    try:
+        os.remove(RUNNING)
+    except OSError:
+        pass
+
+
+def last_started():
+    """(the slot last started, whether in this hold, 'what at when'), or (None, False, None)"""
+    try:
+        with open(RUNNING) as f:
+            slot, holder, at, what = f.read().strip().split(" ", 3)
+        return int(slot), holder == os.environ.get(HELD), "%s at %s" % (what, at)
+    except (OSError, ValueError):
+        return None, False, None
 
 
 # ---- MIDI ---------------------------------------------------------------------------------
@@ -276,6 +317,7 @@ def run(slot, wanted, timeout=120, device=None):
         sys.exit("the launcher refused to start slot %d: status %d" % (slot, reply[0]))
     else:
         say("starting slot %d ..." % slot)
+    started(slot)
     if wanted:
         return wait_for(wanted, timeout, device)
     return None
@@ -301,12 +343,31 @@ def slot_file(node, slot):
     return reply[3:3 + reply[2]].decode("ascii", "replace")
 
 
-def to_frizz(slot=FRIZZ_SLOT, timeout=120, device=None):
-    """FRIZZ's raw MIDI node, starting it from the launcher if it isn't running"""
+SETTLE = 10  # s for a firmware just started to answer: USB back, FRIZZ booted
+
+
+def to_frizz(slot=None, timeout=120, device=None):
+    """FRIZZ's raw MIDI node: on SLOT, started unless it's the one noted as running; without
+    one the FRIZZ running, or else the slot last started in this hold, or FRIZZ_SLOT. Waits
+    SETTLE s first for a firmware that is still starting, and says which slot it is"""
     now, where = state(device)
+    settle = time.monotonic() + SETTLE
+    while now in (None, "other") and time.monotonic() < settle:
+        time.sleep(0.5)
+        now, where = state(device)
+    last, this_hold, what = last_started()
     if now == "frizz":
-        return where
-    return run(slot, "frizz", timeout, device)
+        if last == BENCH_SLOT:
+            say("the bench runs (slot %d, %s), which answers as FRIZZ does" % (last, what))
+        elif last in FRIZZ_SLOTS and slot in (None, last):
+            say("FRIZZ on slot %d (%s)" % (last, what))
+            return where
+        elif slot is None:
+            say("FRIZZ runs, on a slot the tools didn't start: --slot N makes sure")
+            return where
+    if slot is None:
+        slot = last if this_hold and last in FRIZZ_SLOTS else FRIZZ_SLOT
+    return start(slot, timeout, device)
 
 
 def to_storage(timeout=120):

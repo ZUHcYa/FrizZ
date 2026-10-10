@@ -135,13 +135,13 @@ static bool Has(const std::string& s, const std::string& what) { return s.find(w
 static std::string firmware_dir;
 
 /** python3 on CODE with tools/ and firmware/ on its path, the lock (tools/chompi.py) a file in
- *  the temp folder and not held, 20 s at most: never the CHOMPI's own. Its exit code (-1 for a
- *  signal); out gets what it printed, stdout and stderr */
+ *  the temp folder and not held, 20 s at most: never the CHOMPI's own. It runs in the temp
+ *  folder. Its exit code (-1 for a signal); out gets what it printed, stdout and stderr */
 static int Python(const std::string& code, std::string& out)
 {
     const std::string file = tmp_dir + "/tools.py";
     std::ofstream(file) << code;
-    const std::string cmd = "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH='" + firmware_dir + "/tools:"
+    const std::string cmd = "cd '" + tmp_dir + "' && PYTHONDONTWRITEBYTECODE=1 PYTHONPATH='" + firmware_dir + "/tools:"
                             + firmware_dir + "' FRIZZ_CHOMPI_LOCK='" + tmp_dir
                             + "/lock' FRIZZ_CHOMPI_HELD= timeout -s KILL 20 python3 '" + file
                             + "' 2>&1";
@@ -223,6 +223,67 @@ int main()
           "tools: card.py --then 12 waits for FRIZZ-TEST as for FRIZZ, not for the bench");
     if (rc != 0)
         printf("%s\n", out.c_str());
+    // which slot runs, no firmware says (the bench answers as FRIZZ does): the tools note the
+    // one they started, and go by it. chompi's way to the CHOMPI stubbed: states in turn
+    const char* const kSlots = R"(
+import os, sys, chompi, flash, midi_send
+chompi.time.sleep = lambda s: None
+os.environ[chompi.HELD] = "7"
+states, starts = [], []
+def state(device=None):
+    return states.pop(0) if len(states) > 1 else states[0]
+chompi.state = state
+chompi.start = lambda slot, *rest: starts.append(slot) or "started"
+def case(name, now, slot, noted=None, hold="7"):
+    states[:] = now
+    starts.clear()
+    chompi.forget()
+    if noted:
+        os.environ[chompi.HELD] = hold
+        chompi.started(noted)
+        os.environ[chompi.HELD] = "7"
+    got = chompi.to_frizz(slot)
+    print("%s: %s %s" % (name, got, starts), flush=True)
+frizz = [("frizz", "node")]
+case("test runs", frizz, None, 12)
+case("test asked", frizz, 12, 12)
+case("other asked", frizz, 10, 12)
+case("unknown asked", frizz, 12)
+case("unknown", frizz, None)
+case("bench", frizz, None, 11)
+case("booting", [(None, None), ("other", "x"), ("frizz", "node")], None, 12)
+case("launcher, this hold", [("launcher", "l")], None, 12)
+case("launcher, another", [("launcher", "l")], None, 12, hold="8")
+# flash.py: once sent, the launcher for a moment, then nothing, then FRIZZ-TEST
+open("image.bin", "wb").write(b"x")
+midi_send.main = lambda: None
+chompi.to_launcher = lambda *rest: "l"
+chompi.slot_file = lambda *rest: None
+states[:] = [("launcher", "l"), (None, None), ("frizz", "node")]
+sys.argv = ["flash.py", "image.bin", "--slot", "12"]
+flash.main()
+print("noted", chompi.last_started()[0])
+chompi.forget()
+os.remove("image.bin")
+)";
+    rc = Python(kSlots, out);
+    Check(rc == 0 && Has(out, "FRIZZ on slot 12 (") && Has(out, "test runs: node []\n")
+              && Has(out, "test asked: node []\n"),
+          "tools: FRIZZ-TEST running is told apart, and used");
+    Check(Has(out, "other asked: started [10]\n") && Has(out, "unknown asked: started [12]\n")
+              && Has(out, "unknown: node []\n") && Has(out, "a slot the tools didn't start"),
+          "tools: --slot starts the slot asked for, unless noted as running; without, an unknown one is said");
+    Check(Has(out, "the bench runs (slot 11") && Has(out, "bench: started [10]\n"),
+          "tools: the bench isn't taken for FRIZZ");
+    Check(Has(out, "booting: node []\n"), "tools: a firmware still starting is waited for, not restarted");
+    Check(Has(out, "launcher, this hold: started [12]\n")
+              && Has(out, "launcher, another: started [10]\n"),
+          "tools: from the launcher, the FRIZZ last started in this hold, else FRIZZ's");
+    Check(Has(out, "FRIZZ answers on slot 12") && Has(out, "noted 12\n"),
+          "tools: flash.py waits until the FRIZZ it sent answers, and notes its slot");
+    if (rc != 0 || !Has(out, "noted 12"))
+        printf("%s\n", out.c_str());
+
     if (!OpenPty())
     {
         Check(false, "remote: a pseudo-terminal for the twin's USB");

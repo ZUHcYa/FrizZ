@@ -33,8 +33,12 @@ or a settings SysEx. FRIZZ saves what the keys there change to /FRIZZ/frizz_mast
 later, on the card the FRIZZ on key 10 shares, with no .bak to go back to (#58). It reads where
 the device's switch stands before it decides; --force plays it anyway.
 
-FRIZZ is started first if the CHOMPI is elsewhere: at the launcher's picker, in its USB storage
-firmware, or in the bench (tools/chompi.py); --no-start leaves it be, as --device does.
+It plays on the FRIZZ that runs, and says which slot that is (10 FRIZZ, 12 FRIZZ-TEST), as
+the tools that started it noted (tools/chompi.py); --slot N plays on that one, started if it
+isn't the one running. FRIZZ is started first if the CHOMPI is elsewhere: at the launcher's
+picker, in its USB storage firmware, or in the bench, which answers as FRIZZ does but measures
+no load: the slot last started in this hold (tools/chompi.py hold), or FRIZZ's. --no-start
+leaves it be, as --device does.
 
 Linux only (ALSA's raw MIDI), Python 3 without packages, like flash.py.
 """
@@ -350,13 +354,17 @@ def main():
     # SUPPRESS on the subcommands keeps one given before from being overwritten
     help_device = "the raw MIDI node, if not the first CHOMPI"
     help_no_start = "don't start FRIZZ if the CHOMPI is elsewhere"
+    help_slot = "the FRIZZ slot to play on (10, 12), started unless it runs; default the one running"
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--device", help=help_device)
     ap.add_argument("--no-start", action="store_true", help=help_no_start)
+    ap.add_argument("--slot", type=int, choices=chompi.FRIZZ_SLOTS, help=help_slot)
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--device", default=argparse.SUPPRESS, help=help_device)
     common.add_argument("--no-start", action="store_true", default=argparse.SUPPRESS,
                         help=help_no_start)
+    common.add_argument("--slot", type=int, choices=chompi.FRIZZ_SLOTS, default=argparse.SUPPRESS,
+                        help=help_slot)
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("state", parents=[common])
     sub.add_parser("leds", parents=[common])
@@ -385,7 +393,7 @@ def main():
     a = ap.parse_args()
 
     if not a.device and not a.no_start:
-        a.device = chompi.to_frizz()
+        a.device = chompi.to_frizz(a.slot)
     f = Frizz(a.device)
     if a.cmd == "state":
         show_state(f)
