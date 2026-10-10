@@ -77,13 +77,24 @@ namespace chompi
         // for whatever page is active, and logs each for a bug report (EventLog.h). A key
         // is down while the hand or MIDI holds it (MidiControl.h), so one held by both is
         // pressed once and let go once both have; only the hand's are logged here, MIDI's as
-        // the messages that came
+        // the messages that came.
+        // The mode switch up (GetToggleState() false, or SysEx's kCmdSwitch) shows the settings
+        // page: a key the panel presses then goes to it, as kSettingsKeyBase plus the key, and
+        // its turns go nowhere. The panel is the hand and FRIZZ's SysEx keys and detents, so a
+        // computer can play it as a hand would; MIDI's notes and CCs still play. A key belongs to the side it went down on until
+        // it's let go, so flipping the switch while holding one neither lets go of it on the
+        // play page (an FX punched in, PLAY or CHOMPI acting on their release) nor presses it
+        // on the settings page.
         void GenerateEvents()
         {
+            const uint8_t sw = midi_->Switch();
+            settings_ = sw == 0 ? !hw_->GetToggleState() : sw == 2;
+            normal_page_.ShowSettings(settings_);
+
             for (int i = 0; i < static_cast<int>(Hardware::SwId::SR_LAST); i++)
             {
                 // the transport's switch comes from its encoder below; the mode switch isn't a
-                // key and nothing uses it yet (hw_->GetToggleState() reads it)
+                // key
                 if (i == ENC_5_SW || i == static_cast<int>(Hardware::SwId::SW_TOG))
                     continue;
                 else if (hw_->button_sr.FallingEdge(i))
@@ -98,16 +109,13 @@ namespace chompi
                 Hand(ENC_5_SW, true);
             log_->Toggle(hw_->GetToggleState());
 
-            const uint64_t down = hand_ | midi_->Keys();
-            for (uint64_t changed = down ^ told_; changed; changed &= changed - 1)
-            {
-                const int key = __builtin_ctzll(changed);
-                if ((down >> key) & 1)
-                    event_queue.AddButtonPressed(key, 1);
-                else
-                    event_queue.AddButtonReleased(key);
-            }
-            told_ = down;
+            const uint64_t panel = hand_ | midi_->PanelKeys();
+            if (settings_)
+                settings_keys_ |= panel & ~panel_;
+            panel_ = panel;
+            Tell((panel & ~settings_keys_) | midi_->Keys(), told_, 0);
+            Tell(panel & settings_keys_, told_settings_, kSettingsKeyBase);
+            settings_keys_ &= panel;
 
             // encoder_map remaps the encoders' wiring order to the knobs' order; one event per
             // detent
@@ -116,16 +124,21 @@ namespace chompi
                 int inc = hw_->enc[i].Increment();
                 if (inc == 1 || inc == -1)
                 {
-                    event_queue.AddEncoderTurned(encoder_map[i], inc, 0);
+                    if (!settings_)
+                        event_queue.AddEncoderTurned(encoder_map[i], inc, 0);
                     log_->Add(EventLog::TURN, i + 1, inc);
                 }
             }
-            // MIDI's, in the knobs' order already, one detent a block
+            // MIDI's, in the knobs' order already, one detent a block: CCs always, SysEx's as
+            // the hand's
             for (uint16_t knob = 0; knob < midimap::kNumKnobs; knob++)
             {
                 const int turn = midi_->TakeTurn(knob);
                 if (turn)
                     event_queue.AddEncoderTurned(knob, static_cast<int16_t>(turn), 0);
+                const int panel_turn = midi_->TakePanelTurn(knob);
+                if (panel_turn && !settings_)
+                    event_queue.AddEncoderTurned(knob, static_cast<int16_t>(panel_turn), 0);
             }
         }
 
@@ -160,9 +173,28 @@ namespace chompi
             log_->Add(EventLog::KEY, key, down ? 1 : 0);
         }
 
+        /** The keys down on one side, against what it was told: a press or a release for each
+         *  that changed, as base plus the key */
+        void Tell(uint64_t down, uint64_t& told, uint16_t base)
+        {
+            for (uint64_t changed = down ^ told; changed; changed &= changed - 1)
+            {
+                const int key = __builtin_ctzll(changed);
+                if ((down >> key) & 1)
+                    event_queue.AddButtonPressed(base + key, 1);
+                else
+                    event_queue.AddButtonReleased(base + key);
+            }
+            told = down;
+        }
+
         MidiControl *midi_ = nullptr;
         uint64_t hand_ = 0; // the keys the hand holds, by Hardware::SwId
-        uint64_t told_ = 0; // the keys the pages were told are down
+        uint64_t told_ = 0; // the keys the play page was told are down
+        bool settings_ = false;         // the mode switch is up: the settings page
+        uint64_t panel_ = 0;            // the panel's keys down: the hand's and SysEx's
+        uint64_t settings_keys_ = 0;    // those that went down on the settings page
+        uint64_t told_settings_ = 0;    // the keys it was told are down
 
         BootPage boot_page_;
         NormalPage normal_page_;

@@ -18,6 +18,11 @@ what FRIZZ does.
 - **Remote control over USB:** FRIZZ's SysEx presses keys, turns knobs, and answers the
   state, the LEDs, the processing load and the scenes; `firmware/remote.py` uses it, and plays
   the virtual CHOMPI's scenarios on the device.
+- **Settings page** on the mode switch: up, the keys set the MIDI channel (the white keys,
+  the last one switching between 15 and 16, or every channel), MIDI transport following, the mono input, a clock factor (follow a
+  MIDI clock at half, as sent, or double its tempo) and the LEDs' brightness (100, 75 or
+  50 %), each saved on the card; VOLUME's LED shows the battery's level throughout. The loop,
+  the effects and MIDI play on while it's up; switch down to play. See MANUAL.md, "Settings page".
 - **Bug reports:** SHIFT + press the transport knob writes what you did since switching on
   (every key, knob, the mode switch, MIDI clock and the MIDI it acted on, with the card's scenes as they were at
   power-on) to `/FRIZZ/bug-1.txt` (then `bug-2.txt`, ...). Send it with a bug report: the
@@ -26,6 +31,11 @@ what FRIZZ does.
 
 ### Changed
 
+- **The mode switch now matters:** down is the play page, up the settings page. If the keys
+  don't play after updating, flip it down.
+- The mono input moved from VOLUME's page 3 to the settings page (F# of the lower octave), and
+  the battery check from holding VOLUME to the settings page's VOLUME LED. VOLUME has three
+  pages now: output, input, headphones.
 - The crusher, the filter and the resonator take far less processing time while they're
   off, which leaves more room for the effects that are on.
 - Turning the master compressor's knobs takes far less processing time while they glide,
@@ -34,8 +44,6 @@ what FRIZZ does.
   modulation no longer computes two cosines a sample, the delay no longer divides by the
   tempo every sample. The delay sounds the same; the reverb's modulation is within a
   thousandth of what it was.
-- Mono input (VOLUME's page 3) needs its 3 detents in one direction: turning back starts the
-  count over, so wiggling the knob doesn't switch it.
 - A flash on a key that's already lit nearly white (a select on a loud effect or on the
   compressor working hard, a tap on LOOP near the loop's end) goes dark instead of white, so
   it's seen.

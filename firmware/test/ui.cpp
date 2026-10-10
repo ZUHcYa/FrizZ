@@ -25,6 +25,12 @@ static const int kFilterKeyLed = 20, kShifterKeyLed = 23;
 static const int kVolumeEncoder = 6, kKnob1Encoder = 4; // SW6, SW4
 static const int kTransportRevLed = 5, kTransportFwdLed = 6, kVolumeLed = 9;
 static const int kSlot1Led = 1, kCompKeyLed = 10, kTapeStopKeyLed = 15;
+// the settings page's (SettingsPage.h): white keys 1, 3, 11, 14, 15 (channels; the 15th is 15
+// and 16), the lower octave's D#, F#, G#, A#
+static const int kChannel1Led = 24, kChannel3Led = 22, kChannel11Led = 14, kChannel14Led = 11,
+                 kChannel1516Led = 10, kTransportKeyLed = 1, kMonoKeyLed = 2, kFactorKeyLed = 3,
+                 kBrightnessKeyLed = 4;
+static const int kSaveKeyLed = 9; // KEY_25, the play page's SAVE
 
 static bool sine = true;
 static float amp = .3f, freq = 220.f, phase = 0.f;
@@ -424,30 +430,307 @@ int main()
         Check(Max(SmtLedFull(kTapeStopKeyLed)) > 2 * off, "latch-turn: the same with a dark knob: still latched");
     }});
 
-    cases.push_back({"mono", [] {
+    // ---- the settings page (SettingsPage.h): the mode switch up ----
+
+    // the mono input, now a key there (it was VOLUME's page 3)
+    cases.push_back({"settings-mono", [] {
         RunMs(kReadyMs);
-        Tap("ENC_6_SW"); // VOLUME's page 2
+        SetToggle(true);
         RunMs(300);
-        Tap("ENC_6_SW"); // page 3
-        RunMs(300);
-        for (int d : {-1, -1, 1, -1, -1})
-        {
-            Turn(kVolumeEncoder, d);
-            RunMs(100);
-        }
+        const Rgb stereo = SmtLedFull(kMonoKeyLed);
+        Tap("KEY_18"); // F#: mono
         RunMs(3000);
-        const std::string master = Card("/FRIZZ/frizz_master.txt");
-        Check(master.find("mono 1") == std::string::npos, "mono: left, left, right, left, left doesn't switch to mono");
-        const Rgb stereo = PthLedFull(kVolumeLed);
+        Check(Card("/FRIZZ/frizz_master.txt").find("mono 1") != std::string::npos,
+              "settings-mono: F# of the lower octave switches the input to mono, and it's saved");
+        const Rgb mono = SmtLedFull(kMonoKeyLed);
+        Check(mono.r == mono.g && mono.g == mono.b && Max(mono) > 2 * Max(stereo),
+              "settings-mono: its key is lit white while mono, dim while stereo");
+        const std::string state = Ask({0x20});
+        Check(state.size() > 6 && (state[6] & 32), "settings-mono: the play page's state says mono");
+        // VOLUME's pages are three now: out, in, headphones, and back to out
+        SetToggle(false);
+        RunMs(300);
         for (int i = 0; i < 3; i++)
         {
-            Turn(kVolumeEncoder, -1);
-            RunMs(100);
+            Tap("ENC_6_SW");
+            RunMs(300);
         }
+        const float before = RunMs(300);
+        Turn(kVolumeEncoder, -30);
+        RunMs(500);
+        Check(RunMs(300) < before * .7f, "settings-mono: VOLUME pressed three times is back on the output gain");
+    }});
+
+    // a key held through the flip stays the side's it went down on
+    cases.push_back({"settings-flip", [] {
+        RunMs(kReadyMs);
+        const float dry = RunMs(300);
+        Press("KEY_5", true); // the filter, punched in
+        RunMs(100);
+        Turn(kKnob1Encoder, -40);
+        RunMs(500);
+        SetToggle(true);
+        RunMs(500);
+        Check(RunMs(300) < dry * .5f, "settings-flip: an FX key held while the switch goes up stays in");
+        Turn(kKnob1Encoder, 40); // nothing on the settings page
+        RunMs(500);
+        Check(RunMs(300) < dry * .5f, "settings-flip: a knob turned on the settings page does nothing");
+        Press("KEY_5", false);
+        RunMs(300);
+        Check(fabsf(RunMs(300) - dry) < dry * .05f, "settings-flip: let go there, it's off");
+        RunMs(2500);
+        Check(Card("/FRIZZ/frizz_master.txt").find("midi_channel 5") == std::string::npos,
+              "settings-flip: and its release set nothing");
+        // the other way: a settings key held while the switch goes down presses nothing
+        Press("KEY_5", true);
+        RunMs(100);
+        SetToggle(false);
+        RunMs(500);
+        Check(fabsf(RunMs(300) - dry) < dry * .05f,
+              "settings-flip: a key gone down on the settings page doesn't punch in on the play page");
+        Press("KEY_5", false);
+        RunMs(2500);
+        Check(Card("/FRIZZ/frizz_master.txt").find("midi_channel 5\n") != std::string::npos,
+              "settings-flip: the 5th white key set channel 5 on its press");
+        // LOOP pressed up there doesn't record
+        SetToggle(true);
+        RunMs(300);
+        Tap("KEY_28");
+        RunMs(500);
+        Check(Probe().loop_state == 0, "settings-flip: LOOP on the settings page doesn't record");
+    }});
+
+    // a scene mode is left as the switch goes up: CHOMPI back down doesn't confirm it
+    cases.push_back({"settings-save", [] {
+        RunMs(kReadyMs);
+        Latch("KEY_5");
+        Tap("KEY_25"); // SAVE, slot 1 picked
+        RunMs(100);
+        Tap("KEY_17");
+        RunMs(300);
+        SetToggle(true);
+        RunMs(300);
+        SetToggle(false);
+        RunMs(300);
+        Tap("KEY_26");
+        RunMs(2500);
+        Check(Card("/FRIZZ/frizz_scenes.txt").empty(), "settings-save: SAVE armed, a flip up and down: CHOMPI saves nothing");
+        Check(Max(SmtLedFull(kSaveKeyLed)) < 80, "settings-save: and SAVE's key is back to dim");
+    }});
+
+    // MIDI plays on with the switch up: its notes are the play page's keys
+    cases.push_back({"settings-midi", [] {
+        RunMs(kReadyMs);
+        const float dry = RunMs(300);
+        SetToggle(true);
+        RunMs(300);
+        Usb({kCC, kFilterCutoffCC, 0});
+        Usb({kNoteOn, kFilterNote, 100});
+        RunMs(500);
+        Check(RunMs(300) < dry * .5f, "settings-midi: a note punches the filter in with the switch up");
+        Usb({kNoteOff, kFilterNote, 0});
+        RunMs(300);
+        Check(fabsf(RunMs(300) - dry) < dry * .05f, "settings-midi: and its note off lets go");
+        RunMs(2500);
+        Check(Card("/FRIZZ/frizz_master.txt").find("midi_channel 16\n") != std::string::npos
+                  || Card("/FRIZZ/frizz_master.txt").empty(),
+              "settings-midi: the note set no channel");
+    }});
+
+    // the MIDI channel and transport following on the keys
+    cases.push_back({"settings-channel", [] {
+        RunMs(kReadyMs);
+        SetToggle(true);
+        RunMs(300);
+        const Rgb ch16 = SmtLedFull(kChannel1516Led);
+        Check(ch16.r > 200 && ch16.g > 200 && ch16.b > 200 && Max(SmtLedFull(kChannel1Led)) < 80,
+              "settings-channel: channel 16 at first: the 15th white key white, the others dim");
+        Tap("KEY_15");
+        RunMs(300);
+        const Rgb ch15 = SmtLedFull(kChannel1516Led);
+        Check(ch15.r < 40 && ch15.b > 200 && Ask({0x24}).substr(0, 1) == std::string(1, 15),
+              "settings-channel: pressed, channel 15: the key light blue");
+        Tap("KEY_15");
+        RunMs(300);
+        Check(Ask({0x24}).substr(0, 1) == std::string(1, 16), "settings-channel: again, 16");
+        Tap("KEY_1"); // channel 1
+        RunMs(300);
+        Check(Max(SmtLedFull(kChannel1Led)) > 2 * Max(SmtLedFull(kChannel1516Led)),
+              "settings-channel: the first white key picks channel 1, the 15th dim");
+        Tap("KEY_15");
+        RunMs(300);
+        Check(Ask({0x24}).substr(0, 1) == std::string(1, 15),
+              "settings-channel: from another channel, the 15th key picks 15 first");
+        Tap("KEY_1");
+        RunMs(300);
+        SetToggle(false);
+        RunMs(300);
+        Check(Max(SmtLedFull(kChannel11Led)) == 0 && Max(SmtLedFull(kChannel14Led)) == 0,
+              "settings-channel: back on the play page, the keys it doesn't use are dark");
+        SetToggle(true);
+        RunMs(300);
+        Tap("KEY_17"); // D#: transport following
         RunMs(3000);
-        Check(Card("/FRIZZ/frizz_master.txt").find("mono 1") != std::string::npos, "mono: three lefts in a row do, and it's saved");
-        const Rgb mono = PthLedFull(kVolumeLed);
-        Check(mono.r == mono.g && mono.g == mono.b && mono.r > 0 && stereo.b > stereo.r, "mono: VOLUME is white for mono, light blue for stereo");
+        const std::string master = Card("/FRIZZ/frizz_master.txt");
+        Check(master.find("midi_channel 1\n") != std::string::npos
+                  && master.find("midi_transport 1") != std::string::npos,
+              "settings-channel: both saved");
+        const std::string settings = Ask({0x24});
+        Check(settings.size() == 2 && settings[0] == 1 && settings[1] == 1,
+              "settings-channel: and in force (SysEx settings)");
+        Tap("KEY_16"); // C#: every channel
+        RunMs(300);
+        const std::string all = Ask({0x24});
+        Check(all.size() == 2 && all[0] == 0, "settings-channel: C# listens on every channel");
+    }});
+
+    // the battery on VOLUME's LED, all the time; the transport LEDs purple
+    cases.push_back({"settings-battery", [] {
+        RunMs(kReadyMs);
+        SetBattery(3.2f, false);
+        SetToggle(true);
+        RunMs(32000); // the level is read every 30 s (Hardware::BMCMediumBattCheck)
+        const Rgb vol = PthLedFull(kVolumeLed);
+        Check(vol.r > 100 && vol.g > 100 && vol.b < 40, "settings-battery: VOLUME shows the battery, yellow below 3.3 V");
+        const Rgb rev = PthLedFull(kTransportRevLed), fwd = PthLedFull(kTransportFwdLed);
+        Check(Same(rev, fwd) && rev.b > rev.r && rev.r > rev.g, "settings-battery: the transport LEDs are purple");
+        SetToggle(false);
+        RunMs(300);
+        Tap("ENC_6_SW"); // page 2, the input gain: blue to red, never yellow
+        RunMs(1000);
+        Press("ENC_6_SW", true);
+        RunMs(2000);
+        const Rgb held = PthLedFull(kVolumeLed);
+        Press("ENC_6_SW", false);
+        RunMs(300);
+        Check(!(held.r > 100 && held.g > 100 && held.b < 40), "settings-battery: VOLUME held on the play page no longer shows it");
+    }});
+
+    // the LEDs' brightness: 100, 75, 50 %, no colour gone dark
+    cases.push_back({"settings-brightness", [] {
+        RunMs(kReadyMs);
+        RunMs(300);
+        const Rgb filter = SmtLed(kFilterKeyLed), vu = PthLed(kVolumeLed);
+        SetToggle(true);
+        RunMs(300);
+        const int key_full = Max(SmtLed(kBrightnessKeyLed));
+        Tap("KEY_20"); // A#: 75 %
+        RunMs(300);
+        const int key_75 = Max(SmtLed(kBrightnessKeyLed));
+        Tap("KEY_20"); // 50 %
+        RunMs(3000);
+        Check(Card("/FRIZZ/frizz_master.txt").find("led_brightness 50") != std::string::npos,
+              "settings-brightness: A# pressed twice steps 100, 75, 50 %, saved");
+        const int key_50 = Max(SmtLed(kBrightnessKeyLed));
+        Check(key_full > key_75 && key_75 > key_50 && key_50 > 0,
+              "settings-brightness: its own key dims with every LED, so it shows the level");
+        SetToggle(false);
+        RunMs(300);
+        const Rgb half = SmtLed(kFilterKeyLed);
+        Check(abs(Max(half) - Max(filter) / 2) <= 1 && half.r > 0 && half.g > 0 && half.b > 0,
+              "settings-brightness: an FX key that's off at half, its colour kept");
+        Check(Max(PthLed(kVolumeLed)) > 0 && Max(PthLed(kVolumeLed)) < Max(vu),
+              "settings-brightness: the panel's dimmer too, still lit");
+        SetToggle(true);
+        RunMs(300);
+        Tap("KEY_20"); // and round to 100 %
+        SetToggle(false);
+        RunMs(300);
+        Check(Same(SmtLed(kFilterKeyLed), filter), "settings-brightness: a third press is back to full");
+    }});
+
+    // the switch up from power-on: the settings page once booted
+    cases.push_back({"settings-boot", [] {
+        SetToggle(true);
+        RunMs(kReadyMs);
+        const float dry = RunMs(300);
+        Press("KEY_10", true); // the tape stop's key: channel 10 here
+        RunMs(1500);
+        const float held = RunMs(300);
+        Press("KEY_10", false);
+        Check(fabsf(held - dry) < dry * .05f,
+              "settings-boot: switched on with the switch up, the keys set: the tape stop's doesn't stop");
+        Check(Max(PthLedFull(kTransportRevLed)) > 0, "settings-boot: and the page shows");
+    }});
+
+    // PLAY held through the flip acts on its release as ever; LOOP up there doesn't erase
+    cases.push_back({"settings-play", [] {
+        RunMs(kReadyMs);
+        Tap("KEY_28");
+        RunMs(1500);
+        Tap("KEY_28");
+        RunMs(500);
+        Check(Probe().loop_state == 2, "settings-play: a loop plays");
+        Press("KEY_27", true);
+        RunMs(100);
+        SetToggle(true);
+        RunMs(500);
+        Press("KEY_27", false);
+        RunMs(300);
+        Check(Probe().loop_state == 3, "settings-play: PLAY held through the flip up pauses on its release");
+        Tap("KEY_28");
+        Tap("KEY_27");
+        RunMs(500);
+        Check(Probe().loop_state == 3, "settings-play: LOOP and PLAY up there neither erase nor play");
+    }});
+
+    // a card with every setting on: in force from power-on
+    cases.push_back({"settings-kept", [] {
+        CardFiles()["/FRIZZ/frizz_master.txt"]
+            = "FRIZZ master 1\nmono 1\nmidi_channel 3\nmidi_transport 1\nclock_factor 200\nled_brightness 50\n";
+        clock_bpm = 120.f;
+        RunMs(kReadyMs);
+        RunMs(2000);
+        Check(Probe().tempo == 240, "settings-kept: the clock factor x2 from the card: 120 BPM followed at 240");
+        const int filter = Max(SmtLed(kFilterKeyLed));
+        Check(filter >= 3 && filter <= 5, "settings-kept: the LEDs at half from the card (an off FX key's 9 at 4)");
+        const std::string state = Ask({0x20});
+        Check(state.size() > 6 && (state[6] & 32), "settings-kept: mono from the card");
+        const std::string settings = Ask({0x24});
+        Check(settings.size() == 2 && settings[0] == 3 && settings[1] == 1,
+              "settings-kept: channel 3 and transport following from the card");
+        SetToggle(true);
+        RunMs(300);
+        Check(Max(SmtLed(kMonoKeyLed)) > 0 && Max(SmtLed(kChannel3Led)) > Max(SmtLed(kChannel1Led)),
+              "settings-kept: and the page shows them");
+    }});
+
+    // the clock's tempo factor: x1/2, x1, x2 of a 120 BPM clock
+    cases.push_back({"settings-factor", [] {
+        clock_bpm = 120.f;
+        RunMs(kReadyMs);
+        RunMs(2000);
+        Check(Probe().tempo == 120, "settings-factor: a 120 BPM clock, the FX at 120");
+        SetToggle(true);
+        RunMs(300);
+        const Rgb one = SmtLedFull(kFactorKeyLed);
+        Tap("KEY_19"); // G#: x1 to x2
+        RunMs(3000);
+        Check(Probe().tempo == 240, "settings-factor: G# doubles it to 240");
+        const Rgb two = SmtLedFull(kFactorKeyLed);
+        Check(Card("/FRIZZ/frizz_master.txt").find("clock_factor 200") != std::string::npos,
+              "settings-factor: saved");
+        Tap("KEY_19"); // x2 to x1/2
+        RunMs(3000);
+        Check(Probe().tempo == 60, "settings-factor: G# again halves it to 60");
+        const Rgb half = SmtLedFull(kFactorKeyLed);
+        Check(one.r > 200 && one.g > 200 && one.b < 40 && two.r > 200 && two.g < 40
+                  && half.b > 200 && half.r < 40,
+              "settings-factor: its key yellow at x1, red at x2, light blue at x1/2");
+        // a quantized loop of one bar at 60: 4 s
+        SetToggle(false);
+        RunMs(300);
+        Press("KEY_27", true);
+        RunMs(100);
+        Tap("KEY_28");
+        Press("KEY_27", false);
+        RunMs(3000);
+        Tap("KEY_28"); // closes at the bar's end
+        RunMs(3000);
+        const ClockState c = Probe();
+        Check(c.loop_state == 2 && c.loop_beats == 4 && fabs(c.loop_length - 4. * 48000.) < 48.,
+              "settings-factor: a quantized bar at x1/2 holds 4 beats of 60 BPM");
+        printf("      loop: %zu frames, %u beats\n", c.loop_length, c.loop_beats);
     }});
 
     cases.push_back({"select-flash", [] {

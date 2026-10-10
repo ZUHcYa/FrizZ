@@ -166,17 +166,30 @@ namespace chompi
         }
     }
 
+    /** The brightness the settings page sets (SettingsPage.h), in quarters: 4 is full, as
+     *  FRIZZ always was, 3 and 2 dimmer */
+    static uint8_t led_quarters = 4;
+    inline void SetLedQuarters(uint8_t quarters) { led_quarters = quarters; }
+
+    /** A colour byte to the chain's: v / div at full, less when dimmed, rounded in one step so
+     *  a dim colour keeps its hue, and a channel lit at full stays lit */
+    inline uint8_t LedDim(uint8_t v, uint32_t div)
+    {
+        const uint32_t d = v * led_quarters / (4u * div);
+        return static_cast<uint8_t>(d == 0 && v >= div ? 1 : d);
+    }
+
    void SetPthLed(int index, uint8_t r, uint8_t g, uint8_t b)
     {
-        led_pth_data[index][0] = r / 11;
-        led_pth_data[index][1] = g / 11;
-        led_pth_data[index][2] = b / 11;
+        led_pth_data[index][0] = LedDim(r, 11);
+        led_pth_data[index][1] = LedDim(g, 11);
+        led_pth_data[index][2] = LedDim(b, 11);
     }
     void SetSmtLed(int index, uint8_t r, uint8_t g, uint8_t b)
     {
-        led_smt_data[index][0] = r / 4;
-        led_smt_data[index][1] = g / 4;
-        led_smt_data[index][2] = b / 4;
+        led_smt_data[index][0] = LedDim(r, 4);
+        led_smt_data[index][1] = LedDim(g, 4);
+        led_smt_data[index][2] = LedDim(b, 4);
     }
 
     /** 0..1 to 0..255; outside 0..1 the conversion to uint8_t would wrap (1.004 is dark) */

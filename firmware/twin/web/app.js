@@ -28,7 +28,7 @@ let layout = null;
 let worker = null, ctx = null, node = null, liveSource = null;
 const held = new Set();     // keys down (by name, KEY_n)
 const latched = new Set();  // keys held by a right-click
-let toggleLevel = 1;
+let toggleLevel = 0; // the mode switch: 0 down (play), 1 up (settings), as the 4021 reads it
 let fileAudio = null;
 const ledEls = [];          // 35: the panel's 10, then the keys' 25
 const keyEls = {};
@@ -135,7 +135,7 @@ async function DrawPanel()
   const t = layout.toggle;
   const tg = el('g', { class: 'toggle' }, panel);
   el('rect', { x: t.x - 3, y: Y(t.y) - 6, width: 6, height: 12, rx: 3, fill: '#111317', stroke: '#555a66', 'stroke-width': .5 }, tg);
-  const lever = el('circle', { cx: t.x, cy: Y(t.y) - 3, r: 2.4, fill: '#bbb' }, tg);
+  const lever = el('circle', { cx: t.x, cy: Y(t.y) + (toggleLevel ? -3 : 3), r: 2.4, fill: '#bbb' }, tg);
   el('text', { x: t.x, y: Y(t.y) + 9.5, class: 'label' }, panel).textContent = 'mode';
   tg.addEventListener('click', () => {
     toggleLevel = toggleLevel ? 0 : 1;
