@@ -19,6 +19,15 @@ what FRIZZ does.
   At the top (the default) it's fully shifted, as before. The other effects' page 2 comes
   later (#40).
 
+### Changed
+
+- **Transport knob in semitones:** while a loop plays, turning it changes the speed a
+  semitone every 2 detents, from 2× down to 1/16×, and stops at both ends. SHIFT + turn
+  jumps in fifths and octaves as turning did before (from between two of them, to the next
+  one in the turn's direction), and is now the only way on past 1/16× into reverse. Over
+  MIDI, CC 18 turns in semitones; with the CHOMPI key's note (45) held, in fifths and
+  octaves. See MANUAL.md, "Looper".
+
 ## v0.11 (2026-10-10)
 
 ### Added

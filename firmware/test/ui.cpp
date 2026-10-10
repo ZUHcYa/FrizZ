@@ -221,6 +221,7 @@ static void Usb(std::initializer_list<int> bytes)
 }
 static const int kNoteOn = 0x9F, kNoteOff = 0x8F, kCC = 0xBF, kPC = 0xCF;
 static const int kFilterNote = 55; // KEY_5, the 5th white key: G above the base note, 48
+static const int kChompiNote = 45; // the CHOMPI key: SHIFT
 static const int kFilterLatchCC = 24, kFilterCutoffCC = 86, kCompAmountCC = 52;
 static const int kHpCueCC = 59, kMonoCCNum = 60; // the headphone feed: 0 the master out, 127 the input alone
 /** 14 bits of an answer as a knob's 0-1 (MidiControl.h's MidiToKnob), and 7 bits of a CC */
@@ -1219,10 +1220,68 @@ int main()
         RunMs(800);
         const std::vector<int> fwd = Watch(true, kTransportFwdLed, 1000);
         Check(*std::min_element(fwd.begin(), fwd.end()) > 0, "transport-leds: at full speed forward the LED never goes dark");
+        Press("KEY_26", true); // SHIFT: the ladder, which flips to reverse past 1/16x
+        RunMs(60);
         Turn(5, -100); // all the way to the fastest reverse
+        RunMs(1000);
+        Press("KEY_26", false);
         RunMs(1500);
         const std::vector<int> rev = Watch(true, kTransportRevLed, 1000);
         Check(*std::min_element(rev.begin(), rev.end()) > 0, "transport-leds: nor at full speed in reverse");
+    }});
+
+    // the transport while a loop plays: semitones, 2 detents each, stopping at 2x and 1/16x;
+    // SHIFT + turn the ladder of roots and fifths, 4 detents a step, the only way to reverse
+    cases.push_back({"transport-semitones", [] {
+        RunMs(kReadyMs);
+        Tap("KEY_28");
+        RunMs(1000);
+        Tap("KEY_28");
+        RunMs(300);
+        auto speed = [] { RunMs(2000); return Probe().loop_speed; }; // after the glide
+        auto near = [](float a, int semis) { return fabsf(a - powf(2.f, semis / 12.f)) < .005f; };
+        auto shift_turn = [](int detents) {
+            Press("KEY_26", true);
+            RunMs(60);
+            Turn(5, detents);
+            RunMs(60);
+            Press("KEY_26", false);
+        };
+        Turn(5, 2);
+        Check(near(speed(), 1), "transport-semitones: 2 detents right: a semitone up");
+        Turn(5, 1);
+        Check(near(speed(), 1), "transport-semitones: 1 more: not yet");
+        Turn(5, 1);
+        Check(near(speed(), 2), "transport-semitones: 2: the next one");
+        shift_turn(4);
+        Check(near(speed(), 7), "transport-semitones: SHIFT + 4 detents from +2: the fifth, +7");
+        shift_turn(-4);
+        Check(near(speed(), 0), "transport-semitones: SHIFT + 4 detents left from +7: 1x");
+        shift_turn(3);
+        Check(near(speed(), 0), "transport-semitones: SHIFT + 3 detents: not yet");
+        Turn(5, -1);
+        Check(near(speed(), 0), "transport-semitones: detents don't carry over from SHIFT to the semitones");
+        Turn(5, 100);
+        Check(near(speed(), 12), "transport-semitones: all the way right: 2x");
+        Turn(5, -200);
+        const float slowest = speed();
+        Check(near(slowest, -48), "transport-semitones: all the way left: 1/16x, still forward");
+        shift_turn(-4);
+        Check(speed() < 0.f && near(-Probe().loop_speed, -48), "transport-semitones: SHIFT + left from there: reverse");
+        shift_turn(4);
+        Check(near(speed(), -48), "transport-semitones: SHIFT + right: forward again");
+        Tap("ENC_5_SW"); // the transport's press: back to 1x
+        Check(near(speed(), 0), "transport-semitones: press: 1x");
+        // over MIDI: CC 18 turns in semitones; with the CHOMPI key's note held, along the ladder
+        Trs({kCC, 18, 1, kCC, 18, 1});
+        Check(near(speed(), 1), "transport-semitones: CC 18, 2 detents: a semitone");
+        Trs({kNoteOn, kChompiNote, 100});
+        RunMs(60);
+        for (int i = 0; i < 4; i++)
+            Trs({kCC, 18, 1});
+        RunMs(60);
+        Trs({kNoteOn, kChompiNote, 0});
+        Check(near(speed(), 7), "transport-semitones: CHOMPI's note held, CC 18 x4: the ladder, +7");
     }});
 
     cases.push_back({"flanger-click", [] {
@@ -1874,11 +1933,11 @@ int main()
         Tap("KEY_28");
         RunMs(300);
         const float speed = Probe().loop_speed;
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < 24; i++)
             Trs({kCC, 18, 1});
         RunMs(1000);
         Check(Probe().loop_speed > 1.9f * speed, "midi cc more: CC 18 turns the transport: the loop speeds up");
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < 24; i++)
             Trs({kCC, 18, 127});
         RunMs(1000);
         Check(fabsf(Probe().loop_speed - speed) < .02f, "midi cc more: and back down (the speed glides there)");

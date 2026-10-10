@@ -122,10 +122,10 @@ Transport knob (the big purple one), once a loop exists:
 
 | Control | Function |
 |---|---|
-| Turn while playing | Speed in 5ths and octaves, 2× down to 1/16×, then reverse back up to −2× (4 detents per step) |
+| Turn while playing | Speed in semitones, from 2× down to 1/16× (2 detents per semitone); stops at both ends |
+| SHIFT + turn while playing | Speed in 5ths and octaves (4 detents per step): from between two of them, to the next one in the turn's direction. Past 1/16× it flips into reverse and climbs back up to −2×: the only way into reverse |
 | Turn while paused | Scrub |
 | Press | Back to 1× forward |
-| SHIFT + turn | Nothing |
 | SHIFT + press | Writes a [bug report](#bug-reports) |
 
 LEDs: LOOP is red while recording and blinks while a quantized recording finishes its bar or
@@ -665,7 +665,7 @@ or C2 in Ableton Live): the white keys from 48 up, the dark keys on the sharps. 
 | CC | Function |
 |---|---|
 | 14, 15, 16, 17 | Knob 1, 2, 3, 4 turned, relative: 1-63 turns that many detents right, 127-65 that many left (two's complement). SHIFT held turns coarsely, as by hand |
-| 18 | The transport knob turned, relative |
+| 18 | The transport knob turned, relative, in semitones. SHIFT held (the CHOMPI key's note, 45) turns it in 5ths and octaves, as by hand |
 | 19 | VOLUME turned, relative, on the page it's on |
 | 20-31 | An effect's latch, by its key left to right (20 the freezer, 30 the delay, 31 the reverb): 64 and above latched, below off |
 | 52, 53, 54, 55 | The master compressor's amount, ratio, speed and mix |

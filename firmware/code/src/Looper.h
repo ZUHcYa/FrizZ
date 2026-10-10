@@ -11,7 +11,7 @@
  *  Commands go through a single slot that the audio callback empties once per block, so:
  *   - post at most one command per UI event; a second one in the same block replaces the first
  *   - GetState() only reflects a command from the next audio block on
- *  Speed steps (StepSpeed, ResetSpeed) are counted up separately and all applied at the next
+ *  Speed steps (StepSemitone, StepSpeed, ResetSpeed) are counted up separately and all applied at the next
  *  block, so GetSpeed() also follows a block later.
  *
  *  Loop point: when a recording closes at length L, the input keeps being written for
@@ -20,9 +20,9 @@
  *  the jump from L-1 back to 0 doesn't click, in either direction.
  *
  *  Speed: the read head is a frame index plus a fraction, advanced by the speed each
- *  sample and read with 4-point Hermite interpolation. Speed moves in TAPE's ladder of 5ths and
- *  octaves (StepSpeed), glides to each new step like TAPE's default tape slew, and runs in
- *  reverse when negative. While paused, the transport knob scrubs instead (Scrub).
+ *  sample and read with 4-point Hermite interpolation. Speed moves in semitones (StepSemitone)
+ *  or along TAPE's ladder of 5ths and octaves (StepSpeed), glides to each new step like TAPE's
+ *  default tape slew, and runs in reverse when negative. While paused, the transport knob scrubs instead (Scrub).
  */
 #pragma once
 #include <atomic>
@@ -44,7 +44,8 @@ static const size_t kXfadeFrames = 240; // 5ms loop-point crossfade at 48kHz
 static const float kPlayFadeCoeff = .002f; // ~10ms fade on play / pause / erase
 
 // Speed ladder, in semitones: octaves (12k) and fifths above them (12k + 7), as TAPE.
-// Top is 2x (+12), bottom is 1/16x (-48); stepping below the bottom flips direction.
+// Top is 2x (+12), bottom is 1/16x (-48); a ladder step below the bottom flips direction, a
+// semitone step stops there.
 static const int kSpeedMaxSemis = 12;
 static const int kSpeedMinSemis = -48;
 static const float kSpeedSlewCoeff = .0001f; // TAPE's tape-slew glide, ~0.2s
@@ -91,15 +92,20 @@ public:
     /** Takes back an EraseAtEnd that hasn't happened yet */
     void CancelErase() { command_.store(Command::CANCEL_ERASE); }
 
-    /** One step along the 5ths-and-octaves ladder. dir > 0 turns right (faster forward /
+    /** One step along the 5ths-and-octaves ladder, to the next rung in the turn's direction
+     *  (from between two rungs, the nearer one that way). dir > 0 turns right (faster forward /
      *  slower reverse), dir < 0 turns left. Past 1/16x the direction flips at the same speed.
      *  Taken up at the next audio block, like the commands */
     void StepSpeed(int dir) { speed_steps_.fetch_add(dir > 0 ? 1 : (dir < 0 ? -1 : 0)); }
+
+    /** One semitone, turning as StepSpeed; stops at 2x and 1/16x, never flips */
+    void StepSemitone(int dir) { semi_steps_.fetch_add(dir > 0 ? 1 : (dir < 0 ? -1 : 0)); }
 
     /** Back to 1x forward, at the next audio block; steps posted before it are dropped */
     void ResetSpeed()
     {
         speed_steps_.store(0);
+        semi_steps_.store(0);
         speed_reset_.store(true);
     }
 
@@ -238,13 +244,10 @@ private:
     void ApplyStep(int dir)
     {
         // turning right means faster when forward, slower when in reverse
-        const bool faster = (dir > 0) != reverse_;
-        int semis = semis_;
-
-        if (faster)
-            semis += (Mod12(semis) == 7) ? 5 : 7;
-        else
-            semis -= (Mod12(semis) == 7) ? 7 : 5;
+        const int way = ((dir > 0) != reverse_) ? 1 : -1;
+        int semis = semis_ + way;
+        while (!IsRung(semis))
+            semis += way;
 
         if (semis > kSpeedMaxSemis)
             return; // already at 2x
@@ -253,7 +256,19 @@ private:
             reverse_ = !reverse_; // through the slowest step: flip, same speed
             semis = semis_;
         }
+        SetSemis(semis);
+    }
 
+    /** One semitone, see StepSemitone */
+    void ApplySemitone(int dir)
+    {
+        const int semis = semis_ + (((dir > 0) != reverse_) ? 1 : -1);
+        if (semis <= kSpeedMaxSemis && semis >= kSpeedMinSemis)
+            SetSemis(semis);
+    }
+
+    void SetSemis(int semis)
+    {
         semis_ = semis;
         speed_target_ = (reverse_ ? -1.f : 1.f) * powf(2.f, semis_ / 12.f);
     }
@@ -271,6 +286,11 @@ private:
     {
         if (speed_reset_.exchange(false))
             ApplyResetSpeed();
+        int semis = semi_steps_.exchange(0);
+        for (; semis > 0; semis--)
+            ApplySemitone(1);
+        for (; semis < 0; semis++)
+            ApplySemitone(-1);
         int steps = speed_steps_.exchange(0);
         for (; steps > 0; steps--)
             ApplyStep(1);
@@ -547,6 +567,7 @@ private:
 
         ApplyResetSpeed();
         speed_steps_.store(0);
+        semi_steps_.store(0);
         speed_reset_.store(false);
         speed_ = 1.f;
         scrub_ = scrub_target_ = 0.f;
@@ -555,6 +576,8 @@ private:
     }
 
     static inline int Mod12(int semis) { return ((semis % 12) + 12) % 12; }
+    /** A point of the ladder: an octave or a fifth above one */
+    static inline bool IsRung(int semis) { return Mod12(semis) == 0 || Mod12(semis) == 7; }
 
     /** Turns counted over each scrub period set the scrub speed for the next one */
     void UpdateScrub(size_t size)
@@ -672,6 +695,7 @@ private:
 
     // speed, see StepSpeed(). The UI posts steps and resets, the audio applies them
     std::atomic<int> speed_steps_{0};
+    std::atomic<int> semi_steps_{0};
     std::atomic<bool> speed_reset_{false};
     int semis_ = 0;
     bool reverse_ = false;

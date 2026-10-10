@@ -89,7 +89,8 @@ namespace chompi
     static const uint32_t kTapFlashMs = 80;      // LOOP flashes on a tempo tap
     static const uint32_t kSelectFlashMs = 80;   // an FX key flashes on a select
     static const float kFlashDarkAbove = .5f;    // a flash goes dark on an LED this white (Flash)
-    static const float kSpeedStepPerTurn = .25f; // 4 transport detents per speed step
+    static const float kSemiStepPerTurn = .5f;   // 2 transport detents per semitone
+    static const float kSpeedStepPerTurn = .25f; // SHIFT: 4 detents per step of the ladder
 
     static const uint8_t kFxKnobLeds[kNumFxKnobs] = {1, 2, 3, 4}; // PTH LEDs of knobs 1-4
     // Page 2 of the FX knobs: their LEDs pulse, from full down to kPage2Low and back, faster
@@ -392,7 +393,7 @@ namespace chompi
         }
 
         /** Like the keys, only a turn that does something is a SHIFT combo (keys_.Used): not
-         *  the transport, which does nothing with SHIFT, nor a knob the FX doesn't use */
+         *  the transport without a playing loop, nor a knob the FX doesn't use */
         bool OnEncoderTurned(uint16_t encoderID,
                              int16_t turns,
                              uint16_t stepsPerRevolution) override
@@ -1057,23 +1058,35 @@ namespace chompi
                 PthLed(led_off, red, (idx - .8f) * 5.f);
         }
 
+        /** Playing: a turn steps the speed in semitones, SHIFT + turn along the ladder (see
+         *  Looper::StepSpeed). Paused: a turn scrubs, SHIFT + turn does nothing */
         void TransportTurned(int16_t turns)
         {
-            // SHIFT + turn does nothing, so it never makes a SHIFT combo
-            if (Shift() || !LoopExists())
+            if (!LoopExists())
                 return;
 
             Looper& looper = engine_->looper;
+            const bool ladder = Shift();
             if (looper.GetState() == Looper::State::PAUSED)
-                looper.Scrub(turns);
-            else
             {
-                speed_chunk_ += turns * kSpeedStepPerTurn;
-                if (speed_chunk_ >= 1.f || speed_chunk_ <= -1.f)
-                {
-                    looper.StepSpeed(speed_chunk_ > 0.f ? 1 : -1);
-                    speed_chunk_ = 0.f;
-                }
+                if (!ladder)
+                    looper.Scrub(turns);
+                return;
+            }
+
+            keys_.Used();
+            if (ladder != speed_ladder_)
+                speed_chunk_ = 0.f; // detents don't carry over from one kind of step to the other
+            speed_ladder_ = ladder;
+            speed_chunk_ += turns * (ladder ? kSpeedStepPerTurn : kSemiStepPerTurn);
+            if (speed_chunk_ >= 1.f || speed_chunk_ <= -1.f)
+            {
+                const int dir = speed_chunk_ > 0.f ? 1 : -1;
+                if (ladder)
+                    looper.StepSpeed(dir);
+                else
+                    looper.StepSemitone(dir);
+                speed_chunk_ = 0.f;
             }
         }
 
@@ -1148,6 +1161,7 @@ namespace chompi
         LedSignal tap_flash_;
         LedSignal select_flash_; // on the selected FX's key
         float speed_chunk_ = 0.f;   // transport detents towards the next speed step
+        bool speed_ladder_ = false; // speed_chunk_ counts towards a step of the ladder (SHIFT)
         SettingsPage settings_;
         volatile bool show_settings_ = false; // the mode switch is up (ui.h)
         bool drew_settings_ = false;          // the last frame was the settings page's
