@@ -258,7 +258,7 @@ static void Trs(std::initializer_list<int> bytes)
     for (int b : bytes)
         Midi(static_cast<uint8_t>(b));
 }
-static void Usb(std::initializer_list<int> bytes)
+static void Usb(const std::vector<int>& bytes)
 {
     for (int b : bytes)
         UsbMidi(static_cast<uint8_t>(b));
@@ -276,7 +276,7 @@ static float KnobOf(int hi, int lo)
 }
 static float KnobOf7(int v) { return v <= 64 ? .5f * v / 64.f : .5f + .5f * (v - 64) / 63.f; }
 /** A SysEx query over USB and its answer's data, or empty if none came */
-static std::string Ask(std::initializer_list<int> query)
+static std::string Ask(const std::vector<int>& query)
 {
     TakeUsbOut();
     Usb({0xF0, 0x7D, 0x43, 0x48});
@@ -1119,6 +1119,31 @@ int main()
         Trs({kCC, 118, 64});
         RunMs(300);
         Check(state().size() > 6 && !(state()[6] & 2), "midi fader: without a morph, nothing");
+    }});
+
+    // a scene sent over SysEx into the active slot: the sound stays, so it's edited (as COPY
+    // onto it), and SAVE stores what plays
+    cases.push_back({"scene-put-active", [] {
+        RunMs(kReadyMs);
+        Latch("KEY_5");
+        Save(1);
+        RunMs(1000);
+        std::string st = Ask({0x20});
+        Check(st.size() > 6 && st[5] == 2 && !(st[6] & 1), "scene-put-active: scene 1 saved, unedited");
+        bool taken = true;
+        for (int part = 0; part < 8; part++)
+        {
+            std::vector<int> put = {0x31, 1, part};
+            put.resize(put.size() + 32, 0);
+            const std::string r = Ask(put);
+            taken &= r.size() > 2 && r[2] == 0;
+        }
+        const std::string r = Ask({0x31, 1, 8, 1, 0, 0});
+        taken &= r.size() > 2 && r[2] == 0;
+        RunMs(1000);
+        st = Ask({0x20});
+        Check(taken && st.size() > 6 && st[5] == 2 && (st[6] & 1),
+              "scene-put-active: sent into it over SysEx, the active scene 1 is edited");
     }});
 
     // the millisecond counter wrapping (after 49.7 days on): the signals started just before it

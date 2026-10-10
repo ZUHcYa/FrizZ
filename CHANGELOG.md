@@ -116,6 +116,9 @@ what FRIZZ does.
 - **VOLUME held through the boot animation** no longer switches VOLUME's page when it's let
   go on the play page.
 
+- **A scene sent over SysEx into the active slot** marks it as edited (its key pulses), as
+  COPY onto it does, since what plays is no longer what the slot holds.
+
 ## v0.11 (2026-10-10)
 
 ### Added

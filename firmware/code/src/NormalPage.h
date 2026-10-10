@@ -649,6 +649,9 @@ namespace chompi
                 put_scene_.latched = static_cast<uint16_t>((v[1] << 7) | v[2]);
                 scenes_->scenes[q.a] = put_scene_;
                 put_slot_ = kNoScene;
+                // the sound stays, so it no longer matches the active scene (as COPY onto it)
+                if (q.a == scene_ctl_.Active())
+                    fx_.MarkEdited();
                 FlashWhenSaved(q.a);
                 return true;
             }
