@@ -12,17 +12,17 @@ the two have diverged, so treat WAVE as reference, not as a shared core.
 ```
 code/src/                 the firmware
 code/libs/                vendored libDaisy and DaisySP (patched, MIT; never swap in upstream)
-bin/                      FRIZZ.bin (the latest build), FRIZZ-bench.bin (the CPU bench, below),
-                          the v6.2 bootloader binary and its
-                          install script; the bootloader's source is in
-                          reference/firmware/chompi-wave/code/Chompi_Bootloader/
+bin/                      cpu.txt (the CPU bench's numbers for this source, below), the v6.2
+                          bootloader binary and its install script; the bootloader's source
+                          is in reference/firmware/chompi-wave/code/Chompi_Bootloader/
 test/                     host-side checks: the engine against HEAD, and unit checks (unit.sh NAME)
 twin/                     the virtual CHOMPI: the whole firmware on the PC, on a simulated board
 flash.py, card.py         sending a build to the CHOMPI and reaching its card over USB, through the
                           multi-firmware launcher
 remote.py                 playing and querying a running FRIZZ over USB MIDI
 tools/                    what those share (chompi.py, the launcher's midi_send.py), the git hooks,
-                          and measure.py: timing and sound measured on the device
+                          builds.py (both builds and their md5), and measure.py: timing and
+                          sound measured on the device
 ```
 
 Design notes live in [`../docs/`](../docs/): the looper spec (`LOOPER.md`) and an overview of
@@ -66,6 +66,12 @@ The output goes to `code/src/build/`:
 
 - `FRIZZ.bin`: the firmware you put on the SD card
 - `FRIZZ.elf`: the same firmware with debug info, for gdb
+
+`make BENCH=1` builds the CPU bench into `code/src/build-bench/` ([below](#measure-the-cpu-load)).
+Neither is committed: a build is named by its md5, and `tools/builds.py` builds both and
+prints it (`tools/builds.py md5` only prints). That works because GCC 10.3 builds the same
+source to the same bytes on any machine; another compiler gives other bytes (and the risk
+above), so `builds.py` and `flash.py` refuse to build with one.
 
 Read the memory table at the end. FRIZZ runs from SRAM, so a build that compiles can still
 fail to link if it doesn't fit. Warnings are normal; only lines that say `error` mean the build
@@ -139,11 +145,13 @@ it takes a firmware over USB MIDI, writes it to its slot and starts it:
 cd firmware
 ./flash.py            # builds FRIZZ.bin, restarts the CHOMPI into the launcher, sends it to slot 10
 ./flash.py --bench    # FRIZZ-bench.bin to slot 11
-./flash.py --no-build # bin/FRIZZ.bin as committed
+./flash.py --no-build # the build that's in code/src/build/ (build-bench/ with --bench), as it is
 ./flash.py --run 11   # starts what's in slot 11 already, sending nothing
 ./flash.py --test     # a branch's build to the test slot (12), as FRIZZ-TEST
 ./flash.py --list     # what's on each key
 ```
+
+Each send prints the md5 of what it sends, the name of that build in a pull request.
 
 **One at a time.** Every tool here takes a lock (`tools/chompi.py`) and waits while another
 has the CHOMPI, saying who. `tools/chompi.py hold CMD` keeps it over a whole sequence of
@@ -252,7 +260,7 @@ make BENCH=1      # build-bench/FRIZZ-bench.bin; the normal build is untouched
 ```
 
 1. With the launcher, `./flash.py --bench` puts it on its own key (11) and starts it. Without
-   it, put `FRIZZ-bench.bin` (this one, or `bin/FRIZZ-bench.bin`) on the card instead of
+   it, put `FRIZZ-bench.bin` on the card instead of
    `FRIZZ.bin` (the bootloader takes the first `.bin` it finds, whatever its name) and switch
    on. The bootloader flashes it as usual.
 2. After the boot animation the bench waits about 10 s for every effect to rest (only CHOMPI
@@ -266,7 +274,9 @@ make BENCH=1      # build-bench/FRIZZ-bench.bin; the normal build is untouched
    segment's mean goes: the clock the chip ran at, and the mean split into the callback's
    parts (MIDI, the controls, the UI's events, the input, the looper, the tempo, the FX chain,
    the compressor, the output and limiters), counted in the core's cycles (`BenchProfile.h`).
-   Put `FRIZZ.bin` back on the card to play again.
+   Put `FRIZZ.bin` back on the card to play again. `tools/builds.py cpu` files the
+   `cpu.txt` that `./card.py get` fetched as `bin/cpu.txt`, headed by the md5 of the bench
+   build it measured (and refuses one from another source).
 
 The segments: nothing on, each effect alone (its knobs moving every 0.25 s), the compressor,
 the inserts together, recording a loop, the loop alone, with the inserts, with the delay, with
@@ -287,7 +297,7 @@ code costs; whether `FRIZZ.bin` crackles, only playing it tells.
 Work on a branch off `main`, never on `main` itself, in a worktree of its own
 (`git worktree add ../FrizZ-<branch> -b <branch> origin/main`), and open a pull request for it
 (a draft is fine). `tools/install-hooks.sh` installs a pre-commit hook that refuses commits on
-`main` and reminds you of the binary and the changelog. Before each commit that touches `code/`, `test/` or `twin/`:
+`main` and reminds you of the changelog. Before each commit that touches `code/`, `test/` or `twin/`:
 
 1. **`test/all.sh` passes.** A check that fails is fixed, or, when the change is meant to
    alter what it checks, updated in the same commit, saying so in the commit message.
@@ -297,16 +307,13 @@ Work on a branch off `main`, never on `main` itself, in a worktree of its own
    clicks, add a case to `test/ui.cpp` and make sure `twin/ui-at.sh origin/main` (or `twin/ui-at.sh origin/main sync` for a timing check) fails it (it
    passes with your change). `git fetch` first: a stale local `main` compares with an old
    version.
-4. **The binaries match the source:** a change under `code/` rebuilds both and commits them
-   with it: `make` and `make BENCH=1` in `code/src`, then `build/FRIZZ.bin` and
-   `build-bench/FRIZZ-bench.bin` to `bin/`.
-5. **Players read about it:** what they notice goes into [`CHANGELOG.md`](../CHANGELOG.md)
+4. **Players read about it:** what they notice goes into [`CHANGELOG.md`](../CHANGELOG.md)
    under *Unreleased*, and a changed control into [`MANUAL.md`](../MANUAL.md).
 
 The pull request lists what changed, what the twin checked (with `twin/compare.sh origin/main
 HEAD`'s output, every difference explained), what was checked on the device (a firmware
-branch's build on the test slot, key 12: the bench's `cpu.txt` against `main`'s
-`bin/cpu.txt`, scenarios played with `remote.py play --cpu`), and what only a player can
+branch's build on the test slot, key 12, named by the md5 `flash.py` printed: the bench's
+`cpu.txt` against `main`'s `bin/cpu.txt`, scenarios played with `remote.py play --cpu`), and what only a player can
 judge, for the release test (feel, sound by ear, real MIDI gear).
 [`CLAUDE.md`](../CLAUDE.md) has the full workflow, including the release test and test builds.
 

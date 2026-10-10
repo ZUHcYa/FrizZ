@@ -18,6 +18,11 @@ firmware/twin/build/
 firmware/twin/web/build/
 reference/firmware/*/code/src/build/
 
+# FRIZZ's builds aren't committed (CLAUDE.md): they stay in code/src/build*/, and their md5
+# names them (firmware/tools/builds.py); these were committed until 2026-10-11
+firmware/bin/FRIZZ.bin
+firmware/bin/FRIZZ-bench.bin
+
 # Python bytecode (flash.py imports tools/midi_send.py)
 __pycache__/
 *.pyc
