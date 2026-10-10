@@ -15,7 +15,7 @@ build; the numbers below come from it and from `build/FRIZZ.map`.
 | `RAM_D2CACHE` | 256 KB | 0 | **256 KB** | nothing (the `.d2_bss` section points there) |
 | `ITCMRAM` | 64 KB | 0 (~40 KB with `make ITCM=1`) | 64 KB | the per-sample code with `make ITCM=1` (`FRIZZ_HOT`, `FrizzHot.h`, #51), copied there at boot; off by default |
 | `RAM_D3` | 64 KB | 0 | 64 KB | nothing |
-| `SDRAM` | 64 MB | 42.7 MB | ~21 MB | the loop (31.7 MB), the delay (3.8 MB), the tape stop (4 MB), the freezer (1.9 MB), the event log (2 MB) |
+| `SDRAM` | 64 MB | 43.9 MB | **~23 MB** | the loop (31.7 MB), the tape stop (4.2 MB), the delay (3.8 MB), the event log (2.1 MB), the freezer (1.9 MB), the reverb's pre-delay (0.1 MB); measured on `FRIZZ.bin` md5 `1eb11808` |
 
 **The bench build hits the walls first.** `FRIZZ-bench.bin` carries the bench as well: its
 code is at 234,220 B (84 %, ~43 KB free) and its data at 237,876 B (97 %, **~7.7 KB free**).
