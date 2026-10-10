@@ -59,13 +59,17 @@ struct Smoothed
         return value;
     }
     /** For a value that's costly to apply: slews while it isn't at the target, and lands on
-     *  it once within 1e-5. True if it moved, so it needs applying */
+     *  it once within 1e-5, or once a step no longer moves it: near 1 the slew's step falls
+     *  below a float's resolution and it would stall short of the target for good, a knob
+     *  turned back to its default never at rest again (#51). True if it moved, so it needs
+     *  applying */
     bool Settle(float coeff = FxSlew::coeff)
     {
         if (value == target)
             return false;
+        const float before = value;
         Process(coeff);
-        if (fabsf(value - target) < 1e-5f)
+        if (value == before || fabsf(value - target) < 1e-5f)
             Snap();
         return true;
     }

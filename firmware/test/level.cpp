@@ -238,9 +238,51 @@ static void TestCrusherLevel()
                         "(page 2's Level is for that)");
 }
 
+/** Mix, Band and Level turned away and back to their defaults come to rest there, so the
+ *  chain leaves them out again (FxChain.h's out_busy_): near 1, the slew's step once fell below
+ *  a float's resolution and Mix stalled at 0.99997, busy for good (#51) */
+static void TestRest()
+{
+    Folder fx;
+    fx.Init(kSr);
+    fx.SetParam(Folder::DRIVE, .5f);
+    fx.SnapParams();
+    fx.SetOn(true);
+    const struct
+    {
+        size_t param;
+        float away, back;
+        const char* name;
+    } knobs[] = {{FxOutput::kMix, .5f, FxOutput::kMixDefault, "Mix"},
+                 {FxOutput::kBand, .75f, FxOutput::kBandDefault, "Band"},
+                 {FxOutput::kLevel, .625f, FxOutput::kLevelDefault, "Level"}};
+    for (const auto& k : knobs)
+    {
+        FxOutput out;
+        out.Init(kSr);
+        out.SetParam(k.param, k.away);
+        for (size_t i = 0; i < 48000; i++)
+        {
+            float l = .3f * sinf(i * .05f), r = l;
+            out.Process(fx, &l, &r);
+        }
+        out.SetParam(k.param, k.back);
+        for (size_t i = 0; i < 4 * 48000; i++)
+        {
+            float l = .3f * sinf(i * .05f), r = l;
+            out.Process(fx, &l, &r);
+        }
+        char msg[96];
+        snprintf(msg, sizeof(msg), "rest: %s turned away and back comes to rest at its default",
+                 k.name);
+        Check(!out.Busy(), msg);
+    }
+}
+
 int main()
 {
     TestDefaults();
+    TestRest();
     TestLevel();
     TestBand();
     TestSendBand();
