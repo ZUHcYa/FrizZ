@@ -10,13 +10,13 @@ up KEY_5
 wait 300
 tap KEY_1
 wait 300
-tap KEY_11
+tap KEY_17
 wait 300
-tap KEY_23
+tap KEY_18
 wait 300
-tap KEY_12
+tap KEY_19
 wait 300
-tap KEY_24
+tap KEY_20
 wait 300
 tap KEY_10 1500
 wait 1000

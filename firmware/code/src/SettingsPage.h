@@ -4,16 +4,19 @@
  *  (ui.h) and draws it instead of itself; the loop, the effects and MIDI play on meanwhile.
  *  MANUAL.md describes it for players.
  *
- *  The keys, chromatically from the lowest (C, the first white key):
+ *  The keys:
  *
- *    C .. D# of the upper octave (16 keys)  MIDI channel 1-16       light blue, the one lit
- *    E   all channels                                                light blue
- *    F   MIDI transport following, on / off                          green, lit when on
- *    F#  mono input, on / off                                        white, lit when on
- *    G   the clock's tempo factor, each press the next: x1, x2, x1/2  yellow, red, light blue
- *    G#  the LEDs' brightness, each press the next: 100, 75, 50 %    purple, dimmed as all are
+ *    white keys 1-14     MIDI channel 1-14                   light blue, the one in force lit
+ *    white key 15        channel 15, again 16, again 15 ...  light blue for 15, white for 16
+ *    C# (lower octave)   all channels                        light blue
+ *    D#                  MIDI transport following, on / off  green, lit when on
+ *    F#                  mono input, on / off                white, lit when on
+ *    G#                  the clock's tempo factor, each press the next: x1, x2, x1/2
+ *                                                            yellow, red, light blue
+ *    A#                  the LEDs' brightness, each press the next: 100, 75, 50 %
+ *                                                            purple, dimmed as all are
  *
- *  A, A# and B of the upper octave and the top C are free.
+ *  The upper octave's dark keys are free.
  *
  *  Each key acts on its press. A key that went down on the play page stays the play page's
  *  until it's let go, and the other way round (ui.h), so flipping the switch with a key held
@@ -59,19 +62,21 @@ public:
     bool Key(int key)
     {
         using S = Hardware::SwId;
-        for (uint8_t ch = 0; ch < kNumChannels; ch++)
+        for (uint8_t ch = 0; ch < kNumChannelKeys; ch++)
         {
-            if (key == static_cast<int>(kChannelKeys[ch]))
+            if (key == static_cast<int>(kWhiteKeys[ch]))
                 return SetChannel(ch + 1);
         }
-        if (key == static_cast<int>(S::KEY_10))
+        if (key == static_cast<int>(kChannel15Key))
+            return SetChannel(midi_->Channel() == 15 ? 16 : 15); // 15 first, then 16, 15 ...
+        if (key == static_cast<int>(S::KEY_16))
             return SetChannel(0);
-        if (key == static_cast<int>(S::KEY_11))
+        if (key == static_cast<int>(S::KEY_17))
         {
             midi_->SetTransport(!midi_->Transport());
             return true;
         }
-        if (key == static_cast<int>(S::KEY_23))
+        if (key == static_cast<int>(S::KEY_18))
             return SetMono(!mono_);
         if (key == static_cast<int>(kFactorKey))
         {
@@ -120,11 +125,12 @@ public:
             SetSmtLed(i, 0, 0, 0);
 
         const uint8_t channel = midi_->Channel();
-        for (uint8_t ch = 0; ch < kNumChannels; ch++)
-            KeyLed(kChannelKeys[ch], med_blue, channel == ch + 1);
-        KeyLed(Hardware::SwId::KEY_10, med_blue, channel == 0);
-        KeyLed(Hardware::SwId::KEY_11, green, midi_->Transport());
-        KeyLed(Hardware::SwId::KEY_23, white, mono_);
+        for (uint8_t ch = 0; ch < kNumChannelKeys; ch++)
+            KeyLed(kWhiteKeys[ch], med_blue, channel == ch + 1);
+        KeyLed(kChannel15Key, channel == 16 ? white : med_blue, channel >= 15);
+        KeyLed(Hardware::SwId::KEY_16, med_blue, channel == 0);
+        KeyLed(Hardware::SwId::KEY_17, green, midi_->Transport());
+        KeyLed(Hardware::SwId::KEY_18, white, mono_);
         KeyLed(kFactorKey, kFactorColors[static_cast<uint8_t>(factor_)], true);
         KeyLed(kBrightnessKey, purple, true); // dimmed with every LED: it shows itself
 
@@ -165,21 +171,14 @@ private:
         return 0;
     }
 
-    static const uint8_t kNumChannels = 16;
+    static const uint8_t kNumChannelKeys = 14; // white keys 1-14; the 15th is 15 and 16
+    static const Hardware::SwId kChannel15Key = Hardware::SwId::KEY_15;
     static const uint8_t kVolumeLed = 9, kTransportLedRev = 5, kTransportLedFwd = 6;
     static constexpr float kOffLevel = .15f; // as an FX key that's off (NormalPage.h)
 
-    // the 16 lowest keys, chromatically: C C# D D# E F F# G G# A A# B, then C C# D D#
-    static constexpr Hardware::SwId kChannelKeys[kNumChannels] = {
-        Hardware::SwId::KEY_1,  Hardware::SwId::KEY_16, Hardware::SwId::KEY_2,
-        Hardware::SwId::KEY_17, Hardware::SwId::KEY_3,  Hardware::SwId::KEY_4,
-        Hardware::SwId::KEY_18, Hardware::SwId::KEY_5,  Hardware::SwId::KEY_19,
-        Hardware::SwId::KEY_6,  Hardware::SwId::KEY_20, Hardware::SwId::KEY_7,
-        Hardware::SwId::KEY_8,  Hardware::SwId::KEY_21, Hardware::SwId::KEY_9,
-        Hardware::SwId::KEY_22};
-    // G and G# of the upper octave
-    static const Hardware::SwId kFactorKey = Hardware::SwId::KEY_12;
-    static const Hardware::SwId kBrightnessKey = Hardware::SwId::KEY_24;
+    // G# and A# of the lower octave
+    static const Hardware::SwId kFactorKey = Hardware::SwId::KEY_19;
+    static const Hardware::SwId kBrightnessKey = Hardware::SwId::KEY_20;
     // the factor's hue, by ClockFactor: x1/2 light blue, x1 yellow, x2 red
     static constexpr const float* kFactorColors[3] = {med_blue, yellow, red};
     static constexpr Hardware::SwId kWhiteKeys[15] = {
@@ -204,7 +203,6 @@ private:
     uint8_t quarters_ = 4;
 };
 
-constexpr Hardware::SwId SettingsPage::kChannelKeys[];
 constexpr const float* SettingsPage::kFactorColors[];
 constexpr Hardware::SwId SettingsPage::kWhiteKeys[];
 constexpr Hardware::SwId SettingsPage::kDarkKeys[];

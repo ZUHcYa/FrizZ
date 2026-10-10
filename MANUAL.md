@@ -52,19 +52,20 @@ than play: the MIDI channel, MIDI transport following, the mono input, how FRIZZ
 MIDI clock and how bright its LEDs are. The loop, the effects and MIDI play on meanwhile;
 only your hands are on this page. Switch back down to play.
 
-Each key sets one thing on its press. Counted from the lowest key, chromatically (white and
-dark keys in turn, as on a keyboard):
+Each key sets one thing on its press. The white keys pick the MIDI channel; the lower
+octave's dark keys set the rest:
 
 | Keys | Setting | Colour |
 |---|---|---|
-| The 16 lowest: C up to D# of the upper octave | [MIDI channel](#channel) 1 to 16 (default 16: the D# of the upper octave); the one in force lit, the others dim | light blue |
-| E of the upper octave | MIDI on every channel: lit when on | light blue |
-| F | [MIDI transport following](#start-and-stop): on (lit) / off (dim) | green |
+| White keys 1 to 14 | [MIDI channel](#channel) 1 to 14; the one in force lit, the others dim | light blue |
+| White key 15 (the last) | Channel 15; pressed again 16, again 15, and so on (default 16) | light blue for 15, white for 16, dim for neither |
+| C# (lower octave) | MIDI on every channel: lit when on | light blue |
+| D# | [MIDI transport following](#start-and-stop): on (lit) / off (dim) | green |
 | F# | [Mono input](#mono-input): mono (lit) / stereo (dim) | white |
-| G | [Clock factor](#midi-clock), each press the next: as sent (default), double, half | yellow (as sent), red (double), light blue (half) |
-| G# | [LED brightness](#led-brightness), each press the next: 100 % (default), 75 %, 50 % | purple, as bright as the LEDs are |
+| G# | [Clock factor](#midi-clock), each press the next: as sent (default), double, half | yellow (as sent), red (double), light blue (half) |
+| A# | [LED brightness](#led-brightness), each press the next: 100 % (default), 75 %, 50 % | purple, as bright as the LEDs are |
 
-A, A# and B of the upper octave and the top C do nothing.
+The upper octave's dark keys do nothing.
 
 - **VOLUME's LED** shows the battery all the time: white full or on the charger, green above
   3.3 V, yellow below, red below 3 V (about to switch off unless charging). It's read every
@@ -84,12 +85,13 @@ A, A# and B of the upper octave and the top C do nothing.
 
 Mono is for a mono (TS) cable, such as one from a Lyra-8 or a guitar pedal: the plug grounds
 the right channel, so in stereo the source is heard on the left only. In mono the left channel
-feeds both sides, and the effects' stereo knobs spread it from there. Its key (F#) toggles it;
+feeds both sides, and the effects' stereo knobs spread it from there. Its key (F# of the lower
+octave) toggles it;
 MIDI CC 60 sets it too.
 
 ### LED brightness
 
-At 75 % or 50 % every LED is dimmer by that much, for a dark stage. G# steps through the
+At 75 % or 50 % every LED is dimmer by that much, for a dark stage. A# steps through the
 three; its own LED dims with all the others, so it shows where you are. The dim colours keep their
 hue, and nothing lit at 100 % goes dark. Full is as bright as FRIZZ has always been.
 
@@ -675,7 +677,7 @@ delete mode the slot. 5 and above are ignored.
 
 With transport following on, MIDI Start and Continue play the loop and Stop pauses it, so
 a DAW's play button starts and stops the loop with the song. It's off at first; switch it on
-on the [settings page](#settings-page) (F of the upper octave), with `firmware/remote.py
+on the [settings page](#settings-page) (D# of the lower octave), with `firmware/remote.py
 transport on`, or `midi_transport 1` in `FRIZZ/frizz_master.txt`.
 Start plays on from where the loop is, as Continue does: the loop doesn't jump to its start.
 

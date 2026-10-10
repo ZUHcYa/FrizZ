@@ -18,8 +18,8 @@ what FRIZZ does.
 - **Remote control over USB:** FRIZZ's SysEx presses keys, turns knobs, and answers the
   state, the LEDs, the processing load and the scenes; `firmware/remote.py` uses it, and plays
   the virtual CHOMPI's scenarios on the device.
-- **Settings page** on the mode switch: up, the keys set the MIDI channel (the 16 lowest
-  keys, or every channel), MIDI transport following, the mono input, a clock factor (follow a
+- **Settings page** on the mode switch: up, the keys set the MIDI channel (the white keys,
+  the last one switching between 15 and 16, or every channel), MIDI transport following, the mono input, a clock factor (follow a
   MIDI clock at half, as sent, or double its tempo) and the LEDs' brightness (100, 75 or
   50 %), each saved on the card; VOLUME's LED shows the battery's level throughout. The loop,
   the effects and MIDI play on while it's up; switch down to play. See MANUAL.md, "Settings page".
@@ -33,7 +33,7 @@ what FRIZZ does.
 
 - **The mode switch now matters:** down is the play page, up the settings page. If the keys
   don't play after updating, flip it down.
-- The mono input moved from VOLUME's page 3 to the settings page (F# of the upper octave), and
+- The mono input moved from VOLUME's page 3 to the settings page (F# of the lower octave), and
   the battery check from holding VOLUME to the settings page's VOLUME LED. VOLUME has three
   pages now: output, input, headphones.
 - The crusher, the filter and the resonator take far less processing time while they're

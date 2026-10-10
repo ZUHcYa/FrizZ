@@ -262,14 +262,14 @@ int main()
     rc = Remote({"state"}, out);
     Check(rc == 0 && Has(out, "page       settings; the mode switch stands down, SysEx holds it up"),
           "remote: switch up shows the settings page, and state says so");
-    Write(script, "booted\ntap KEY_23\nwait 100\n"); // F#: mono
+    Write(script, "booted\ntap KEY_18\nwait 100\n"); // F#: mono
     Remote({"play", script}, out);
     Remote({"switch", "hand"}, out);
     rc = Remote({"state"}, out);
     Check(rc == 0 && Has(out, ", mono") && Has(out, "page       play; the mode switch stands down\n"),
           "remote: a SysEx key there sets mono; switch hand, the play page again");
     // a script's toggle: up and down over SysEx, the real switch again at its end
-    Write(script, "booted\ntoggle 1\nwait 100\ntap KEY_23\nwait 100\ntoggle 0\nwait 100\n");
+    Write(script, "booted\ntoggle 1\nwait 100\ntap KEY_18\nwait 100\ntoggle 0\nwait 100\n");
     rc = Remote({"play", script}, out);
     const int played = rc;
     rc = Remote({"state"}, out);

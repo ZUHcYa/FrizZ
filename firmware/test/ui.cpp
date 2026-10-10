@@ -25,9 +25,11 @@ static const int kFilterKeyLed = 20, kShifterKeyLed = 23;
 static const int kVolumeEncoder = 6, kKnob1Encoder = 4; // SW6, SW4
 static const int kTransportRevLed = 5, kTransportFwdLed = 6, kVolumeLed = 9;
 static const int kSlot1Led = 1, kCompKeyLed = 10, kTapeStopKeyLed = 15;
-// the settings page's (SettingsPage.h): F# of the upper octave, C and D# of the upper octave
-static const int kMonoKeyLed = 7, kChannel1Led = 24, kChannel3Led = 23, kChannel16Led = 6,
-                 kTransportKeyLed = 14, kFactorKeyLed = 13, kBrightnessKeyLed = 8;
+// the settings page's (SettingsPage.h): white keys 1, 3, 11, 14, 15 (channels; the 15th is 15
+// and 16), the lower octave's D#, F#, G#, A#
+static const int kChannel1Led = 24, kChannel3Led = 22, kChannel11Led = 14, kChannel14Led = 11,
+                 kChannel1516Led = 10, kTransportKeyLed = 1, kMonoKeyLed = 2, kFactorKeyLed = 3,
+                 kBrightnessKeyLed = 4;
 static const int kSaveKeyLed = 9; // KEY_25, the play page's SAVE
 
 static bool sine = true;
@@ -436,10 +438,10 @@ int main()
         SetToggle(true);
         RunMs(300);
         const Rgb stereo = SmtLedFull(kMonoKeyLed);
-        Tap("KEY_23"); // F#: mono
+        Tap("KEY_18"); // F#: mono
         RunMs(3000);
         Check(Card("/FRIZZ/frizz_master.txt").find("mono 1") != std::string::npos,
-              "settings-mono: F# of the upper octave switches the input to mono, and it's saved");
+              "settings-mono: F# of the lower octave switches the input to mono, and it's saved");
         const Rgb mono = SmtLedFull(kMonoKeyLed);
         Check(mono.r == mono.g && mono.g == mono.b && Max(mono) > 2 * Max(stereo),
               "settings-mono: its key is lit white while mono, dim while stereo");
@@ -477,7 +479,7 @@ int main()
         RunMs(300);
         Check(fabsf(RunMs(300) - dry) < dry * .05f, "settings-flip: let go there, it's off");
         RunMs(2500);
-        Check(Card("/FRIZZ/frizz_master.txt").find("midi_channel 8") == std::string::npos,
+        Check(Card("/FRIZZ/frizz_master.txt").find("midi_channel 5") == std::string::npos,
               "settings-flip: and its release set nothing");
         // the other way: a settings key held while the switch goes down presses nothing
         Press("KEY_5", true);
@@ -488,8 +490,8 @@ int main()
               "settings-flip: a key gone down on the settings page doesn't punch in on the play page");
         Press("KEY_5", false);
         RunMs(2500);
-        Check(Card("/FRIZZ/frizz_master.txt").find("midi_channel 8\n") != std::string::npos,
-              "settings-flip: G set channel 8 on its press");
+        Check(Card("/FRIZZ/frizz_master.txt").find("midi_channel 5\n") != std::string::npos,
+              "settings-flip: the 5th white key set channel 5 on its press");
         // LOOP pressed up there doesn't record
         SetToggle(true);
         RunMs(300);
@@ -540,19 +542,34 @@ int main()
         RunMs(kReadyMs);
         SetToggle(true);
         RunMs(300);
-        Check(Max(SmtLedFull(kChannel16Led)) > 2 * Max(SmtLedFull(kChannel1Led)),
-              "settings-channel: channel 16's key (D# of the upper octave) lit, the others dim");
-        Tap("KEY_1"); // C: channel 1
+        const Rgb ch16 = SmtLedFull(kChannel1516Led);
+        Check(ch16.r > 200 && ch16.g > 200 && ch16.b > 200 && Max(SmtLedFull(kChannel1Led)) < 80,
+              "settings-channel: channel 16 at first: the 15th white key white, the others dim");
+        Tap("KEY_15");
         RunMs(300);
-        Check(Max(SmtLedFull(kChannel1Led)) > 2 * Max(SmtLedFull(kChannel16Led)),
-              "settings-channel: C picks channel 1");
+        const Rgb ch15 = SmtLedFull(kChannel1516Led);
+        Check(ch15.r < 40 && ch15.b > 200 && Ask({0x24}).substr(0, 1) == std::string(1, 15),
+              "settings-channel: pressed, channel 15: the key light blue");
+        Tap("KEY_15");
+        RunMs(300);
+        Check(Ask({0x24}).substr(0, 1) == std::string(1, 16), "settings-channel: again, 16");
+        Tap("KEY_1"); // channel 1
+        RunMs(300);
+        Check(Max(SmtLedFull(kChannel1Led)) > 2 * Max(SmtLedFull(kChannel1516Led)),
+              "settings-channel: the first white key picks channel 1, the 15th dim");
+        Tap("KEY_15");
+        RunMs(300);
+        Check(Ask({0x24}).substr(0, 1) == std::string(1, 15),
+              "settings-channel: from another channel, the 15th key picks 15 first");
+        Tap("KEY_1");
+        RunMs(300);
         SetToggle(false);
         RunMs(300);
-        Check(Max(SmtLedFull(kChannel16Led)) == 0 && Max(SmtLedFull(kTransportKeyLed)) == 0,
+        Check(Max(SmtLedFull(kChannel11Led)) == 0 && Max(SmtLedFull(kChannel14Led)) == 0,
               "settings-channel: back on the play page, the keys it doesn't use are dark");
         SetToggle(true);
         RunMs(300);
-        Tap("KEY_11"); // F: transport following
+        Tap("KEY_17"); // D#: transport following
         RunMs(3000);
         const std::string master = Card("/FRIZZ/frizz_master.txt");
         Check(master.find("midi_channel 1\n") != std::string::npos
@@ -561,10 +578,10 @@ int main()
         const std::string settings = Ask({0x24});
         Check(settings.size() == 2 && settings[0] == 1 && settings[1] == 1,
               "settings-channel: and in force (SysEx settings)");
-        Tap("KEY_10"); // E: every channel
+        Tap("KEY_16"); // C#: every channel
         RunMs(300);
         const std::string all = Ask({0x24});
-        Check(all.size() == 2 && all[0] == 0, "settings-channel: E listens on every channel");
+        Check(all.size() == 2 && all[0] == 0, "settings-channel: C# listens on every channel");
     }});
 
     // the battery on VOLUME's LED, all the time; the transport LEDs purple
@@ -597,13 +614,13 @@ int main()
         SetToggle(true);
         RunMs(300);
         const int key_full = Max(SmtLed(kBrightnessKeyLed));
-        Tap("KEY_24"); // G#: 75 %
+        Tap("KEY_20"); // A#: 75 %
         RunMs(300);
         const int key_75 = Max(SmtLed(kBrightnessKeyLed));
-        Tap("KEY_24"); // 50 %
+        Tap("KEY_20"); // 50 %
         RunMs(3000);
         Check(Card("/FRIZZ/frizz_master.txt").find("led_brightness 50") != std::string::npos,
-              "settings-brightness: G# pressed twice steps 100, 75, 50 %, saved");
+              "settings-brightness: A# pressed twice steps 100, 75, 50 %, saved");
         const int key_50 = Max(SmtLed(kBrightnessKeyLed));
         Check(key_full > key_75 && key_75 > key_50 && key_50 > 0,
               "settings-brightness: its own key dims with every LED, so it shows the level");
@@ -616,7 +633,7 @@ int main()
               "settings-brightness: the panel's dimmer too, still lit");
         SetToggle(true);
         RunMs(300);
-        Tap("KEY_24"); // and round to 100 %
+        Tap("KEY_20"); // and round to 100 %
         SetToggle(false);
         RunMs(300);
         Check(Same(SmtLed(kFilterKeyLed), filter), "settings-brightness: a third press is back to full");
@@ -627,7 +644,7 @@ int main()
         SetToggle(true);
         RunMs(kReadyMs);
         const float dry = RunMs(300);
-        Press("KEY_10", true); // the tape stop's key: every channel here
+        Press("KEY_10", true); // the tape stop's key: channel 10 here
         RunMs(1500);
         const float held = RunMs(300);
         Press("KEY_10", false);
@@ -687,15 +704,15 @@ int main()
         SetToggle(true);
         RunMs(300);
         const Rgb one = SmtLedFull(kFactorKeyLed);
-        Tap("KEY_12"); // G: x1 to x2
+        Tap("KEY_19"); // G#: x1 to x2
         RunMs(3000);
-        Check(Probe().tempo == 240, "settings-factor: G doubles it to 240");
+        Check(Probe().tempo == 240, "settings-factor: G# doubles it to 240");
         const Rgb two = SmtLedFull(kFactorKeyLed);
         Check(Card("/FRIZZ/frizz_master.txt").find("clock_factor 200") != std::string::npos,
               "settings-factor: saved");
-        Tap("KEY_12"); // x2 to x1/2
+        Tap("KEY_19"); // x2 to x1/2
         RunMs(3000);
-        Check(Probe().tempo == 60, "settings-factor: G again halves it to 60");
+        Check(Probe().tempo == 60, "settings-factor: G# again halves it to 60");
         const Rgb half = SmtLedFull(kFactorKeyLed);
         Check(one.r > 200 && one.g > 200 && one.b < 40 && two.r > 200 && two.g < 40
                   && half.b > 200 && half.r < 40,
