@@ -63,7 +63,7 @@ int main()
         failures++;
 
     Boot();
-    // the boot animation, about 10 s for the delay to rest, then 22 segments of 3 s with the
+    // the boot animation, about 10 s for the delay to rest, then 23 segments of 3 s with the
     // 4 s recording among them and the pauses for tails between them, until cpu.txt is
     // written; the input is the bench's own tune, so none is fed here
     std::vector<float> rms; // the master out's level every 3 s from when the bench starts
@@ -133,7 +133,7 @@ int main()
           "bench: and the FX chain into its effects");
 
     bool keys = true;
-    for (int led : {24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 0, 1, 2, 3, 4, 5, 6})
+    for (int led : {24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 0, 1, 2, 3, 4, 5, 6, 7})
     {
         const Rgb c = SmtLedFull(led);
         keys &= c.g > 200 && c.r == 0 && c.b == 0; // green: the twin's loads are 0

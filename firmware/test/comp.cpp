@@ -1,5 +1,6 @@
 // comp.cpp: checks the master compressor (MasterComp.h): off is an exact bypass, its static
-// curve, its speed, no gain ripple on bass at its fastest, the linked stereo and the mix; the
+// curve with no makeup of its own, the makeup knob, its attack and release, no gain ripple
+// on bass at its fastest, the linked stereo and the mix; the
 // engine's safety limiter keeping the outputs within 1.0; and the master settings' file
 // format (MasterSettings.h). Exits 0 when everything passes. Run by unit.sh comp.
 #include <cmath>
@@ -15,14 +16,17 @@ static const float kSr = 48000.f;
 
 static float Db(float x) { return 20.f * log10f(fabsf(x)); }
 
-/** A compressor with its knobs set, settled */
-static void Setup(MasterComp& c, float amount, float ratio, float speed, float mix)
+/** A compressor with its knobs set, settled; speed sets the attack and the release alike */
+static void Setup(MasterComp& c, float amount, float ratio, float speed, float mix,
+                  float makeup = 0.f)
 {
     c.Init(kSr);
-    c.SetParam(MasterComp::kAmount, amount);
+    c.SetParam(MasterComp::kThreshold, amount);
     c.SetParam(MasterComp::kRatio, ratio);
-    c.SetParam(MasterComp::kSpeed, speed);
+    c.SetParam(MasterComp::kAttack, speed);
+    c.SetParam(MasterComp::kRelease, speed);
     c.SetParam(MasterComp::kMix, mix);
+    c.SetParam(MasterComp::kMakeup, makeup);
     float l = 0.f, r = 0.f;
     for (int i = 0; i < 48000; i++)
     {
@@ -58,7 +62,12 @@ static void TestBypass()
         c.Process(&l, &r);
         same = same && l == x && r == -x * .5f;
     }
-    Check(same, "amount 0: an exact bypass");
+    Check(same, "threshold 0, makeup 0: an exact bypass");
+
+    // threshold 0 with makeup: that gain alone, nothing compressed
+    Setup(c, 0.f, .5f, .5f, 1.f, .25f);
+    const float out = Steady(c, 0.f);
+    Check(fabsf(out - 6.f) < .05f, "threshold 0, makeup +6dB: 6dB louder, nothing else");
 
     Setup(c, 1.f, 1.f, .5f, 0.f);
     same = true;
@@ -74,26 +83,74 @@ static void TestBypass()
 static void TestCurve()
 {
     MasterComp c;
-    // amount 1: threshold -30dB; 4:1 reduces 0dB by 22.5dB, the makeup gives back half
+    // threshold -30dB; 4:1 reduces 0dB by 22.5dB, and nothing gives any of it back
     Setup(c, 1.f, .5f, .5f, 1.f);
     float out = Steady(c, 0.f);
-    printf("      0dB in, amount 1, 4:1: %.2fdB out\n", out);
-    Check(fabsf(out - -11.25f) < .2f, "amount 1, 4:1: 0dB comes out at -11.25dB");
+    printf("      0dB in, threshold -30dB, 4:1: %.2fdB out\n", out);
+    Check(fabsf(out - -22.5f) < .2f, "threshold -30dB, 4:1: 0dB comes out at -22.5dB");
     out = Steady(c, -40.f);
-    Check(fabsf(out - (-40.f + 11.25f)) < .2f, "below the threshold: only the makeup");
+    Check(fabsf(out - -40.f) < .05f, "below the threshold: untouched, no makeup of its own");
     out = Steady(c, -30.f);
     // in the knee's middle: a quarter of the knee times the slope
-    Check(fabsf(out - (-30.f + 11.25f - .75f * 6.f / 8.f)) < .2f, "at the threshold: the soft knee");
+    Check(fabsf(out - (-30.f - .75f * 6.f / 8.f)) < .2f, "at the threshold: the soft knee");
 
     Setup(c, 1.f, 1.f, .5f, 1.f);
     out = Steady(c, 0.f);
-    Check(fabsf(out - -14.25f) < .2f, "20:1: 0dB comes out at -14.25dB");
+    Check(fabsf(out - -28.5f) < .2f, "20:1: 0dB comes out at -28.5dB");
     const float louder = Steady(c, 6.f);
     Check(louder - out < .5f, "20:1: 6dB louder in is under 0.5dB louder out");
 
     Setup(c, .5f, .5f, .5f, 1.f);
     out = Steady(c, 0.f);
-    Check(fabsf(out - (-15.f * .75f + 7.5f * .75f)) < .2f, "amount .5: threshold -15dB");
+    Check(fabsf(out - -15.f * .75f) < .2f, "threshold .5: -15dB");
+
+    // the makeup: 0 to +24dB, on everything, set by hand
+    Setup(c, 1.f, .5f, .5f, 1.f, .5f);
+    out = Steady(c, 0.f);
+    Check(fabsf(out - (-22.5f + 12.f)) < .2f, "makeup .5: +12dB on the compressed signal");
+    out = Steady(c, -40.f);
+    Check(fabsf(out - (-40.f + 12.f)) < .2f, "makeup .5: +12dB below the threshold too");
+    Setup(c, 1.f, .5f, .5f, 1.f, 1.f);
+    out = Steady(c, -40.f);
+    Check(fabsf(out - (-40.f + 24.f)) < .2f, "makeup 1: +24dB");
+}
+
+/** The reduction, dB, on a steady sine of freq Hz at 0dB, with the sidechain highpass at sc */
+static float ReductionAt(float freq, float sc)
+{
+    MasterComp c;
+    Setup(c, 1.f, .5f, 0.f, 1.f);
+    c.SetParam(MasterComp::kSidechain, sc);
+    float deepest = 0.f;
+    for (int i = 0; i < 96000; i++)
+    {
+        float l = sinf(2.f * float(M_PI) * freq * i / kSr), r = l;
+        c.Process(&l, &r);
+        if (i > 72000)
+            deepest = fminf(deepest, c.GetReduction());
+    }
+    return deepest;
+}
+
+static void TestSidechain()
+{
+    const float bass = ReductionAt(50.f, 0.f), bass_hp = ReductionAt(50.f, 1.f);
+    const float mid = ReductionAt(2000.f, 0.f), mid_hp = ReductionAt(2000.f, 1.f);
+    printf("      sidechain highpass: 50Hz %.1f -> %.1fdB, 2kHz %.1f -> %.1fdB\n", bass, bass_hp, mid,
+           mid_hp);
+    Check(bass_hp > bass + 10.f, "sidechain: at the top, a bass note is compressed far less");
+    Check(fabsf(mid_hp - mid) < 1.f, "sidechain: the mids are compressed as before");
+    MasterComp c;
+    Setup(c, 0.f, .5f, .5f, 1.f);
+    c.SetParam(MasterComp::kSidechain, 1.f);
+    bool same = true;
+    for (int i = 0; i < 4800; i++)
+    {
+        float l = .7f, r = -.3f;
+        c.Process(&l, &r);
+        same = same && l == .7f && r == -.3f;
+    }
+    Check(same, "sidechain: with the threshold off, still an exact bypass");
 }
 
 /** ms until the reduction has recovered to 3dB after a loud burst stops */
@@ -134,8 +191,8 @@ static void TestSpeed()
     const float a0 = Grab(0.f), a5 = Grab(.5f), a1 = Grab(1.f);
     printf("      to 3dB after a burst: %.0f / %.0f / %.0fms; to 10dB on a step: %.2f / %.2f / %.2fms\n",
            r0, r5, r1, a0, a5, a1);
-    Check(r0 < r5 && r5 < r1 && r1 < 2000.f, "speed: the release slows from fast to slow");
-    Check(a0 < a5 && a5 < a1, "speed: the attack slows from fast to slow");
+    Check(r0 < r5 && r5 < r1 && r1 < 2000.f, "release: slows from fast to slow");
+    Check(a0 < a5 && a5 < a1, "attack: slows from fast to slow");
     Check(a0 < 1.f && a1 < 30.f, "attack: under 1ms fast, under 30ms slow");
 }
 
@@ -173,10 +230,12 @@ static void TestCeiling()
                 tapestop_mem_l, tapestop_mem_r, kTapeStopFrames);
     engine.SetMainGain(1.f);
     engine.SetInputGain(1.f);
-    engine.SetCompParam(MasterComp::kAmount, 1.f);
+    engine.SetCompParam(MasterComp::kThreshold, 1.f);
     engine.SetCompParam(MasterComp::kRatio, 0.f);
-    engine.SetCompParam(MasterComp::kSpeed, 1.f);
+    engine.SetCompParam(MasterComp::kAttack, 1.f);
+    engine.SetCompParam(MasterComp::kRelease, 1.f);
     engine.SetCompParam(MasterComp::kMix, 1.f);
+    engine.SetCompParam(MasterComp::kMakeup, 1.f);
     const size_t kBlock = 24;
     float zero[kBlock] = {}, inl[kBlock], inr[kBlock];
     float o[4][kBlock];
@@ -196,8 +255,9 @@ static void TestCeiling()
             for (size_t i = 0; i < kBlock; i++)
                 peak = fmaxf(peak, fabsf(o[c][i]));
     }
-    printf("      peak out, everything up: %.4f\n", peak);
-    Check(peak <= 1.f && peak > .5f, "safety limiter: the outputs stay within 1.0");
+    printf("      peak out, everything up: %.7f\n", peak);
+    // the soft clip's top (daisysp::SoftClip at 3) rounds to a float's step over 1.0
+    Check(peak <= 1.f + 1e-6f && peak > .5f, "safety limiter: the outputs stay within 1.0");
 }
 
 static void TestFile()
@@ -208,6 +268,8 @@ static void TestFile()
     a.comp[1] = .75f;
     a.comp[2] = 0.f;
     a.comp[3] = .123457f;
+    a.comp[4] = .4f;
+    a.comp[7] = .625f;
     char buf[kMasterFileMax];
     const size_t len = FormatMaster(a, buf, sizeof(buf));
     printf("%s", buf);
@@ -225,9 +287,23 @@ static void TestFile()
     Check(!ParseMaster("FRIZZ scenes 1\n", b) && b.comp[3] == kCompParams.defaults[3],
           "file: another file isn't read, the defaults stay");
     Check(!ParseMaster("FRIZZ master 10\n", b), "file: another version isn't read");
-    Check(ParseMaster("FRIZZ master 1\r\nvolume 3\r\ncompressor 500000 2000000\r\n", b) &&
+    Check(ParseMaster("FRIZZ master 1\r\nvolume 3\r\ncompressor2 500000 2000000\r\n", b) &&
               b.comp[0] == .5f && b.comp[1] == 1.f && b.comp[2] == kCompParams.defaults[2],
           "file: unknown lines skipped, values clamped, missing ones on their defaults");
+
+    // one from before the compressor's page 2: its speed is the attack and the release, its
+    // mix moves to page 2, and the makeup starts at 0dB (it was automatic)
+    Check(ParseMaster("FRIZZ master 1\ncompressor 300000 750000 200000 600000\n", b) &&
+              b.comp[0] == .3f && b.comp[1] == .75f && b.comp[2] == .2f && b.comp[3] == .2f &&
+              b.comp[4] == .6f && b.comp[7] == 0.f,
+          "file: the old compressor line, speed to attack and release, makeup 0dB");
+    Check(ParseMaster("FRIZZ master 1\ncompressor2 100000 0 0 0 1000000 0 0 500000\n"
+                      "compressor 300000 750000 200000 600000\n", b) &&
+              b.comp[0] == .1f && b.comp[7] == .5f,
+          "file: the new line wins over an old one");
+    FormatMaster(b, buf, sizeof(buf));
+    Check(strstr(buf, "compressor2 ") && !strstr(buf, "\ncompressor "),
+          "file: written as the new line only");
     Check(ParseMaster("FRIZZ master 1\n", b) && b.comp[0] == kCompParams.defaults[0],
           "file: an empty one, every default");
     Check(FormatMaster(a, buf, 20) == 0, "file: one that doesn't fit isn't written");
@@ -329,6 +405,7 @@ int main()
     TestBypass();
     TestCurve();
     TestSpeed();
+    TestSidechain();
     TestRipple();
     TestLinked();
     TestCeiling();

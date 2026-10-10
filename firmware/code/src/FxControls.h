@@ -5,8 +5,8 @@
  *  knobs here and draws the LEDs from it; test/controls.cpp runs it on the host.
  *
  *  The knobs have two pages, switched together: a plain press on any of them turns all four
- *  over to the selected FX's page 2 (its parameters 4-7, FxParams.h) and back; on an FX with
- *  nothing on page 2 it does nothing. Selecting
+ *  over to the selected FX's or the compressor's page 2 (its parameters 4-7, FxParams.h) and
+ *  back; on an FX with nothing on page 2 it does nothing. Selecting
  *  another FX, or the compressor, goes back to page 1, so the main controls are under the
  *  fingers whenever an effect is picked. SHIFT + turn and SHIFT + press act on the page shown.
  *
@@ -60,9 +60,10 @@ public:
             }
             engine_->SetFxOn(fx, false);
         }
-        for (size_t p = 0; p < kNumFxKnobs; p++)
+        for (size_t p = 0; p < kNumFxParams; p++)
         {
-            comp_[p] = -1.f;
+            // an unused one stays on its default; a used one counts as changed and is sent
+            comp_[p] = (kCompParams.knobs >> p) & 1 ? -1.f : kCompParams.defaults[p];
             SetComp(p, kCompParams.defaults[p]);
         }
         comp_changed_ = false;
@@ -217,8 +218,8 @@ public:
     }
 
     /** Knob 0-3 pressed: with SHIFT, resets that parameter to its default, on a knob the page
-     *  uses. A plain press turns the page, all four knobs together, for an FX with a page 2;
-     *  the compressor has only one. True if the press did something */
+     *  uses. A plain press turns the page, all four knobs together, for an FX or the
+     *  compressor with a page 2. True if the press did something */
     bool KnobPressed(size_t knob, bool shift)
     {
         if (!shift)
@@ -477,9 +478,11 @@ public:
 
     inline float Param(size_t fx, size_t param) const { return params_[fx][param]; }
     inline float CompParam(size_t param) const { return comp_[param]; }
-    /** A compressor knob set, from the card; clamped and sent */
+    /** A compressor parameter set, from the card or MIDI; clamped and sent */
     void SetComp(size_t param, float val)
     {
+        if (param >= kNumFxParams || !((kCompParams.knobs >> param) & 1))
+            return;
         val = fclamp(val, 0.f, 1.f);
         if (val != comp_[param])
             comp_changed_ = true;
@@ -508,11 +511,8 @@ public:
             return kCompParams;
         return kFxParams[selected_];
     }
-    /** Whether the knobs' FX has parameters on page 2; never the compressor */
-    inline bool HasPage2() const
-    {
-        return selected_ != kCompSelected && (kFxParams[selected_].knobs >> kNumFxKnobs) != 0;
-    }
+    /** Whether the knobs' FX or the compressor has parameters on page 2 */
+    inline bool HasPage2() const { return (Knobs().knobs >> kNumFxKnobs) != 0; }
     /** The page the knobs show, 0 or 1; always 0 without a page 2 */
     inline size_t Page() const { return page_; }
     /** The parameter knob 0-3 edits on the page shown */
@@ -523,7 +523,7 @@ public:
     inline float Knob(size_t knob) const
     {
         if (selected_ == kCompSelected)
-            return comp_[knob];
+            return comp_[ParamOf(knob)];
         return params_[selected_][ParamOf(knob)];
     }
 
@@ -566,7 +566,7 @@ private:
     void SetKnob(size_t knob, float val)
     {
         if (selected_ == kCompSelected)
-            SetComp(knob, val);
+            SetComp(ParamOf(knob), val);
         else
             SetParam(selected_, ParamOf(knob), val);
     }
@@ -595,7 +595,7 @@ private:
     OnRelease on_release_[kNumFx];
     size_t selected_ = 0;
     size_t page_ = 0;           // the knobs' page, 0 or 1 (ParamOf)
-    float comp_[kNumFxKnobs];   // the master compressor's knobs
+    float comp_[kNumFxParams];  // the master compressor's parameters, both pages
     bool comp_changed_ = false; // since the last TakeCompChanged
     float chunk_[kNumFxKnobs];  // detents towards the next step or grid point
     bool chunk_shift_ = false;  // whether they were turned with SHIFT

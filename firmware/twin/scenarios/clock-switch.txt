@@ -11,7 +11,7 @@ up KEY_12
 turn 3 20
 wait 3000
 # the delay's level on knob 4
-expect led pth 4 8ffd8f
+expect led pth 4 00f242
 clock 100 usb jitter 0.3
 usb 90 3C 64
 wait 2000
@@ -21,5 +21,5 @@ clock 0
 wait 4000
 clock 0 usb
 wait 2000
-expect led pth 4 8ffd8f
+expect led pth 4 00f242
 expect on

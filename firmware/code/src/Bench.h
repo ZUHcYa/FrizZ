@@ -301,6 +301,9 @@ private:
         SCENE4 = 4,   // PR #7's scene 4: shifter +7, folder, crusher, slicer, compressor at 1
         COMP = 8,     // the compressor's amount at 1
         RECORD = 16,  // records the loop, 4 s
+        PAGE2 = 32,   // page 2 off its defaults on every effect: its Mix, Band and Level, so
+                      // FxOutput.h's crossover and blend run (at their defaults they don't),
+                      // and each effect's own knobs (the sends' freeze stays off)
     };
     struct Segment
     {
@@ -316,7 +319,7 @@ private:
     static const uint16_t kScene4 = (1u << FX_SHIFTER) | (1u << FX_FOLDER) | (1u << FX_CRUSHER)
                                     | (1u << FX_SLICER);
 
-    static constexpr size_t kNumSegments = 22;
+    static constexpr size_t kNumSegments = 23;
     static const Segment kSegments[kNumSegments];
 
     static const size_t kMaxBlock = 48;
@@ -357,10 +360,22 @@ private:
         const Segment& seg = kSegments[s];
         engine.SetMainGain(.75f);
         engine.SetInputGain(.75f);
-        engine.SetCompParam(MasterComp::kAmount, seg.flags & (COMP | SCENE4) ? 1.f : .3f);
+        engine.SetCompParam(MasterComp::kThreshold, seg.flags & (COMP | SCENE4) ? 1.f : .3f);
         for (size_t fx = 0; fx < kNumFx; fx++)
-            for (size_t p = 0; p < kNumFxKnobs; p++) // page 1's: page 2 on its defaults
+        {
+            for (size_t p = 0; p < kNumFxKnobs; p++) // page 1's
                 engine.SetFxParam(fx, p, .5f);
+            // page 2: its defaults, or for PAGE2 off them: an insert's half mix, its own knob
+            // at .3, the band on the highs above ~1kHz and the level 6dB down; a send's
+            // damping or pre-delay, band and half ducking, its freeze off
+            const bool send = fx == FX_DELAY || fx == FX_REVERB;
+            static const float kInsert2[] = {.5f, .3f, .75f, .625f};
+            static const float kSend2[] = {0.f, .7f, .75f, .5f};
+            for (size_t p = kNumFxKnobs; p < kNumFxParams; p++)
+                engine.SetFxParam(fx, p,
+                                  seg.flags & PAGE2 ? (send ? kSend2 : kInsert2)[p - kNumFxKnobs]
+                                                    : kFxParams[fx].defaults[p]);
+        }
         if (seg.flags & STRESS)
         {
             // the harness's STRESS (test/harness.cpp): the resonator's loop at its most extreme
@@ -656,6 +671,8 @@ const Bench::Segment Bench::kSegments[Bench::kNumSegments] = {
     {"everything", Bench::kEverything, Bench::COMP},
     {"stress", Bench::kEverything, Bench::STRESS | Bench::COMP},
     {"loop+everything", Bench::kEverything, Bench::LOOP | Bench::COMP},
+    // last, so the 22 before stay comparable with older cpu.txt files
+    {"loop+everything+page2", Bench::kEverything, Bench::LOOP | Bench::COMP | Bench::PAGE2},
 };
 constexpr uint8_t Bench::kKeyLeds[];
 

@@ -25,7 +25,9 @@ static const float kFlutterWeights[2] = {1.f / 1.4f, .4f / 1.4f};
  *  with the input, so the pitch drifts like a worn tape's. Knob 1 is TAPE's knob: it sets how
  *  often the delay wanders and the mix together. Flutter adds a fast, shallow wobble; it
  *  brings the wet signal in over the first quarter of its knob, so it works on its own.
- *  Params: 0 wow, 1 flutter, 2 tone, 3 stereo. */
+ *  Params: 0 wow, 1 flutter, 2 tone, 3 stereo; page 2's own, 5 age: worn tape's dropouts,
+ *  the level dipping at random, more often, deeper and longer as it turns up (Cassette
+ *  Sim's AGE on the SP-404MK2). */
 class Warble : public FxBase
 {
 public:
@@ -35,6 +37,7 @@ public:
         FLUTTER,
         TONE,
         STEREO,
+        AGE = 5,
     };
 
     void Init(float sample_rate)
@@ -59,7 +62,7 @@ public:
         SnapParams();
     }
 
-    void Process(float* l, float* r)
+    FRIZZ_HOT void Process(float* l, float* r)
     {
         const float gate = gate_.Process();
         const float mix = mix_.Process();
@@ -107,6 +110,29 @@ public:
         }
 
         const float wow[2] = {walk_[0].pos, walk_[0].pos + stereo * (walk_[1].pos - walk_[0].pos)};
+        // age: a dropout now and then, held for a while, the level gliding down and back
+        float drop = 1.f;
+        if (age_ > 0.f || drop_ < 1.f)
+        {
+            static const float kRandScale = 4.656612873077392578125e-10f; // 1 / 2^31
+            if (drop_left_ > 0)
+                drop_left_--;
+            else
+            {
+                drop_target_ = 1.f;
+                if (age_ > 0.f && static_cast<float>(Rand()) * kRandScale < age_ * kDropsPerSample)
+                {
+                    const float depth = age_ * (.3f + .7f * static_cast<float>(Rand()) * kRandScale);
+                    drop_target_ = 1.f - depth;
+                    drop_left_ = static_cast<uint32_t>(sample_rate_ * (.02f + .2f * age_
+                                 * static_cast<float>(Rand()) * kRandScale));
+                }
+            }
+            fonepole(drop_, drop_target_, kDropCoeff);
+            if (drop_ > 1.f - 1e-5f && drop_target_ == 1.f)
+                drop_ = 1.f;
+            drop = drop_;
+        }
         float* const io[2] = {l, r};
         for (size_t c = 0; c < 2; c++)
         {
@@ -114,7 +140,7 @@ public:
             const float wet = ring_.Read(c, wow[c] + depth * flutter[c]);
             fonepole(lp_[c], wet, tone);
 
-            const float out = *io[c] + mix * (lp_[c] - *io[c]);
+            const float out = *io[c] + mix * (lp_[c] * drop - *io[c]);
             *io[c] += gate * (out - *io[c]);
         }
         ring_.Advance();
@@ -149,14 +175,21 @@ public:
         case STEREO:
             stereo_.target = val;
             break;
+        case AGE:
+            age_val_ = val;
+            age_ = val;
+            break;
         default:
             break;
         }
-        mix_.target = fmaxf(wow_val_, fminf(4.f * flutter_val_, 1.f));
+        // the wet signal comes in with the wow, the flutter or the age, whichever is up most
+        mix_.target = fmaxf(fmaxf(wow_val_, fminf(4.f * flutter_val_, 1.f)), fminf(4.f * age_val_, 1.f));
     }
 
 private:
     static const size_t kBufSize = 2048; // TAPE's longest delay, 980 frames, plus the flutter
+    static constexpr float kDropsPerSample = 3.f / 48000.f; // at full age, 3 a second
+    static constexpr float kDropCoeff = .005f;               // ~4ms into and out of one
 
     struct Walk
     {
@@ -188,7 +221,10 @@ private:
     float inc_[2] = {0.f, 0.f};
     float chance_ = 0.f;
     bool wow_ = false;
-    float wow_val_ = 0.f, flutter_val_ = 0.f;
+    float wow_val_ = 0.f, flutter_val_ = 0.f, age_val_ = 0.f;
+    float age_ = 0.f;
+    float drop_ = 1.f, drop_target_ = 1.f; // the dropout's level, gliding
+    uint32_t drop_left_ = 0;               // samples the dropout still holds
     Smoothed mix_;
     Smoothed depth_;
     Smoothed tone_;

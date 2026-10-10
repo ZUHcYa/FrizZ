@@ -66,6 +66,9 @@ class Limiter
         return daisysp::SoftClip(pre * gain_ * makeup);
     }
 
+    /** The gain it applies now, 0..1 (1: not limiting) */
+    inline float Gain() const { return gain_; }
+
 
   private:
     float peak_;

@@ -29,7 +29,10 @@ static const float kTapeSpliceFrames = 720.f;
  *  The curve bends both: linear, or a brake, fast at first and then dragging (the speed
  *  (1 - t)^k, k 1..3); the spin-up mirrors it, a motor's fast start and slow settle.
  *  The times follow the tempo, fixed when each starts.
- *  Params: 0 stop (kNumStops steps), 1 spin-up (kNumStarts steps), 2 curve.
+ *  Params: 0 stop (kNumStops steps), 1 spin-up (kNumStarts steps), 2 curve, 3 depth: how far
+ *  it slows, from a full stop (1, the default) to half speed and less at 0 (the SP-404MK2
+ *  Stopper's DEPTH); page 2's own, 5 darken: the highs fall away with the speed (its FLT MOD).
+ *  Page 2's Mix, Band and Level (FxOutput.h) stay on while it spins up after the key.
  *  The buffers are separate (SDRAM, chompi_main.cpp), a power of 2 frames per channel. */
 class TapeStop : public FxBase
 {
@@ -39,6 +42,8 @@ public:
         STOP,
         START,
         CURVE,
+        DEPTH,
+        DARKEN = 5,
     };
 
     static const size_t kNumStops = sizeof(kTapeStop16ths);
@@ -64,11 +69,12 @@ public:
         n_end_ = 1;
         for (size_t i = 0; i < kNumFxParams; i++)
             SetParam(i, 0.f);
+        SetParam(DEPTH, 1.f); // a full stop
     }
 
     void SetTempo(float bpm) { tempo_ = bpm; }
 
-    void Process(float* l, float* r)
+    FRIZZ_HOT void Process(float* l, float* r)
     {
         gate_.Process();
         buf_[0][pos_] = *l;
@@ -89,17 +95,17 @@ public:
         case State::STOPPING:
             if (++n_ >= n_end_)
             {
-                head_.rate = 0.f;
+                head_.rate = floor_;
                 state_ = State::STOPPED;
             }
             else
-                head_.rate = powf(1.f - T(), k_);
+                head_.rate = floor_ + (1.f - floor_) * powf(1.f - T(), k_);
             break;
         case State::STARTING:
             if (++n_ >= n_end_)
                 Splice();
             else
-                head_.rate = 1.f - powf(1.f - T(), k_);
+                head_.rate = floor_ + (1.f - floor_) * (1.f - powf(1.f - T(), k_));
             break;
         case State::SPLICING:
             if (xfade_ >= 1.f)
@@ -132,6 +138,16 @@ public:
             }
             else
                 *io[c] = out;
+            // darken: a lowpass that closes as the tape slows, from open at speed
+            if (darken_ > 0.f)
+            {
+                const float r2 = head_.rate * head_.rate;
+                const float coeff = 1.f - darken_ * (1.f - r2 * r2);
+                lp_[c] += fmaxf(coeff, .02f) * (*io[c] - lp_[c]);
+                *io[c] = lp_[c];
+            }
+            else
+                lp_[c] = *io[c];
         }
     }
 
@@ -148,6 +164,13 @@ public:
         case CURVE:
             curve_ = 1.f + 2.f * val;
             break;
+        case DEPTH:
+            // the speed the slowing stops at: 0, a full stop, at the top; half speed at 0
+            floor_ = .5f * (1.f - val);
+            break;
+        case DARKEN:
+            darken_ = val;
+            break;
         default:
             break;
         }
@@ -156,6 +179,10 @@ public:
     /** Doing no more than it does off: its key's fade done and the tape back on the live
      *  signal, which a spin-up after a release reaches only up to a bar later (the bench) */
     inline bool Resting() const { return Idle() && state_ == State::IDLE; }
+    /** For page 2's Mix and Level (FxOutput.h): on while the tape is off its speed, also
+     *  after the key, at full while it does */
+    inline bool Quiet() const { return Resting(); }
+    inline float Fade() const { return state_ == State::IDLE ? FxBase::Fade() : 1.f; }
 
 private:
     enum class State
@@ -202,6 +229,12 @@ private:
      *  drifts by percents over seconds */
     inline float T() const { return static_cast<float>(n_) / static_cast<float>(n_end_); }
 
+    /** How far a speed is from the depth's floor to full speed, 0..1 */
+    inline float Above(float rate) const
+    {
+        return fclamp((rate - floor_) / (1.f - floor_), 0.f, 1.f);
+    }
+
     /** The key went down: slow from the speed the tape is at now */
     void BeginStop()
     {
@@ -209,7 +242,7 @@ private:
             head_ = {0.f, 1.f};
         k_ = curve_;
         // where along the curve the tape is at this speed
-        Begin(Frames16ths(kTapeStop16ths[stop_idx_]), 1.f - powf(head_.rate, 1.f / k_));
+        Begin(Frames16ths(kTapeStop16ths[stop_idx_]), 1.f - powf(Above(head_.rate), 1.f / k_));
         state_ = State::STOPPING;
     }
 
@@ -225,7 +258,7 @@ private:
         }
         Jump({0.f, head_.rate}, kTapeJumpFrames);
         k_ = curve_;
-        Begin(Frames16ths(n), 1.f - powf(1.f - head_.rate, 1.f / k_));
+        Begin(Frames16ths(n), 1.f - powf(1.f - Above(head_.rate), 1.f / k_));
         state_ = State::STARTING;
     }
 
@@ -261,6 +294,9 @@ private:
     float k_ = 1.f;    // the curve, fixed when a stop or spin-up starts
     size_t stop_idx_ = 0, start_idx_ = 0;
     float curve_ = 1.f;
+    float floor_ = 0.f;   // the speed a stop slows to (depth)
+    float darken_ = 0.f;
+    float lp_[2] = {0.f, 0.f}; // darken's lowpass
 };
 
 } // namespace chompi

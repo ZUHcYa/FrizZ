@@ -59,8 +59,8 @@ static const uint8_t kStopMorphCC = 63; // stops a morph where it is
 static const uint8_t kParamCC = 70;     // 70-117: effect FX's knob P at 70 + 4 FX + P
 static const uint8_t kAllSoundOffCC = 120, kAllNotesOffCC = 123;
 // NRPN: in bank (MSB) 0, parameter number = the CC above, its value in 14 bits; in bank 1,
-// page 2 of the FX knobs (FxControls.h), numbered as page 1's CCs (kParamCC). No CCs are
-// left for page 2
+// page 2 of the FX knobs and the compressor's (FxControls.h), numbered as page 1's CCs
+// (kParamCC, kCompCC). No CCs are left for page 2
 static const uint8_t kNrpnMsbCC = 99, kNrpnLsbCC = 98, kDataMsbCC = 6, kDataLsbCC = 38;
 static const uint8_t kPage2Bank = 1;
 } // namespace midimap
@@ -356,10 +356,12 @@ private:
         }
         if (cc == kDataMsbCC || cc == kDataLsbCC)
         {
-            // bank 0: an absolute controller; bank 1: page 2 of an effect's knobs
+            // bank 0: an absolute controller; bank 1: page 2 of an effect's or the
+            // compressor's knobs
+            const bool page2 = nrpn_msb_ == kPage2Bank
+                               && ((nrpn_lsb_ >= kParamCC && nrpn_lsb_ < kParamCC + kNumFx * kNumFxKnobs)
+                                   || (nrpn_lsb_ >= kCompCC && nrpn_lsb_ < kCompCC + kNumFxKnobs));
             const bool page1 = nrpn_msb_ == 0 && Absolute(nrpn_lsb_);
-            const bool page2 = nrpn_msb_ == kPage2Bank && nrpn_lsb_ >= kParamCC
-                               && nrpn_lsb_ < kParamCC + kNumFx * kNumFxKnobs;
             if (!page1 && !page2)
                 return false;
             if (cc == kDataMsbCC)
