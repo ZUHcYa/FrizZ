@@ -33,6 +33,10 @@
 namespace chompi
 {
 
+// What runs once per morph, not per block (Start, AddBar, Land, Freeze): built for size, as
+// FxControls' FX_SCENE_ONCE. At -O3 their copies of the plan were unrolled into kilobytes
+#define FX_MORPH_ONCE __attribute__((noinline, optimize("Os")))
+
 // Taps of SHIFT + the scene key: the bar lines a morph may run to
 static const uint32_t kMaxMorphBars = 8;
 // A fade-in's key comes on this long after the start, once its fade knobs have slewed
@@ -76,7 +80,7 @@ public:
     /** Starts plan, landing on the next bar line, pulses_to_bar pulses away (an estimate);
      *  held: waiting at the start until Release. The chain must have plan's start values
      *  already. Call with the audio interrupt blocked */
-    void Start(const FxMorphPlan& plan, uint32_t pulses_to_bar, bool hold = false)
+    FX_MORPH_ONCE void Start(const FxMorphPlan& plan, uint32_t pulses_to_bar, bool hold = false)
     {
         if (active_)
             Land();
@@ -118,7 +122,7 @@ public:
     /** One bar line more, up to kMaxMorphBars. The glide carries on from where it is, now
      *  over pulses_per_bar more pulses. False if it can't. Call with the audio interrupt
      *  blocked */
-    bool AddBar(uint32_t pulses_per_bar)
+    FX_MORPH_ONCE bool AddBar(uint32_t pulses_per_bar)
     {
         if (!active_ || land_ || manual_ || bars_left_ >= kMaxMorphBars)
             return false;
@@ -230,7 +234,7 @@ public:
     /** Ends it now: every parameter on its target, the deferred keys switched; a parked FX
      *  that goes off stays faded out. Only what changes is sent, so an FX the scenes share
      *  runs on untouched. Call with the audio interrupt blocked, or from the audio callback */
-    void Land()
+    FX_MORPH_ONCE void Land()
     {
         if (!active_)
             return;
@@ -259,7 +263,8 @@ public:
      *  keys not yet switched stay as they were. Fills params with where that is, unswitched
      *  with those keys, and was_on with which of them are on. False if it doesn't run. Call
      *  with the audio interrupt blocked */
-    bool Freeze(float params[kNumFx][kNumFxParams], uint16_t* unswitched, uint16_t* was_on)
+    FX_MORPH_ONCE bool Freeze(float params[kNumFx][kNumFxParams], uint16_t* unswitched,
+                              uint16_t* was_on)
     {
         if (!active_)
             return false;
