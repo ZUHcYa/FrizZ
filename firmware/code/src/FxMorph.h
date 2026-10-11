@@ -218,10 +218,8 @@ public:
                 const MorphParam how = plan_.how[fx][p];
                 if (how == MorphParam::HOLD)
                     continue;
-                const float end = how == MorphParam::FADE_OUT ? kFxParams[fx].defaults[p]
-                                                              : plan_.target[fx][p];
                 const float start = plan_.start[fx][p];
-                const float val = start + (end - start) * t;
+                const float val = start + (End(fx, p, how) - start) * t;
                 if (val != live_[fx][p])
                 {
                     live_[fx][p] = val;
@@ -309,6 +307,12 @@ public:
     inline bool Active() const { return active_; }
 
 private:
+    /** Where a gliding parameter glides to: a fade-out to its default, the rest to the target */
+    inline float End(size_t fx, size_t p, MorphParam how) const
+    {
+        return how == MorphParam::FADE_OUT ? kFxParams[fx].defaults[p] : plan_.target[fx][p];
+    }
+
     /** A block on the crossfader: see the file comment. Only what changes is sent, at the
      *  knobs' slew, as if they were turned */
     __attribute__((noinline, optimize("Os"))) void ProcessFader()
@@ -342,9 +346,7 @@ private:
                 }
                 else
                 {
-                    const float end = how == MorphParam::FADE_OUT ? kFxParams[fx].defaults[p]
-                                                                  : plan_.target[fx][p];
-                    val = start + (end - start) * t;
+                    val = start + (End(fx, p, how) - start) * t;
                 }
                 if (val != live_[fx][p])
                 {
