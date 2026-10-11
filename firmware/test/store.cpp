@@ -126,6 +126,23 @@ static void TestUnreadable()
     SaveInRam(store, 2, .5f);
     Check(Saves(store), "... and the next one too");
 
+    // a save cut short next to a file that can't be read: the .tmp is read and finished,
+    // and the unreadable file is kept as .bak, as a save keeps it
+    NewCard(true);
+    card.dirs["/FRIZZ"] = true;
+    card.files[kScenes] = "FRIZZ scenes 2\nsomething else\n";
+    card.files["/FRIZZ/frizz_scenes.tmp"] = SceneText(0x2, .25f);
+    card.files[kScenesBak] = "an older .bak\n";
+    store.Init(&fs, "");
+    Check(store.scenes[2].used && UsedIn(card.files[kScenes]) == 0x2
+              && !card.files.count("/FRIZZ/frizz_scenes.tmp")
+              && card.files[kScenesBak] == "FRIZZ scenes 2\nsomething else\n",
+          "unreadable, with a .tmp from a cut save: the .tmp read and finished, the file kept as .bak");
+    SaveInRam(store, 3, .5f);
+    Check(Saves(store) && UsedIn(card.files[kScenes]) == 0x6
+              && card.files[kScenesBak] == "FRIZZ scenes 2\nsomething else\n",
+          "... and the next save keeps that .bak");
+
     // a valid file padded past what the buffer holds would be read cut short
     NewCard(true);
     card.dirs["/FRIZZ"] = true;

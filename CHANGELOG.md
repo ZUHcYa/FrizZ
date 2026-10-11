@@ -115,6 +115,9 @@ what FRIZZ does.
   300 BPM) and between two whole BPM (say 120.4), it used to flip between neighbouring
   BPM many times a second, moving the delay time with it. It's now measured over the last
   few seconds; a jump in tempo is still followed at once.
+- **A scene file FRIZZ can't read is kept as `frizz_scenes.bak`** also when a save cut
+  short by a power cut sits next to it: the boot used to finish that save by deleting the
+  unreadable file.
 
 ## v0.11 (2026-10-10)
 
