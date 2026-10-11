@@ -118,6 +118,10 @@ public:
     inline bool Busy() const { return moving_ || !neutral_; }
     /** A knob turned and not yet settled */
     inline bool Moving() const { return moving_; }
+    /** The effect comes on again after it was quiet: the crossovers start afresh from the
+     *  next sample, not from what they held when it went quiet. A send's Band (FxChain::
+     *  SendBand) isn't run while the effect is idle, so only this tells it */
+    inline void Rest() { awake_ = false; }
 
     /** The knobs' slewed values jump to their targets (tests) */
     void Snap()

@@ -359,12 +359,17 @@ private:
     }
 
     /** An effect's key comes on (or chaos lets it through again), at Block, before the
-     *  effect has it: its page 2 runs again if it's off its defaults (an insert that's off
+     *  effect has it. From quiet, its Band starts afresh (a send's isn't run while it's
+     *  idle, so it kept what it held when the key went off: a decaying offset that the delay
+     *  repeated); and its page 2 runs again if it's off its defaults (an insert that's off
      *  leaves it out, OutBegin) */
     inline void KeyOn(size_t fx)
     {
         if (fx >= kNumSoundFx)
             return;
+        // the tape stop sounds on after its key while it spins up: not quiet until it rests
+        if (fx == FX_TAPESTOP ? tapestop_.Resting() : fx_[fx]->Idle())
+            out_[fx].Rest();
         if (out_[fx].Busy())
             out_busy_.fetch_or(static_cast<uint16_t>(1u << fx), std::memory_order_relaxed);
     }

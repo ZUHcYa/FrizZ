@@ -113,6 +113,9 @@ what FRIZZ does.
   300 BPM) and between two whole BPM (say 120.4), it used to flip between neighbouring
   BPM many times a second, moving the delay time with it. It's now measured over the last
   few seconds; a jump in tempo is still followed at once.
+- **Band on the delay, reverb and resonator after a pause:** with page 2's Band turned, an
+  effect switched on again could start with a short thump from what the Band filter held
+  when it last went off, which the delay then repeated. The filter now starts afresh.
 
 ## v0.11 (2026-10-10)
 

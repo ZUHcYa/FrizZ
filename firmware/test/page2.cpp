@@ -590,5 +590,6 @@ int main()
     TestReverb();
     TestLayout();
     TestKeyOnPage2();
+    TestKeyOnBand();
     return Finish();
 }
