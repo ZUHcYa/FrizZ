@@ -48,7 +48,7 @@ public:
 
     static const size_t kNumPatterns = sizeof(kSlicerPatterns);
 
-    void Init(float sample_rate)
+    FX_ONCE void Init(float sample_rate)
     {
         sample_rate_ = sample_rate;
         attack_inc_ = 1.f / (.01f * sample_rate);

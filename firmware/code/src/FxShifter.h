@@ -44,7 +44,7 @@ public:
 
     static const size_t kNumShifts = 25; // -12..+12 semitones
 
-    void Init(float sample_rate)
+    FX_ONCE void Init(float sample_rate)
     {
         ring_.Clear();
         for (size_t c = 0; c < 2; c++)

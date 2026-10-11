@@ -12,6 +12,11 @@ using namespace daisysp;
 namespace chompi
 {
 
+// What runs once (at boot), not per sample: built for size. Code space is the tightest
+// memory (docs/CAPACITY.md), and -O3 unrolls the effects' buffer clears and settings into
+// kilobytes
+#define FX_ONCE __attribute__((noinline, optimize("Os")))
+
 // The FX knobs 1-4, and the parameters per effect: two pages of them, page 1's on parameters
 // 0-3, page 2's on 4-7 (FxControls.h)
 static const size_t kNumFxKnobs = 4;

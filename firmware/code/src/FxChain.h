@@ -99,8 +99,9 @@ class FxChain
 {
 public:
     /** The delay's, the reverb's, the freezer's and the tape stop's buffers are statics in
-     *  chompi_main.cpp: SDRAM for the delay, freezer and tape stop, DTCMRAM for the reverb */
-    void Init(float sample_rate,
+     *  chompi_main.cpp: SDRAM for the delay, freezer and tape stop, DTCMRAM for the reverb.
+     *  Once at boot */
+    FX_ONCE void Init(float sample_rate,
               float* delay_mem, size_t delay_frames,
               daisysp::Reverb* reverb,
               float* freezer_mem_l, float* freezer_mem_r, size_t freezer_frames,

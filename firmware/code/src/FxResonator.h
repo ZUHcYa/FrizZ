@@ -36,7 +36,7 @@ public:
         LEVEL = 7,
     };
 
-    void Init(float sample_rate)
+    FX_ONCE void Init(float sample_rate)
     {
         sample_rate_ = sample_rate;
         ring_.Clear();

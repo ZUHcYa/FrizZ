@@ -34,7 +34,7 @@ public:
     };
 
     /** The reverb's 64KB buffer lives in DTCMRAM, so it's a separate static (chompi_main.cpp) */
-    void Init(float sample_rate, daisysp::Reverb* reverb)
+    FX_ONCE void Init(float sample_rate, daisysp::Reverb* reverb)
     {
         reverb_ = reverb;
         reverb_->Init(sample_rate);

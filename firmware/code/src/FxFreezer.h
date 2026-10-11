@@ -46,7 +46,7 @@ public:
     static const size_t kNumLengths = sizeof(kFreezerBarDivisions);
     static const size_t kNumRolls = sizeof(kFreezerRollStages);
 
-    void Init(float sample_rate, float* buf_l, float* buf_r, size_t frames)
+    FX_ONCE void Init(float sample_rate, float* buf_l, float* buf_r, size_t frames)
     {
         sample_rate_ = sample_rate;
         buf_[0] = buf_l;

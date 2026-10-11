@@ -50,7 +50,7 @@ public:
     static const size_t kNumStarts = sizeof(kTapeStart16ths);
 
     /** frames: a power of 2 */
-    void Init(float sample_rate, float* buf_l, float* buf_r, size_t frames)
+    FX_ONCE void Init(float sample_rate, float* buf_l, float* buf_r, size_t frames)
     {
         sample_rate_ = sample_rate;
         buf_[0] = buf_l;

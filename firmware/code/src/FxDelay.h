@@ -31,7 +31,7 @@ public:
 
     static const size_t kNumDivisions = kNumDelayDivs;
 
-    void Init(float* buffer, size_t buffer_frames)
+    FX_ONCE void Init(float* buffer, size_t buffer_frames)
     {
         delay_.Init(buffer, buffer_frames);
         sleep_samples_ = static_cast<uint32_t>(buffer_frames);
