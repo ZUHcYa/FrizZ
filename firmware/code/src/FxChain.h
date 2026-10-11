@@ -139,7 +139,7 @@ public:
             meter_[fx].Init();
         for (size_t fx = 0; fx < kNumSoundFx; fx++)
             out_[fx].Init(sample_rate);
-        out_busy_ = 0;
+        out_busy_.store(0);
         keys_.store(0);
         applied_ = pool_ = dropped_ = 0;
         fast_slew_left_ = 0;
@@ -188,7 +188,12 @@ public:
             applied_ = want;
             for (size_t fx = 0; fx < kNumFx; fx++)
                 if (changed >> fx & 1)
-                    fx_[fx]->SetOn(want >> fx & 1);
+                {
+                    const bool on = want >> fx & 1;
+                    if (on)
+                        KeyOn(fx);
+                    fx_[fx]->SetOn(on);
+                }
         }
         return step;
     }
@@ -253,7 +258,7 @@ public:
     {
         // the busy case out of line and at the end, so a chain at its defaults runs through
         // as little code as without page 2: the audio callback is bound by the I-cache (#51)
-        const bool busy = __builtin_expect((out_busy_ & (1u << fx)) != 0, 0);
+        const bool busy = __builtin_expect((OutBusy() & (1u << fx)) != 0, 0);
         bool split = false;
         if (busy)
             split = OutBegin(fx, effect.Quiet(), l, r);
@@ -266,26 +271,31 @@ public:
     }
     __attribute__((noinline, cold)) bool OutBegin(size_t fx, bool idle, float* l, float* r)
     {
-        return out_[fx].Begin(idle, l, r);
+        const bool split = out_[fx].Begin(idle, l, r);
+        // off and faded out with its knobs at rest: nothing to do until its key comes on
+        // again, which sets it busy again (KeyOn)
+        if (idle && !out_[fx].Moving())
+            ClearOutBusy(fx);
+        return split;
     }
     __attribute__((noinline, cold)) void OutEnd(size_t fx, bool split, float fade, float* l,
                                                 float* r)
     {
         if (!out_[fx].End(split, l, r, fade))
-            out_busy_ &= ~(1u << fx);
+            ClearOutBusy(fx);
     }
 
     /** What goes into a send or the resonator's loop, through its page 2's Band while that's
      *  Banding and the effect is on (idle: its Idle()) */
     inline void SendBand(size_t fx, bool idle, float* l, float* r)
     {
-        if (__builtin_expect(!idle && (out_busy_ & (1u << fx)), 0))
+        if (__builtin_expect(!idle && (OutBusy() & (1u << fx)), 0))
             OutBand(fx, l, r);
     }
     __attribute__((noinline, cold)) void OutBand(size_t fx, float* l, float* r)
     {
         if (!out_[fx].Band(l, r))
-            out_busy_ &= ~(1u << fx);
+            ClearOutBusy(fx);
     }
 
     /** From the UI or the morph: the key reaches the effect at the next Block */
@@ -309,7 +319,8 @@ public:
         if (own ? param == FxOutput::kBand && out_[fx].SetParam(param, val)
                 : out_[fx].SetParam(param, val))
         {
-            out_busy_ |= 1u << fx; // after the knob is set, so the audio sees it moving
+            // after the knob is set, so the audio sees it moving
+            out_busy_.fetch_or(static_cast<uint16_t>(1u << fx), std::memory_order_release);
             return;
         }
         fx_[fx]->SetParam(param, val);
@@ -321,6 +332,8 @@ public:
         FxSlew::coeff = kFxRecallCoeff;
         fast_slew_left_ = kFxRecallSlewSamples;
     }
+    /** Whether fx's page 2 is part of the chain's work now (out_busy_), for the tests */
+    inline bool OutRunning(size_t fx) const { return OutBusy() >> fx & 1; }
     /** 0..1, for the key LEDs */
     inline float GetLevel(size_t fx) { return meter_[fx].GetLastSamp(); }
 
@@ -339,6 +352,22 @@ public:
 
 private:
     inline void Meter(size_t fx, float sum) { meter_[fx].Process(sum * kFxMeterScale); }
+    inline uint16_t OutBusy() const { return out_busy_.load(std::memory_order_relaxed); }
+    inline void ClearOutBusy(size_t fx)
+    {
+        out_busy_.fetch_and(static_cast<uint16_t>(~(1u << fx)), std::memory_order_relaxed);
+    }
+
+    /** An effect's key comes on (or chaos lets it through again), at Block, before the
+     *  effect has it: its page 2 runs again if it's off its defaults (an insert that's off
+     *  leaves it out, OutBegin) */
+    inline void KeyOn(size_t fx)
+    {
+        if (fx >= kNumSoundFx)
+            return;
+        if (out_[fx].Busy())
+            out_busy_.fetch_or(static_cast<uint16_t>(1u << fx), std::memory_order_relaxed);
+    }
 
     Filter filter_;
     Crusher crusher_;
@@ -357,8 +386,10 @@ private:
     FxOutput out_[kNumSoundFx]; // page 2's Mix, Band and Level (FxOutput.h)
     // the effects whose out_ is Busy (an insert) or Banding (a send, the resonator), by bit:
     // the rest run alone, their out_ untouched, which keeps a chain at its defaults as cheap
-    // as without them. Set by SetParam, cleared by Insert and SendBand
-    volatile uint16_t out_busy_ = 0;
+    // as without them, and an insert that's off too. Set by SetParam (from MainLoop, or the
+    // morph in the audio callback) and KeyOn, cleared by Insert and SendBand: atomic, so a
+    // bit the audio callback sets or clears isn't lost to MainLoop's
+    std::atomic<uint16_t> out_busy_{0};
     EnvFollower meter_[kNumFx];
     uint32_t fast_slew_left_; // samples of FastSlew to go
     std::atomic<uint32_t> keys_{0}; // bit fx: its key on, as the UI or the morph set it

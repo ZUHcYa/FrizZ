@@ -116,6 +116,8 @@ public:
     /** Off their defaults or still slewing: at rest at the defaults, the effect runs alone
      *  and FxChain.h leaves this out (SetParam makes it busy again) */
     inline bool Busy() const { return moving_ || !neutral_; }
+    /** A knob turned and not yet settled */
+    inline bool Moving() const { return moving_; }
 
     /** The knobs' slewed values jump to their targets (tests) */
     void Snap()
