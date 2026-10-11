@@ -1,6 +1,7 @@
 // store.cpp: checks SceneStore.h's card handling against an SD card in memory (host/fatfs.h):
-// the boot read, a .tmp left by a cut save, an unreadable or oversized file kept as .bak, and
-// a card that couldn't be read at boot, which that session never writes.
+// the boot read, a .tmp left by a cut save, an unreadable or oversized file kept as .bak (also
+// next to a .tmp), a card that couldn't be read at boot, which that session never writes, and
+// frizz_master.txt's text and what each of its settings refuses.
 // Exits 0 when everything passes. Run by unit.sh store.
 #include <cstdio>
 #include <string>

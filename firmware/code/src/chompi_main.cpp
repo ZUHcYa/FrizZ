@@ -350,7 +350,7 @@ int main(void)
     daisy::System::Delay(1); // Wait a sec
     hw.usb_sw.Write(true);     // take USB control
 
-    // the event log starts here, its memory cleared and the card read
+    // the event log starts here, the card read
     event_log.Start(daisy::System::GetNow(), hw.GetToggleState());
     main_loop_running = true;
     while (1)

@@ -11,7 +11,8 @@
  *  all FRIZZ's card buffers do),
  *  writing the slot before it counts it; MainLoop writes the file a chunk per pass, up to the
  *  count it saw at the press, so neither waits for the other. The list starts when main()
- *  enters its loop (Start: the SDRAM has been cleared, the card read); the times count from
+ *  enters its loop (Start: the card read; its SDRAM isn't cleared at boot, SDRAM_NOINIT, so
+ *  nothing in it is read before it's written); the times count from
  *  there, and the script's `booted` line lines them up with the twin's own start. The audio
  *  in isn't recorded: the replay plays a tone.
  *
@@ -94,6 +95,8 @@ public:
     void Init(EventLogMem* mem, FATFS* fs, const char* path)
     {
         mem_ = mem;
+        // until Start, no card files (its memory isn't cleared at boot)
+        mem_->scenes[0] = mem_->master[0] = '\0';
         fs_ = fs;
         path_ = path;
     }

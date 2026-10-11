@@ -1,6 +1,7 @@
 // looper.cpp: checks the looper (Looper.h) on the host, without MIDI clock: a free recording
 // plays back what was recorded at its length, play / pause, erase, the speed ladder and the
-// refused quantized record. Exits 0 when everything passes. Run by unit.sh looper.
+// refused quantized record, a glide that lands exactly on its speed, and memory that wasn't
+// cleared at boot sounding the same as cleared. Exits 0 when everything passes. Run by unit.sh looper.
 #include <cmath>
 #include <cstdio>
 #include <cstring>
