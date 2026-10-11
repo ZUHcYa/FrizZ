@@ -122,6 +122,9 @@ what FRIZZ does.
   (SHIFT + the scene key tapped again) and you then took it on the transport knob, the far
   left was where the morph had got to at the tap, not the scene you came from, so letting go
   there jumped. The far left is now always where the morph started.
+- **A long-held tape stop with Depth below the top:** held for more than about 12 s (Depth
+  at 0.8) to 22 s (at 0), the slowed tape suddenly played sound from 11 s before at full
+  speed. It now jumps back to the live sound in a short crossfade and plays on slowed.
 
 ## v0.11 (2026-10-10)
 

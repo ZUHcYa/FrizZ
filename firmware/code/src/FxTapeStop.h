@@ -136,6 +136,13 @@ public:
             break;
         }
         head_.Move(max_lag_);
+        // held long enough off its speed (at a depth below 1), the head nears the buffer's
+        // far end: it jumps back to the live signal at the same speed, crossfaded, and falls
+        // behind from there again, rather than sticking at the end, where it played the
+        // buffer's oldest sound at full speed. Early enough that the head it fades from
+        // doesn't reach the end either
+        if (head_.lag >= max_lag_ - kTapeJumpFrames && xfade_ >= 1.f)
+            Jump({0.f, head_.rate}, kTapeJumpFrames);
 
         float* const io[2] = {l, r};
         const bool fading = xfade_ < 1.f;
