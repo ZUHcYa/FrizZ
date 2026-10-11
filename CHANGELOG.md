@@ -116,6 +116,8 @@ what FRIZZ does.
 - **Band on the delay, reverb and resonator after a pause:** with page 2's Band turned, an
   effect switched on again could start with a short thump from what the Band filter held
   when it last went off, which the delay then repeated. The filter now starts afresh.
+- **An effect's key LED when it comes on again** no longer flashes up for a moment at the
+  level it showed when the effect last went off.
 
 ## v0.11 (2026-10-10)
 

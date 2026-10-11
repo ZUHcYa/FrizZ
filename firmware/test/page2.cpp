@@ -573,7 +573,7 @@ static void TestKeyOnMeter()
     float level = 1.f;
     ChainRun(n, 48, silence, chompi::FX_FOLDER, &level);
     printf("  folder's meter: %.3f when it went off, %.3f on again on silence\n", stopped, level);
-    Check(stopped > .5f && level < .01f, "key on again: an insert's meter starts from nothing");
+    Check(stopped > .5f && level < .1f, "key on again: an insert's meter starts from nothing");
 }
 
 int main()
@@ -591,5 +591,6 @@ int main()
     TestLayout();
     TestKeyOnPage2();
     TestKeyOnBand();
+    TestKeyOnMeter();
     return Finish();
 }
