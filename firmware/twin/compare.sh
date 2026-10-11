@@ -15,8 +15,8 @@ set -e -o pipefail
 source "$(dirname "$0")/ref.sh"
 A=${1:-HEAD}
 B=${2:-work}
-TA=$(twin_dir "$A")/frizz-twin
-TB=$(twin_dir "$B")/frizz-twin
+TA=$(twin_dir "$A")/frizz-twin || { echo "the twin didn't build on $A"; exit 1; }
+TB=$(twin_dir "$B")/frizz-twin || { echo "the twin didn't build on $B"; exit 1; }
 NAMES=${SCENARIOS:-$(cd "$TW/scenarios" && ls *.txt | sed 's/\.txt$//')}
 RUNS=$(mktemp -d)
 trap "rm -rf '$RUNS'" EXIT

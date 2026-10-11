@@ -40,7 +40,7 @@ units()
 # "// twin defines: FLAGS" in NAME.cpp builds a twin of its own with them, in ../twin/build/NAME
 # (bench.cpp: the CPU bench's firmware). twin_for NAME builds NAME's twin (none for a check
 # without one), one build.sh at a time per folder, as checks run side by side (all.sh), and
-# prints its folder
+# prints its folder; fails if it didn't build (the folder's twin would be another firmware's)
 twin_for()
 {
     local name=$1 defines twin
@@ -49,7 +49,8 @@ twin_for()
     twin=${TWIN_BUILD:-$REPO/firmware/twin/build}
     [ -z "$defines" ] || twin=$REPO/firmware/twin/build/$name
     mkdir -p "$twin"
-    TWIN_DEFINES="$defines" TWIN_BUILD="$twin" flock "$twin/build.lock" "$REPO/firmware/twin/build.sh" >&2
+    TWIN_DEFINES="$defines" TWIN_BUILD="$twin" flock "$twin/build.lock" "$REPO/firmware/twin/build.sh" >&2 \
+        || return 1
     echo "$twin"
 }
 
@@ -61,7 +62,7 @@ unit_test()
     trap "rm -rf '$dir'" EXIT
     if grep -q '#include "twin.h"' "$T/$name.cpp"; then
         local twin
-        twin=$(twin_for "$name")
+        twin=$(twin_for "$name") || { echo "$name: its twin didn't build"; exit 1; }
         log=$dir/build.log
         if ! g++ -O2 -std=gnu++14 -funsigned-char -Wall -I"$REPO/firmware/twin" "$T/$name.cpp" \
             "$twin/libtwin.a" "$BUILD/libdaisysp_host.a" -o "$dir/$name" 2> "$log"; then

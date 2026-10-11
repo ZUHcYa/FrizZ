@@ -2,7 +2,7 @@
 # ref.sh: sourced by compare.sh and ui-at.sh. twin_dir REF builds the twin on REF's firmware (a
 # commit, tag or branch; "work" for the working tree) with the working tree's twin around it,
 # into build/compare/<commit>, kept for next time, and prints that folder; its firmware is in
-# src there (for work, a link to code/src).
+# src there (for work, a link to code/src). Fails if it didn't build.
 TW=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(git -C "$TW" rev-parse --show-toplevel)
 OUT=$TW/build/compare
@@ -34,6 +34,6 @@ twin_dir()
             mv "$src.tmp" "$src"
         fi
     fi
-    TWIN_FIRMWARE=$src TWIN_BUILD=$dir "$TW/build.sh" >&2
+    TWIN_FIRMWARE=$src TWIN_BUILD=$dir "$TW/build.sh" >&2 || return 1
     echo "$dir"
 }
