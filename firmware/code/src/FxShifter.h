@@ -69,19 +69,21 @@ public:
     FRIZZ_HOT void Process(float* l, float* r)
     {
         const float gate = gate_.Process();
-        const float dry = dry_.Process();
-        const float feedback = feedback_.Process();
 
         if (gate_.TakePress())
             env_.Press();
         env_.Process(env_attack_inc_, env_decay_coeff_);
 
-        // off: only the buffer goes on, so a punch-in has the recent sound to shift
+        // off: only the buffer goes on, so a punch-in has the recent sound to shift; the
+        // knobs where they're going
         if (gate_.Asleep())
         {
+            SnapParams();
             ring_.WriteFrame(SoftClip(*l), SoftClip(*r));
             return;
         }
+        const float dry = dry_.Process();
+        const float feedback = feedback_.Process();
 
         // the speed per channel; recomputed every kSwoopUpdate samples while swooping (2
         // powf: every sample was ~6% of the CPU for the swoop's 1.3s), and once when it ends;

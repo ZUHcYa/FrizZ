@@ -65,10 +65,6 @@ public:
     FRIZZ_HOT void Process(float* l, float* r)
     {
         const float gate = gate_.Process();
-        const float mix = mix_.Process();
-        const float depth = depth_.Process();
-        const float tone = tone_.Process();
-        const float stereo = stereo_.Process();
 
         // TAPE: now and then a new target and slew. None while the wow is off, so the flutter
         // alone is just the flutter. The right channel's walk is heard with the stereo knob.
@@ -94,11 +90,16 @@ public:
         // it would have; the tone filter follows the dry signal, close to what it would hear
         if (gate_.Asleep())
         {
+            SnapParams(); // the knobs where they're going
             ring_.WriteFrame(*l, *r);
             lp_[0] = *l;
             lp_[1] = *r;
             return;
         }
+        const float mix = mix_.Process();
+        const float depth = depth_.Process();
+        const float tone = tone_.Process();
+        const float stereo = stereo_.Process();
 
         float flutter[2];
         for (size_t c = 0; c < 2; c++)

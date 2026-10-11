@@ -56,15 +56,15 @@ public:
     void Process(float* l, float* r)
     {
         const float gate = gate_.Process();
-        const float rate_knob = rate_.Process();
-        const float tone_coeff = tone_coeff_.Process();
 
         // off and faded out: only what a punch-in starts from goes on: the reducer (so its
-        // grid runs on unbroken) and the XOR's DC blockers (so its offset doesn't thump in)
+        // grid runs on unbroken) and the XOR's DC blockers (so its offset doesn't thump in);
+        // the knobs where they're going
         if (gate_.Asleep())
         {
-            srr_l_.SetFreq(rate_knob);
-            srr_r_.SetFreq(rate_knob * stereo_);
+            SnapParams();
+            srr_l_.SetFreq(rate_.value);
+            srr_r_.SetFreq(rate_.value * stereo_);
             srr_l_.Process(*l);
             srr_r_.Process(*r);
             XorOffset(xor_dc_l_, *l);
@@ -81,6 +81,8 @@ public:
             lp_l_ = *l;
             lp_r_ = *r;
         }
+        const float rate_knob = rate_.Process();
+        const float tone_coeff = tone_coeff_.Process();
 
         if (gate_.TakePress())
             dive_.Press();
