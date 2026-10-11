@@ -313,6 +313,25 @@ struct PressEnvelope
             value *= decay_coeff;
         return value;
     }
+    /** n samples of Process at once, for an effect that slept through them */
+    void Skip(uint32_t n, float attack_inc, float decay_coeff)
+    {
+        if (attacking)
+        {
+            // the samples the attack still needs to reach 1 (its steps add up a little
+            // short or over, so a hair under a whole number counts as it)
+            const float k = ceilf((1.f - value) / attack_inc - 1e-3f);
+            if (static_cast<float>(n) < k)
+            {
+                value += static_cast<float>(n) * attack_inc;
+                return;
+            }
+            n -= static_cast<uint32_t>(k);
+            value = 1.f;
+            attacking = false;
+        }
+        value *= powf(decay_coeff, static_cast<float>(n));
+    }
 };
 
 /** A stereo delay line of N frames (a power of 2): write one frame a sample, read behind it */

@@ -56,6 +56,7 @@ public:
         env_[0].Reset();
         env_[1].Reset();
         step_ = false;
+        skipped_ = 0;
         rng_.Seed(0x2545F491u);
 
         for (size_t i = 0; i < kNumFxParams; i++)
@@ -87,6 +88,12 @@ public:
     void Process(float* l, float* r)
     {
         const float gate = gate_.Process();
+        // off and faded out, it passes its input and only keeps count: the steps and their
+        // chances still come, so the pattern goes on as ever, and the envelopes catch up on
+        // what they slept through when a step presses them or the key wakes them
+        const bool asleep = gate_.Asleep();
+        if (!asleep)
+            CatchUp();
 
         if (gate_.TakePress())
         {
@@ -102,6 +109,7 @@ public:
         if (step_)
         {
             step_ = false;
+            CatchUp();
             const uint32_t step = step_idx_;
             const bool flip = rng_.Uniform() < chance_;
 
@@ -117,6 +125,12 @@ public:
                 if (hit != flip)
                     env_[c].Press();
             }
+        }
+
+        if (asleep)
+        {
+            skipped_++;
+            return;
         }
 
         float* const io[2] = {l, r};
@@ -158,6 +172,16 @@ public:
 private:
     static const uint32_t kNumSteps = 8;
 
+    /** The envelopes over the samples it slept through, at once */
+    inline void CatchUp()
+    {
+        if (skipped_ == 0)
+            return;
+        env_[0].Skip(skipped_, attack_inc_, decay_coeff_);
+        env_[1].Skip(skipped_, attack_inc_, decay_coeff_);
+        skipped_ = 0;
+    }
+
     float sample_rate_;
     float attack_inc_;
     PressEnvelope env_[2];
@@ -171,6 +195,7 @@ private:
     uint32_t late_ = 0;          // samples until a late step, 0: none waiting
     uint32_t late_step_ = 0, step_idx_ = 0;
     float decay_coeff_ = 0.f;
+    uint32_t skipped_ = 0; // samples the envelopes slept through (CatchUp)
 };
 
 } // namespace chompi

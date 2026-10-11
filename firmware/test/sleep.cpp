@@ -55,6 +55,31 @@ static void TestInsert(Fx& fx, const char* name)
     Check(shaped && !fx.Idle(), what);
 }
 
+/** PressEnvelope::Skip, what an effect that slept catches up on (the slicer), against the
+ *  same samples one by one: pressed before it slept, in its attack, in its decay */
+static void TestSkip()
+{
+    const float inc = 1.f / 480.f, decay = Decay60dBCoeff(.3f, kSr);
+    bool close = true;
+    for (uint32_t before : {0u, 100u, 2000u})
+        for (uint32_t n : {1u, 50u, 479u, 480u, 5000u, 48000u})
+        {
+            PressEnvelope a, b;
+            a.Press();
+            b.Press();
+            for (uint32_t i = 0; i < before; i++)
+            {
+                a.Process(inc, decay);
+                b.Process(inc, decay);
+            }
+            for (uint32_t i = 0; i < n; i++)
+                a.Process(inc, decay);
+            b.Skip(n, inc, decay);
+            close = close && fabsf(a.value - b.value) < 1e-4f && a.attacking == b.attacking;
+        }
+    Check(close, "PressEnvelope::Skip: as many samples of Process, within 1e-4");
+}
+
 /** The tape stop, off and on the live signal: it doesn't write its buffer (in SDRAM on the
  *  device) at all, and a press still slows from the sound just before it. The buffer is
  *  filled with a value no input has, so a read of a frame it didn't record shows */
@@ -238,11 +263,14 @@ int main()
     static chompi::Warble warble;
     static chompi::Crusher crusher;
     static chompi::Filter filter;
+    static chompi::Slicer slicer;
     TestInsert(shifter, "shifter");
     TestInsert(flanger, "flanger");
     TestInsert(warble, "warble");
     TestInsert(crusher, "crusher");
     TestInsert(filter, "filter");
+    TestInsert(slicer, "slicer");
+    TestSkip();
     TestTapeStop();
     TestResonator();
     TestDelay();
