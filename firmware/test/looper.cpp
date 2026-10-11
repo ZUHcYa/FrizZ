@@ -290,6 +290,56 @@ static void TestEraseAtEnd()
     Check(looper.GetState() == Looper::State::EMPTY, "erase at the end, paused and silent: at once");
 }
 
+/** Where the read head is, in whole frames */
+static long Frame()
+{
+    return lroundf(looper.GetPosition() * static_cast<float>(looper.GetLength()));
+}
+
+/** After a glide the read head runs at the step's speed exactly, not a hair beside it: the
+ *  slew used to stop short of it, ~0.06% fast after a fifth up and back to 1x */
+static void TestGlideArrives()
+{
+    looper.Init(mem, &midi_clock);
+    Record(1000); // 24000 frames
+    const size_t kGlide = 5000; // 2.5 s, far past the ~0.2 s glide
+    Step(1);
+    Blocks(kGlide);
+    looper.ResetSpeed();
+    Blocks(kGlide);
+    Check(looper.GetActualSpeed() == 1.f, "glide back to 1x: exactly 1x");
+    const long from = Frame();
+    const size_t kRun = 9000; // 216000 frames, 9 passes
+    Blocks(kRun);
+    const long moved = ((Frame() - from) % 24000 + 24000) % 24000;
+    Check(moved <= 1 || moved >= 23999,
+          "glide back to 1x: the read head moves a frame a sample (9 passes, within a frame)");
+
+    Step(1);
+    Step(1);
+    Blocks(kGlide);
+    Check(looper.GetActualSpeed() == looper.GetSpeed() && looper.GetSpeed() == 2.f,
+          "glide up to 2x: exactly 2x");
+    looper.ResetSpeed();
+    Block();
+    for (int i = 0; i < 8; i++)
+        Step(-1);
+    Blocks(kGlide * 3);
+    Check(looper.GetActualSpeed() == looper.GetSpeed() && At(1.f / 16.f),
+          "glide down to 1/16x: exactly the step's speed");
+    Step(-1);
+    Blocks(kGlide);
+    Check(looper.GetActualSpeed() == looper.GetSpeed() && At(-1.f / 16.f),
+          "through 1/16x into reverse: exactly -1/16x");
+    for (int i = 0; i < 8; i++)
+        Step(-1);
+    Blocks(kGlide * 3);
+    Check(looper.GetActualSpeed() == looper.GetSpeed() && At(-1.f),
+          "on to 1x in reverse: exactly -1x");
+    looper.Erase();
+    Blocks(200);
+}
+
 /** One session from Init, every output sample (left, then right, a block at a time) into out:
  *  a recording played a fifth up from the start and back, scrambled, paused and scrubbed both ways, erased,
  *  then a shorter one, slowed down into reverse, erased */
@@ -375,6 +425,7 @@ int main()
     TestSpeed();
     TestSemitones();
     TestEraseAtEnd();
+    TestGlideArrives();
     TestUnclearedMemory();
     return Finish();
 }

@@ -115,6 +115,10 @@ what FRIZZ does.
   300 BPM) and between two whole BPM (say 120.4), it used to flip between neighbouring
   BPM many times a second, moving the delay time with it. It's now measured over the last
   few seconds; a jump in tempo is still followed at once.
+- **A loop runs at exactly its speed again after the speed has been changed:** after a
+  glide (back to 1× or to any other step) it used to stay a hair beside it, about 0.06 %,
+  so a loop recorded to a MIDI clock drifted away from it by about half a millisecond a
+  second, and the effects' tempo and MIDI out, which follow the loop, with it.
 - **A scene file FRIZZ can't read is kept as `frizz_scenes.bak`** also when a save cut
   short by a power cut sits next to it: the boot used to finish that save by deleting the
   unreadable file.

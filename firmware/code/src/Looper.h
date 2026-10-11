@@ -205,7 +205,15 @@ public:
 
                 // the slews only while they move: a fonepole at its target stays there
                 if (speed_ != speed_target_)
+                {
+                    // the glide stalls a hair short of its target, where a step rounds to
+                    // nothing (~0.06% of it): from there it's at the step's speed exactly,
+                    // or the loop would drift against the clock it was recorded to
+                    const float was = speed_;
                     daisysp::fonepole(speed_, speed_target_, kSpeedSlewCoeff);
+                    if (speed_ == was)
+                        speed_ = speed_target_;
+                }
                 if (scrub_ != scrub_target_)
                 {
                     daisysp::fonepole(scrub_, scrub_target_, kSpeedSlewCoeff);
