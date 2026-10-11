@@ -67,16 +67,8 @@ public:
             srr_r_.SetFreq(rate_knob * stereo_);
             srr_l_.Process(*l);
             srr_r_.Process(*r);
-            if (xor_ > 0)
-            {
-                xor_dc_l_.Process(Xor(*l) - *l);
-                xor_dc_r_.Process(Xor(*r) - *r);
-            }
-            else
-            {
-                xor_dc_l_.Process(0.f);
-                xor_dc_r_.Process(0.f);
-            }
+            XorOffset(xor_dc_l_, *l);
+            XorOffset(xor_dc_r_, *r);
             asleep_samples_++;
             return;
         }
@@ -101,17 +93,8 @@ public:
 
         // XOR before the reducer, as on Kastle. On its own XOR turns silence into a constant
         // offset, so what it adds is DC-blocked: the buzz stays, the thump on punch-in doesn't
-        float xl = *l, xr = *r;
-        if (xor_ > 0)
-        {
-            xl += xor_dc_l_.Process(Xor(xl) - xl);
-            xr += xor_dc_r_.Process(Xor(xr) - xr);
-        }
-        else
-        {
-            xor_dc_l_.Process(0.f);
-            xor_dc_r_.Process(0.f);
-        }
+        const float xl = *l + XorOffset(xor_dc_l_, *l);
+        const float xr = *r + XorOffset(xor_dc_r_, *r);
         float wl = srr_l_.Process(xl);
         float wr = srr_r_.Process(xr);
 
@@ -189,6 +172,11 @@ private:
     {
         const int16_t i = static_cast<int16_t>(fclamp(x, -1.f, 1.f) * 32767.f);
         return static_cast<float>(static_cast<int16_t>(i ^ xor_)) * (1.f / 32767.f);
+    }
+    /** What the XOR adds to x, DC-blocked; with it off, the blocker runs on 0 */
+    inline float XorOffset(daisysp::DcBlock& dc, float x) const
+    {
+        return dc.Process(xor_ > 0 ? Xor(x) - x : 0.f);
     }
 
     float sample_rate_;
