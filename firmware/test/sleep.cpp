@@ -55,6 +55,46 @@ static void TestInsert(Fx& fx, const char* name)
     Check(shaped && !fx.Idle(), what);
 }
 
+/** The tape stop, off and on the live signal: it doesn't write its buffer (in SDRAM on the
+ *  device) at all, and a press still slows from the sound just before it. The buffer is
+ *  filled with a value no input has, so a read of a frame it didn't record shows */
+static void TestTapeStop()
+{
+    static const size_t kFrames = 1u << 14;
+    static float buf_l[kFrames], buf_r[kFrames];
+    static const float kStale = 1000.f;
+    for (size_t i = 0; i < kFrames; i++)
+        buf_l[i] = buf_r[i] = kStale;
+    static TapeStop t;
+    t.Init(kSr, buf_l, buf_r, kFrames);
+    t.SetParam(TapeStop::DEPTH, 0.f); // half speed, so it plays on rather than going silent
+    long n = 0;
+    bool exact = true;
+    for (; n < 24000; n++)
+    {
+        float l = Sine(n), r = Sine(n);
+        const float in = l;
+        t.Process(&l, &r);
+        exact = exact && l == in && r == in;
+    }
+    bool untouched = true;
+    for (size_t i = 0; i < kFrames; i++)
+        untouched = untouched && buf_l[i] == kStale && buf_r[i] == kStale;
+    Check(exact && untouched, "tape stop: off, its output is its input and its buffer untouched");
+
+    t.SetOn(true);
+    bool recorded = true, slowed = false;
+    for (long end = n + 12000; n < end; n++)
+    {
+        float l = Sine(n), r = Sine(n);
+        const float in = l;
+        t.Process(&l, &r);
+        recorded = recorded && fabsf(l) < 1.f && fabsf(r) < 1.f;
+        slowed = slowed || fabsf(l - in) > 1e-3f;
+    }
+    Check(recorded && slowed, "tape stop: pressed, it slows what it recorded from the press on");
+}
+
 /** The resonator, whose loop wraps the inserts (Feed before them, Tap after): off and faded
  *  out, it passes its input exactly; on again, it rings */
 static void TestResonator()
@@ -203,6 +243,7 @@ int main()
     TestInsert(warble, "warble");
     TestInsert(crusher, "crusher");
     TestInsert(filter, "filter");
+    TestTapeStop();
     TestResonator();
     TestDelay();
     TestReverb();

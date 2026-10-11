@@ -58,6 +58,8 @@ public:
         mask_ = frames - 1;
         max_lag_ = static_cast<float>(frames) - 4.f;
         pos_ = 0;
+        held_[0] = held_[1] = 0.f;
+        recording_ = false;
         tempo_ = kDefaultBpm;
         gate_.Init();
         state_ = State::IDLE;
@@ -77,6 +79,22 @@ public:
     FRIZZ_HOT void Process(float* l, float* r)
     {
         gate_.Process();
+        // off, on the live signal: the buffer (in SDRAM) waits, only this frame is kept, for
+        // a press's first read, which reaches one frame behind it
+        if (state_ == State::IDLE && !gate_.IsOn())
+        {
+            held_[0] = *l;
+            held_[1] = *r;
+            recording_ = false;
+            return;
+        }
+        if (!recording_)
+        {
+            const size_t before = (pos_ - 1) & mask_;
+            buf_[0][before] = held_[0];
+            buf_[1][before] = held_[1];
+            recording_ = true;
+        }
         buf_[0][pos_] = *l;
         buf_[1][pos_] = *r;
         const size_t last = pos_;
@@ -283,6 +301,8 @@ private:
     size_t mask_;
     float max_lag_;
     size_t pos_; // the next frame to write
+    float held_[2];  // the last frame while it didn't record
+    bool recording_; // whether it did last sample
     float tempo_;
     State state_;
     Head head_;
