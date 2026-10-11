@@ -3,6 +3,8 @@
 // refused quantized record. Exits 0 when everything passes. Run by unit.sh looper.
 #include <cmath>
 #include <cstdio>
+#include <cstring>
+#include <vector>
 #include "check.h"
 #include "Looper.h"
 
@@ -288,6 +290,84 @@ static void TestEraseAtEnd()
     Check(looper.GetState() == Looper::State::EMPTY, "erase at the end, paused and silent: at once");
 }
 
+/** One session from Init, every output sample (left, then right, a block at a time) into out:
+ *  a recording played a fifth up from the start and back, scrambled, paused and scrubbed both ways, erased,
+ *  then a shorter one, slowed down into reverse, erased */
+static void Session(std::vector<float>& out)
+{
+    looper.Init(mem, &midi_clock);
+    frame = 0;
+    const auto run = [&out](size_t blocks) {
+        for (size_t b = 0; b < blocks; b++)
+        {
+            float in_l[kBlock], in_r[kBlock], out_l[kBlock], out_r[kBlock];
+            for (size_t i = 0; i < kBlock; i++)
+            {
+                in_l[i] = Input(frame + i);
+                in_r[i] = -in_l[i];
+            }
+            frame += kBlock;
+            looper.Process(in_l, in_r, out_l, out_r, kBlock);
+            out.insert(out.end(), out_l, out_l + kBlock);
+            out.insert(out.end(), out_r, out_r + kBlock);
+        }
+    };
+    // the glide from the loop's first sample on reads ahead into the post-roll still being
+    // written
+    looper.StartRecording(false);
+    run(500);
+    looper.StopRecording();
+    looper.StepSpeed(1);
+    run(500);
+    looper.ResetSpeed();
+    run(800);
+    looper.Scramble(3000);
+    run(100);
+    looper.Scramble(0);
+    run(100);
+    looper.TogglePlay();
+    run(50);
+    looper.Scrub(3);
+    run(300);
+    looper.Scrub(-6);
+    run(300);
+    looper.TogglePlay();
+    run(100);
+    looper.Erase();
+    run(200);
+    looper.StartRecording(false);
+    run(120);
+    looper.StopRecording();
+    run(200);
+    for (int i = 0; i < 9; i++)
+        looper.StepSpeed(-1);
+    run(2000);
+    looper.Erase();
+    run(200);
+}
+
+/** The loop's memory isn't cleared at boot (chompi_main.cpp's SDRAM_NOINIT): whatever it
+ *  holds, the looper sounds the same, as it reads only what it recorded */
+static void TestUnclearedMemory()
+{
+    std::vector<float> zeroed, garbage;
+    std::fill(mem, mem + kLoopMemSize, 0);
+    Session(zeroed);
+    uint32_t x = 12345;
+    for (int16_t& m : mem)
+    {
+        x = x * 1664525u + 1013904223u;
+        m = static_cast<int16_t>(x >> 16);
+    }
+    Session(garbage);
+    bool sound = false;
+    for (float v : zeroed)
+        sound = sound || fabsf(v) > .1f;
+    Check(sound && zeroed.size() == garbage.size()
+              && memcmp(zeroed.data(), garbage.data(), zeroed.size() * sizeof(float)) == 0,
+          "memory not cleared before Init: the loop sounds the same, sample for sample");
+}
+
 int main()
 {
     TestRecordAndPlay();
@@ -295,5 +375,6 @@ int main()
     TestSpeed();
     TestSemitones();
     TestEraseAtEnd();
+    TestUnclearedMemory();
     return Finish();
 }
