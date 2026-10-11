@@ -207,34 +207,16 @@ public:
             FxSlew::coeff = kFxParamCoeff;
 
         Insert(FX_FREEZER, freezer_, l, r);
-        if (!freezer_.Idle())
-            Meter(FX_FREEZER, *l + *r);
-        BENCH_MARK_FX(FX_FREEZER);
         // the resonator's loop wraps everything from here to the flanger
         resonator_.Feed(l, r);
         if (!resonator_.Idle())
             Meter(FX_RESONATOR, resonator_.Return());
         BENCH_MARK_FX(FX_RESONATOR);
         Insert(FX_SHIFTER, shifter_, l, r);
-        if (!shifter_.Idle())
-            Meter(FX_SHIFTER, *l + *r);
-        BENCH_MARK_FX(FX_SHIFTER);
         Insert(FX_FOLDER, folder_, l, r);
-        if (!folder_.Idle())
-            Meter(FX_FOLDER, *l + *r);
-        BENCH_MARK_FX(FX_FOLDER);
         Insert(FX_CRUSHER, crusher_, l, r);
-        if (!crusher_.Idle())
-            Meter(FX_CRUSHER, *l + *r);
-        BENCH_MARK_FX(FX_CRUSHER);
         Insert(FX_FILTER, filter_, l, r);
-        if (!filter_.Idle())
-            Meter(FX_FILTER, *l + *r);
-        BENCH_MARK_FX(FX_FILTER);
         Insert(FX_FLANGER, flanger_, l, r);
-        if (!flanger_.Idle())
-            Meter(FX_FLANGER, *l + *r);
-        BENCH_MARK_FX(FX_FLANGER);
         {
             float tl = *l, tr = *r;
             SendBand(FX_RESONATOR, resonator_.Idle(), &tl, &tr);
@@ -242,17 +224,8 @@ public:
         }
         BENCH_MARK_FX(FX_RESONATOR);
         Insert(FX_SLICER, slicer_, l, r);
-        if (!slicer_.Idle())
-            Meter(FX_SLICER, *l + *r);
-        BENCH_MARK_FX(FX_SLICER);
         Insert(FX_WARBLE, warble_, l, r);
-        if (!warble_.Idle())
-            Meter(FX_WARBLE, *l + *r);
-        BENCH_MARK_FX(FX_WARBLE);
         Insert(FX_TAPESTOP, tapestop_, l, r);
-        if (!tapestop_.Idle())
-            Meter(FX_TAPESTOP, *l + *r);
-        BENCH_MARK_FX(FX_TAPESTOP);
 
         // sends: the delay from the inserts' output, the reverb from that plus the delay's
         // return, so the echoes are reverberated. Both returns are added on top.
@@ -273,8 +246,8 @@ public:
         BENCH_MARK_FX(FX_REVERB);
     }
 
-    /** One insert, with its page 2's Mix, Band and Level (out_[fx]) while they're Busy. The
-     *  effect's own Process in one place, so it's inlined once */
+    /** One insert, with its page 2's Mix, Band and Level (out_[fx]) while they're Busy, and
+     *  its meter. The effect's own Process in one place, so it's inlined once */
     template <class Fx>
     inline void Insert(size_t fx, Fx& effect, float* l, float* r)
     {
@@ -287,6 +260,9 @@ public:
         effect.Process(l, r);
         if (busy)
             OutEnd(fx, split, effect.Fade(), l, r);
+        if (!effect.Idle())
+            Meter(fx, *l + *r);
+        BENCH_MARK_FX(fx);
     }
     __attribute__((noinline, cold)) bool OutBegin(size_t fx, bool idle, float* l, float* r)
     {
