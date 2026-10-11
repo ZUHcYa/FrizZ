@@ -110,7 +110,7 @@ public:
         filter_.Init(sample_rate);
         crusher_.Init(sample_rate);
         folder_.Init(sample_rate);
-        delay_.Init(delay_mem, delay_frames);
+        delay_.Init(sample_rate, delay_mem, delay_frames);
         reverb_.Init(sample_rate, reverb);
         freezer_.Init(sample_rate, freezer_mem_l, freezer_mem_r, freezer_frames);
         slicer_.Init(sample_rate);

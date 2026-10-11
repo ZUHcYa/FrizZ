@@ -96,7 +96,7 @@ static void TestDelay()
 {
     static DelaySend delay;
     const size_t frames = 48000; // a 1s buffer, so the test is short
-    delay.Init(delay_mem, frames);
+    delay.Init(48000.f, delay_mem, frames);
     delay.SetTempo(120.f);
     delay.SetParam(DelaySend::DIVISION, .25f);
     delay.SetParam(DelaySend::FEEDBACK, .3f);

@@ -341,7 +341,7 @@ static float DelayTail(float freeze, float damping, float ducking, size_t from, 
                        float freq = 220.f, bool keep_input = false)
 {
     static chompi::DelaySend d;
-    d.Init(delay_mem, kDelayFrames);
+    d.Init(48000.f, delay_mem, kDelayFrames);
     d.SetTempo(120.f);
     d.SetParam(chompi::DelaySend::DIVISION, .25f);
     d.SetParam(chompi::DelaySend::FEEDBACK, .5f);
