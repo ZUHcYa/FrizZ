@@ -195,8 +195,9 @@ private:
 
     /** Where a tap that's starting over should start: its nominal start (the far end of
      *  the window going up, the near end going down) moved by up to kSearch to where its next
-     *  samples best match the other tap's, by normalised correlation */
-    float Splice(size_t c, float other, float ratio, bool up) const
+     *  samples best match the other tap's, by normalised correlation. Once per window, so
+     *  out of line: inlined twice, it made Process three times the size */
+    __attribute__((noinline)) float Splice(size_t c, float other, float ratio, bool up) const
     {
         const float* const b = ring_.buf[c];
         const size_t last = ring_.Last();
