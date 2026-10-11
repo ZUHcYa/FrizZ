@@ -52,8 +52,8 @@ public:
             window_[c] = 0.f;
             delay_[c][0] = kGuard + static_cast<float>(kSearch);
             delay_[c][1] = kGuard + static_cast<float>(kSearch) + .5f * kWindowFrames;
-            window_frames_ = kWindowFrames;
         }
+        window_frames_ = kWindowFrames;
         gate_.Init();
         env_.Reset();
         env_attack_inc_ = 1.f / (.1f * sample_rate);

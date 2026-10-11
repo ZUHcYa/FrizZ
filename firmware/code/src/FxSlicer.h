@@ -55,7 +55,6 @@ public:
         gate_.Init();
         env_[0].Reset();
         env_[1].Reset();
-        pattern_pos_ = 0;
         step_ = false;
         rng_.Seed(0x2545F491u);
 
@@ -68,11 +67,10 @@ public:
     /** One call per clock pulse, with the clock's position (TempoClock::Pulse) */
     void ClockPulse(uint32_t pos)
     {
-        pattern_pos_ = pos % (kPulsesPer16th * kNumSteps);
         if (pos % kPulsesPer16th == 0)
         {
             // the odd steps on the 16th, the even ones (2, 4 ...) shuffle_ of one late
-            const uint32_t step = pattern_pos_ / kPulsesPer16th;
+            const uint32_t step = pos / kPulsesPer16th % kNumSteps;
             if ((step & 1) && shuffle_ > 0.f)
             {
                 late_step_ = step;
@@ -163,7 +161,6 @@ private:
     float sample_rate_;
     float attack_inc_;
     PressEnvelope env_[2];
-    uint32_t pattern_pos_; // pulses into the pattern, kNumSteps 16ths
     bool step_; // ClockPulse and Process both run in the audio callback
     Rng rng_;
     size_t pattern_ = 0;
