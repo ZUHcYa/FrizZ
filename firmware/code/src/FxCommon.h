@@ -92,7 +92,7 @@ public:
         pressed_ = false;
     }
 
-    /** From the UI. Returns true on a press (off to on) */
+    /** The key, from FxChain::Block. Returns true on a press (off to on) */
     bool SetOn(bool on)
     {
         const bool press = on && !on_;
@@ -138,8 +138,8 @@ public:
 
 private:
     float value_, target_;
-    volatile bool on_;
-    volatile bool pressed_;
+    bool on_; // SetOn runs in the audio callback, as everything else here
+    bool pressed_;
 };
 
 /** What every punch-in effect has: a key and kNumFxParams parameters, each 0..1. Process is

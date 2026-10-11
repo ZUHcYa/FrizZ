@@ -284,7 +284,7 @@ private:
     float max_lag_;
     size_t pos_; // the next frame to write
     float tempo_;
-    volatile State state_;
+    State state_;
     Head head_;
     Head old_;         // the head a jump crossfades from
     float xfade_;      // 0..1 from old_ to head_
