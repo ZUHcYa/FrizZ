@@ -28,8 +28,8 @@ Page 2's Mix, Band and Level on every effect and the compressor's page 2 (#40, #
 more: `FRIZZ.bin` at 228,412 B (~50 KB free), the bench build at 246,508 B (~32 KB) with its
 data at 239,092 B (~6.5 KB free). The reverb's pre-delay took 128 KB of SDRAM.
 
-The engine cleanup (#90, 2026-10-11) gave some back: `FRIZZ.bin` at 240,372 B of code
-(~37 KB free) and 223,792 B of data (~21 KB free), the bench build at 257,636 B (~20 KB) and
+The engine cleanup (#90, 2026-10-11) gave some back: `FRIZZ.bin` at 240,388 B of code
+(~37 KB free) and 223,792 B of data (~21 KB free), the bench build at 257,652 B (~20 KB) and
 231,700 B (**~14 KB free**), from 241,588 / 228,400 and 259,588 / 240,404 on `main` before.
 The event log's copies of the card's files (4.5 KB, read only for a bug report) moved into
 its SDRAM (`EventLogMem`), the bench writes `cpu.txt` through a 4 KB window instead of an
