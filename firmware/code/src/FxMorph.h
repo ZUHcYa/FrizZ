@@ -102,6 +102,7 @@ public:
         holding_ = hold;
         manual_ = false;
         fader_ = 0.f;
+        t0_ = t_ = 0.f;
         active_ = true;
     }
 
@@ -127,10 +128,10 @@ public:
         if (!active_ || land_ || manual_ || bars_left_ >= kMaxMorphBars)
             return false;
         bars_left_++;
-        for (size_t fx = 0; fx < kNumFx; fx++)
-            for (size_t p = 0; p < kNumFxParams; p++)
-                plan_.start[fx][p] = live_[fx][p];
-        // from here, over what was left plus a bar
+        // from here, over what was left plus a bar. The plan keeps its start, which the
+        // crossfader's 0 is (and the UI's start, FxControls::EndFade): the glide goes on from
+        // where it got to, t0_ of the way
+        t0_ = t_;
         expected_ += static_cast<float>(pulses_per_bar);
         base_ = pos_;
         return true;
@@ -209,6 +210,9 @@ public:
         const float span = expected_ - base_;
         float t = span > 0.f ? (pos_ - base_) / span : 1.f;
         t = holding_ || t < 0.f ? 0.f : (t > 1.f ? 1.f : t);
+        // the rest of the way from where the last AddBar left it
+        t = t0_ + (1.f - t0_) * t;
+        t_ = t;
 
         chain_->FastSlew();
         for (size_t fx = 0; fx < kNumFx; fx++)
@@ -366,6 +370,8 @@ private:
     float expected_;    // pulses from the start to the landing, estimated
     float base_;        // where the glide carried on from after the last AddBar
     float pos_;         // pulses since the start, with the fraction of the next
+    float t_ = 0.f;     // how far the glide has got, 0 the start to 1 the target
+    float t0_ = 0.f;    // and had got at the last AddBar
     uint32_t pulses_;
     float since_pulse_; // samples
     uint32_t since_start_;

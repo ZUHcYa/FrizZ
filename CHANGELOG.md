@@ -118,6 +118,10 @@ what FRIZZ does.
   when it last went off, which the delay then repeated. The filter now starts afresh.
 - **An effect's key LED when it comes on again** no longer flashes up for a moment at the
   level it showed when the effect last went off.
+- **The scene crossfader after a second tap:** when a morph had been given another bar
+  (SHIFT + the scene key tapped again) and you then took it on the transport knob, the far
+  left was where the morph had got to at the tap, not the scene you came from, so letting go
+  there jumped. The far left is now always where the morph started.
 
 ## v0.11 (2026-10-10)
 
